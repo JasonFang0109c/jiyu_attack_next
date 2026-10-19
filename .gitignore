@@ -1,0 +1,22 @@
+# Python 虚拟环境
+.venv/
+venv/
+env/
+
+# Python 字节码和工具缓存
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# 本地环境配置
+.env
+.env.*
+!.env.example
+
+# 系统生成文件
+Thumbs.db
+.DS_Store
