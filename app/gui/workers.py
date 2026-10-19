@@ -1,3 +1,5 @@
+"""图形界面的后台任务。"""
+
 from PySide6.QtCore import QThread, Signal
 
 

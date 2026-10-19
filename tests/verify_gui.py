@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+from pathlib import Path
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -8,7 +9,7 @@ if hasattr(sys.stdout, "reconfigure"):
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
-import gui
+from app.gui import app as gui
 
 
 def main():
@@ -18,6 +19,7 @@ def main():
     parser.add_argument("--width", type=int, default=1180)
     parser.add_argument("--height", type=int, default=760)
     args = parser.parse_args()
+    Path(args.screenshot).parent.mkdir(parents=True, exist_ok=True)
 
     os.environ.setdefault("QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen")
     app = QApplication(sys.argv)

@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 from threading import Event
 
-from PySide6.QtCore import Qt, QTimer, Slot
+from PySide6.QtCore import QCoreApplication, QEvent, Qt, QTimer, Slot
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QDoubleSpinBox, QFileDialog, QFrame,
@@ -13,8 +13,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
-import main as core
-from gui_worker import SendWorker, TaskWorker
+from cli import main as core
+from .workers import SendWorker, TaskWorker
 
 
 APP_NAME = "JiYu Attack Next"
@@ -27,7 +27,7 @@ def configure_application(app):
 
 
 def app_icon():
-    resource_root = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
+    resource_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
     return QIcon(str(resource_root / "assets" / "app.svg"))
 
 
@@ -589,7 +589,12 @@ def main():
     configure_application(app)
     window = MainWindow()
     window.show()
-    return app.exec()
+    result = app.exec()
+    window.close()
+    window.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    app.processEvents()
+    return result
 
 
 if __name__ == "__main__":

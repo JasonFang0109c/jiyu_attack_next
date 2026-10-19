@@ -1,21 +1,16 @@
-import importlib.util
 import socket
-import sys
 import unittest
-from pathlib import Path
 from threading import Event
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
+
+from cli import main as core
 
 
 class CoreTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        spec = importlib.util.spec_from_file_location(
-            "jiyu_main", Path(__file__).with_name("main.py"))
-        cls.core = importlib.util.module_from_spec(spec)
-        with patch.object(sys, "argv", ["main.py"]):
-            spec.loader.exec_module(cls.core)
+        cls.core = core
         cls.network_guard = patch.object(
             socket, "socket",
             side_effect=AssertionError("测试期间禁止创建网络套接字"))

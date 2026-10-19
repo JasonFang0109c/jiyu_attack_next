@@ -11,7 +11,7 @@ from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
-import gui
+from app.gui import app as gui
 
 
 class GuiTests(unittest.TestCase):
@@ -43,6 +43,7 @@ class GuiTests(unittest.TestCase):
 
     def test_main_window_constructs_without_network(self):
         self.assertEqual(self.window.windowTitle(), gui.APP_NAME)
+        self.assertFalse(self.window.windowIcon().isNull())
         self.assertEqual(self.window.stack.count(), 2)
         self.assertTrue(self.window.send_button.isEnabled())
         self.assertEqual(self.window.port_input.value(), 4705)

@@ -3,11 +3,11 @@
 from pathlib import Path
 
 
-root = Path(SPECPATH)
-icon = root / "assets" / "app.ico"
+root = Path(SPECPATH).parent
+icon = root / "build" / "assets" / "app.ico"
 
 a = Analysis(
-    [str(root / "gui.py")],
+    [str(root / "app" / "gui" / "__main__.py")],
     pathex=[str(root)],
     binaries=[],
     datas=[(str(root / "assets" / "app.svg"), "assets")],

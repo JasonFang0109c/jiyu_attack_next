@@ -15,7 +15,7 @@ py -3.13 -m venv .venv
 
 ```powershell
 python --version
-python main.py -h
+python cli/main.py -h
 ```
 
 安装 GUI 和构建依赖：
@@ -27,7 +27,7 @@ python -m pip install -r requirements.txt
 也可以直接使用虚拟环境解释器，无需激活：
 
 ```powershell
-.\.venv\Scripts\python.exe main.py -h
+.\.venv\Scripts\python.exe cli/main.py -h
 ```
 
 虚拟环境和缓存文件已通过 `.gitignore` 排除，不提交到仓库。
@@ -37,22 +37,22 @@ python -m pip install -r requirements.txt
 启动图形界面：
 
 ```powershell
-python gui.py
+python -m app.gui
 ```
 
 构建 Windows EXE：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\build.ps1 -Clean
+powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Clean
 ```
 
-构建产物为 `dist\JiyuUdpTest.exe`。`build.ps1` 接受 `-Python` 参数来指定其他虚拟环境解释器；默认使用 `.venv\Scripts\python.exe`。
+构建产物为 `output\JiyuUdpTest.exe`。`scripts/build.ps1` 接受 `-Python` 参数来指定其他虚拟环境解释器；默认使用 `.venv\Scripts\python.exe`。
 
 提交界面或打包配置前，可运行离线检查：
 
 ```powershell
-.\.venv\Scripts\python.exe -B -m unittest -v test_core test_gui
-.\.venv\Scripts\python.exe -X utf8 -m compileall -q main.py gui.py gui_worker.py
+.\.venv\Scripts\python.exe -B -m unittest discover -s tests -v
+.\.venv\Scripts\python.exe -X utf8 -m compileall -q cli app tests
 ```
 
 ## 提交信息

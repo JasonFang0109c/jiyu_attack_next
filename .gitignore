@@ -14,10 +14,7 @@ htmlcov/
 
 # 构建产物和本地预览
 /build/
-/dist/
-/assets/app.ico
-/gui-*-preview.png
-/gui-preview*.png
+/output/
 
 # 本地环境配置
 .env

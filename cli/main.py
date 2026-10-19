@@ -1,3 +1,5 @@
+"""报文处理、发送与命令行功能。"""
+
 import sys
 import socket
 import random
@@ -36,8 +38,7 @@ COMMAND_MAX_BYTES = (len(basicCMD['-c']) - COMMAND_OFFSET - 2) // 2 * 2
 
 def build_parser():
     parser = argparse.ArgumentParser(
-        description="极域学生端 UDP 控制报文测试工具",
-        epilog="图形界面请运行: python gui.py")
+        description="极域学生端 UDP 控制报文测试工具")
     parser.add_argument('-ip', type=str, help="ip 指定目标IP地址")
     parser.add_argument('-p', type=int, default=4705, help="port 指定监听端口，默认端口为4705")
     message_options = parser.add_mutually_exclusive_group()
@@ -372,6 +373,6 @@ def run_from_cmd(arguments):
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     freeze_support()
     sys.exit(run_from_cmd(parser.parse_args()))

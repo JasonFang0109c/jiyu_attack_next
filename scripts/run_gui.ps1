@@ -1,5 +1,5 @@
 ﻿$ErrorActionPreference = "Stop"
-$projectRoot = $PSScriptRoot
+$projectRoot = (Get-Item -LiteralPath $PSScriptRoot).Parent.FullName
 $pythonExe = Join-Path $projectRoot ".venv\Scripts\python.exe"
 
 if (-not (Test-Path -LiteralPath $pythonExe)) {
@@ -7,5 +7,5 @@ if (-not (Test-Path -LiteralPath $pythonExe)) {
 }
 
 Set-Location -LiteralPath $projectRoot
-& $pythonExe -X utf8 ".\gui.py"
+& $pythonExe -X utf8 -m app.gui
 exit $LASTEXITCODE
