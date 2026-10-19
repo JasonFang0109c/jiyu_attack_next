@@ -15,7 +15,9 @@ from app.gui import app as gui
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--screenshot", required=True)
-    parser.add_argument("--page", choices=["send", "local"], default="send")
+    parser.add_argument("--page", choices=["message", "command", "device", "local", "firewall", "logs", "settings"], default="message")
+    parser.add_argument("--theme", choices=["light", "dark"], default="light")
+    parser.add_argument("--sample", action="store_true")
     parser.add_argument("--width", type=int, default=1180)
     parser.add_argument("--height", type=int, default=760)
     args = parser.parse_args()
@@ -24,10 +26,15 @@ def main():
     os.environ.setdefault("QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen")
     app = QApplication(sys.argv)
     gui.configure_application(app)
+    if args.theme == "dark":
+        gui.setTheme(gui.Theme.DARK)
     window = gui.MainWindow()
     window.resize(args.width, args.height)
-    if args.page == "local":
-        window._switch_page(1)
+    if args.sample:
+        window.pages["message"].editor.setPlainText("维护通知\n\n请保存当前工作，准备进行例行维护。\n维护结束后将另行通知。")
+        window.pages["command"].editor.setPlainText("cmd.exe /c ipconfig")
+        window.logs.add("应用", "本地界面预览已载入")
+    window.show_page(args.page)
     window.show()
 
     def capture():
@@ -41,6 +48,7 @@ def main():
     result = app.exec()
     window.close()
     window.deleteLater()
+    gui.QCoreApplication.sendPostedEvents(None, gui.QEvent.DeferredDelete)
     app.processEvents()
     return result
 

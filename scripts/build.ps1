@@ -20,7 +20,7 @@ try {
     if ($runningApp) {
         throw "请关闭正在运行的 JiyuUdpTest.exe 后再构建。"
     }
-    & $pythonExe -X utf8 -c "import PySide6.QtWidgets, PyInstaller"
+    & $pythonExe -X utf8 -c "import PySide6.QtWidgets, qfluentwidgets, PyInstaller"
     if ($LASTEXITCODE -ne 0) {
         throw "缺少构建依赖，请先执行：python -m pip install -r requirements.txt"
     }

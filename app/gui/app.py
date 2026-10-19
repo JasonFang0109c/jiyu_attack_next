@@ -1,29 +1,34 @@
 import sys
-from datetime import datetime
 from pathlib import Path
 from threading import Event
 
-from PySide6.QtCore import QCoreApplication, QEvent, Qt, QTimer, Slot
-from PySide6.QtGui import QFont, QIcon
-from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QDoubleSpinBox, QFileDialog, QFrame,
-    QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox,
-    QPlainTextEdit, QPushButton, QSpinBox, QSplitter,
-    QStackedWidget, QStatusBar, QStyle, QTabWidget, QToolButton,
-    QVBoxLayout, QWidget,
-)
+from PySide6.QtCore import QCoreApplication, QEvent, QLocale, Qt, QTimer, Slot
+from PySide6.QtGui import QColor, QFont, QIcon
+from PySide6.QtWidgets import QApplication, QFileDialog
+from qfluentwidgets import (CaptionLabel, FluentIcon as FIF, FluentTranslator,
+                            FluentWindow, InfoBar, InfoBarPosition, MessageBox,
+                            NavigationItemPosition, Theme, setTheme, setThemeColor)
 
 from cli import main as core
+from .models import ConnectionState, LogStore
+from .pages import (CommandPage, DevicePage, FirewallPage, LocalPage, LogPage,
+                    MessagePage, SettingsPage)
 from .workers import SendWorker, TaskWorker
 
 
 APP_NAME = "JiYu Attack Next"
+CATEGORIES = {"message": "文本消息", "command": "远程命令", "device": "设备操作",
+              "local": "本机信息", "firewall": "防火墙"}
 
 
-def configure_application(app):
-    app.setStyle("Fusion")
-    app.setPalette(app.style().standardPalette())
-    app.setFont(QFont("Microsoft YaHei UI", 10))
+def configure_application(application):
+    application.setFont(QFont("Microsoft YaHei UI", 10))
+    locale = QLocale(QLocale.Chinese, QLocale.China)
+    QLocale.setDefault(locale)
+    application.fluent_translator = FluentTranslator(locale)
+    application.installTranslator(application.fluent_translator)
+    setTheme(Theme.LIGHT)
+    setThemeColor(QColor("#0067c0"))
 
 
 def app_icon():
@@ -31,524 +36,269 @@ def app_icon():
     return QIcon(str(resource_root / "assets" / "app.svg"))
 
 
-class MainWindow(QMainWindow):
+class MainWindow(FluentWindow):
     def __init__(self):
         super().__init__()
         self.thread = None
         self.worker = None
         self.active_cancel = None
+        self.active_kind = ""
         self.close_after_task = False
-        self.local_buttons = []
+        self._reset_undo = None
+        self._reset_undo_timer = None
+        self.connection_state = ConnectionState(self)
+        self.logs = LogStore(self)
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(app_icon())
-        self.resize(1180, 760)
-        self.setMinimumSize(900, 620)
-        self._build_ui()
-        self._apply_styles()
-        self._update_command_stats()
-        self._append_log("就绪")
-
-    def _build_ui(self):
-        root = QWidget()
-        root.setObjectName("root")
-        self.setCentralWidget(root)
-        layout = QVBoxLayout(root)
-        layout.setContentsMargins(20, 18, 20, 10)
-        layout.setSpacing(18)
-        header = QHBoxLayout()
-        mark = QLabel()
-        mark.setPixmap(app_icon().pixmap(40, 40))
-        mark.setFixedSize(40, 40)
-        title = QLabel(APP_NAME)
-        title.setObjectName("pageTitle")
-        header.addWidget(mark)
-        header.addSpacing(8)
-        header.addWidget(title)
-        header.addStretch()
-        subtitle = QLabel("极域 UDP 测试")
-        subtitle.setObjectName("mutedText")
-        header.addWidget(subtitle)
-        layout.addLayout(header)
-        body = QHBoxLayout()
-        body.setSpacing(20)
-        body.addWidget(self._build_navigation())
-        self.stack = QStackedWidget()
-        self.stack.addWidget(self._build_send_page())
-        self.stack.addWidget(self._build_local_page())
-        body.addWidget(self.stack, 1)
-        layout.addLayout(body, 1)
-        status = QStatusBar()
-        status.setSizeGripEnabled(False)
-        status.showMessage("就绪")
-        self.setStatusBar(status)
-
-    def _standard_icon(self, name):
-        return self.style().standardIcon(name)
-
-    def _tool_button(self, icon, tooltip, callback):
-        button = QToolButton()
-        button.setIcon(self._standard_icon(icon))
-        button.setToolTip(tooltip)
-        button.setAccessibleName(tooltip)
-        button.setFixedSize(32, 32)
-        button.setCursor(Qt.PointingHandCursor)
-        button.clicked.connect(callback)
-        return button
+        self.setMicaEffectEnabled(False)
+        self.setCustomBackgroundColor("#f5f6f8", "#202020")
+        self.setMinimumSize(960, 640)
+        self.resize(1180, 780)
+        self.stackedWidget.setAnimationEnabled(False)
+        self.pages = {
+            "message": MessagePage(self.connection_state, self),
+            "command": CommandPage(self.connection_state, self),
+            "device": DevicePage(self.connection_state, self),
+            "local": LocalPage(self),
+            "firewall": FirewallPage(self),
+            "logs": LogPage(self.logs, self),
+            "settings": SettingsPage(self),
+        }
+        self.network_pages = [self.pages[key] for key in ("message", "command", "device")]
+        self.task_pages = self.network_pages + [self.pages["local"], self.pages["firewall"]]
+        self._build_navigation()
+        self._connect_actions()
+        self.global_status = CaptionLabel("就绪", self.titleBar)
+        self.global_status.setFixedWidth(240)
+        self.titleBar.hBoxLayout.insertSpacing(2, 16)
+        self.titleBar.hBoxLayout.insertWidget(3, self.global_status, 0, Qt.AlignVCenter)
+        self.logs.add("应用", "界面已就绪")
 
     def _build_navigation(self):
-        nav = QWidget()
-        nav.setFixedWidth(150)
-        layout = QVBoxLayout(nav)
-        layout.setContentsMargins(0, 6, 0, 0)
-        layout.setSpacing(8)
-        self.nav_send = QPushButton("发送测试")
-        self.nav_send.setIcon(self._standard_icon(QStyle.SP_FileDialogDetailedView))
-        self.nav_local = QPushButton("本机工具")
-        self.nav_local.setIcon(self._standard_icon(QStyle.SP_ComputerIcon))
-        for button in (self.nav_send, self.nav_local):
-            button.setObjectName("navButton")
-            button.setCheckable(True)
-            button.setCursor(Qt.PointingHandCursor)
-            button.setMinimumHeight(42)
-            layout.addWidget(button)
-        self.nav_send.setChecked(True)
-        self.nav_send.clicked.connect(lambda: self._switch_page(0))
-        self.nav_local.clicked.connect(lambda: self._switch_page(1))
-        layout.addStretch()
-        version = QLabel("v1.0")
-        version.setObjectName("mutedText")
-        layout.addWidget(version)
-        return nav
+        self.navigationInterface.setExpandWidth(200)
+        self.navigationInterface.setMinimumExpandWidth(1050)
+        self.navigationInterface.setReturnButtonVisible(False)
+        self.navigationInterface.addItemHeader("远程操作")
+        self.addSubInterface(self.pages["message"], FIF.MESSAGE, "文本消息")
+        self.addSubInterface(self.pages["command"], FIF.COMMAND_PROMPT, "远程命令")
+        self.addSubInterface(self.pages["device"], FIF.POWER_BUTTON, "设备操作")
+        self.navigationInterface.addSeparator()
+        self.navigationInterface.addItemHeader("本机工具")
+        self.addSubInterface(self.pages["local"], FIF.IOT, "本机信息")
+        self.addSubInterface(self.pages["firewall"], FIF.CERTIFICATE, "防火墙")
+        self.addSubInterface(self.pages["logs"], FIF.HISTORY, "运行日志", NavigationItemPosition.BOTTOM)
+        self.addSubInterface(self.pages["settings"], FIF.SETTING, "设置", NavigationItemPosition.BOTTOM)
+        self.navigationInterface.expand(useAni=False)
 
-    def _switch_page(self, index):
-        self.stack.setCurrentIndex(index)
-        self.nav_send.setChecked(index == 0)
-        self.nav_local.setChecked(index == 1)
+    def _connect_actions(self):
+        for kind in ("message", "command", "device"):
+            self.pages[kind].footer.requested.connect(lambda key=kind: self.start_send(key))
+        self.pages["local"].footer.requested.connect(self.start_local_probe)
+        self.pages["local"].copyRequested.connect(self.copy_local_ip)
+        self.pages["firewall"].footer.requested.connect(self.start_firewall)
+        for page in self.task_pages:
+            page.footer.cancelled.connect(self.cancel_task)
+            page.footer.viewLogs.connect(lambda: self.show_page("logs"))
+        message = self.pages["message"]
+        message.importRequested.connect(self.import_message)
+        message.saveRequested.connect(self.save_message)
+        self.pages["logs"].exportRequested.connect(self.export_logs)
+        self.pages["logs"].cancelRequested.connect(self.cancel_task)
+        self.pages["settings"].themeRequested.connect(self.set_theme)
+        self.pages["settings"].resetRequested.connect(self.reset_connection_parameters)
 
-    def _build_send_page(self):
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(14)
-        layout.addWidget(self._build_target_section())
-        splitter = QSplitter(Qt.Horizontal)
-        splitter.setChildrenCollapsible(False)
-        editors = QTabWidget()
-        editors.setMinimumWidth(320)
-        editors.addTab(self._build_message_section(), "文本消息")
-        editors.addTab(self._build_command_section(), "远程命令")
-        splitter.addWidget(editors)
-        splitter.addWidget(self._build_console_panel())
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 2)
-        splitter.setSizes([510, 350])
-        layout.addWidget(splitter, 1)
-        layout.addWidget(self._build_options_section())
-        self.send_fields = [self.target_input, self.port_input, self.loop_input,
-                            self.interval_input, self.message_edit, self.command_edit,
-                            self.reboot_check, self.shutdown_check, self.load_button]
-        return page
+    def show_page(self, key):
+        self.switchTo(self.pages[key])
 
-    def _build_target_section(self):
-        band = QWidget()
-        band.setObjectName("targetBand")
-        row = QHBoxLayout(band)
-        row.setContentsMargins(0, 0, 0, 14)
-        row.setSpacing(12)
-        self.target_input = QLineEdit()
-        self.target_input.setPlaceholderText("目标 IPv4 地址 / 末段范围 / 24 位网段")
-        self.target_input.setClearButtonEnabled(True)
-        self.target_input.setToolTip("支持单个地址、末段范围和 /24 网段")
-        self.port_input = QSpinBox()
-        self.port_input.setRange(1, 65535)
-        self.port_input.setValue(4705)
-        self.loop_input = QSpinBox()
-        self.loop_input.setRange(1, 10000)
-        self.loop_input.setValue(1)
-        self.interval_input = QDoubleSpinBox()
-        self.interval_input.setRange(0, 86400)
-        self.interval_input.setDecimals(1)
-        self.interval_input.setValue(22)
-        self.interval_input.setSuffix(" 秒")
-        self.interval_input.setToolTip("相邻两轮之间的等待时间")
-        for label, field in [("目标地址", self.target_input), ("UDP 端口", self.port_input),
-                             ("发送轮数", self.loop_input), ("轮次间隔", self.interval_input)]:
-            column = QVBoxLayout()
-            column.setSpacing(6)
-            name = QLabel(label)
-            name.setObjectName("fieldLabel")
-            column.addWidget(name)
-            column.addWidget(field)
-            if field is not self.target_input:
-                field.setFixedWidth(105)
-            row.addLayout(column, 1 if field is self.target_input else 0)
-        return band
+    def _restore_after_reset(self, values):
+        self._cancel_reset_timer()
+        self.connection_state.restore(values)
+        self._notify("已撤销", "连接参数已恢复为修改前的值", "信息")
 
-    def _build_message_section(self):
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(10, 12, 10, 8)
-        layout.setSpacing(10)
-        toolbar = QHBoxLayout()
-        self.message_file = QLabel("消息正文")
-        self.message_file.setObjectName("fieldLabel")
-        toolbar.addWidget(self.message_file, 1)
-        self.load_button = self._tool_button(
-            QStyle.SP_DialogOpenButton, "从 UTF-8 文件导入", self._load_message_file)
-        toolbar.addWidget(self.load_button)
-        layout.addLayout(toolbar)
-        self.message_edit = QPlainTextEdit()
-        self.message_edit.setPlaceholderText("输入消息")
-        self.message_edit.setMinimumHeight(120)
-        self.message_edit.textChanged.connect(self._update_message_stats)
-        layout.addWidget(self.message_edit, 1)
-        self.message_stats = QLabel("0 字符 | 0 条报文")
-        self.message_stats.setObjectName("mutedText")
-        layout.addWidget(self.message_stats)
-        return page
+    def _cancel_reset_timer(self):
+        timer = getattr(self, "_reset_undo_timer", None)
+        if timer is not None:
+            timer.stop()
+        pending = getattr(self, "_reset_undo", None)
+        if pending is not None:
+            pending.hide()
+            self.pages["settings"].hide_reset_undo()
+        self._reset_undo = None
+        self._reset_undo_timer = None
 
-    def _build_command_section(self):
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(10, 12, 10, 8)
-        heading = QLabel("命令正文")
-        heading.setObjectName("fieldLabel")
-        layout.addWidget(heading)
-        self.command_edit = QPlainTextEdit()
-        self.command_edit.setPlaceholderText("cmd.exe /c ...")
-        self.command_edit.textChanged.connect(self._update_command_stats)
-        layout.addWidget(self.command_edit, 1)
-        self.command_stats = QLabel()
-        self.command_stats.setObjectName("mutedText")
-        layout.addWidget(self.command_stats)
-        return page
-
-    def _build_options_section(self):
-        footer = QFrame()
-        footer.setObjectName("footer")
-        layout = QVBoxLayout(footer)
-        layout.setContentsMargins(0, 12, 0, 0)
-        layout.setSpacing(12)
-        actions = QHBoxLayout()
-        actions.addWidget(QLabel("设备操作"))
-        actions.addSpacing(10)
-        self.reboot_check = QCheckBox("重启")
-        self.shutdown_check = QCheckBox("关机")
-        self.reboot_check.toggled.connect(
-            lambda checked: self._sync_device_actions(checked, self.reboot_check))
-        self.shutdown_check.toggled.connect(
-            lambda checked: self._sync_device_actions(checked, self.shutdown_check))
-        actions.addWidget(self.reboot_check)
-        actions.addSpacing(12)
-        actions.addWidget(self.shutdown_check)
-        actions.addStretch()
-        layout.addLayout(actions)
-        buttons = QHBoxLayout()
-        self.task_summary = QLabel("就绪")
-        self.task_summary.setObjectName("mutedText")
-        buttons.addWidget(self.task_summary, 1)
-        self.cancel_button = QPushButton("取消")
-        self.cancel_button.setIcon(self._standard_icon(QStyle.SP_MediaStop))
-        self.cancel_button.setEnabled(False)
-        self.cancel_button.clicked.connect(self._cancel_task)
-        self.send_button = QPushButton("开始发送")
-        self.send_button.setObjectName("primaryButton")
-        self.send_button.setIcon(self._standard_icon(QStyle.SP_MediaPlay))
-        self.send_button.clicked.connect(self._start_send)
-        for button in (self.cancel_button, self.send_button):
-            button.setMinimumSize(112, 40)
-            button.setCursor(Qt.PointingHandCursor)
-        buttons.addWidget(self.cancel_button)
-        buttons.addWidget(self.send_button)
-        layout.addLayout(buttons)
-        return footer
-
-    def _build_console_panel(self):
-        frame = QFrame()
-        frame.setObjectName("consolePanel")
-        frame.setMinimumWidth(225)
-        layout = QVBoxLayout(frame)
-        layout.setContentsMargins(12, 8, 12, 12)
-        toolbar = QHBoxLayout()
-        title = QLabel("运行日志")
-        title.setObjectName("consoleTitle")
-        self.task_badge = QLabel("空闲")
-        self.task_badge.setObjectName("taskBadge")
-        toolbar.addWidget(title)
-        toolbar.addWidget(self.task_badge)
-        toolbar.addStretch()
-        toolbar.addWidget(self._tool_button(QStyle.SP_DialogSaveButton, "保存日志", self._save_log))
-        toolbar.addWidget(self._tool_button(QStyle.SP_TrashIcon, "清空日志", self._clear_log))
-        self.log_view = QPlainTextEdit()
-        self.log_view.setReadOnly(True)
-        self.log_view.setObjectName("logView")
-        self.log_view.setMaximumBlockCount(2000)
-        layout.addLayout(toolbar)
-        layout.addWidget(self.log_view, 1)
-        return frame
-
-    def _section(self, title):
-        section = QWidget()
-        layout = QVBoxLayout(section)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
-        heading = QLabel(title)
-        heading.setObjectName("sectionTitle")
-        layout.addWidget(heading)
-        return section, layout
-
-    def _build_local_page(self):
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(20)
-        columns = QHBoxLayout()
-        columns.setSpacing(20)
-        info, info_layout = self._section("本机信息")
-        self.local_result = QPlainTextEdit()
-        self.local_result.setReadOnly(True)
-        self.local_result.setPlaceholderText("尚未查询")
-        info_layout.addWidget(self.local_result, 1)
-        query = QPushButton("查询本机")
-        query.setIcon(self._standard_icon(QStyle.SP_BrowserReload))
-        query.clicked.connect(self._start_local_probe)
-        info_layout.addWidget(query)
-        firewall, firewall_layout = self._section("StudentMain.exe 防火墙规则")
-        self.firewall_result = QPlainTextEdit()
-        self.firewall_result.setReadOnly(True)
-        self.firewall_result.setPlaceholderText("暂无操作记录")
-        firewall_layout.addWidget(self.firewall_result, 1)
-        row = QHBoxLayout()
-        for title, action in [("阻断连接", "block"), ("恢复允许", "allow")]:
-            button = QPushButton(title)
-            button.clicked.connect(lambda checked=False, value=action: self._run_firewall(value))
-            self.local_buttons.append(button)
-            row.addWidget(button)
-        firewall_layout.addLayout(row)
-        self.local_buttons.append(query)
-        for button in self.local_buttons:
-            button.setMinimumHeight(38)
-            button.setCursor(Qt.PointingHandCursor)
-        columns.addWidget(info, 1)
-        columns.addWidget(firewall, 1)
-        layout.addLayout(columns, 1)
-        heading = QLabel("本机工具日志")
-        heading.setObjectName("sectionTitle")
-        layout.addWidget(heading)
-        self.local_log = QPlainTextEdit()
-        self.local_log.setReadOnly(True)
-        self.local_log.setMaximumBlockCount(1000)
-        layout.addWidget(self.local_log, 1)
-        return page
-
-    def _apply_styles(self):
-        self.setStyleSheet("""
-            QWidget#root { background: #f7f8fa; color: #252a32; }
-            QLabel { color: #252a32; }
-            QLabel#pageTitle { font-size: 22px; font-weight: 700; }
-            QLabel#mutedText { color: #717681; font-size: 12px; }
-            QLabel#fieldLabel { color: #555b65; font-size: 12px; }
-            QLabel#sectionTitle { font-size: 14px; font-weight: 600; }
-            QPushButton { border: 1px solid #d4d7dc; background: white; color: #303640;
-                          padding: 7px 12px; border-radius: 5px; }
-            QPushButton:hover { background: #edf0f3; }
-            QPushButton:disabled { color: #9a9ea6; background: #f0f1f3; }
-            QPushButton#navButton { text-align: left; border: none; background: transparent; }
-            QPushButton#navButton:checked { background: #e1efec; color: #14645f; font-weight: 600; }
-            QPushButton#primaryButton { background: #156b64; color: white; border: 1px solid #156b64; }
-            QPushButton#primaryButton:hover { background: #105950; }
-            QPushButton#primaryButton:disabled { background: #a1b6b0; border-color: #a1b6b0; }
-            QToolButton { border: none; border-radius: 4px; background: transparent; }
-            QToolButton:hover { background: #dce2e7; }
-            QLineEdit, QSpinBox, QDoubleSpinBox, QPlainTextEdit {
-                color: #252a32; background: white; border: 1px solid #d4d7dc;
-                border-radius: 4px; padding: 7px; selection-background-color: #b9dbd5; }
-            QLineEdit, QSpinBox, QDoubleSpinBox { min-height: 23px; }
-            QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QPlainTextEdit:focus {
-                border-color: #156b64; }
-            QLineEdit:disabled, QPlainTextEdit:disabled { background: #f0f1f3; color: #7f858d; }
-            QTabWidget::pane { border: 1px solid #d4d7dc; background: white; }
-            QTabBar::tab { background: #edf0f3; color: #666d77; padding: 10px 18px;
-                          border: 1px solid #d4d7dc; border-right: none; }
-            QTabBar::tab:selected { color: #14645f; background: white; }
-            QFrame#footer { border-top: 1px solid #d4d7dc; }
-            QFrame#consolePanel { background: #22262d; border-radius: 5px; }
-            QFrame#consolePanel QLabel { color: #e0e4e8; }
-            QFrame#consolePanel QLabel#taskBadge { color: #b1cbbf; font-size: 11px; }
-            QFrame#consolePanel QToolButton:hover { background: #3a414b; }
-            QPlainTextEdit#logView { color: #d3d8de; background: #22262d; border: none;
-                                    font-family: "Consolas", "Microsoft YaHei UI"; font-size: 12px; }
-            QSplitter::handle { background: transparent; width: 12px; }
-            QCheckBox { color: #555b65; spacing: 8px; }
-            QStatusBar { background: #f7f8fa; color: #717681; border-top: 1px solid #e0e2e6; }
-        """)
-
-    @Slot(str)
-    def _append_log(self, message):
-        stamp = datetime.now().strftime("%H:%M:%S")
-        self.log_view.appendPlainText("[%s] %s" % (stamp, message))
-        self.log_view.verticalScrollBar().setValue(self.log_view.verticalScrollBar().maximum())
-
-    def _clear_log(self):
-        self.log_view.clear()
-
-    def _save_log(self):
-        filename, _ = QFileDialog.getSaveFileName(self, "保存日志", "运行日志.txt", "文本文件 (*.txt)")
-        if filename:
-            try:
-                Path(filename).write_text(self.log_view.toPlainText(), encoding="utf-8")
-            except OSError as error:
-                QMessageBox.warning(self, "保存失败", str(error))
-
-    def _update_message_stats(self):
-        text = self.message_edit.toPlainText()
-        try:
-            count = sum(1 for _ in core.split_message(text))
-            self.message_stats.setText("%d 字符 | %d 条报文" % (len(text), count))
-            self.message_stats.setToolTip("")
-        except (ValueError, UnicodeError) as error:
-            self.message_stats.setText("文本包含不可发送字符")
-            self.message_stats.setToolTip(str(error))
-
-    def _update_command_stats(self):
-        text = self.command_edit.toPlainText()
-        try:
-            units = len(text.encode("utf-16le")) // 2
-        except UnicodeError:
-            self.command_stats.setText("文本编码无效")
+    def reset_connection_parameters(self):
+        current = self.connection_state.snapshot()
+        if current == self.connection_state.DEFAULTS:
+            self.connection_state.reset()
+            self._notify("参数已是默认值", "目标地址为空，端口 4705，1 轮，间隔 22 秒", "信息")
             return
-        self.command_stats.setText("%d / %d 个 UTF-16 单元" % (units, core.COMMAND_MAX_BYTES // 2))
-        self.command_stats.setStyleSheet("color: %s;" % (
-            "#aa3d36" if units > core.COMMAND_MAX_BYTES // 2 else "#717681"))
+        self._cancel_reset_timer()
+        self.connection_state.reset()
+        self._reset_undo = self.pages["settings"].show_reset_undo(
+            lambda: self._restore_after_reset(current))
+        self._reset_undo_timer = QTimer(self)
+        self._reset_undo_timer.setSingleShot(True)
+        self._reset_undo_timer.timeout.connect(self._cancel_reset_timer)
+        self._reset_undo_timer.start(8000)
 
-    def _load_message_file(self):
-        filename, _ = QFileDialog.getOpenFileName(
-            self, "导入消息文件", "", "文本文件 (*.txt *.md);;所有文件 (*)")
-        if filename:
-            try:
-                with open(filename, encoding="utf-8-sig", newline="") as source:
-                    text = source.read()
-                self.message_edit.setPlainText(text)
-                self.message_file.setText(Path(filename).name)
-                self.message_file.setToolTip(filename)
-            except (OSError, UnicodeError) as error:
-                QMessageBox.warning(self, "导入失败", str(error))
+    def current_page(self):
+        return self.stackedWidget.currentWidget().objectName()
 
-    def _sync_device_actions(self, checked, changed_checkbox):
-        if checked:
-            other = self.shutdown_check if changed_checkbox is self.reboot_check else self.reboot_check
-            other.setChecked(False)
+    def _notify(self, title, message, level="信息"):
+        if self.close_after_task:
+            return
+        function = {"错误": InfoBar.error, "成功": InfoBar.success, "警告": InfoBar.warning}.get(level, InfoBar.info)
+        function(title=title, content=message, orient=Qt.Horizontal, isClosable=True,
+                 position=InfoBarPosition.TOP_RIGHT, duration=4000, parent=self)
 
-    def _collect_options(self):
-        extra = "r" if self.reboot_check.isChecked() else (
-            "s" if self.shutdown_check.isChecked() else "")
-        return core.SendOptions(
-            target=self.target_input.text().strip(), port=self.port_input.value(),
-            message=self.message_edit.toPlainText(), command=self.command_edit.toPlainText(),
-            extra=extra, loops=self.loop_input.value(), interval=self.interval_input.value())
+    def _confirm(self, title, content):
+        dialog = MessageBox(title, content, self)
+        dialog.yesButton.setText("确认执行")
+        dialog.cancelButton.setText("取消")
+        return bool(dialog.exec())
 
-    def _start_send(self):
+    def _options_for_page(self, kind):
+        if kind == "message":
+            return self.connection_state.options(message=self.pages[kind].editor.toPlainText())
+        if kind == "command":
+            return self.connection_state.options(command=self.pages[kind].editor.toPlainText())
+        if kind == "device":
+            return self.connection_state.options(extra=self.pages[kind].action())
+        raise ValueError("不支持的发送功能")
+
+    def start_send(self, kind):
         if self.thread is not None:
             return
-        options = self._collect_options()
+        page = self.pages[kind]
+        options = self._options_for_page(kind)
+        try:
+            hosts = core.get_ip(options.target)
+        except ValueError as error:
+            page.targets.target_input.setError(True)
+            page.targets.target_input.setFocus()
+            self._validation_error(kind, str(error))
+            return
         try:
             core.validate_options(options)
-        except ValueError as error:
-            self.statusBar().showMessage(str(error))
-            self._append_log(str(error))
+            if options.command:
+                core.pkg_sendlist("-c", options.command)
+        except (ValueError, UnicodeError) as error:
+            self._validation_error(kind, str(error))
             return
+        if kind == "device":
+            action = "重启" if options.extra == "r" else "关机"
+            content = "目标：%s\nUDP 端口：%d\n设备数量：%d\n操作：%s" % (
+                options.target, options.port, len(hosts), action)
+            if not self._confirm("确认%s" % action, content):
+                return
         options.cancel_event = Event()
         self.active_cancel = options.cancel_event
-        self._append_log("开始发送：%s，端口 %d" % (options.target, options.port))
-        self._set_busy(True, "发送中")
-        self._run_in_thread(SendWorker(options, core.execute_send), self._send_finished, self._send_failed)
+        self.logs.add(CATEGORIES[kind], "开始发送：%s，端口 %d，%d 轮" % (
+            options.target, options.port, options.loops))
+        self._begin_task(kind, SendWorker(options, core.execute_send), self._send_finished, self._send_failed)
 
-    def _start_local_probe(self):
+    def _validation_error(self, kind, message):
+        self.pages[kind].footer.status.setText(message)
+        self.logs.add(CATEGORIES[kind], message, "警告")
+        self._notify("请检查参数", message, "警告")
+
+    def start_local_probe(self):
         if self.thread is not None:
             return
-        self._append_local_log("正在查询本机信息")
-        self._set_busy(True, "查询中")
-        self._run_in_thread(TaskWorker(probe_local), self._probe_finished, self._probe_failed, local=True)
+        self.logs.add("本机信息", "开始查询")
+        self._begin_task("local", TaskWorker(probe_local), self._probe_finished, self._local_failed)
 
-    def _run_firewall(self, action):
+    def start_firewall(self):
         if self.thread is not None:
             return
+        action = self.pages["firewall"].action()
         action_name = "阻断连接" if action == "block" else "恢复允许"
-        if QMessageBox.question(self, "确认防火墙操作", "是否在本机执行“%s”？" % action_name,
-                                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+        if not self._confirm("确认防火墙操作", "在本机对 StudentMain.exe 规则执行“%s”？" % action_name):
             return
-        self._append_local_log("开始操作：%s" % action_name)
-        self._set_busy(True, "处理中")
-        self._run_in_thread(TaskWorker(apply_firewall, action), self._firewall_finished,
-                            self._probe_failed, local=True)
+        self.logs.add("防火墙", "开始操作：%s" % action_name)
+        self._begin_task("firewall", TaskWorker(apply_firewall, action), self._firewall_finished, self._local_failed)
 
-    def _run_in_thread(self, worker, finished, failed, local=False):
+    def _begin_task(self, kind, worker, finished, failed):
+        self.active_kind = kind
         self.thread = worker
         self.worker = worker
         worker.setParent(self)
-        worker.progress.connect(self._append_local_log if local else self._append_log, Qt.QueuedConnection)
+        worker.progress.connect(self._task_progress, Qt.QueuedConnection)
         worker.completed.connect(finished, Qt.QueuedConnection)
         worker.failed.connect(failed, Qt.QueuedConnection)
-        self.thread.finished.connect(self._thread_finished, Qt.QueuedConnection)
-        self.thread.finished.connect(self.thread.deleteLater)
-        self.thread.start()
+        worker.finished.connect(self._thread_finished, Qt.QueuedConnection)
+        worker.finished.connect(worker.deleteLater)
+        self._set_busy(True)
+        worker.start()
+
+    def _set_busy(self, busy):
+        for page in self.network_pages:
+            page.set_busy(busy, self.active_cancel is not None)
+        for key in ("local", "firewall"):
+            self.pages[key].footer.set_busy(busy)
+        self.pages["firewall"].action_box.setEnabled(not busy)
+        self.pages["settings"].reset_button.setEnabled(not busy)
+        self.pages["logs"].cancel_button.setEnabled(busy and self.active_cancel is not None)
+        for key, page in self.pages.items():
+            if key in CATEGORIES and key != self.active_kind:
+                page.footer.status.setText("其他任务正在执行" if busy else "就绪")
+        if busy:
+            self.global_status.setText("%s | 执行中" % CATEGORIES[self.active_kind])
+            self.pages[self.active_kind].footer.status.setText("执行中")
+        else:
+            self.global_status.setText("就绪")
+
+    @Slot(str)
+    def _task_progress(self, message):
+        self.logs.add(CATEGORIES[self.active_kind], message)
+        self.pages[self.active_kind].footer.status.setText(message)
 
     @Slot(int)
     def _send_finished(self, count):
-        self._append_log("本机已发送 %d 个报文" % count)
-        self.statusBar().showMessage("发送完成，未接收目标执行回执")
+        message = "本机已发送 %d 个报文" % count
+        self.pages[self.active_kind].footer.status.setText(message)
+        self.logs.add(CATEGORIES[self.active_kind], message, "成功")
+        self._notify("发送完成", message, "成功")
 
     @Slot(str)
     def _send_failed(self, message):
-        self._append_log(message)
-        self.statusBar().showMessage(message)
+        level = "信息" if message == "操作已取消" else "错误"
+        self.pages[self.active_kind].footer.status.setText(message)
+        self.logs.add(CATEGORIES[self.active_kind], message, level)
+        self._notify("发送已取消" if level == "信息" else "发送失败", message, level)
 
     @Slot(object)
     def _probe_finished(self, result):
         ip, ports = result
-        text = "本机 IP：%s\n\n监听端口：\n%s" % (ip, "\n".join(ports) if ports else "未发现匹配端口")
-        self.local_result.setPlainText(text)
-        self._append_local_log(text)
-        self.statusBar().showMessage("本机查询完成")
-
-    @Slot(str)
-    def _probe_failed(self, message):
-        self._append_local_log(message)
-        self.statusBar().showMessage(message)
+        self.pages["local"].set_result(ip, ports)
+        message = "查询完成，发现 %d 个监听端口" % len(ports)
+        self.pages["local"].footer.status.setText(message)
+        self.logs.add("本机信息", "本机 IP：%s；监听端口：%s" % (ip, ", ".join(ports) or "未发现"), "成功")
 
     @Slot(object)
-    def _firewall_finished(self, result):
-        lines = []
-        for command, code, stdout, stderr in result:
-            lines.extend([command, "成功" if code == 0 else "失败（退出码 %d）" % code])
-            if stdout:
-                lines.append(stdout)
-            if stderr:
-                lines.append(stderr)
-            lines.append("")
-        text = "\n".join(lines).strip()
-        self.firewall_result.setPlainText(text)
-        self._append_local_log(text)
-        failed = any(item[1] != 0 for item in result)
-        self.statusBar().showMessage("部分规则操作失败" if failed else "防火墙操作完成")
+    def _firewall_finished(self, results):
+        self.pages["firewall"].set_result(results)
+        failed = any(item[1] != 0 for item in results)
+        message = "部分规则操作失败" if failed else "防火墙规则已更新"
+        self.pages["firewall"].footer.status.setText(message)
+        for command, code, stdout, stderr in results:
+            self.logs.add("防火墙", "%s\n%s" % (command, stdout or stderr), "成功" if code == 0 else "错误")
+        self._notify("防火墙", message, "警告" if failed else "成功")
 
     @Slot(str)
-    def _append_local_log(self, message):
-        self.local_log.appendPlainText("[%s] %s" % (datetime.now().strftime("%H:%M:%S"), message))
+    def _local_failed(self, message):
+        self.pages[self.active_kind].footer.status.setText(message)
+        self.logs.add(CATEGORIES[self.active_kind], message, "错误")
+        self._notify("操作失败", message, "错误")
 
-    def _set_busy(self, busy, badge):
-        self.send_button.setEnabled(not busy)
-        self.cancel_button.setEnabled(busy and self.active_cancel is not None)
-        for field in self.send_fields + self.local_buttons:
-            field.setEnabled(not busy)
-        self.task_badge.setText(badge if busy else "空闲")
-        self.task_summary.setText(badge if busy else "就绪")
-
-    def _cancel_task(self):
-        if self.active_cancel:
+    def cancel_task(self):
+        if self.active_cancel and not self.active_cancel.is_set():
             self.active_cancel.set()
-            self.cancel_button.setEnabled(False)
-            self._append_log("正在取消")
+            self.pages[self.active_kind].footer.status.setText("正在取消")
+            for page in self.network_pages:
+                page.footer.cancel_button.setEnabled(False)
+            self.pages["logs"].cancel_button.setEnabled(False)
+            self.logs.add(CATEGORIES[self.active_kind], "已请求取消")
 
     @Slot()
     def _thread_finished(self):
@@ -558,16 +308,60 @@ class MainWindow(QMainWindow):
         if self.close_after_task:
             QTimer.singleShot(0, self.close)
         else:
-            self._set_busy(False, "空闲")
+            self._set_busy(False)
+        self.active_kind = ""
+
+    def import_message(self):
+        filename, _ = QFileDialog.getOpenFileName(self, "导入消息", "", "文本文件 (*.txt *.md);;所有文件 (*)")
+        if not filename:
+            return
+        try:
+            with open(filename, encoding="utf-8-sig", newline="") as source:
+                text = source.read()
+            page = self.pages["message"]
+            page.editor.setPlainText(text)
+            page.filename.setText(page.filename.fontMetrics().elidedText(Path(filename).name, Qt.ElideMiddle, 225))
+            page.filename.setToolTip(filename)
+        except (OSError, UnicodeError) as error:
+            self._notify("导入失败", str(error), "错误")
+
+    def save_message(self):
+        filename, _ = QFileDialog.getSaveFileName(self, "保存消息", "消息.txt", "文本文件 (*.txt)")
+        if filename:
+            self._save_text(filename, self.pages["message"].editor.toPlainText())
+
+    def export_logs(self):
+        filename, _ = QFileDialog.getSaveFileName(self, "导出日志", "运行日志.txt", "文本文件 (*.txt)")
+        if filename:
+            self._save_text(filename, self.pages["logs"].export_text())
+
+    def _save_text(self, filename, text):
+        try:
+            Path(filename).write_text(text, encoding="utf-8")
+        except OSError as error:
+            self._notify("保存失败", str(error), "错误")
+        else:
+            self._notify("已保存", Path(filename).name, "成功")
+
+    def copy_local_ip(self):
+        QApplication.clipboard().setText(self.pages["local"].ip_label.text())
+        self._notify("已复制", "本机 IP 已复制到剪贴板", "成功")
+
+    @Slot(object)
+    def set_theme(self, theme):
+        setTheme(theme)
 
     def closeEvent(self, event):
         if self.thread is not None and self.thread.isRunning():
             self.close_after_task = True
-            self._cancel_task()
-            self.statusBar().showMessage("正在结束当前任务后关闭窗口")
+            self.cancel_task()
+            self.global_status.setText("正在结束任务")
             event.ignore()
             return
-        event.accept()
+        for page in self.task_pages:
+            page.footer.ring.stop()
+        self._cancel_reset_timer()
+        super().closeEvent(event)
 
 
 def probe_local(report=None):
@@ -585,15 +379,15 @@ def apply_firewall(action, report=None):
 def main():
     QApplication.setApplicationName(APP_NAME)
     QApplication.setOrganizationName("jiyu_attack_next")
-    app = QApplication(sys.argv)
-    configure_application(app)
+    application = QApplication(sys.argv)
+    configure_application(application)
     window = MainWindow()
     window.show()
-    result = app.exec()
+    result = application.exec()
     window.close()
     window.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
-    app.processEvents()
+    application.processEvents()
     return result
 
 

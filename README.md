@@ -1,13 +1,13 @@
 # JiYu Attack Next
 
-极域学生端 UDP 控制报文测试工具，提供独立 Python 脚本与 PySide6 图形界面，支持生成 Windows 单文件 EXE。
+极域学生端 UDP 控制报文测试工具，提供独立 Python 脚本与基于 PySide6-Fluent-Widgets 的图形界面，支持生成 Windows 单文件 EXE。
 
 ## 基础说明
 
 | 项目 | 说明 |
 | --- | --- |
 | 脚本版 | [cli/main.py](cli/main.py)，单文件、仅依赖 Python 标准库，可独立复制使用 |
-| 图形界面 | [app/gui/](app/gui/)，提供消息、命令、设备操作与本机工具 |
+| 图形界面 | [app/gui/](app/gui/)，Fluent 侧边导航，按消息、命令、设备操作与本机工具分页 |
 | 编译输出 | `output/JiyuUdpTest.exe`，无需安装 Python 即可运行 |
 | 开发环境 | Python 3.13；GUI 使用 PySide6，EXE 构建使用 PyInstaller |
 | 默认通信 | UDP，目标端口 `4705` |
