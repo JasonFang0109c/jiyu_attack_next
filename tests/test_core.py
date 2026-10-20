@@ -193,18 +193,18 @@ class CoreTests(unittest.TestCase):
 
     def test_firewall_running_service_exit_code_is_reported_as_success(self):
         responses = [
-            SimpleNamespace(returncode=5, stdout="拒绝访问。", stderr=""),
             SimpleNamespace(returncode=2, stdout="", stderr="请求的服务已经启动。"),
             SimpleNamespace(returncode=0, stdout="确定。", stderr=""),
             SimpleNamespace(returncode=0, stdout="已更新 6 规则。", stderr=""),
         ]
-        with patch.object(self.core, "_windows_command", side_effect=responses):
+        with patch.object(self.core, "_windows_command", side_effect=responses) as command:
             results = self.core.set_firewall_rule("block")
-        self.assertFalse(results[0]["success"])
+        self.assertEqual(command.call_count, 3)
+        self.assertEqual(results[0]["command"], "net.exe start MpsSvc")
+        self.assertTrue(results[0]["success"])
+        self.assertIn("原本已在运行", results[0]["stdout"])
         self.assertTrue(results[1]["success"])
-        self.assertIn("原本已在运行", results[1]["stdout"])
         self.assertTrue(results[2]["success"])
-        self.assertTrue(results[3]["success"])
 
     def test_send_cli_parser_keeps_existing_options(self):
         parser = self.core.build_parser()

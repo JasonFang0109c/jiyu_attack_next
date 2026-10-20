@@ -33,7 +33,7 @@ python -m app.gui
 已构建的文件位于：
 
 ```text
-output\JiyuUdpTest.exe
+output\JiYu Attack Next.exe
 ```
 
 直接双击即可运行，无需安装 Python 或 PySide6。EXE 为单文件窗口程序，首次启动会解压运行时资源，可能需要数秒。

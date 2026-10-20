@@ -27,11 +27,12 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="JiyuUdpTest",
+    name="JiYu Attack Next",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
     console=False,
+    uac_admin=True,
     icon=str(icon) if icon.exists() else None,
 )

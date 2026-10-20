@@ -329,7 +329,6 @@ def set_firewall_rule(action):
     commands = []
     if action == "block":
         commands.extend([
-            ["sc.exe", "config", "MpsSvc", "start=", "auto"],
             ["net.exe", "start", "MpsSvc"],
             ["netsh", "advfirewall", "set", "allprofiles", "state", "on"],
         ])
@@ -341,31 +340,29 @@ def set_firewall_rule(action):
         command_text = " ".join(command)
         success = process.returncode == 0
         note = ""
-        if action == "block" and index == 0 and not success:
-            note = "权限不足，无法修改 MpsSvc 的启动类型；若防火墙服务已在运行，通常不影响本次阻断。"
-        elif action == "block" and index == 1:
+        if action == "block" and index == 0:
             if success:
                 note = "防火墙服务已启动。"
             elif "2182" in process.stderr or "已经启动" in process.stderr:
                 success = True
                 note = "防火墙服务原本已在运行。"
             else:
-                note = "无法启动防火墙服务，请确认管理员权限。"
-        elif action == "block" and index == 2:
+                note = "无法启动防火墙服务，请确认程序已获得管理员权限。"
+        elif action == "block" and index == 1:
             if success:
                 note = "Windows 防火墙已启用，目标规则已更新为阻断。"
             else:
-                note = "无法启用 Windows 防火墙，请确认管理员权限。"
-        elif action == "block" and index == 3:
+                note = "无法启用 Windows 防火墙，请确认程序已获得管理员权限。"
+        elif action == "block" and index == 2:
             if success:
                 note = "已将 StudentMain.exe 规则更新为阻断。"
             else:
-                note = "无法更新 StudentMain.exe 规则，请确认该规则存在且程序拥有管理员权限。"
+                note = "无法更新 StudentMain.exe 规则，请确认该规则存在且程序已获得管理员权限。"
         elif action == "allow":
             if success:
                 note = "已将 StudentMain.exe 规则更新为允许。"
             else:
-                note = "无法更新 StudentMain.exe 规则，请确认该规则存在且程序拥有管理员权限。"
+                note = "无法更新 StudentMain.exe 规则，请确认该规则存在且程序已获得管理员权限。"
         results.append(_firewall_result(command_text, process, success=success, note=note))
     return results
 

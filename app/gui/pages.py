@@ -269,13 +269,13 @@ class FirewallPage(Page):
 
     def set_result(self, results):
         self.result_table.setRowCount(len(results))
-        labels = ["设置服务启动类型", "启动防火墙服务", "启用防火墙", "更新目标规则"]
+        labels = ["防火墙服务", "启用防火墙", "目标规则"]
         for row, result in enumerate(results):
             if isinstance(result, dict):
                 code = result["code"]
                 text = result["stdout"] or result["stderr"]
                 success = result["success"]
-                prefixes = ["sc.exe", "net.exe", "netsh advfirewall set", "netsh advfirewall firewall"]
+                prefixes = ["net.exe", "netsh advfirewall set", "netsh advfirewall firewall"]
                 label = next(
                     (item for item, prefix in zip(labels, prefixes) if result["command"].startswith(prefix)),
                     labels[-1],

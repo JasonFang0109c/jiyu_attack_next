@@ -14,11 +14,11 @@ try {
     $pythonExe = (Resolve-Path -LiteralPath $Python).Path
     $buildRoot = Join-Path $projectRoot "build"
     $outputRoot = Join-Path $projectRoot "output"
-    $exePath = Join-Path $outputRoot "JiyuUdpTest.exe"
-    $runningApp = Get-Process -Name "JiyuUdpTest" -ErrorAction SilentlyContinue |
+    $exePath = Join-Path $outputRoot "JiYu Attack Next.exe"
+    $runningApp = Get-Process -Name "JiYu Attack Next.exe" -ErrorAction SilentlyContinue |
         Where-Object { $_.Path -eq $exePath }
     if ($runningApp) {
-        throw "请关闭正在运行的 JiyuUdpTest.exe 后再构建。"
+        throw "请关闭正在运行的 JiYu Attack Next.exe 后再构建。"
     }
     & $pythonExe -X utf8 -c "import PySide6.QtWidgets, qfluentwidgets, PyInstaller"
     if ($LASTEXITCODE -ne 0) {
@@ -39,13 +39,21 @@ try {
     if ($Clean) {
         $buildArguments += "--clean"
     }
-    $buildArguments += (Join-Path $PSScriptRoot "JiyuUdpTest.spec")
+    $buildArguments += (Join-Path $PSScriptRoot "JiYuAttackNext.spec")
     & $pythonExe @buildArguments
     if ($LASTEXITCODE -ne 0) {
         throw "PyInstaller 构建失败，退出码：$LASTEXITCODE"
     }
     if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
         throw "未找到构建产物：$exePath"
+    }
+    $legacyPath = Join-Path $outputRoot "JiyuUdpTest.exe"
+    if (Test-Path -LiteralPath $legacyPath -PathType Leaf) {
+        try {
+            Remove-Item -LiteralPath $legacyPath -Force
+        } catch {
+            Write-Warning "旧版 JiyuUdpTest.exe 正在运行，无法移除；新版本已构建完成。"
+        }
     }
     Write-Host ("构建完成：" + $exePath) -ForegroundColor Green
 }

@@ -28,7 +28,7 @@ jiyu_attack_next/
 |-- scripts/
 |   |-- build.ps1                  # EXE 构建脚本
 |   |-- run_gui.ps1                # 使用虚拟环境启动 GUI
-|   `-- JiyuUdpTest.spec           # PyInstaller 配置
+|   `-- JiYuAttackNext.spec           # PyInstaller 配置
 |-- docs/
 |   |-- CLI.md                    # 独立脚本使用说明
 |   |-- GUI.md                    # GUI 使用说明
@@ -38,7 +38,7 @@ jiyu_attack_next/
 |-- assets/
 |   `-- app.svg                    # 图标源文件
 `-- output/                       # 本机编译输出，不提交 Git
-    `-- JiyuUdpTest.exe
+    `-- JiYu Attack Next.exe
 ```
 
 ## 模块关系

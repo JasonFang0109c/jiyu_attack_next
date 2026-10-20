@@ -223,7 +223,7 @@ class GuiTests(unittest.TestCase):
                 "detail": "",
             }
         ])
-        self.assertEqual(page.result_table.item(0, 0).text(), "更新目标规则")
+        self.assertEqual(page.result_table.item(0, 0).text(), "目标规则")
         self.assertEqual(page.result_table.item(0, 1).text(), "成功")
         self.assertEqual(page.result_table.item(0, 2).text(), "已更新 6 规则。\n确定。")
     def test_log_search_filter_export_and_clear(self):
