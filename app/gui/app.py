@@ -49,8 +49,6 @@ class MainWindow(FluentWindow):
         self.connection_state = ConnectionState(self)
         self.logs = LogStore(self)
         self.setWindowTitle(APP_NAME)
-        self.titleBar.iconLabel.hide()
-        self.titleBar.titleLabel.hide()
         self.setWindowIcon(app_icon())
         self.setMicaEffectEnabled(False)
         self.setCustomBackgroundColor("#f5f6f8", "#202020")
