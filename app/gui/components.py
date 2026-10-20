@@ -1,7 +1,7 @@
 """Fluent 界面共用的连接参数、页面标题与任务栏。"""
 
 from PySide6.QtCore import QSignalBlocker, Qt, Signal, Slot
-from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import (BodyLabel, CaptionLabel, DoubleSpinBox, FluentIcon,
                             IndeterminateProgressRing, LineEdit, PrimaryPushButton,
                             PushButton, SpinBox, SubtitleLabel, ToolButton,
@@ -146,10 +146,13 @@ class TaskFooter(QWidget):
         self.ring.setFixedSize(18, 18)
         self.ring.setStrokeWidth(2)
         self.ring.hide()
-        self.status = CaptionLabel("就绪", self)
+        self.status = CaptionLabel("", self)
+        self.status.hide()
+        self.status.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self.status.setMinimumWidth(0)
         self.status.setWordWrap(True)
         self.log_button = tool_button(FluentIcon.HISTORY, "查看运行日志", self, self.viewLogs.emit)
+        self.log_button.setVisible(False)
         self.cancel_button = PushButton("取消", self)
         self.cancel_button.setIcon(FluentIcon.CANCEL)
         self.cancel_button.setEnabled(False)
@@ -174,3 +177,10 @@ class TaskFooter(QWidget):
             self.ring.start()
         else:
             self.ring.stop()
+
+    def set_status(self, text=""):
+        self.status.setText(text)
+        self.status.setVisible(bool(text))
+
+    def finish_status(self):
+        self.status.hide()

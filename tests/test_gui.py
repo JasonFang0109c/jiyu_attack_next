@@ -57,12 +57,20 @@ class GuiTests(unittest.TestCase):
         self.assertIsInstance(self.window, FluentWindow)
         self.assertEqual(self.window.windowTitle(), gui.APP_NAME)
         self.assertFalse(self.window.windowIcon().isNull())
-        self.assertEqual(self.window.stackedWidget.count(), 7)
+        self.assertEqual(self.window.stackedWidget.count(), 8)
         self.assertEqual(self.window.current_page(), "message")
         self.assertEqual(self.state.values["target"], "")
         self.assertEqual(self.state.values["port"], 4705)
         self.assertIn("0 / 163", self.command.statistics.text())
 
+    def test_idle_status_is_hidden_and_about_page_has_project_info(self):
+        self.assertFalse(self.message.footer.status.isVisible())
+        self.assertEqual(self.message.footer.status.text(), "")
+        about = self.window.pages["about"]
+        self.assertEqual(about.objectName(), "about")
+        links = [button.getUrl().toString() for button in about.findChildren(gui.HyperlinkButton)]
+        self.assertIn("https://github.com/JasonFang0109c", links)
+        self.assertIn("https://github.com/ht0Ruial/Jiyu_udp_attack", links)
     def test_sidebar_routes_preserve_drafts(self):
         self.message.editor.setPlainText("测试通知")
         self.command.editor.setPlainText("whoami")

@@ -1,16 +1,17 @@
 """按功能组织的 Fluent 工作页面。"""
+from pathlib import Path
+
 
 from importlib.metadata import version
 
 from PySide6.QtCore import Qt, Signal, Slot
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QHeaderView,
-                               QHBoxLayout, QSizePolicy, QTableWidgetItem,
+                               QHBoxLayout, QLabel, QSizePolicy, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 from qfluentwidgets import (BodyLabel, CaptionLabel, ComboBox, FluentIcon as FIF,
-                            PlainTextEdit, PushButton, RadioButton, SearchLineEdit,
-                            TableWidget, Theme, qconfig, setFont)
-
+                            HyperlinkButton, PlainTextEdit, PushButton, RadioButton, SearchLineEdit,
+                            StrongBodyLabel, TableWidget, Theme, TitleLabel, qconfig, setFont)
 from cli import main as core
 from .components import TargetControls, TaskFooter, page_heading, tool_button
 
@@ -396,15 +397,11 @@ class SettingsPage(Page):
         self.reset_button.clicked.connect(lambda checked=False: self.resetRequested.emit())
         reset_row.addWidget(self.reset_button)
         self.vbox.addLayout(reset_row)
-        self.vbox.addSpacing(12)
-        self.vbox.addWidget(BodyLabel("组件版本", self))
-        for title, package in [("PySide6", "PySide6"), ("Fluent Widgets", "PySide6-Fluent-Widgets")]:
-            version_row = QHBoxLayout()
-            version_row.addWidget(CaptionLabel(title, self))
-            version_row.addStretch()
-            version_row.addWidget(CaptionLabel(version(package), self))
-            self.vbox.addLayout(version_row)
+
         self.vbox.addStretch()
+
+    def _select_theme(self, index):
+        self.themeRequested.emit([Theme.LIGHT, Theme.DARK, Theme.AUTO][index])
 
     def show_reset_undo(self, callback):
         self.reset_undo_callback = callback
@@ -422,5 +419,47 @@ class SettingsPage(Page):
         self.reset_hint.hide()
         self.reset_undo.hide()
 
-    def _select_theme(self, index):
-        self.themeRequested.emit([Theme.LIGHT, Theme.DARK, Theme.AUTO][index])
+
+class AboutPage(Page):
+    def __init__(self, parent=None):
+        super().__init__("about", parent)
+        page_heading(self.vbox, "关于")
+        icon_path = Path(__file__).resolve().parents[2] / "assets" / "app.svg"
+        icon = QIcon(str(icon_path)).pixmap(112, 112)
+        icon_label = QLabel(self)
+        icon_label.setPixmap(icon)
+        icon_label.setFixedSize(112, 112)
+        icon_label.setAlignment(Qt.AlignCenter)
+        icon_row = QHBoxLayout()
+        icon_row.addStretch()
+        icon_row.addWidget(icon_label)
+        icon_row.addStretch()
+        self.vbox.addLayout(icon_row)
+        title = TitleLabel("JiYu Attack Next", self)
+        title.setAlignment(Qt.AlignCenter)
+        self.vbox.addWidget(title)
+        subtitle = BodyLabel("极域学生端 UDP 控制报文测试工具", self)
+        subtitle.setAlignment(Qt.AlignCenter)
+        self.vbox.addWidget(subtitle)
+        self.vbox.addSpacing(8)
+        for label, url, text, icon in [
+            ("作者", "https://github.com/JasonFang0109c", "JasonFang0109", FIF.GITHUB),
+            ("GitHub", "https://github.com/JasonFang0109c", "https://github.com/JasonFang0109c", FIF.LINK),
+            ("上游仓库", "https://github.com/ht0Ruial/Jiyu_udp_attack", "https://github.com/ht0Ruial/Jiyu_udp_attack", FIF.LINK),
+        ]:
+            row = QHBoxLayout()
+            row.addWidget(BodyLabel(label, self))
+            button = HyperlinkButton(url, text, self, icon=icon)
+            button.setMaximumWidth(button.sizeHint().width())
+            row.addWidget(button)
+            row.addStretch()
+            self.vbox.addLayout(row)
+        self.vbox.addSpacing(12)
+        self.vbox.addWidget(BodyLabel("组件版本", self))
+        for title, package in [("PySide6", "PySide6"), ("Fluent Widgets", "PySide6-Fluent-Widgets")]:
+            version_row = QHBoxLayout()
+            version_row.addWidget(CaptionLabel(title, self))
+            version_row.addStretch()
+            version_row.addWidget(CaptionLabel(version(package), self))
+            self.vbox.addLayout(version_row)
+        self.vbox.addStretch()

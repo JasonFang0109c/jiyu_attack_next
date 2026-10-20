@@ -5,14 +5,14 @@ from threading import Event
 from PySide6.QtCore import QCoreApplication, QEvent, QLocale, Qt, QTimer, Slot
 from PySide6.QtGui import QColor, QFont, QIcon
 from PySide6.QtWidgets import QApplication, QFileDialog
-from qfluentwidgets import (CaptionLabel, FluentIcon as FIF, FluentTranslator,
+from qfluentwidgets import (CaptionLabel, FluentIcon as FIF, FluentTranslator, HyperlinkButton,
                             FluentWindow, InfoBar, InfoBarPosition, MessageBox,
                             NavigationItemPosition, Theme, setTheme, setThemeColor)
 
 from cli import main as core
 from .models import ConnectionState, LogStore
-from .pages import (CommandPage, DevicePage, FirewallPage, LocalPage, LogPage,
-                    MessagePage, SettingsPage)
+from .pages import (AboutPage, CommandPage, DevicePage, FirewallPage, LocalPage,
+                    LogPage, MessagePage, SettingsPage)
 from .workers import SendWorker, TaskWorker
 
 
@@ -49,6 +49,8 @@ class MainWindow(FluentWindow):
         self.connection_state = ConnectionState(self)
         self.logs = LogStore(self)
         self.setWindowTitle(APP_NAME)
+        self.titleBar.iconLabel.hide()
+        self.titleBar.titleLabel.hide()
         self.setWindowIcon(app_icon())
         self.setMicaEffectEnabled(False)
         self.setCustomBackgroundColor("#f5f6f8", "#202020")
@@ -63,15 +65,12 @@ class MainWindow(FluentWindow):
             "firewall": FirewallPage(self),
             "logs": LogPage(self.logs, self),
             "settings": SettingsPage(self),
+            "about": AboutPage(self),
         }
         self.network_pages = [self.pages[key] for key in ("message", "command", "device")]
         self.task_pages = self.network_pages + [self.pages["local"], self.pages["firewall"]]
         self._build_navigation()
         self._connect_actions()
-        self.global_status = CaptionLabel("就绪", self.titleBar)
-        self.global_status.setFixedWidth(240)
-        self.titleBar.hBoxLayout.insertSpacing(2, 16)
-        self.titleBar.hBoxLayout.insertWidget(3, self.global_status, 0, Qt.AlignVCenter)
         self.logs.add("应用", "界面已就绪")
 
     def _build_navigation(self):
@@ -88,6 +87,8 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.pages["firewall"], FIF.CERTIFICATE, "防火墙")
         self.addSubInterface(self.pages["logs"], FIF.HISTORY, "运行日志", NavigationItemPosition.BOTTOM)
         self.addSubInterface(self.pages["settings"], FIF.SETTING, "设置", NavigationItemPosition.BOTTOM)
+        self.addSubInterface(self.pages["about"], FIF.INFO, "关于", NavigationItemPosition.BOTTOM)
+        self.navigationInterface.panel.topLayout.insertSpacing(0, 4)
         self.navigationInterface.expand(useAni=False)
 
     def _connect_actions(self):
@@ -198,7 +199,7 @@ class MainWindow(FluentWindow):
         self._begin_task(kind, SendWorker(options, core.execute_send), self._send_finished, self._send_failed)
 
     def _validation_error(self, kind, message):
-        self.pages[kind].footer.status.setText(message)
+        self.pages[kind].footer.set_status(message)
         self.logs.add(CATEGORIES[kind], message, "警告")
         self._notify("请检查参数", message, "警告")
 
@@ -241,29 +242,28 @@ class MainWindow(FluentWindow):
         self.pages["logs"].cancel_button.setEnabled(busy and self.active_cancel is not None)
         for key, page in self.pages.items():
             if key in CATEGORIES and key != self.active_kind:
-                page.footer.status.setText("其他任务正在执行" if busy else "就绪")
+                page.footer.set_status("其他任务正在执行" if busy else "")
         if busy:
-            self.global_status.setText("%s | 执行中" % CATEGORIES[self.active_kind])
-            self.pages[self.active_kind].footer.status.setText("执行中")
+            self.pages[self.active_kind].footer.set_status("执行中")
         else:
-            self.global_status.setText("就绪")
+            self.pages[self.active_kind].footer.finish_status()
 
     @Slot(str)
     def _task_progress(self, message):
         self.logs.add(CATEGORIES[self.active_kind], message)
-        self.pages[self.active_kind].footer.status.setText(message)
+        self.pages[self.active_kind].footer.set_status(message)
 
     @Slot(int)
     def _send_finished(self, count):
         message = "本机已发送 %d 个报文" % count
-        self.pages[self.active_kind].footer.status.setText(message)
+        self.pages[self.active_kind].footer.set_status(message)
         self.logs.add(CATEGORIES[self.active_kind], message, "成功")
         self._notify("发送完成", message, "成功")
 
     @Slot(str)
     def _send_failed(self, message):
         level = "信息" if message == "操作已取消" else "错误"
-        self.pages[self.active_kind].footer.status.setText(message)
+        self.pages[self.active_kind].footer.set_status(message)
         self.logs.add(CATEGORIES[self.active_kind], message, level)
         self._notify("发送已取消" if level == "信息" else "发送失败", message, level)
 
@@ -272,7 +272,7 @@ class MainWindow(FluentWindow):
         ip, ports = result
         self.pages["local"].set_result(ip, ports)
         message = "查询完成，发现 %d 个监听端口" % len(ports)
-        self.pages["local"].footer.status.setText(message)
+        self.pages["local"].footer.set_status(message)
         self.logs.add("本机信息", "本机 IP：%s；监听端口：%s" % (ip, ", ".join(ports) or "未发现"), "成功")
 
     @Slot(object)
@@ -283,7 +283,7 @@ class MainWindow(FluentWindow):
             for result in results
         )
         message = "部分规则操作失败，请查看操作结果" if failed else "防火墙规则已更新"
-        self.pages["firewall"].footer.status.setText(message)
+        self.pages["firewall"].footer.set_status(message)
         for result in results:
             if isinstance(result, dict):
                 command = result["command"]
@@ -298,14 +298,14 @@ class MainWindow(FluentWindow):
 
     @Slot(str)
     def _local_failed(self, message):
-        self.pages[self.active_kind].footer.status.setText(message)
+        self.pages[self.active_kind].footer.set_status(message)
         self.logs.add(CATEGORIES[self.active_kind], message, "错误")
         self._notify("操作失败", message, "错误")
 
     def cancel_task(self):
         if self.active_cancel and not self.active_cancel.is_set():
             self.active_cancel.set()
-            self.pages[self.active_kind].footer.status.setText("正在取消")
+            self.pages[self.active_kind].footer.set_status("正在取消")
             for page in self.network_pages:
                 page.footer.cancel_button.setEnabled(False)
             self.pages["logs"].cancel_button.setEnabled(False)
@@ -366,7 +366,6 @@ class MainWindow(FluentWindow):
         if self.thread is not None and self.thread.isRunning():
             self.close_after_task = True
             self.cancel_task()
-            self.global_status.setText("正在结束任务")
             event.ignore()
             return
         for page in self.task_pages:
