@@ -49,6 +49,7 @@ class MainWindow(FluentWindow):
         self.connection_state = ConnectionState(self)
         self.logs = LogStore(self)
         self.setWindowTitle(APP_NAME)
+        self.titleBar.hBoxLayout.setContentsMargins(6, 0, 0, 0)
         self.setWindowIcon(app_icon())
         self.setMicaEffectEnabled(False)
         self.setCustomBackgroundColor("#f5f6f8", "#202020")
@@ -86,7 +87,6 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.pages["logs"], FIF.HISTORY, "运行日志", NavigationItemPosition.BOTTOM)
         self.addSubInterface(self.pages["settings"], FIF.SETTING, "设置", NavigationItemPosition.BOTTOM)
         self.addSubInterface(self.pages["about"], FIF.INFO, "关于", NavigationItemPosition.BOTTOM)
-        self.navigationInterface.panel.topLayout.insertSpacing(0, 4)
         self.navigationInterface.expand(useAni=False)
 
     def _connect_actions(self):

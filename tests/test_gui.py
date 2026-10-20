@@ -76,6 +76,15 @@ class GuiTests(unittest.TestCase):
         self.assertFalse(self.window.titleBar.titleLabel.isHidden())
         self.assertEqual(self.window.titleBar.titleLabel.text(), gui.APP_NAME)
         self.assertFalse(hasattr(self.window, "global_status"))
+        self.window.show()
+        self.application.processEvents()
+        menu = self.window.navigationInterface.panel.menuButton
+        icon = self.window.titleBar.iconLabel
+        menu_center = menu.mapTo(self.window, menu.rect().center()).y()
+        icon_center = icon.mapTo(self.window, icon.rect().center()).y()
+        self.assertLessEqual(abs(menu_center - icon_center), 1)
+        gap = icon.mapTo(self.window, icon.rect().topLeft()).x() - menu.mapTo(self.window, menu.rect().topRight()).x()
+        self.assertGreaterEqual(gap, 5)
     def test_sidebar_routes_preserve_drafts(self):
         self.message.editor.setPlainText("测试通知")
         self.command.editor.setPlainText("whoami")
