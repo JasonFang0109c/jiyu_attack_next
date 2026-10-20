@@ -4,8 +4,8 @@ import sys
 import socket
 import random
 import argparse
+import codecs
 import csv
-import locale
 from time import sleep
 from os import system
 from multiprocessing import Pool, freeze_support
@@ -258,13 +258,46 @@ def creat_send_object(arguments):
     return send_list
 
 
+def _decode_windows_output(output):
+    """Decode Windows CLI output, which may use UTF-8 or the ANSI code page."""
+    if not output:
+        return ""
+    candidates = []
+    for encoding in ("utf-8-sig", "mbcs"):
+        try:
+            candidates.append((encoding, output.decode(encoding)))
+        except UnicodeDecodeError:
+            pass
+    if not candidates:
+        return output.decode("utf-8", errors="replace")
+    return candidates[0][1] if candidates[0][0] == "utf-8-sig" else candidates[-1][1]
+
 def _windows_command(command):
-    if sys.platform != 'win32':
+    if sys.platform != "win32":
         raise RuntimeError("此功能仅支持 Windows")
-    return subprocess.run(
-        command, capture_output=True, text=True,
-        encoding=locale.getencoding(), errors='replace',
+    process = subprocess.run(
+        command, capture_output=True,
         creationflags=subprocess.CREATE_NO_WINDOW, timeout=15)
+    process.stdout = _decode_windows_output(process.stdout)
+    process.stderr = _decode_windows_output(process.stderr)
+    return process
+
+
+def _firewall_result(command, process, *, success=False, note=""):
+    stdout = process.stdout.strip()
+    stderr = process.stderr.strip()
+    if note:
+        output = note + ("\n" + stdout if stdout else "")
+    else:
+        output = stdout or stderr
+    return {
+        "command": command,
+        "code": process.returncode,
+        "stdout": output,
+        "stderr": stderr if note and stdout else "",
+        "success": success,
+        "detail": note,
+    }
 
 
 def local_ip_and_ports():
@@ -291,24 +324,50 @@ def local_ip_and_ports():
 
 
 def set_firewall_rule(action):
-    if action not in {'block', 'allow'}:
+    if action not in {"block", "allow"}:
         raise ValueError("不支持的防火墙操作")
     commands = []
-    if action == 'block':
+    if action == "block":
         commands.extend([
-            ['sc.exe', 'config', 'MpsSvc', 'start=', 'auto'],
-            ['net.exe', 'start', 'MpsSvc'],
-            ['netsh', 'advfirewall', 'set', 'allprofiles', 'state', 'on'],
+            ["sc.exe", "config", "MpsSvc", "start=", "auto"],
+            ["net.exe", "start", "MpsSvc"],
+            ["netsh", "advfirewall", "set", "allprofiles", "state", "on"],
         ])
-    commands.append(['netsh', 'advfirewall', 'firewall', 'set', 'rule',
-                     'name=StudentMain.exe', 'new', 'action=' + action])
+    commands.append(["netsh", "advfirewall", "firewall", "set", "rule",
+                     "name=StudentMain.exe", "new", "action=" + action])
     results = []
-    for command in commands:
+    for index, command in enumerate(commands):
         process = _windows_command(command)
-        results.append((' '.join(command), process.returncode,
-                        process.stdout.strip(), process.stderr.strip()))
+        command_text = " ".join(command)
+        success = process.returncode == 0
+        note = ""
+        if action == "block" and index == 0 and not success:
+            note = "权限不足，无法修改 MpsSvc 的启动类型；若防火墙服务已在运行，通常不影响本次阻断。"
+        elif action == "block" and index == 1:
+            if success:
+                note = "防火墙服务已启动。"
+            elif "2182" in process.stderr or "已经启动" in process.stderr:
+                success = True
+                note = "防火墙服务原本已在运行。"
+            else:
+                note = "无法启动防火墙服务，请确认管理员权限。"
+        elif action == "block" and index == 2:
+            if success:
+                note = "Windows 防火墙已启用，目标规则已更新为阻断。"
+            else:
+                note = "无法启用 Windows 防火墙，请确认管理员权限。"
+        elif action == "block" and index == 3:
+            if success:
+                note = "已将 StudentMain.exe 规则更新为阻断。"
+            else:
+                note = "无法更新 StudentMain.exe 规则，请确认该规则存在且程序拥有管理员权限。"
+        elif action == "allow":
+            if success:
+                note = "已将 StudentMain.exe 规则更新为允许。"
+            else:
+                note = "无法更新 StudentMain.exe 规则，请确认该规则存在且程序拥有管理员权限。"
+        results.append(_firewall_result(command_text, process, success=success, note=note))
     return results
-
 
 def single_command(arguments):
     if arguments.e == 'g':
@@ -323,23 +382,22 @@ def single_command(arguments):
             print("[-] %s" % error)
         return
 
-    elif arguments.e == 'break':
-        results = set_firewall_rule('block')
+    elif arguments.e == "break":
+        results = set_firewall_rule("block")
         sleep(1)
         system("cls")
-        if any(item[1] != 0 for item in results):
-            print("[-] 部分防火墙设置失败，请检查管理员权限")
+        failed = any(not item["success"] for item in results)
+        print("[-] 部分防火墙设置失败，请检查管理员权限" if failed else "防火墙规则已阻断")
         return
 
-    elif arguments.e == 'continue':
-        results = set_firewall_rule('allow')
-        failed = [item for item in results if item[1] != 0]
+    elif arguments.e == "continue":
+        results = set_firewall_rule("allow")
+        failed = any(not item["success"] for item in results)
         if failed:
             print("[-] 部分防火墙设置失败，请检查管理员权限")
             return
         print("防火墙规则已恢复")
         return
-
 
 def netcat(num, arguments):
     send_list = []

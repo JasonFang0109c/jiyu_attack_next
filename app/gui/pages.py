@@ -254,8 +254,11 @@ class FirewallPage(Page):
         self.vbox.addLayout(row)
         self.vbox.addWidget(BodyLabel("操作结果", self))
         self.result_table = table_widget(["操作", "结果", "输出"], self)
-        self.result_table.setColumnWidth(0, 160)
-        self.result_table.setColumnWidth(1, 100)
+        self.result_table.setColumnWidth(0, 180)
+        self.result_table.setColumnWidth(1, 80)
+        self.result_table.horizontalHeader().setStretchLastSection(True)
+        self.result_table.setWordWrap(True)
+        self.result_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.vbox.addWidget(self.result_table, 1)
         self.footer = TaskFooter("应用规则", self, FIF.CERTIFICATE)
         self.footer.cancel_button.hide()
@@ -267,14 +270,27 @@ class FirewallPage(Page):
     def set_result(self, results):
         self.result_table.setRowCount(len(results))
         labels = ["设置服务启动类型", "启动防火墙服务", "启用防火墙", "更新目标规则"]
-        for row, (_, code, stdout, stderr) in enumerate(results):
-            label = labels[row] if len(results) > 1 else labels[-1]
-            text = stdout or stderr
-            for column, value in enumerate([label, "成功" if code == 0 else "失败", text]):
-                item = QTableWidgetItem(value.replace("\r", "").replace("\n", " "))
+        for row, result in enumerate(results):
+            if isinstance(result, dict):
+                code = result["code"]
+                text = result["stdout"] or result["stderr"]
+                success = result["success"]
+                prefixes = ["sc.exe", "net.exe", "netsh advfirewall set", "netsh advfirewall firewall"]
+                label = next(
+                    (item for item, prefix in zip(labels, prefixes) if result["command"].startswith(prefix)),
+                    labels[-1],
+                )
+            else:
+                _, code, stdout, stderr = result
+                text = stdout or stderr
+                success = code == 0
+                label = labels[row] if len(results) > 1 else labels[-1]
+            for column, value in enumerate([label, "成功" if success else "失败", text]):
+                item = QTableWidgetItem(value.replace("\r\n", "\n").replace("\r", "\n").strip())
                 item.setToolTip(value)
                 self.result_table.setItem(row, column, item)
-            self.result_table.setRowHeight(row, 38)
+            self.result_table.setRowHeight(row, max(38, self.result_table.sizeHintForRow(row)))
+            self.result_table.setRowHeight(row, max(38, self.result_table.rowHeight(row)))
 
 
 class LogPage(Page):

@@ -211,6 +211,21 @@ class GuiTests(unittest.TestCase):
         self.assertIn("失败", page.footer.status.text())
         self.assertEqual(page.result_table.item(0, 1).text(), "失败")
 
+    def test_firewall_result_keeps_multiline_utf8_output_readable(self):
+        page = self.window.pages["firewall"]
+        page.set_result([
+            {
+                "command": "netsh advfirewall firewall set rule name=StudentMain.exe new action=block",
+                "code": 0,
+                "stdout": "已更新 6 规则。\n确定。",
+                "stderr": "",
+                "success": True,
+                "detail": "",
+            }
+        ])
+        self.assertEqual(page.result_table.item(0, 0).text(), "更新目标规则")
+        self.assertEqual(page.result_table.item(0, 1).text(), "成功")
+        self.assertEqual(page.result_table.item(0, 2).text(), "已更新 6 规则。\n确定。")
     def test_log_search_filter_export_and_clear(self):
         store = self.window.logs
         store.clear()

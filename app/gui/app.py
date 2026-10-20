@@ -278,11 +278,22 @@ class MainWindow(FluentWindow):
     @Slot(object)
     def _firewall_finished(self, results):
         self.pages["firewall"].set_result(results)
-        failed = any(item[1] != 0 for item in results)
-        message = "部分规则操作失败" if failed else "防火墙规则已更新"
+        failed = any(
+            not result["success"] if isinstance(result, dict) else result[1] != 0
+            for result in results
+        )
+        message = "部分规则操作失败，请查看操作结果" if failed else "防火墙规则已更新"
         self.pages["firewall"].footer.status.setText(message)
-        for command, code, stdout, stderr in results:
-            self.logs.add("防火墙", "%s\n%s" % (command, stdout or stderr), "成功" if code == 0 else "错误")
+        for result in results:
+            if isinstance(result, dict):
+                command = result["command"]
+                output = result["stdout"] or result["stderr"]
+                success = result["success"]
+            else:
+                command, code, stdout, stderr = result
+                output = stdout or stderr
+                success = code == 0
+            self.logs.add("防火墙", "%s\n%s" % (command, output), "成功" if success else "错误")
         self._notify("防火墙", message, "警告" if failed else "成功")
 
     @Slot(str)
@@ -337,7 +348,7 @@ class MainWindow(FluentWindow):
 
     def _save_text(self, filename, text):
         try:
-            Path(filename).write_text(text, encoding="utf-8")
+            Path(filename).write_text(text, encoding="utf-8-sig")
         except OSError as error:
             self._notify("保存失败", str(error), "错误")
         else:

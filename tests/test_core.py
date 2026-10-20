@@ -187,6 +187,25 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(ip, "模拟本机")
         self.assertEqual(result, ["4705"])
 
+    def test_windows_output_decoding_supports_utf8_and_gbk(self):
+        self.assertEqual(self.core._decode_windows_output("规则已更新".encode("utf-8")), "规则已更新")
+        self.assertEqual(self.core._decode_windows_output("服务已在运行".encode("gbk")), "服务已在运行")
+
+    def test_firewall_running_service_exit_code_is_reported_as_success(self):
+        responses = [
+            SimpleNamespace(returncode=5, stdout="拒绝访问。", stderr=""),
+            SimpleNamespace(returncode=2, stdout="", stderr="请求的服务已经启动。"),
+            SimpleNamespace(returncode=0, stdout="确定。", stderr=""),
+            SimpleNamespace(returncode=0, stdout="已更新 6 规则。", stderr=""),
+        ]
+        with patch.object(self.core, "_windows_command", side_effect=responses):
+            results = self.core.set_firewall_rule("block")
+        self.assertFalse(results[0]["success"])
+        self.assertTrue(results[1]["success"])
+        self.assertIn("原本已在运行", results[1]["stdout"])
+        self.assertTrue(results[2]["success"])
+        self.assertTrue(results[3]["success"])
+
     def test_send_cli_parser_keeps_existing_options(self):
         parser = self.core.build_parser()
         args = parser.parse_args([
