@@ -1,18 +1,20 @@
 import os
 import socket
 import sys
+import tempfile
 import time
 import unittest
 from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen")
 
-from PySide6.QtCore import QCoreApplication, QEvent
+from PySide6.QtCore import QCoreApplication, QEvent, QSettings
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 from qfluentwidgets import FluentWindow, Theme, qconfig
 
 from app.gui import app as gui
+from app.gui import components
 
 
 class GuiTests(unittest.TestCase):
@@ -26,7 +28,12 @@ class GuiTests(unittest.TestCase):
         guard = patch.object(socket, "socket", side_effect=AssertionError("禁止真实网络通信"))
         guard.start()
         self.addCleanup(guard.stop)
-        self.window = gui.MainWindow()
+        self.settings_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.settings_dir.cleanup)
+        self.settings_path = os.path.join(self.settings_dir.name, "settings.ini")
+        settings = QSettings(self.settings_path, QSettings.IniFormat)
+        self.alias_store = gui.DeviceAliasStore(settings=settings)
+        self.window = gui.MainWindow(alias_store=self.alias_store)
         self.message = self.window.pages["message"]
         self.command = self.window.pages["command"]
         self.device = self.window.pages["device"]
@@ -53,11 +60,11 @@ class GuiTests(unittest.TestCase):
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
         self.application.processEvents()
 
-    def test_fluent_window_has_seven_function_pages(self):
+    def test_fluent_window_has_nine_function_pages(self):
         self.assertIsInstance(self.window, FluentWindow)
         self.assertEqual(self.window.windowTitle(), gui.APP_NAME)
         self.assertFalse(self.window.windowIcon().isNull())
-        self.assertEqual(self.window.stackedWidget.count(), 8)
+        self.assertEqual(self.window.stackedWidget.count(), 9)
         self.assertEqual(self.window.current_page(), "message")
         self.assertEqual(self.state.values["target"], "")
         self.assertEqual(self.state.values["port"], 4705)
@@ -93,6 +100,80 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(self.window.current_page(), key)
         self.assertEqual(self.message.editor.toPlainText(), "测试通知")
         self.assertEqual(self.command.editor.toPlainText(), "whoami")
+
+    def test_device_alias_can_be_added_edited_used_and_removed(self):
+        page = self.window.pages["aliases"]
+        page.name_input.setText("教室 A")
+        page.address_input.setText("192.168.1.10")
+        page.save_button.click()
+        self.assertEqual(self.alias_store.match("教室 a"), ("教室 A", "192.168.1.10"))
+        self.assertEqual(page.table.item(0, 1).text(), "192.168.1.10")
+
+        page.table.setCurrentCell(0, 0)
+        page.use_button.click()
+        self.assertEqual(self.state.values["target"], "教室 A")
+        self.assertEqual(self.state.resolve_target(), "192.168.1.10")
+        self.assertIn("192.168.1.10", self.message.targets.alias_hint.text())
+
+        page.edit_button.click()
+        page.name_input.setText("一号机房")
+        page.address_input.setText("192.168.1.11")
+        page.save_button.click()
+        self.assertEqual(self.state.values["target"], "一号机房")
+        self.assertEqual(self.alias_store.match("一号机房"), ("一号机房", "192.168.1.11"))
+
+        page.table.setCurrentCell(0, 0)
+        with patch.object(gui.MessageBox, "exec", return_value=1):
+            page.delete_button.click()
+        self.assertIsNone(self.alias_store.match("一号机房"))
+        self.assertEqual(self.state.values["target"], "")
+
+    def test_device_alias_is_persisted_and_resolved_for_remote_send(self):
+        self.alias_store.add("机房", "10.0.0.8")
+        reloaded = gui.DeviceAliasStore(
+            settings=QSettings(self.settings_path, QSettings.IniFormat))
+        self.assertEqual(reloaded.match("机房"), ("机房", "10.0.0.8"))
+
+        self.state.set_value("target", "机房")
+        self.message.editor.setPlainText("测试备注发送")
+        options = self.window._options_for_page("message")
+        self.assertEqual(options.target, "10.0.0.8")
+        self.assertEqual(self.message.targets.target_count.text(), "1 个目标")
+        with patch.object(gui.core, "execute_send", return_value=1) as runner:
+            self.window.start_send("message")
+            self.wait_for(lambda: self.window.thread is None)
+        self.assertEqual(runner.call_args.args[0].target, "10.0.0.8")
+        self.assertIn("解析为 10.0.0.8", self.window.logs.entries[-2].message)
+
+    def test_target_has_device_picker_and_manual_address_still_works(self):
+        targets = self.message.targets
+        self.assertEqual(targets.device_button.text(), "选择设备")
+        self.assertEqual(targets.device_button.parentWidget(), targets)
+        targets.target_input.setText("192.168.1.20")
+        self.assertEqual(self.state.values["target"], "192.168.1.20")
+        self.assertEqual(targets.target_count.text(), "1 个目标")
+
+    def test_device_picker_lists_aliases_and_selects_target(self):
+        self.alias_store.add("教室 A", "192.168.1.10")
+        self.alias_store.add("一号机房", "192.168.1.11")
+        targets = self.message.targets
+        dialog, selector = targets._create_device_dialog()
+        try:
+            self.assertEqual(selector.count(), 2)
+            self.assertEqual(selector.itemData(0), "教室 A")
+            self.assertEqual(selector.itemText(1), "一号机房  ·  192.168.1.11")
+        finally:
+            dialog.deleteLater()
+        targets.state.set_value("target", "一号机房")
+        self.assertEqual(targets.target_input.text(), "一号机房")
+        self.assertIn("192.168.1.11", targets.alias_hint.text())
+
+    def test_device_picker_handles_no_aliases(self):
+        targets = self.message.targets
+        with patch.object(components.Dialog, "exec", return_value=1) as execute:
+            targets.choose_device()
+        execute.assert_called_once()
+        self.assertEqual(self.state.values["target"], "")
 
     def test_connection_fields_are_shared_between_pages(self):
         self.command.targets.target_input.setText("模拟目标")

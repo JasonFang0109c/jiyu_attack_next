@@ -2,10 +2,10 @@
 
 from PySide6.QtCore import QSignalBlocker, Qt, Signal, Slot
 from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
-from qfluentwidgets import (BodyLabel, CaptionLabel, DoubleSpinBox, FluentIcon,
-                            IndeterminateProgressRing, LineEdit, PrimaryPushButton,
-                            PushButton, SpinBox, SubtitleLabel, ToolButton,
-                            ToolTipFilter, ToolTipPosition)
+from qfluentwidgets import (BodyLabel, CaptionLabel, ComboBox, Dialog, DoubleSpinBox,
+                            FluentIcon, IndeterminateProgressRing, LineEdit,
+                            PrimaryPushButton, PushButton, SpinBox, SubtitleLabel,
+                            ToolButton, ToolTipFilter, ToolTipPosition)
 
 from cli import main as core
 
@@ -76,9 +76,14 @@ class TargetControls(QWidget):
         row = QHBoxLayout()
         row.setSpacing(12)
         self.target_input = LineEdit(self)
-        self.target_input.setPlaceholderText("IPv4 地址、末段范围或 /24 网段")
+        self.target_input.setPlaceholderText("IPv4、末段范围或 /24 网段")
         self.target_input.setClearButtonEnabled(True)
         self.target_input.setMinimumWidth(220)
+        self.device_button = PushButton("选择设备", self)
+        self.device_button.setIcon(FluentIcon.PEOPLE)
+        self.device_button.setMinimumWidth(106)
+        self.device_button.setToolTip("从设备备注中选择目标")
+        self.device_button.clicked.connect(self.choose_device)
         self.port_input = ReadableSpinBox(self)
         self.port_input.setRange(1, 65535)
         self.port_input.setFixedWidth(152)
@@ -97,7 +102,14 @@ class TargetControls(QWidget):
             column = QVBoxLayout()
             column.setSpacing(6)
             column.addWidget(CaptionLabel(labels[name], self))
-            column.addWidget(field)
+            if name == "target":
+                target_row = QHBoxLayout()
+                target_row.setSpacing(8)
+                target_row.addWidget(field, 1)
+                target_row.addWidget(self.device_button)
+                column.addLayout(target_row)
+            else:
+                column.addWidget(field)
             row.addLayout(column, 1 if name == "target" else 0)
             if name == "target":
                 field.setText(state.values[name])
@@ -106,9 +118,52 @@ class TargetControls(QWidget):
                 field.setValue(state.values[name])
                 field.valueChanged.connect(lambda value, key=name: state.set_value(key, value))
         layout.addLayout(row)
+        self.alias_hint = CaptionLabel("", self)
+        self.alias_hint.hide()
+        layout.addWidget(self.alias_hint)
+        self.target_input.textChanged.connect(lambda value: self._update_alias_hint(value))
         state.changed.connect(self._on_changed)
+        state.aliases.changed.connect(self._aliases_changed)
         self._update_count()
         self.interval_input.setEnabled(state.values["loops"] > 1)
+
+    @Slot()
+    def _aliases_changed(self):
+        self._update_count()
+
+    def choose_device(self):
+        if not self.state.aliases.items():
+            self._show_empty_alias_dialog()
+            return
+        dialog, selector = self._create_device_dialog()
+        if dialog.exec():
+            name = selector.currentData()
+            if name:
+                self.state.set_value("target", name)
+
+    def _show_empty_alias_dialog(self):
+        dialog = Dialog("选择设备", "还没有设备备注，请先在“设备备注”页面添加。", self)
+        dialog.cancelButton.hide()
+        dialog.yesButton.setText("知道了")
+        dialog.setFixedSize(360, 196)
+        dialog.exec()
+
+    def _create_device_dialog(self):
+        dialog = Dialog("选择设备", "选择一个设备备注作为当前目标：", self)
+        dialog.setFixedSize(420, 236)
+        selector = ComboBox(dialog)
+        selector.setMinimumWidth(340)
+        for name, address in self.state.aliases.items():
+            selector.addItem("%s  ·  %s" % (name, address), userData=name)
+        current = self.state.aliases.match(self.state.values["target"])
+        if current is not None:
+            index = selector.findData(current[0])
+            if index >= 0:
+                selector.setCurrentIndex(index)
+        dialog.textLayout.addWidget(selector)
+        dialog.yesButton.setText("选择")
+        dialog.cancelButton.setText("取消")
+        return dialog, selector
 
     @Slot(str, object)
     def _on_changed(self, name, value):
@@ -123,10 +178,19 @@ class TargetControls(QWidget):
                 field.setValue(value)
         self.interval_input.setEnabled(self.state.values["loops"] > 1)
 
+    def _update_alias_hint(self, text):
+        matched = self.state.aliases.match(text)
+        if matched:
+            self.alias_hint.setText("备注「%s」→ %s" % matched)
+            self.alias_hint.show()
+        else:
+            self.alias_hint.hide()
+
     def _update_count(self):
         text = self.state.values["target"].strip()
+        self._update_alias_hint(text)
         try:
-            count = len(core.get_ip(text)) if text else 0
+            count = len(core.get_ip(self.state.resolve_target(text))) if text else 0
             self.target_count.setText("%d 个目标" % count)
         except ValueError:
             self.target_count.setText("地址未完成")

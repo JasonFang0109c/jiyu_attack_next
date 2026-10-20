@@ -10,9 +10,9 @@ from qfluentwidgets import (CaptionLabel, FluentIcon as FIF, FluentTranslator, H
                             NavigationItemPosition, Theme, setTheme, setThemeColor)
 
 from cli import main as core
-from .models import ConnectionState, LogStore
-from .pages import (AboutPage, CommandPage, DevicePage, FirewallPage, LocalPage,
-                    LogPage, MessagePage, SettingsPage)
+from .models import ConnectionState, DeviceAliasStore, LogStore
+from .pages import (AboutPage, AliasPage, CommandPage, DevicePage, FirewallPage,
+                    LocalPage, LogPage, MessagePage, SettingsPage)
 from .workers import SendWorker, TaskWorker
 
 
@@ -37,7 +37,7 @@ def app_icon():
 
 
 class MainWindow(FluentWindow):
-    def __init__(self):
+    def __init__(self, alias_store=None):
         super().__init__()
         self.thread = None
         self.worker = None
@@ -46,7 +46,8 @@ class MainWindow(FluentWindow):
         self.close_after_task = False
         self._reset_undo = None
         self._reset_undo_timer = None
-        self.connection_state = ConnectionState(self)
+        self.connection_state = ConnectionState(alias_store, parent=self)
+        self.alias_store = self.connection_state.aliases
         self.logs = LogStore(self)
         self.setWindowTitle(APP_NAME)
         self.titleBar.hBoxLayout.setContentsMargins(6, 0, 0, 0)
@@ -60,6 +61,7 @@ class MainWindow(FluentWindow):
             "message": MessagePage(self.connection_state, self),
             "command": CommandPage(self.connection_state, self),
             "device": DevicePage(self.connection_state, self),
+            "aliases": AliasPage(self.connection_state, self),
             "local": LocalPage(self),
             "firewall": FirewallPage(self),
             "logs": LogPage(self.logs, self),
@@ -80,6 +82,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.pages["message"], FIF.MESSAGE, "文本消息")
         self.addSubInterface(self.pages["command"], FIF.COMMAND_PROMPT, "远程命令")
         self.addSubInterface(self.pages["device"], FIF.POWER_BUTTON, "设备操作")
+        self.addSubInterface(self.pages["aliases"], FIF.QUICK_NOTE, "设备备注")
         self.navigationInterface.addSeparator()
         self.navigationInterface.addItemHeader("本机工具")
         self.addSubInterface(self.pages["local"], FIF.IOT, "本机信息")
@@ -175,7 +178,11 @@ class MainWindow(FluentWindow):
         except ValueError as error:
             page.targets.target_input.setError(True)
             page.targets.target_input.setFocus()
-            self._validation_error(kind, str(error))
+            alias_name = self.connection_state.values["target"].strip()
+            if self.connection_state.aliases.match(alias_name) is None:
+                self._validation_error(kind, str(error))
+            else:
+                self._validation_error(kind, "设备备注对应的 IP 无效")
             return
         try:
             core.validate_options(options)
@@ -184,16 +191,23 @@ class MainWindow(FluentWindow):
         except (ValueError, UnicodeError) as error:
             self._validation_error(kind, str(error))
             return
+        target_text = self.connection_state.format_target()
+        target_input_text = self.connection_state.values["target"].strip()
         if kind == "device":
             action = "重启" if options.extra == "r" else "关机"
             content = "目标：%s\nUDP 端口：%d\n设备数量：%d\n操作：%s" % (
-                options.target, options.port, len(hosts), action)
+                target_text, options.port, len(hosts), action)
             if not self._confirm("确认%s" % action, content):
                 return
         options.cancel_event = Event()
         self.active_cancel = options.cancel_event
-        self.logs.add(CATEGORIES[kind], "开始发送：%s，端口 %d，%d 轮" % (
-            options.target, options.port, options.loops))
+        if target_input_text.casefold() != options.target.casefold():
+            message = "开始发送：%s，解析为 %s，端口 %d，%d 轮" % (
+                target_input_text, options.target, options.port, options.loops)
+        else:
+            message = "开始发送：%s，端口 %d，%d 轮" % (
+                target_text, options.port, options.loops)
+        self.logs.add(CATEGORIES[kind], message)
         self._begin_task(kind, SendWorker(options, core.execute_send), self._send_finished, self._send_failed)
 
     def _validation_error(self, kind, message):

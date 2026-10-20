@@ -10,7 +10,8 @@ from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QHeaderView,
                                QHBoxLayout, QLabel, QSizePolicy, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 from qfluentwidgets import (BodyLabel, CaptionLabel, ComboBox, FluentIcon as FIF,
-                            HyperlinkButton, PlainTextEdit, PushButton, RadioButton, SearchLineEdit,
+                            HyperlinkButton, LineEdit, MessageBox, PlainTextEdit,
+                            PrimaryPushButton, PushButton, RadioButton, SearchLineEdit,
                             StrongBodyLabel, TableWidget, Theme, TitleLabel, qconfig, setFont)
 from cli import main as core
 from .components import TargetControls, TaskFooter, page_heading, tool_button
@@ -184,8 +185,9 @@ class DevicePage(NetworkPage):
 
     def update_preview(self):
         target = self.targets.state.values["target"].strip()
+        matched = self.targets.state.aliases.match(target)
         try:
-            hosts = core.get_ip(target) if target else []
+            hosts = core.get_ip(self.targets.state.resolve_target(target)) if target else []
         except ValueError:
             hosts = []
         self.preview.setRowCount(len(hosts))
@@ -193,7 +195,8 @@ class DevicePage(NetworkPage):
             self.preview.setItem(row, 0, QTableWidgetItem(host))
             self.preview.setItem(row, 1, QTableWidgetItem(str(self.targets.state.values["port"])))
             self.preview.setRowHeight(row, 36)
-        self.preview_title.setText("目标预览（%d）" % len(hosts))
+        alias_text = "，备注：%s" % matched[0] if matched else ""
+        self.preview_title.setText("目标预览（%d%s）" % (len(hosts), alias_text))
 
     def action(self):
         return "r" if self.reboot.isChecked() else "s"
@@ -202,6 +205,209 @@ class DevicePage(NetworkPage):
         super().set_busy(busy, cancellable)
         self.reboot.setEnabled(not busy)
         self.shutdown.setEnabled(not busy)
+
+
+class AliasPage(Page):
+    def __init__(self, state, parent=None):
+        super().__init__("aliases", parent)
+        self.state = state
+        self.store = state.aliases
+        self._editing_name = None
+        self.count_label = CaptionLabel("0 条备注", self)
+        page_heading(self.vbox, "设备备注", self.count_label)
+        hint = CaptionLabel(
+            "先为 IPv4 添加备注名，再在任意远程操作的目标地址中直接填写备注名。"
+            "修改备注后，已引用的目标会自动同步。", self)
+        hint.setWordWrap(True)
+        self.vbox.addWidget(hint)
+
+        form = QHBoxLayout()
+        form.setSpacing(12)
+        name_column = QVBoxLayout()
+        name_column.setSpacing(6)
+        name_column.addWidget(CaptionLabel("备注名", self))
+        self.name_input = LineEdit(self)
+        self.name_input.setPlaceholderText("例如：教室 A 讲台")
+        self.name_input.setClearButtonEnabled(True)
+        name_column.addWidget(self.name_input)
+        address_column = QVBoxLayout()
+        address_column.setSpacing(6)
+        address_column.addWidget(CaptionLabel("IP 地址", self))
+        self.address_input = LineEdit(self)
+        self.address_input.setPlaceholderText("例如：192.168.1.10")
+        self.address_input.setClearButtonEnabled(True)
+        address_column.addWidget(self.address_input)
+        self.save_button = PrimaryPushButton("添加备注", self)
+        self.save_button.setIcon(FIF.ADD)
+        self.save_button.setMinimumWidth(112)
+        self.cancel_button = PushButton("取消", self)
+        self.cancel_button.setIcon(FIF.CANCEL)
+        self.cancel_button.setMinimumWidth(84)
+        self.cancel_button.hide()
+        form.addLayout(name_column, 1)
+        form.addLayout(address_column, 1)
+        form.addWidget(self.save_button, 0, Qt.AlignBottom)
+        form.addWidget(self.cancel_button, 0, Qt.AlignBottom)
+        self.vbox.addLayout(form)
+
+        self.table = table_widget(["备注名", "IP 地址"], self)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.vbox.addWidget(self.table, 1)
+
+        action_row = QHBoxLayout()
+        action_row.setSpacing(8)
+        self.status = CaptionLabel("", self)
+        self.status.setMinimumWidth(0)
+        self.status.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        self.status.setWordWrap(True)
+        self.status.hide()
+        self.use_button = PushButton("设为当前目标", self)
+        self.use_button.setIcon(FIF.SEND)
+        self.edit_button = PushButton("修改", self)
+        self.edit_button.setIcon(FIF.EDIT)
+        self.delete_button = PushButton("删除", self)
+        self.delete_button.setIcon(FIF.DELETE)
+        action_row.addWidget(self.status, 1)
+        for button in (self.use_button, self.edit_button, self.delete_button):
+            button.setEnabled(False)
+            action_row.addWidget(button)
+        self.vbox.addLayout(action_row)
+
+        self.save_button.clicked.connect(lambda checked=False: self.save())
+        self.cancel_button.clicked.connect(lambda checked=False: self.cancel_edit())
+        self.use_button.clicked.connect(lambda checked=False: self.use_selected())
+        self.edit_button.clicked.connect(lambda checked=False: self.edit_selected())
+        self.delete_button.clicked.connect(lambda checked=False: self.delete_selected())
+        self.name_input.returnPressed.connect(self.save)
+        self.address_input.returnPressed.connect(self.save)
+        self.table.itemSelectionChanged.connect(self._selection_changed)
+        self.table.cellDoubleClicked.connect(lambda row, column: self.edit_selected())
+        self.store.changed.connect(self._refresh_table)
+        self._refresh_table()
+        if self.store.load_error:
+            self._set_status(self.store.load_error, error=True)
+        else:
+            self._set_status("备注会保存在本机，重启后仍然可用。")
+
+    def _selected_name(self):
+        row = self.table.currentRow()
+        item = self.table.item(row, 0) if row >= 0 else None
+        return item.text() if item is not None else ""
+
+    def _select_name(self, name):
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, 0)
+            if item is not None and item.text().casefold() == str(name).casefold():
+                self.table.setCurrentCell(row, 0)
+                return
+
+    def _selection_changed(self):
+        selected = bool(self._selected_name())
+        for button in (self.use_button, self.edit_button, self.delete_button):
+            button.setEnabled(selected)
+
+    def _refresh_table(self):
+        selected = self._selected_name()
+        items = self.store.items()
+        self.table.setRowCount(len(items))
+        for row, (name, address) in enumerate(items):
+            self.table.setItem(row, 0, QTableWidgetItem(name))
+            self.table.setItem(row, 1, QTableWidgetItem(address))
+            self.table.setRowHeight(row, 36)
+            if name == selected or name == self._editing_name:
+                self.table.setCurrentCell(row, 0)
+        self.count_label.setText("%d 条备注" % len(items))
+        self._selection_changed()
+
+    def _set_status(self, text, error=False):
+        self.status.setText(text)
+        self.status.setStyleSheet("color: #c42b1c;" if error else "")
+        self.status.setVisible(bool(text))
+
+    def _reset_form(self):
+        self._editing_name = None
+        self.name_input.clear()
+        self.address_input.clear()
+        self.name_input.setError(False)
+        self.address_input.setError(False)
+        self.save_button.setText("添加备注")
+        self.save_button.setIcon(FIF.ADD)
+        self.cancel_button.hide()
+
+    def cancel_edit(self):
+        self._reset_form()
+        self._set_status("")
+
+    def save(self):
+        name = self.name_input.text().strip()
+        address = self.address_input.text().strip()
+        try:
+            if self._editing_name is None:
+                self.store.add(name, address)
+                action = "已添加备注「%s」" % name
+            else:
+                original = self._editing_name
+                self.store.update(original, name, address)
+                action = "已修改备注「%s」" % name
+        except (OSError, ValueError) as error:
+            message = str(error)
+            self.name_input.setError("备注名" in message)
+            self.address_input.setError("IP" in message or "地址" in message)
+            self._set_status(message, error=True)
+            return
+        self._reset_form()
+        self._select_name(name)
+        self._set_status(action)
+
+    def edit_selected(self):
+        name = self._selected_name()
+        if not name:
+            return
+        matched = self.store.match(name)
+        if matched is None:
+            return
+        self._editing_name = matched[0]
+        self.name_input.setText(matched[0])
+        self.address_input.setText(matched[1])
+        self.name_input.setError(False)
+        self.address_input.setError(False)
+        self.save_button.setText("保存修改")
+        self.save_button.setIcon(FIF.SAVE)
+        self.cancel_button.show()
+        self.name_input.setFocus()
+        self.name_input.selectAll()
+
+    def use_selected(self):
+        name = self._selected_name()
+        matched = self.store.match(name) if name else None
+        if matched is None:
+            return
+        self.state.set_value("target", matched[0])
+        self._set_status("已将「%s」（%s）设为当前目标" % matched)
+
+    def delete_selected(self):
+        name = self._selected_name()
+        matched = self.store.match(name) if name else None
+        if matched is None:
+            return
+        dialog = MessageBox(
+            "删除设备备注",
+            "确定删除备注「%s」（%s）？当前目标如果引用该备注，也会被清空。" % matched,
+            self,
+        )
+        dialog.yesButton.setText("删除")
+        dialog.cancelButton.setText("取消")
+        if not dialog.exec():
+            return
+        try:
+            self.store.remove(matched[0])
+        except (OSError, ValueError) as error:
+            self._set_status(str(error), error=True)
+            return
+        if self._editing_name == matched[0]:
+            self._reset_form()
+        self._set_status("已删除备注「%s」" % matched[0])
 
 
 class LocalPage(Page):
