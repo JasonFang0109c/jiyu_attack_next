@@ -242,6 +242,20 @@ class GuiTests(unittest.TestCase):
         self.assertGreater(self.message.targets.port_input.lineEdit().width(), 30)
         self.assertEqual(self.message.targets.port_input.lineEdit().text(), "65535")
 
+    def test_target_and_device_picker_do_not_overlap_at_narrow_widths(self):
+        self.window.show()
+        self.window.show_page("message")
+        for width in (1050, 960):
+            self.window.resize(width, 640)
+            QTest.qWait(300)
+            self.application.processEvents()
+            targets = self.message.targets
+            self.assertLess(
+                targets.target_input.geometry().right(),
+                targets.device_button.geometry().left(),
+                "窗口宽度 %d 时目标地址与选择设备按钮重叠" % width,
+            )
+
     def test_invalid_target_does_not_start_worker(self):
         self.message.footer.send_button.click()
         self.assertIsNone(self.window.thread)

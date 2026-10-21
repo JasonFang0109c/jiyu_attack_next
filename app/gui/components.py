@@ -78,7 +78,8 @@ class TargetControls(QWidget):
         self.target_input = LineEdit(self)
         self.target_input.setPlaceholderText("IPv4、末段范围或 /24 网段")
         self.target_input.setClearButtonEnabled(True)
-        self.target_input.setMinimumWidth(220)
+        # 窄窗口下允许目标框收缩，避免覆盖右侧的选择设备按钮。
+        self.target_input.setMinimumWidth(160)
         self.device_button = PushButton("选择设备", self)
         self.device_button.setIcon(FluentIcon.PEOPLE)
         self.device_button.setMinimumWidth(106)
