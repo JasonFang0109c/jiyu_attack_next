@@ -30,15 +30,16 @@ class TaskWorker(QThread):
     completed = Signal(object)
     failed = Signal(str)
 
-    def __init__(self, function, *args):
+    def __init__(self, function, *args, **kwargs):
         super().__init__()
         self.function = function
         self.args = args
+        self.kwargs = kwargs
 
     def run(self):
         try:
             result = self.function(
-                *self.args, report=self.progress.emit)
+                *self.args, report=self.progress.emit, **self.kwargs)
         except Exception as error:
             self.failed.emit(str(error))
         else:

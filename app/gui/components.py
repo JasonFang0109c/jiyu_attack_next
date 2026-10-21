@@ -166,7 +166,7 @@ class Ipv4TargetInput(QWidget):
 
 
 class TargetControls(QWidget):
-    def __init__(self, state, parent=None):
+    def __init__(self, state, parent=None, show_round_options=True):
         super().__init__(parent)
         self.state = state
         layout = QVBoxLayout(self)
@@ -200,6 +200,9 @@ class TargetControls(QWidget):
         self.port_input.setValue(state.values["port"])
         self.loop_input.setValue(state.values["loops"])
         self.interval_input.setValue(state.values["interval"])
+        if not show_round_options:
+            self.loop_input.hide()
+            self.interval_input.hide()
         self.target_input.setText(state.resolve_target(state.values["target"]))
 
         target_column = QVBoxLayout()
@@ -216,7 +219,8 @@ class TargetControls(QWidget):
         options_row = QHBoxLayout()
         options_row.setSpacing(12)
         labels = {"port": "UDP 端口", "loops": "发送轮数", "interval": "间隔（秒）"}
-        for name in ("port", "loops", "interval"):
+        option_names = ("port", "loops", "interval") if show_round_options else ("port",)
+        for name in option_names:
             field = self.fields[name]
             column = QVBoxLayout()
             column.setSpacing(6)

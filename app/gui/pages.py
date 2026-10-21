@@ -11,8 +11,9 @@ from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QHeaderView,
                                QVBoxLayout, QWidget)
 from qfluentwidgets import (BodyLabel, CaptionLabel, ComboBox, FluentIcon as FIF,
                             HyperlinkButton, LineEdit, MessageBox, PlainTextEdit,
-                            PrimaryPushButton, PushButton, RadioButton, SearchLineEdit,
-                            StrongBodyLabel, TableWidget, Theme, TitleLabel, qconfig, setFont)
+                            PrimaryPushButton, ProgressBar, PushButton, RadioButton,
+                            SearchLineEdit, StrongBodyLabel, TableWidget, Theme, TitleLabel,
+                            qconfig, setFont)
 from cli import main as core
 from .components import (Ipv4TargetInput, SectionCard, TargetControls, TaskFooter,
                           page_heading, tool_button)
@@ -210,6 +211,75 @@ class DevicePage(NetworkPage):
         super().set_busy(busy, cancellable)
         self.reboot.setEnabled(not busy)
         self.shutdown.setEnabled(not busy)
+
+
+class FilePage(Page):
+    chooseRequested = Signal()
+
+    def __init__(self, state, parent=None):
+        super().__init__("file", parent)
+        page_heading(self.vbox, "文件传送")
+        self.target_card = SectionCard(self)
+        self.targets = TargetControls(state, self.target_card, show_round_options=False)
+        self.target_card.body.addWidget(self.targets)
+        self.vbox.addWidget(self.target_card)
+        self.content_card = SectionCard(self, spacing=12)
+        row = QHBoxLayout()
+        row.addWidget(BodyLabel("待传送文件", self.content_card))
+        row.addStretch()
+        self.choose_button = tool_button(FIF.FOLDER, "选择文件", self.content_card, self.chooseRequested.emit)
+        row.addWidget(self.choose_button)
+        self.content_card.body.addLayout(row)
+        self.file_name = BodyLabel("尚未选择文件", self.content_card)
+        self.file_name.setWordWrap(True)
+        self.content_card.body.addWidget(self.file_name)
+        self.file_detail = CaptionLabel("选择任意本地文件，目标电脑将下载到当前用户桌面。", self.content_card)
+        self.file_detail.setWordWrap(True)
+        self.content_card.body.addWidget(self.file_detail)
+        self.progress = ProgressBar(self.content_card)
+        self.progress.setRange(0, 100)
+        self.progress.setValue(0)
+        self.progress.hide()
+        self.content_card.body.addWidget(self.progress)
+        self.progress_text = CaptionLabel("", self.content_card)
+        self.progress_text.hide()
+        self.content_card.body.addWidget(self.progress_text)
+        hint = CaptionLabel(
+            "目标电脑需要能访问本机 IP 与文件传送端口；传送期间请保持本页任务运行。"
+            "目标需允许执行远程命令，并由系统 cmd 下载文件。", self.content_card)
+        hint.setWordWrap(True)
+        self.content_card.body.addWidget(hint)
+        self.content_card.body.addStretch()
+        self.vbox.addWidget(self.content_card, 1)
+        self.footer_card = SectionCard(self, spacing=0, margins=(8, 8, 8, 8))
+        self.footer = TaskFooter("传送文件", self.footer_card, FIF.SEND)
+        self.footer_card.body.addWidget(self.footer)
+        self.vbox.addWidget(self.footer_card)
+        self.path = ""
+        self.size = 0
+
+    def set_file(self, path, size):
+        self.path = str(path)
+        self.size = int(size)
+        self.file_name.setText(Path(path).name)
+        self.file_name.setToolTip(str(path))
+        self.file_detail.setText("%s · %s" % (core.format_size(size), path))
+
+    def set_progress(self, percent):
+        self.progress.show()
+        self.progress_text.show()
+        self.progress.setValue(max(0, min(100, int(percent))))
+        self.progress_text.setText("目标下载进度：%d%%" % max(0, min(100, int(percent))))
+
+    def reset_progress(self):
+        self.progress.setValue(0)
+        self.progress.hide()
+        self.progress_text.hide()
+
+    def set_busy(self, busy, cancellable=False):
+        self.targets.setEnabled(not busy)
+        self.choose_button.setEnabled(not busy)
+        self.footer.set_busy(busy, cancellable)
 
 
 class AliasPage(Page):

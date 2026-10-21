@@ -65,11 +65,11 @@ class GuiTests(unittest.TestCase):
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
         self.application.processEvents()
 
-    def test_fluent_window_has_nine_function_pages(self):
+    def test_fluent_window_has_ten_function_pages(self):
         self.assertIsInstance(self.window, FluentWindow)
         self.assertEqual(self.window.windowTitle(), gui.APP_NAME)
         self.assertFalse(self.window.windowIcon().isNull())
-        self.assertEqual(self.window.stackedWidget.count(), 9)
+        self.assertEqual(self.window.stackedWidget.count(), 10)
         self.assertEqual(self.window.current_page(), "message")
         self.assertEqual(self.state.values["target"], "")
         self.assertEqual(self.state.values["port"], 4705)
@@ -371,6 +371,43 @@ class GuiTests(unittest.TestCase):
             self.window.start_send("command")
         self.assertIsNone(self.window.thread)
         self.assertIn("超过报文容量", self.command.footer.status.text())
+
+    def test_file_page_selects_file_and_starts_transfer(self):
+        page = self.window.pages["file"]
+        self.assertEqual(page.objectName(), "file")
+        self.assertEqual(page.targets.loop_input.isVisibleTo(page), False)
+        source = self.temp_root / "报告.txt"
+        source.write_text("测试文件", encoding="utf-8")
+        page.set_file(source, source.stat().st_size)
+        self.state.set_value("target", "模拟目标")
+
+        def fake_transfer(target, port, path, listen_ip, timeout, cancel_event=None, report=None):
+            report("目标正在下载文件：50%")
+            report("目标正在下载文件：100%")
+            return {"name": "报告.txt", "size": 8, "target": target, "listen_ip": listen_ip}
+
+        with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
+            with patch.object(gui.core, "transfer_file", side_effect=fake_transfer) as transfer:
+                self.window.start_file_transfer()
+                self.wait_for(lambda: self.window.thread is None)
+        transfer.assert_called_once()
+        self.assertEqual(page.progress.value(), 100)
+        self.assertIn("文件已传送到目标桌面", page.footer.status.text())
+        self.assertEqual(self.window.logs.entries[-1].category, "文件传送")
+        self.assertEqual(self.window.logs.entries[-1].level, "成功")
+
+    def test_file_page_requires_file_and_single_target(self):
+        page = self.window.pages["file"]
+        self.window.start_file_transfer()
+        self.assertIsNone(self.window.thread)
+        self.assertIn("请先选择要传送的文件", page.footer.status.text())
+        source = self.temp_root / "报告.txt"
+        source.write_text("测试文件", encoding="utf-8")
+        page.set_file(source, source.stat().st_size)
+        self.state.set_value("target", "192.168.1.1-2")
+        self.window.start_file_transfer()
+        self.assertIsNone(self.window.thread)
+        self.assertIn("单个目标", page.footer.status.text())
 
     def test_worker_completes_and_reenables_controls(self):
         self.state.set_value("target", "模拟目标")

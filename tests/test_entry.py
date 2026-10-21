@@ -2,7 +2,6 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
-import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -10,6 +9,11 @@ from app.__main__ import main
 
 
 class EntryTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.test_root = Path(__file__).resolve().parents[1] / "build" / "test-entry-temp"
+        cls.test_root.mkdir(parents=True, exist_ok=True)
+
     def run_cli(self, script, directory):
         return subprocess.run(
             [sys.executable, "-X", "utf8", "-B", str(script), "-h"],
@@ -17,8 +21,13 @@ class EntryTests(unittest.TestCase):
 
     def test_cli_launcher_works_outside_project_directory(self):
         script = Path(__file__).resolve().parents[1] / "cli" / "main.py"
-        with tempfile.TemporaryDirectory() as directory:
+        directory = self.test_root / "outside"
+        shutil.rmtree(directory, ignore_errors=True)
+        directory.mkdir(parents=True)
+        try:
             result = self.run_cli(script, directory)
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("-msg", result.stdout)
         self.assertIn("--msg-file", result.stdout)
@@ -28,10 +37,15 @@ class EntryTests(unittest.TestCase):
         source = project_root / "cli" / "main.py"
         isolation_root = project_root / "build" / "test-isolation"
         isolation_root.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(dir=isolation_root) as directory:
-            standalone = Path(directory) / "standalone.py"
+        directory = isolation_root / "standalone"
+        shutil.rmtree(directory, ignore_errors=True)
+        directory.mkdir(parents=True)
+        try:
+            standalone = directory / "standalone.py"
             shutil.copyfile(source, standalone)
             result = self.run_cli(standalone, directory)
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("standalone.py", result.stdout)
         self.assertIn("--msg-file", result.stdout)

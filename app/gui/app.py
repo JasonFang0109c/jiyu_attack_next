@@ -13,14 +13,14 @@ from cli import main as core
 from .models import (DATA_DIRECTORY_NAME, SETTINGS_FILE_NAME, ConnectionState,
                      DeviceAliasStore, LogStore, portable_data_dir, portable_log_path,
                      portable_settings)
-from .pages import (AboutPage, AliasPage, CommandPage, DevicePage, FirewallPage,
-                    LocalPage, LogPage, MessagePage, SettingsPage)
+from .pages import (AboutPage, AliasPage, CommandPage, DevicePage, FilePage,
+                    FirewallPage, LocalPage, LogPage, MessagePage, SettingsPage)
 from .workers import SendWorker, TaskWorker
 
 
 APP_NAME = "JiYu Attack Next"
 CATEGORIES = {"message": "文本消息", "command": "远程命令", "device": "设备操作",
-              "local": "本机信息", "firewall": "防火墙"}
+              "file": "文件传送", "local": "本机信息", "firewall": "防火墙"}
 
 
 def configure_application(application):
@@ -66,6 +66,7 @@ class MainWindow(FluentWindow):
             "message": MessagePage(self.connection_state, self),
             "command": CommandPage(self.connection_state, self),
             "device": DevicePage(self.connection_state, self),
+            "file": FilePage(self.connection_state, self),
             "aliases": AliasPage(self.connection_state, self),
             "local": LocalPage(self),
             "firewall": FirewallPage(self),
@@ -74,7 +75,8 @@ class MainWindow(FluentWindow):
             "about": AboutPage(self),
         }
         self.network_pages = [self.pages[key] for key in ("message", "command", "device")]
-        self.task_pages = self.network_pages + [self.pages["local"], self.pages["firewall"]]
+        self.task_pages = self.network_pages + [self.pages["file"], self.pages["local"],
+                                                 self.pages["firewall"]]
         self._build_navigation()
         self._connect_actions()
         self.logs.add("应用", "界面已就绪")
@@ -89,6 +91,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.pages["message"], FIF.MESSAGE, "文本消息")
         self.addSubInterface(self.pages["command"], FIF.COMMAND_PROMPT, "远程命令")
         self.addSubInterface(self.pages["device"], FIF.POWER_BUTTON, "设备操作")
+        self.addSubInterface(self.pages["file"], FIF.SEND, "文件传送")
         self.addSubInterface(self.pages["aliases"], FIF.QUICK_NOTE, "设备备注")
         self.navigationInterface.addSeparator()
         self.navigationInterface.addItemHeader("本机工具")
@@ -102,6 +105,8 @@ class MainWindow(FluentWindow):
     def _connect_actions(self):
         for kind in ("message", "command", "device"):
             self.pages[kind].footer.requested.connect(lambda key=kind: self.start_send(key))
+        self.pages["file"].footer.requested.connect(self.start_file_transfer)
+        self.pages["file"].chooseRequested.connect(self.choose_transfer_file)
         self.pages["local"].footer.requested.connect(self.start_local_probe)
         self.pages["local"].copyRequested.connect(self.copy_local_ip)
         self.pages["firewall"].footer.requested.connect(self.start_firewall)
@@ -222,6 +227,75 @@ class MainWindow(FluentWindow):
         self.logs.add(CATEGORIES[kind], message, "警告")
         self._notify("请检查参数", message, "警告")
 
+    def choose_transfer_file(self):
+        filename, _ = QFileDialog.getOpenFileName(self, "选择要传送的文件", "", "所有文件 (*)")
+        if not filename:
+            return
+        try:
+            size = Path(filename).stat().st_size
+        except OSError as error:
+            self._notify("无法读取文件", str(error), "错误")
+            return
+        self.pages["file"].set_file(filename, size)
+        self.pages["file"].footer.set_status("已选择：%s" % Path(filename).name)
+        self.logs.add(CATEGORIES["file"], "已选择文件：%s（%s）" % (filename, core.format_size(size)))
+
+    def start_file_transfer(self):
+        if self.thread is not None:
+            return
+        page = self.pages["file"]
+        if not page.path:
+            self._validation_error("file", "请先选择要传送的文件")
+            return
+        target = self.connection_state.resolve_target().strip()
+        try:
+            hosts = core.get_ip(target)
+        except ValueError as error:
+            page.targets.target_input.setError(True)
+            self._validation_error("file", str(error))
+            return
+        if len(hosts) != 1:
+            self._validation_error("file", "文件传送仅支持单个目标地址")
+            return
+        try:
+            source = core.validate_file_transfer(target, self.connection_state.values["port"], page.path)
+        except ValueError as error:
+            self._validation_error("file", str(error))
+            return
+        if not self._confirm(
+                "确认传送文件",
+                "目标：%s\n文件：%s\n大小：%s\n目标保存位置：当前用户桌面" % (
+                    target, source.name, core.format_size(source.stat().st_size))):
+            return
+        cancel_event = Event()
+        self.active_cancel = cancel_event
+        page.reset_progress()
+        self.logs.add(CATEGORIES["file"], "开始传送：%s → %s" % (source.name, target))
+        self._begin_task(
+            "file",
+            TaskWorker(core.transfer_file, target, self.connection_state.values["port"],
+                       str(source), None, 120, cancel_event=cancel_event),
+            self._file_finished, self._file_failed)
+
+    @Slot(object)
+    def _file_finished(self, result):
+        page = self.pages["file"]
+        page.set_progress(100)
+        message = "文件已传送到目标桌面：%s（%s）" % (
+            result["name"], core.format_size(result["size"]))
+        page.footer.set_status(message)
+        self.logs.add(CATEGORIES["file"], message, "成功")
+        self._notify("文件传送完成", message, "成功")
+
+    @Slot(str)
+    def _file_failed(self, message):
+        level = "信息" if message == "操作已取消" else "错误"
+        page = self.pages["file"]
+        page.reset_progress()
+        page.footer.set_status(message)
+        self.logs.add(CATEGORIES["file"], message, level)
+        self._notify("传送已取消" if level == "信息" else "文件传送失败", message, level)
+
     def start_local_probe(self):
         if self.thread is not None:
             return
@@ -254,6 +328,7 @@ class MainWindow(FluentWindow):
     def _set_busy(self, busy):
         for page in self.network_pages:
             page.set_busy(busy, self.active_cancel is not None)
+        self.pages["file"].set_busy(busy, self.active_cancel is not None)
         for key in ("local", "firewall"):
             self.pages[key].footer.set_busy(busy)
         self.pages["firewall"].action_box.setEnabled(not busy)
@@ -271,6 +346,12 @@ class MainWindow(FluentWindow):
     def _task_progress(self, message):
         self.logs.add(CATEGORIES[self.active_kind], message)
         self.pages[self.active_kind].footer.set_status(message)
+        if self.active_kind == "file" and "下载文件：" in message:
+            try:
+                percent = int(message.rsplit("：", 1)[1].rstrip("%"))
+            except ValueError:
+                return
+            self.pages["file"].set_progress(percent)
 
     @Slot(int)
     def _send_finished(self, count):
@@ -325,7 +406,7 @@ class MainWindow(FluentWindow):
         if self.active_cancel and not self.active_cancel.is_set():
             self.active_cancel.set()
             self.pages[self.active_kind].footer.set_status("正在取消")
-            for page in self.network_pages:
+            for page in self.task_pages:
                 page.footer.cancel_button.setEnabled(False)
             self.pages["logs"].cancel_button.setEnabled(False)
             self.logs.add(CATEGORIES[self.active_kind], "已请求取消")

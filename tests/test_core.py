@@ -1,5 +1,8 @@
+import shutil
 import socket
 import unittest
+import urllib.request
+from pathlib import Path
 from threading import Event
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
@@ -10,7 +13,10 @@ from cli import main as core
 class CoreTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.test_root = Path("build") / "test-core-temp"
+        cls.test_root.mkdir(parents=True, exist_ok=True)
         cls.core = core
+        cls.real_socket = socket.socket
         cls.network_guard = patch.object(
             socket, "socket",
             side_effect=AssertionError("测试期间禁止创建网络套接字"))
@@ -205,6 +211,122 @@ class CoreTests(unittest.TestCase):
         self.assertIn("原本已在运行", results[0]["stdout"])
         self.assertTrue(results[1]["success"])
         self.assertTrue(results[2]["success"])
+
+    def test_file_transfer_validation(self):
+        directory = self.test_root / "validation"
+        shutil.rmtree(directory, ignore_errors=True)
+        directory.mkdir(parents=True)
+        try:
+            source = directory / "测试 文件.txt"
+            source.write_bytes(b"hello")
+            result = self.core.validate_file_transfer("192.168.1.10", 4705, str(source))
+            self.assertEqual(result, source.resolve())
+            with self.assertRaisesRegex(ValueError, "单个目标"):
+                self.core.validate_file_transfer("192.168.1.1-2", 4705, str(source))
+            with self.assertRaisesRegex(ValueError, "文件不存在"):
+                self.core.validate_file_transfer("192.168.1.10", 4705, str(source) + ".missing")
+            with self.assertRaisesRegex(ValueError, "文件"):
+                self.core.validate_file_transfer("192.168.1.10", 4705, str(directory))
+            with self.assertRaisesRegex(ValueError, "端口"):
+                self.core.validate_file_transfer("192.168.1.10", 0, str(source))
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
+
+    def test_file_transfer_command_and_bootstrap_script(self):
+        command = self.core.build_transfer_command("http://192.168.1.10:54321/b/token")
+        self.assertIn("cmd /c curl ", command)
+        self.assertNotIn("powershell", command.lower())
+        self.assertIn("http://192.168.1.10:54321/b/token", command)
+        self.assertLessEqual(len(command.encode("utf-16le")) // 2, self.core.COMMAND_MAX_BYTES // 2)
+        with self.assertRaisesRegex(ValueError, "报文容量"):
+            self.core.build_transfer_command("http://" + "a" * 400)
+        script = self.core.build_bootstrap_script(
+            "http://192.168.1.10:54321/f/token", "报告 100% O'Brien.txt", 12,
+            desktop_dir=r"C:\Users\测试\Desktop")
+        self.assertIn("curl.exe", script)
+        self.assertIn("报告 100%% O'Brien.txt", script)
+        self.assertIn('set "DESKTOP=C:\\Users\\测试\\Desktop"', script)
+        self.assertIn('"%%~zA"=="12"', script)
+        self.assertNotIn("powershell", script.lower())
+
+    def test_local_ip_detection_prefers_target_route(self):
+        first = MagicMock()
+        first.__enter__.return_value = first
+        first.getsockname.return_value = ("10.0.0.20", 50000)
+        with patch.object(socket, "socket", return_value=first):
+            self.assertEqual(self.core.detect_local_ip("10.0.0.8"), "10.0.0.20")
+        self.assertEqual(first.connect.call_args.args[0], ("10.0.0.8", 9))
+
+    def test_file_transfer_uses_http_server_and_sends_command(self):
+        self.network_guard.stop()
+        self.addCleanup(self.network_guard.start)
+        directory = self.test_root / "server"
+        shutil.rmtree(directory, ignore_errors=True)
+        directory.mkdir(parents=True)
+        try:
+            source = directory / "payload.bin"
+            payload = b"file-payload" * 100
+            source.write_bytes(payload)
+            reported = []
+            desktop = directory / "desktop"
+            desktop.mkdir()
+            sent = []
+
+            def fake_send(packets, target, port, loops, interval, report=None, cancel_event=None):
+                sent.append((packets, target, port, loops, interval))
+                command = bytes(packets[0][self.core.COMMAND_OFFSET:]).decode("utf-16le").split("\x00", 1)[0]
+                bootstrap_url = command.split('-o "%TEMP%\\jyt.cmd" "', 1)[1].split('"', 1)[0]
+                with urllib.request.urlopen(bootstrap_url, timeout=5) as response:
+                    script = response.read().decode("utf-8-sig")
+                file_url = script.split('curl.exe -fsSL --noproxy "*" --retry 2 -o "%PART%" "', 1)[1].split('"', 1)[0]
+                with urllib.request.urlopen(file_url, timeout=5) as response:
+                    self.assertEqual(response.read(), payload)
+                return 1
+
+            with patch.object(self.core, "send", side_effect=fake_send):
+                result = self.core.transfer_file(
+                    "192.168.1.10", 4705, str(source), listen_ip="127.0.0.1",
+                    timeout=5, report=reported.append, desktop_dir=str(desktop))
+            self.assertEqual(result["name"], "payload.bin")
+            self.assertEqual(result["size"], len(payload))
+            self.assertEqual(sent[0][1:], ("192.168.1.10", 4705, 1, 0))
+            self.assertTrue(any("下载文件" in message for message in reported))
+            self.assertTrue(any("目标已下载文件" in message for message in reported))
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
+
+    def test_file_transfer_timeout_and_cancellation(self):
+        self.network_guard.stop()
+        self.addCleanup(self.network_guard.start)
+        directory = self.test_root / "timeout"
+        shutil.rmtree(directory, ignore_errors=True)
+        directory.mkdir(parents=True)
+        try:
+            source = directory / "payload.bin"
+            source.write_bytes(b"data")
+            with patch.object(self.core, "send", return_value=1):
+                with self.assertRaisesRegex(RuntimeError, "超时"):
+                    self.core.transfer_file(
+                        "192.168.1.10", 4705, str(source), listen_ip="127.0.0.1",
+                        timeout=0.2)
+                stopped = Event()
+                stopped.set()
+                with self.assertRaisesRegex(RuntimeError, "操作已取消"):
+                    self.core.transfer_file(
+                        "192.168.1.10", 4705, str(source), listen_ip="127.0.0.1",
+                        timeout=1, cancel_event=stopped)
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
+
+    def test_file_transfer_cli_parser_and_dispatch(self):
+        parser = self.core.build_parser()
+        args = parser.parse_args(["-ip", "192.168.1.10", "--file", "report.pdf",
+                                  "--file-ip", "192.168.1.20", "--file-timeout", "30"])
+        self.assertEqual(args.file, "report.pdf")
+        self.assertEqual(args.file_ip, "192.168.1.20")
+        self.assertEqual(args.file_timeout, 30)
+        with self.assertRaises(SystemExit):
+            parser.parse_args(["--file", "report.pdf", "-msg", "通知"])
 
     def test_send_cli_parser_keeps_existing_options(self):
         parser = self.core.build_parser()
