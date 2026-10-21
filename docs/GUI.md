@@ -12,7 +12,7 @@ python -m app.gui
 
 也可以执行 `powershell -ExecutionPolicy Bypass -File .\scripts\run_gui.ps1`，由启动脚本自动使用项目虚拟环境。
 
-界面使用 [PySide6-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets/tree/PySide6) 构建，采用 Fluent 侧边导航，并按功能分为以下页面：
+界面使用 [PySide6-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets/tree/PySide6) 构建，采用 Fluent 侧边导航和统一圆角分区卡片，并按功能分为以下页面：
 
 该组件库采用 GPLv3 与商业许可双授权。个人或非商业使用遵循项目随附许可条款；商业分发前请核对上游仓库的授权要求。
 
@@ -26,7 +26,7 @@ python -m app.gui
 | 防火墙 | 修改 `StudentMain.exe` 的现有防火墙规则并查看逐项结果 |
 | 运行日志 | 按功能搜索、筛选、导出或清空日志，并取消正在发送的任务 |
 | 设置 | 切换浅色、深色或跟随系统主题，恢复默认连接参数 |
-| 关于 | 查看作者、GitHub、上游仓库和组件版本 |
+| 关于 | 查看作者、上游仓库和组件版本 |
 
 目标地址、UDP 端口、发送轮数和轮次间隔在三个远程页面之间同步；消息、命令及设备选择分别保留，切换页面不会清空草稿。窗口较窄时侧边栏会收窄为图标，窗口最小尺寸为 960 × 640。
 

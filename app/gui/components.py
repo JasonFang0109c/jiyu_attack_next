@@ -4,8 +4,8 @@ from PySide6.QtCore import QSignalBlocker, Qt, Signal, Slot
 from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import (BodyLabel, CaptionLabel, ComboBox, Dialog, DoubleSpinBox,
                             FluentIcon, IndeterminateProgressRing, LineEdit,
-                            PrimaryPushButton, PushButton, SpinBox, SubtitleLabel,
-                            ToolButton, ToolTipFilter, ToolTipPosition)
+                            PrimaryPushButton, PushButton, SimpleCardWidget, SpinBox,
+                            SubtitleLabel, ToolButton, ToolTipFilter, ToolTipPosition)
 
 from cli import main as core
 
@@ -28,6 +28,17 @@ def page_heading(layout, title, action=None):
     if action is not None:
         row.addWidget(action)
     layout.addLayout(row)
+
+
+class SectionCard(SimpleCardWidget):
+    """带圆角与内边距的页面功能分区。"""
+
+    def __init__(self, parent=None, spacing=12, margins=(20, 18, 20, 18)):
+        super().__init__(parent)
+        self.setBorderRadius(12)
+        self.body = QVBoxLayout(self)
+        self.body.setContentsMargins(*margins)
+        self.body.setSpacing(spacing)
 
 
 class _SpinEditorGeometry:

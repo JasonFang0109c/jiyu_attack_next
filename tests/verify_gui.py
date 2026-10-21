@@ -16,7 +16,7 @@ from app.gui import app as gui
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--screenshot", required=True)
-    parser.add_argument("--page", choices=["message", "command", "device", "aliases", "local", "firewall", "logs", "settings"], default="message")
+    parser.add_argument("--page", choices=["message", "command", "device", "aliases", "local", "firewall", "logs", "settings", "about"], default="message")
     parser.add_argument("--theme", choices=["light", "dark"], default="light")
     parser.add_argument("--sample", action="store_true")
     parser.add_argument("--width", type=int, default=1180)

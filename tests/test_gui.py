@@ -78,6 +78,19 @@ class GuiTests(unittest.TestCase):
         links = [button.getUrl().toString() for button in about.findChildren(gui.HyperlinkButton)]
         self.assertIn("https://github.com/JasonFang0109c", links)
         self.assertIn("https://github.com/ht0Ruial/Jiyu_udp_attack", links)
+        self.assertNotIn("https://github.com/JasonFang0109c", [
+            button.text() for button in about.findChildren(gui.HyperlinkButton)
+        ])
+        self.assertIn("JasonFang0109c", [
+            button.text() for button in about.findChildren(gui.HyperlinkButton)
+        ])
+
+    def test_every_page_uses_rounded_section_cards(self):
+        for page in self.window.pages.values():
+            cards = page.findChildren(components.SectionCard)
+            self.assertGreaterEqual(len(cards), 1, page.objectName())
+            self.assertTrue(all(card.borderRadius == 12 for card in cards))
+
     def test_title_bar_keeps_icon_and_title(self):
         self.assertFalse(self.window.titleBar.iconLabel.isHidden())
         self.assertFalse(self.window.titleBar.titleLabel.isHidden())
