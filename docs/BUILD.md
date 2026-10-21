@@ -48,13 +48,16 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Python "C:\Python3
 
 | 路径 | 内容 | 是否保留 |
 | --- | --- | --- |
-| `output/JiYu Attack Next.exe` | 单文件窗口程序 | 保留用于运行和分发 |
-| `build/JiYu Attack Next/` | 打包中间文件与分析结果 | 构建后可删除 |
+| `output/JiYuAttackNext.exe` | 单文件窗口程序 | 保留用于运行和分发 |
+| `build/JiYuAttackNext/` | 打包中间文件与分析结果 | 构建后可删除 |
 | `build/assets/app.ico` | 从 SVG 转换的构建图标 | 构建后可删除 |
 | `build/previews/` | 手动生成的界面验证截图 | 检查后可删除 |
 | `assets/app.svg` | 图标源文件 | 随源码保留 |
+| `JiYuAttackNextData/`（EXE 同级） | 运行后生成的设备备注与日志 | 需要保留配置时随 EXE 一起移动 |
 
 删除 `build/` 不影响已生成的 EXE，下次构建会重新生成所需文件。`build/`、`output/` 和 `.venv/` 均不提交到 Git。
+
+运行 EXE 后，程序会在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 保存设备备注，`runtime.log` 保存运行日志。只移动 EXE 而不移动该文件夹时，新位置会按默认配置启动。
 
 ## 验证
 

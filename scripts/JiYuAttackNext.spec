@@ -27,7 +27,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="JiYu Attack Next",
+    name="JiYuAttackNext",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

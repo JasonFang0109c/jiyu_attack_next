@@ -81,9 +81,9 @@ class Ipv4TargetInput(QWidget):
     SEGMENT_WIDTHS = (64, 64, 64, 148)
     PLACEHOLDERS = ("192", "168", "1", "20、1-10、0/24")
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, object_name="targetAddressInput", field_label="目标地址"):
         super().__init__(parent)
-        self.setObjectName("targetAddressInput")
+        self.setObjectName(object_name)
         self.segments = []
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -98,8 +98,8 @@ class Ipv4TargetInput(QWidget):
                 dot.setFixedWidth(4)
                 layout.addWidget(dot)
             edit = LineEdit(self)
-            edit.setObjectName("targetSegment%d" % (index + 1))
-            edit.setAccessibleName("目标地址第 %d 段" % (index + 1))
+            edit.setObjectName("%sSegment%d" % (object_name, index + 1))
+            edit.setAccessibleName("%s第 %d 段" % (field_label, index + 1))
             edit.setAlignment(Qt.AlignCenter)
             edit.setFixedWidth(width)
             edit.setMaxLength(3 if index < 3 else 8)
@@ -141,6 +141,9 @@ class Ipv4TargetInput(QWidget):
             changed = True
         if changed:
             self.textChanged.emit(self.text())
+
+    def clear(self):
+        self.setText("")
 
     def is_complete(self):
         return all(edit.text().strip() for edit in self.segments)

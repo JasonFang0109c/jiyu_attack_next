@@ -46,7 +46,7 @@ python -m app.gui
 powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Clean
 ```
 
-构建产物为 `output\JiYu Attack Next.exe`。`scripts/build.ps1` 接受 `-Python` 参数来指定其他虚拟环境解释器；默认使用 `.venv\Scripts\python.exe`。
+构建产物为 `output\JiYuAttackNext.exe`。`scripts/build.ps1` 接受 `-Python` 参数来指定其他虚拟环境解释器；默认使用 `.venv\Scripts\python.exe`。
 
 提交界面或打包配置前，可运行离线检查：
 

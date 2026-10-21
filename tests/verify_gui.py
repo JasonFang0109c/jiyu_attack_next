@@ -1,4 +1,5 @@
 import argparse
+import contextlib
 import os
 import sys
 import tempfile
@@ -29,39 +30,37 @@ def main():
     gui.configure_application(app)
     if args.theme == "dark":
         gui.setTheme(gui.Theme.DARK)
-    settings_path = Path(tempfile.gettempdir()) / ("jiyu-verify-%d.ini" % os.getpid())
-    settings = QSettings(str(settings_path), QSettings.IniFormat)
-    alias_store = gui.DeviceAliasStore(settings=settings)
-    window = gui.MainWindow(alias_store=alias_store)
-    window.resize(args.width, args.height)
-    if args.sample:
-        window.pages["message"].editor.setPlainText("维护通知\n\n请保存当前工作，准备进行例行维护。\n维护结束后将另行通知。")
-        window.pages["command"].editor.setPlainText("cmd.exe /c ipconfig")
-        window.alias_store.add("教室 A 讲台", "192.168.1.10")
-        window.alias_store.add("一号机房", "192.168.1.11")
-        window.connection_state.set_value("target", "教室 A 讲台")
-        window.logs.add("应用", "本地界面预览已载入")
-    window.show_page(args.page)
-    window.show()
+    with contextlib.nullcontext(Path("build") / "verify-gui-data") as data_root:
+        data_dir = data_root / gui.DATA_DIRECTORY_NAME
+        data_dir.mkdir(parents=True, exist_ok=True)
+        settings = QSettings(str(data_dir / gui.SETTINGS_FILE_NAME), QSettings.IniFormat)
+        alias_store = gui.DeviceAliasStore(settings=settings)
+        window = gui.MainWindow(alias_store=alias_store, data_dir=data_dir)
+        window.resize(args.width, args.height)
+        if args.sample:
+            window.pages["message"].editor.setPlainText("维护通知\n\n请保存当前工作，准备进行例行维护。\n维护结束后将另行通知。")
+            window.pages["command"].editor.setPlainText("cmd.exe /c ipconfig")
+            window.alias_store.add("教室 A 讲台", "192.168.1.10")
+            window.alias_store.add("一号机房", "192.168.1.11")
+            window.connection_state.set_value("target", "教室 A 讲台")
+            window.logs.add("应用", "本地界面预览已载入")
+        window.show_page(args.page)
+        window.show()
 
-    def capture():
-        image = window.grab()
-        ok = image.save(args.screenshot, "PNG")
-        print("截图保存%s：%s (%dx%d)" % (
-            "成功" if ok else "失败", args.screenshot, image.width(), image.height()))
-        app.exit(0 if ok else 1)
+        def capture():
+            image = window.grab()
+            ok = image.save(args.screenshot, "PNG")
+            print("截图保存%s：%s (%dx%d)" % (
+                "成功" if ok else "失败", args.screenshot, image.width(), image.height()))
+            app.exit(0 if ok else 1)
 
-    QTimer.singleShot(450, capture)
-    result = app.exec()
-    window.close()
-    window.deleteLater()
-    gui.QCoreApplication.sendPostedEvents(None, gui.QEvent.DeferredDelete)
-    app.processEvents()
-    try:
-        settings_path.unlink()
-    except FileNotFoundError:
-        pass
-    return result
+        QTimer.singleShot(450, capture)
+        result = app.exec()
+        window.close()
+        window.deleteLater()
+        gui.QCoreApplication.sendPostedEvents(None, gui.QEvent.DeferredDelete)
+        app.processEvents()
+        return result
 
 
 if __name__ == "__main__":

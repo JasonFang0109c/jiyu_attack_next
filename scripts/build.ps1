@@ -14,11 +14,11 @@ try {
     $pythonExe = (Resolve-Path -LiteralPath $Python).Path
     $buildRoot = Join-Path $projectRoot "build"
     $outputRoot = Join-Path $projectRoot "output"
-    $exePath = Join-Path $outputRoot "JiYu Attack Next.exe"
-    $runningApp = Get-Process -Name "JiYu Attack Next.exe" -ErrorAction SilentlyContinue |
+    $exePath = Join-Path $outputRoot "JiYuAttackNext.exe"
+    $runningApp = Get-Process -Name "JiYuAttackNext.exe" -ErrorAction SilentlyContinue |
         Where-Object { $_.Path -eq $exePath }
     if ($runningApp) {
-        throw "请关闭正在运行的 JiYu Attack Next.exe 后再构建。"
+        throw "请关闭正在运行的 JiYuAttackNext.exe 后再构建。"
     }
     & $pythonExe -X utf8 -c "import PySide6.QtWidgets, qfluentwidgets, PyInstaller"
     if ($LASTEXITCODE -ne 0) {

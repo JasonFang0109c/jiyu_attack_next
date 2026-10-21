@@ -14,8 +14,8 @@ from qfluentwidgets import (BodyLabel, CaptionLabel, ComboBox, FluentIcon as FIF
                             PrimaryPushButton, PushButton, RadioButton, SearchLineEdit,
                             StrongBodyLabel, TableWidget, Theme, TitleLabel, qconfig, setFont)
 from cli import main as core
-from .components import (SectionCard, TargetControls, TaskFooter, page_heading,
-                          tool_button)
+from .components import (Ipv4TargetInput, SectionCard, TargetControls, TaskFooter,
+                          page_heading, tool_button)
 
 
 def table_widget(headers, parent):
@@ -238,9 +238,9 @@ class AliasPage(Page):
         address_column = QVBoxLayout()
         address_column.setSpacing(6)
         address_column.addWidget(CaptionLabel("IP 地址", self))
-        self.address_input = LineEdit(self)
-        self.address_input.setPlaceholderText("例如：192.168.1.10")
-        self.address_input.setClearButtonEnabled(True)
+        self.address_input = Ipv4TargetInput(
+            self, object_name="aliasAddressInput", field_label="备注 IP 地址")
+        self.address_input.setToolTip("支持单个 IPv4、末段范围和 /24 网段")
         address_column.addWidget(self.address_input)
         self.save_button = PrimaryPushButton("添加备注", self)
         self.save_button.setIcon(FIF.ADD)
@@ -250,7 +250,7 @@ class AliasPage(Page):
         self.cancel_button.setMinimumWidth(84)
         self.cancel_button.hide()
         form.addLayout(name_column, 1)
-        form.addLayout(address_column, 1)
+        form.addLayout(address_column)
         form.addWidget(self.save_button, 0, Qt.AlignBottom)
         form.addWidget(self.cancel_button, 0, Qt.AlignBottom)
         form_card.body.addLayout(form)
@@ -289,8 +289,8 @@ class AliasPage(Page):
         self.use_button.clicked.connect(lambda checked=False: self.use_selected())
         self.edit_button.clicked.connect(lambda checked=False: self.edit_selected())
         self.delete_button.clicked.connect(lambda checked=False: self.delete_selected())
-        self.name_input.returnPressed.connect(self.save)
-        self.address_input.returnPressed.connect(self.save)
+        self.name_input.returnPressed.connect(lambda: self.address_input.segments[0].setFocus())
+        self.address_input.nextFieldRequested.connect(self.save)
         self.table.itemSelectionChanged.connect(self._selection_changed)
         self.table.cellDoubleClicked.connect(lambda row, column: self.edit_selected())
         self.store.changed.connect(self._refresh_table)
@@ -298,7 +298,7 @@ class AliasPage(Page):
         if self.store.load_error:
             self._set_status(self.store.load_error, error=True)
         else:
-            self._set_status("备注会保存在本机，重启后仍然可用。")
+            self._set_status("备注保存在程序数据目录，重启后仍然可用。")
 
     def _selected_name(self):
         row = self.table.currentRow()
@@ -546,7 +546,7 @@ class LogPage(Page):
         self.content_card = SectionCard(self, spacing=10)
         self.content_card.body.addLayout(toolbar)
         self.table = table_widget(["时间", "功能", "级别", "内容"], self.content_card)
-        self.table.setColumnWidth(0, 105)
+        self.table.setColumnWidth(0, 165)
         self.table.setColumnWidth(1, 105)
         self.table.setColumnWidth(2, 75)
         self.content_card.body.addWidget(self.table, 1)
@@ -555,6 +555,8 @@ class LogPage(Page):
         self.vbox.addWidget(self.content_card, 1)
         store.added.connect(self._append_entry)
         store.cleared.connect(self._clear_entries)
+        for entry in self.store.entries:
+            self._append_entry(entry)
 
     @Slot(object)
     def _append_entry(self, entry):
@@ -678,8 +680,11 @@ class AboutPage(Page):
         content = QVBoxLayout()
         content.setSpacing(12)
 
-        hero = SectionCard(self, spacing=8, margins=(20, 18, 20, 18))
-        hero.setObjectName("aboutHeroCard")
+        hero = QWidget(self)
+        hero.setObjectName("aboutHero")
+        hero_body = QVBoxLayout(hero)
+        hero_body.setContentsMargins(20, 18, 20, 18)
+        hero_body.setSpacing(8)
         icon_path = Path(__file__).resolve().parents[2] / "assets" / "app.svg"
         icon = QIcon(str(icon_path)).pixmap(96, 96)
         icon_label = QLabel(hero)
@@ -690,13 +695,13 @@ class AboutPage(Page):
         icon_row.addStretch()
         icon_row.addWidget(icon_label)
         icon_row.addStretch()
-        hero.body.addLayout(icon_row)
+        hero_body.addLayout(icon_row)
         title = TitleLabel("JiYu Attack Next", hero)
         title.setAlignment(Qt.AlignCenter)
-        hero.body.addWidget(title)
+        hero_body.addWidget(title)
         subtitle = BodyLabel("极域学生端 UDP 控制报文测试工具", hero)
         subtitle.setAlignment(Qt.AlignCenter)
-        hero.body.addWidget(subtitle)
+        hero_body.addWidget(subtitle)
         content.addWidget(hero)
 
         self.cards = {}

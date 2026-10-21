@@ -1,20 +1,23 @@
 import os
+import json
+import shutil
 import socket
 import sys
 import tempfile
 import time
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen")
 
 from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QWidget
 from qfluentwidgets import FluentWindow, Theme, qconfig
 
 from app.gui import app as gui
-from app.gui import components
+from app.gui import components, models
 
 
 class GuiTests(unittest.TestCase):
@@ -28,11 +31,14 @@ class GuiTests(unittest.TestCase):
         guard = patch.object(socket, "socket", side_effect=AssertionError("禁止真实网络通信"))
         guard.start()
         self.addCleanup(guard.stop)
-        self.settings_path = os.path.join(tempfile.gettempdir(), "jiyu-gui-test-%d.ini" % id(self))
-        self.addCleanup(self.cleanup_settings_file)
-        settings = QSettings(self.settings_path, QSettings.IniFormat)
-        self.alias_store = gui.DeviceAliasStore(settings=settings)
-        self.window = gui.MainWindow(alias_store=self.alias_store)
+        self.temp_root = Path("build") / ("jiyu-gui-test-%d" % id(self))
+        self.temp_root.mkdir(parents=True, exist_ok=True)
+        self.addCleanup(lambda: shutil.rmtree(self.temp_root, ignore_errors=True))
+        self.data_dir = self.temp_root / "JiYuAttackNextData"
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.settings_path = str(self.data_dir / "settings.ini")
+        self.alias_store = gui.DeviceAliasStore(settings=QSettings(self.settings_path, QSettings.IniFormat))
+        self.window = gui.MainWindow(alias_store=self.alias_store, data_dir=self.data_dir)
         self.message = self.window.pages["message"]
         self.command = self.window.pages["command"]
         self.device = self.window.pages["device"]
@@ -44,12 +50,6 @@ class GuiTests(unittest.TestCase):
         self.confirm = confirm.start()
         self.addCleanup(confirm.stop)
         self.addCleanup(self.dispose_window)
-
-    def cleanup_settings_file(self):
-        try:
-            os.remove(self.settings_path)
-        except FileNotFoundError:
-            pass
 
     def wait_for(self, predicate):
         deadline = time.monotonic() + 5
@@ -95,6 +95,10 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(about.cards[key].borderRadius, 12)
         self.assertEqual(about.cards["repository"].detail.text(),
                          "https://github.com/JasonFang0109c/jiyu_attack_next")
+        hero = about.findChild(QWidget, "aboutHero")
+        self.assertIsNotNone(hero)
+        self.assertNotIsInstance(hero, components.SectionCard)
+        self.assertFalse(hero.findChildren(components.SectionCard))
 
     def test_every_page_uses_rounded_section_cards(self):
         for page in self.window.pages.values():
@@ -116,6 +120,7 @@ class GuiTests(unittest.TestCase):
         self.assertLessEqual(abs(menu_center - icon_center), 1)
         gap = icon.mapTo(self.window, icon.rect().topLeft()).x() - menu.mapTo(self.window, menu.rect().topRight()).x()
         self.assertGreaterEqual(gap, 5)
+
     def test_sidebar_routes_preserve_drafts(self):
         self.message.editor.setPlainText("测试通知")
         self.command.editor.setPlainText("whoami")
@@ -128,7 +133,8 @@ class GuiTests(unittest.TestCase):
     def test_device_alias_can_be_added_edited_used_and_removed(self):
         page = self.window.pages["aliases"]
         page.name_input.setText("教室 A")
-        page.address_input.setText("192.168.1.10")
+        for edit, text in zip(page.address_input.segments, ("192", "168", "1", "10")):
+            edit.setText(text)
         page.save_button.click()
         self.assertEqual(self.alias_store.match("教室 a"), ("教室 A", "192.168.1.10"))
         self.assertEqual(page.table.item(0, 1).text(), "192.168.1.10")
@@ -141,7 +147,8 @@ class GuiTests(unittest.TestCase):
 
         page.edit_button.click()
         page.name_input.setText("一号机房")
-        page.address_input.setText("192.168.1.11")
+        for edit, text in zip(page.address_input.segments, ("192", "168", "1", "11")):
+            edit.setText(text)
         page.save_button.click()
         self.assertEqual(self.state.values["target"], "一号机房")
         self.assertEqual(self.alias_store.match("一号机房"), ("一号机房", "192.168.1.11"))
@@ -155,22 +162,61 @@ class GuiTests(unittest.TestCase):
         self.assertIsNone(self.alias_store.match("一号机房"))
         self.assertEqual(self.state.values["target"], "")
 
-    def test_device_alias_is_persisted_and_resolved_for_remote_send(self):
-        self.alias_store.add("机房", "10.0.0.8")
-        reloaded = gui.DeviceAliasStore(
-            settings=QSettings(self.settings_path, QSettings.IniFormat))
-        self.assertEqual(reloaded.match("机房"), ("机房", "10.0.0.8"))
+    def test_device_alias_supports_ranges_and_is_persisted(self):
+        page = self.window.pages["aliases"]
+        page.name_input.setText("机房范围")
+        for edit, text in zip(page.address_input.segments, ("10", "0", "0", "1-10")):
+            edit.setText(text)
+        page.save_button.click()
+        self.assertEqual(self.alias_store.match("机房范围"), ("机房范围", "10.0.0.1-10"))
+        self.assertEqual(page.table.item(0, 1).text(), "10.0.0.1-10")
 
-        self.state.set_value("target", "机房")
-        self.message.editor.setPlainText("测试备注发送")
+        reloaded = gui.DeviceAliasStore(settings=QSettings(self.settings_path, QSettings.IniFormat))
+        self.assertEqual(reloaded.match("机房范围"), ("机房范围", "10.0.0.1-10"))
+        self.state.set_value("target", "机房范围")
         options = self.window._options_for_page("message")
-        self.assertEqual(options.target, "10.0.0.8")
-        self.assertEqual(self.message.targets.target_count.text(), "1 个目标")
-        with patch.object(gui.core, "execute_send", return_value=1) as runner:
-            self.window.start_send("message")
-            self.wait_for(lambda: self.window.thread is None)
-        self.assertEqual(runner.call_args.args[0].target, "10.0.0.8")
-        self.assertIn("解析为 10.0.0.8", self.window.logs.entries[-2].message)
+        self.assertEqual(options.target, "10.0.0.1-10")
+        self.assertEqual(self.message.targets.target_count.text(), "10 个目标")
+
+    def test_alias_address_advances_on_enter_and_enters_four_segments(self):
+        page = self.window.pages["aliases"]
+        self.window.show()
+        self.window.show_page("aliases")
+        self.application.processEvents()
+        page.name_input.setFocus()
+        page.name_input.setText("回车设备")
+        QTest.keyClick(page.name_input, Qt.Key_Return)
+        self.application.processEvents()
+        self.assertTrue(page.address_input.segments[0].hasFocus())
+        for index, text in enumerate(("10", "1", "2")):
+            page.address_input.segments[index].setText(text)
+            QTest.keyClick(page.address_input.segments[index], Qt.Key_Return)
+            self.application.processEvents()
+        self.assertTrue(page.address_input.segments[3].hasFocus())
+        page.address_input.segments[3].setText("20")
+        QTest.keyClick(page.address_input.segments[3], Qt.Key_Return)
+        self.application.processEvents()
+        self.assertEqual(self.alias_store.match("回车设备"), ("回车设备", "10.1.2.20"))
+
+    def test_portable_paths_are_based_on_executable_directory(self):
+        executable = Path(self.temp_root) / "portable" / "JiYuAttackNext.exe"
+        data_dir = models.portable_data_dir(executable)
+        self.assertEqual(data_dir, executable.parent.resolve() / models.DATA_DIRECTORY_NAME)
+        self.assertEqual(models.portable_log_path(data_dir), data_dir / models.LOG_FILE_NAME)
+        self.assertTrue(models.portable_settings(data_dir).fileName().endswith(models.SETTINGS_FILE_NAME))
+
+    def test_runtime_logs_are_persisted_and_loaded(self):
+        self.window.logs.clear()
+        self.window.logs.add("应用", "第一行\n第二行", "成功")
+        log_path = self.data_dir / models.LOG_FILE_NAME
+        self.assertTrue(log_path.exists())
+        records = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(records[-1]["message"], "第一行\n第二行")
+        reloaded = models.LogStore(log_path=log_path)
+        self.assertEqual(reloaded.entries[-1].message, "第一行\n第二行")
+        self.assertEqual(reloaded.entries[-1].level, "成功")
+        self.window.logs.clear()
+        self.assertEqual(log_path.read_text(encoding="utf-8"), "")
 
     def test_target_has_four_ipv4_segments_and_manual_address_still_works(self):
         targets = self.message.targets
@@ -399,6 +445,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(page.result_table.item(0, 0).text(), "目标规则")
         self.assertEqual(page.result_table.item(0, 1).text(), "成功")
         self.assertEqual(page.result_table.item(0, 2).text(), "已更新 6 规则。\n确定。")
+
     def test_log_search_filter_export_and_clear(self):
         store = self.window.logs
         store.clear()

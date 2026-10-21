@@ -10,7 +10,9 @@ from qfluentwidgets import (CaptionLabel, FluentIcon as FIF, FluentTranslator, H
                             NavigationItemPosition, Theme, setTheme, setThemeColor)
 
 from cli import main as core
-from .models import ConnectionState, DeviceAliasStore, LogStore
+from .models import (DATA_DIRECTORY_NAME, SETTINGS_FILE_NAME, ConnectionState,
+                     DeviceAliasStore, LogStore, portable_data_dir, portable_log_path,
+                     portable_settings)
 from .pages import (AboutPage, AliasPage, CommandPage, DevicePage, FirewallPage,
                     LocalPage, LogPage, MessagePage, SettingsPage)
 from .workers import SendWorker, TaskWorker
@@ -27,8 +29,8 @@ def configure_application(application):
     QLocale.setDefault(locale)
     application.fluent_translator = FluentTranslator(locale)
     application.installTranslator(application.fluent_translator)
-    setTheme(Theme.LIGHT)
-    setThemeColor(QColor("#0067c0"))
+    setTheme(Theme.LIGHT, save=False)
+    setThemeColor(QColor("#0067c0"), save=False)
 
 
 def app_icon():
@@ -37,8 +39,11 @@ def app_icon():
 
 
 class MainWindow(FluentWindow):
-    def __init__(self, alias_store=None):
+    def __init__(self, alias_store=None, data_dir=None):
         super().__init__()
+        self.data_dir = Path(data_dir).resolve() if data_dir is not None else portable_data_dir()
+        if alias_store is None:
+            alias_store = DeviceAliasStore(settings=portable_settings(self.data_dir))
         self.thread = None
         self.worker = None
         self.active_cancel = None
@@ -48,7 +53,7 @@ class MainWindow(FluentWindow):
         self._reset_undo_timer = None
         self.connection_state = ConnectionState(alias_store, parent=self)
         self.alias_store = self.connection_state.aliases
-        self.logs = LogStore(self)
+        self.logs = LogStore(self, log_path=portable_log_path(self.data_dir))
         self.setWindowTitle(APP_NAME)
         self.titleBar.hBoxLayout.setContentsMargins(6, 0, 0, 0)
         self.setWindowIcon(app_icon())
@@ -73,6 +78,8 @@ class MainWindow(FluentWindow):
         self._build_navigation()
         self._connect_actions()
         self.logs.add("应用", "界面已就绪")
+        if self.logs.storage_error:
+            self._notify("运行日志", self.logs.storage_error, "警告")
 
     def _build_navigation(self):
         self.navigationInterface.setExpandWidth(200)
@@ -372,7 +379,7 @@ class MainWindow(FluentWindow):
 
     @Slot(object)
     def set_theme(self, theme):
-        setTheme(theme)
+        setTheme(theme, save=False)
 
     def closeEvent(self, event):
         if self.thread is not None and self.thread.isRunning():

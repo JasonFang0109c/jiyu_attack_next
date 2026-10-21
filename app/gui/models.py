@@ -3,12 +3,39 @@
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
-import ipaddress
 import json
+from pathlib import Path
+import sys
 
 from PySide6.QtCore import QObject, QSettings, Signal
 
 from cli import main as core
+
+
+DATA_DIRECTORY_NAME = "JiYuAttackNextData"
+SETTINGS_FILE_NAME = "settings.ini"
+LOG_FILE_NAME = "runtime.log"
+
+
+def portable_data_dir(executable=None):
+    """返回与可执行文件同级的数据目录，源码运行时返回项目根目录。"""
+    if executable is not None:
+        executable_dir = Path(executable).resolve().parent
+    elif getattr(sys, "frozen", False):
+        executable_dir = Path(sys.executable).resolve().parent
+    else:
+        executable_dir = Path(__file__).resolve().parents[2]
+    return executable_dir / DATA_DIRECTORY_NAME
+
+
+def portable_settings(data_dir=None):
+    root = Path(data_dir).resolve() if data_dir is not None else portable_data_dir()
+    return QSettings(str(root / SETTINGS_FILE_NAME), QSettings.IniFormat)
+
+
+def portable_log_path(data_dir=None):
+    root = Path(data_dir).resolve() if data_dir is not None else portable_data_dir()
+    return root / LOG_FILE_NAME
 
 
 class DeviceAliasStore(QObject):
@@ -17,14 +44,12 @@ class DeviceAliasStore(QObject):
     changed = Signal()
     renamed = Signal(str, str)
     removed = Signal(str)
-    ORGANIZATION = "jiyu_attack_next"
-    APPLICATION = "JiYu Attack Next"
     SETTINGS_KEY = "device_aliases"
     MAX_NAME_LENGTH = 64
 
     def __init__(self, settings=None, parent=None):
         super().__init__(parent)
-        self._settings = settings or QSettings(self.ORGANIZATION, self.APPLICATION)
+        self._settings = settings if settings is not None else portable_settings()
         self._aliases = {}
         self.load_error = ""
         self._load()
@@ -67,10 +92,14 @@ class DeviceAliasStore(QObject):
 
     @staticmethod
     def _normalize_address(address):
+        value = str(address).strip()
+        if not value:
+            raise ValueError("请填写 IP 地址")
         try:
-            return str(ipaddress.IPv4Address(str(address).strip()))
+            hosts = core.get_ip(value)
         except ValueError as error:
-            raise ValueError("IP 地址格式错误，请填写单个 IPv4 地址") from error
+            raise ValueError("IP 地址格式错误，请填写单个 IPv4 地址、末段范围或 /24 网段") from error
+        return value if "-" in value or "/" in value else hosts[0]
 
     def names(self):
         return list(self._aliases)
@@ -106,11 +135,17 @@ class DeviceAliasStore(QObject):
     def _save(self, aliases):
         if self.load_error:
             raise OSError("%s；为避免覆盖原数据，请先修复或清除该配置项" % self.load_error)
-        self._settings.setValue(
-            self.SETTINGS_KEY,
-            json.dumps(aliases, ensure_ascii=False, separators=(",", ":")),
-        )
-        self._settings.sync()
+        try:
+            settings_path = self._settings.fileName()
+            if settings_path:
+                Path(settings_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
+            self._settings.setValue(
+                self.SETTINGS_KEY,
+                json.dumps(aliases, ensure_ascii=False, separators=(",", ":")),
+            )
+            self._settings.sync()
+        except OSError as error:
+            raise OSError("设备备注保存失败：%s" % error) from error
         if self._settings.status() != QSettings.NoError:
             raise OSError("设备备注保存失败")
         self._aliases = aliases
@@ -222,21 +257,87 @@ class LogEntry:
     def as_text(self):
         return "[%s] [%s] [%s] %s" % (self.time, self.category, self.level, self.message)
 
+    def as_record(self):
+        return {
+            "time": self.time,
+            "category": self.category,
+            "level": self.level,
+            "message": self.message,
+        }
+
+    @classmethod
+    def from_record(cls, record):
+        if not isinstance(record, dict):
+            raise ValueError("日志记录格式无效")
+        return cls(
+            str(record["time"]),
+            str(record["category"]),
+            str(record["level"]),
+            str(record["message"]),
+        )
+
 
 class LogStore(QObject):
     added = Signal(object)
     cleared = Signal()
 
-    def __init__(self, parent=None, limit=2000):
+    def __init__(self, parent=None, limit=2000, log_path=None):
         super().__init__(parent)
+        self.log_path = Path(log_path) if log_path is not None else None
+        self.storage_error = ""
         self.entries = deque(maxlen=limit)
+        self._load()
+
+    def _load(self):
+        if self.log_path is None or not self.log_path.exists():
+            return
+        try:
+            lines = self.log_path.read_text(encoding="utf-8-sig").splitlines()
+        except (OSError, UnicodeError) as error:
+            self.storage_error = "运行日志读取失败：%s" % error
+            return
+        loaded = deque(maxlen=self.entries.maxlen)
+        invalid = 0
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                loaded.append(LogEntry.from_record(json.loads(line)))
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+                invalid += 1
+        self.entries.extend(loaded)
+        if invalid:
+            self.storage_error = "运行日志中有 %d 行无法读取" % invalid
+
+    def _append_to_file(self, entry):
+        if self.log_path is None:
+            return
+        try:
+            self.log_path.parent.mkdir(parents=True, exist_ok=True)
+            with self.log_path.open("a", encoding="utf-8", newline="\n") as target:
+                target.write(json.dumps(entry.as_record(), ensure_ascii=False,
+                                        separators=(",", ":")) + "\n")
+        except OSError as error:
+            self.storage_error = "运行日志保存失败：%s" % error
 
     def add(self, category, message, level="信息"):
-        entry = LogEntry(datetime.now().strftime("%H:%M:%S"), category, level, str(message))
+        entry = LogEntry(
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            category,
+            level,
+            str(message),
+        )
         self.entries.append(entry)
+        self._append_to_file(entry)
         self.added.emit(entry)
         return entry
 
     def clear(self):
         self.entries.clear()
+        if self.log_path is not None:
+            try:
+                self.log_path.parent.mkdir(parents=True, exist_ok=True)
+                self.log_path.write_text("", encoding="utf-8")
+            except OSError as error:
+                self.storage_error = "运行日志清空失败：%s" % error
         self.cleared.emit()
