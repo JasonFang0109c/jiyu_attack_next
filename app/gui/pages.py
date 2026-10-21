@@ -648,47 +648,84 @@ class SettingsPage(Page):
         self.reset_undo.hide()
 
 
+class AboutInfoCard(SectionCard):
+    """关于页中每一项独立的信息卡片。"""
+
+    def __init__(self, label, value, parent=None, url=None, icon=None):
+        super().__init__(parent, spacing=0, margins=(18, 12, 18, 12))
+        self.setObjectName("aboutInfoCard")
+        row = QHBoxLayout()
+        row.setSpacing(16)
+        row.addWidget(BodyLabel(label, self))
+        row.addStretch()
+        if url is None:
+            detail = BodyLabel(value, self)
+            detail.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            row.addWidget(detail)
+        else:
+            detail = HyperlinkButton(url, value, self, icon=icon)
+            detail.setMaximumWidth(detail.sizeHint().width())
+            row.addWidget(detail)
+        self.body.addLayout(row)
+        self.label = label
+        self.detail = detail
+
+
 class AboutPage(Page):
     def __init__(self, parent=None):
         super().__init__("about", parent)
         page_heading(self.vbox, "关于")
+        content = QVBoxLayout()
+        content.setSpacing(12)
+
+        hero = SectionCard(self, spacing=8, margins=(20, 18, 20, 18))
+        hero.setObjectName("aboutHeroCard")
         icon_path = Path(__file__).resolve().parents[2] / "assets" / "app.svg"
-        icon = QIcon(str(icon_path)).pixmap(112, 112)
-        icon_label = QLabel(self)
+        icon = QIcon(str(icon_path)).pixmap(96, 96)
+        icon_label = QLabel(hero)
         icon_label.setPixmap(icon)
-        icon_label.setFixedSize(112, 112)
+        icon_label.setFixedSize(96, 96)
         icon_label.setAlignment(Qt.AlignCenter)
         icon_row = QHBoxLayout()
         icon_row.addStretch()
         icon_row.addWidget(icon_label)
         icon_row.addStretch()
-        card = SectionCard(self, spacing=14)
-        card.body.addLayout(icon_row)
-        title = TitleLabel("JiYu Attack Next", card)
+        hero.body.addLayout(icon_row)
+        title = TitleLabel("JiYu Attack Next", hero)
         title.setAlignment(Qt.AlignCenter)
-        card.body.addWidget(title)
-        subtitle = BodyLabel("极域学生端 UDP 控制报文测试工具", card)
+        hero.body.addWidget(title)
+        subtitle = BodyLabel("极域学生端 UDP 控制报文测试工具", hero)
         subtitle.setAlignment(Qt.AlignCenter)
-        card.body.addWidget(subtitle)
-        card.body.addSpacing(8)
-        for label, url, text, icon in [
-            ("作者", "https://github.com/JasonFang0109c", "JasonFang0109c", FIF.GITHUB),
-            ("上游仓库", "https://github.com/ht0Ruial/Jiyu_udp_attack", "https://github.com/ht0Ruial/Jiyu_udp_attack", FIF.LINK),
+        hero.body.addWidget(subtitle)
+        content.addWidget(hero)
+
+        self.cards = {}
+        for key, label, url, text, icon in [
+            ("author", "作者", "https://github.com/JasonFang0109c", "JasonFang0109c", FIF.GITHUB),
+            ("repository", "GitHub 仓库", "https://github.com/JasonFang0109c/jiyu_attack_next",
+             "https://github.com/JasonFang0109c/jiyu_attack_next", FIF.GITHUB),
+            ("upstream", "上游仓库", "https://github.com/ht0Ruial/Jiyu_udp_attack",
+             "https://github.com/ht0Ruial/Jiyu_udp_attack", FIF.LINK),
         ]:
-            row = QHBoxLayout()
-            row.addWidget(BodyLabel(label, card))
-            button = HyperlinkButton(url, text, card, icon=icon)
-            button.setMaximumWidth(button.sizeHint().width())
-            row.addWidget(button)
-            row.addStretch()
-            card.body.addLayout(row)
-        card.body.addSpacing(12)
-        card.body.addWidget(BodyLabel("组件版本", card))
-        for title, package in [("PySide6", "PySide6"), ("Fluent Widgets", "PySide6-Fluent-Widgets")]:
+            card = AboutInfoCard(label, text, self, url=url, icon=icon)
+            self.cards[key] = card
+            content.addWidget(card)
+
+        versions = SectionCard(self, spacing=8, margins=(18, 12, 18, 12))
+        versions.setObjectName("aboutVersionsCard")
+        heading = BodyLabel("组件版本", versions)
+        versions.body.addWidget(heading)
+        self.versions = {}
+        for title_text, package in [("PySide6", "PySide6"),
+                                    ("Fluent Widgets", "PySide6-Fluent-Widgets")]:
             version_row = QHBoxLayout()
-            version_row.addWidget(CaptionLabel(title, card))
+            version_row.addWidget(CaptionLabel(title_text, versions))
             version_row.addStretch()
-            version_row.addWidget(CaptionLabel(version(package), card))
-            card.body.addLayout(version_row)
-        self.vbox.addWidget(card)
-        self.vbox.addStretch()
+            value = CaptionLabel(version(package), versions)
+            value.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            version_row.addWidget(value)
+            versions.body.addLayout(version_row)
+            self.versions[title_text] = value
+        content.addWidget(versions)
+        content.addStretch()
+        self.vbox.addLayout(content)

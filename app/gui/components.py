@@ -1,6 +1,7 @@
 """Fluent 界面共用的连接参数、页面标题与任务栏。"""
 
-from PySide6.QtCore import QSignalBlocker, Qt, Signal, Slot
+from PySide6.QtCore import QRegularExpression, QSignalBlocker, Qt, Signal, Slot
+from PySide6.QtGui import QIntValidator, QRegularExpressionValidator
 from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import (BodyLabel, CaptionLabel, ComboBox, Dialog, DoubleSpinBox,
                             FluentIcon, IndeterminateProgressRing, LineEdit,
@@ -71,26 +72,111 @@ class ReadableDoubleSpinBox(_SpinEditorGeometry, DoubleSpinBox):
     pass
 
 
+class Ipv4TargetInput(QWidget):
+    """四段式 IPv4 目标输入框。"""
+
+    textChanged = Signal(str)
+    nextFieldRequested = Signal()
+
+    SEGMENT_WIDTHS = (64, 64, 64, 148)
+    PLACEHOLDERS = ("192", "168", "1", "20、1-10、0/24")
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("targetAddressInput")
+        self.segments = []
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+        last_validator = QRegularExpressionValidator(
+            QRegularExpression(r"[0-9]{0,3}(?:-[0-9]{0,3}|/[0-9]{0,2})?"), self
+        )
+        for index, width in enumerate(self.SEGMENT_WIDTHS):
+            if index:
+                dot = BodyLabel(".", self)
+                dot.setAlignment(Qt.AlignCenter)
+                dot.setFixedWidth(4)
+                layout.addWidget(dot)
+            edit = LineEdit(self)
+            edit.setObjectName("targetSegment%d" % (index + 1))
+            edit.setAccessibleName("目标地址第 %d 段" % (index + 1))
+            edit.setAlignment(Qt.AlignCenter)
+            edit.setFixedWidth(width)
+            edit.setMaxLength(3 if index < 3 else 8)
+            edit.setPlaceholderText(self.PLACEHOLDERS[index])
+            if index < 3:
+                edit.setValidator(QIntValidator(0, 255, edit))
+                edit.setToolTip("IPv4 第 %d 段（0–255）" % (index + 1))
+            else:
+                edit.setValidator(last_validator)
+                edit.setToolTip("最后一段 IPv4、末段范围或 /24 网段")
+            edit.textChanged.connect(self._segments_changed)
+            edit.returnPressed.connect(lambda key=index: self._advance(key))
+            layout.addWidget(edit)
+            self.segments.append(edit)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.setMinimumWidth(sum(self.SEGMENT_WIDTHS) + 42)
+
+    def text(self):
+        return ".".join(edit.text() for edit in self.segments)
+
+    def setText(self, value):
+        value = str(value or "").strip()
+        if not value:
+            parts = ("", "", "", "")
+        elif "." in value:
+            raw_parts = value.split(".", 3)
+            parts = tuple((raw_parts + [""] * 4)[:4])
+        elif value.isdigit() or "-" in value or "/" in value:
+            parts = (value, "", "", "")
+        else:
+            parts = ("", "", "", "")
+        changed = False
+        for edit, part in zip(self.segments, parts):
+            if edit.text() == part:
+                continue
+            edit.blockSignals(True)
+            edit.setText(part)
+            edit.blockSignals(False)
+            changed = True
+        if changed:
+            self.textChanged.emit(self.text())
+
+    def is_complete(self):
+        return all(edit.text().strip() for edit in self.segments)
+
+    def setError(self, is_error):
+        for edit in self.segments:
+            edit.setError(bool(is_error))
+
+    @Slot(str)
+    def _segments_changed(self, value):
+        self.textChanged.emit(self.text())
+
+    def _advance(self, index):
+        if index < len(self.segments) - 1:
+            target = self.segments[index + 1]
+            target.setFocus()
+            target.selectAll()
+        else:
+            self.nextFieldRequested.emit()
+
+
 class TargetControls(QWidget):
     def __init__(self, state, parent=None):
         super().__init__(parent)
         self.state = state
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        layout.setSpacing(10)
         heading = QHBoxLayout()
         heading.addWidget(BodyLabel("目标设备", self))
         heading.addStretch()
         self.target_count = CaptionLabel("0 个目标", self)
         heading.addWidget(self.target_count)
         layout.addLayout(heading)
-        row = QHBoxLayout()
-        row.setSpacing(12)
-        self.target_input = LineEdit(self)
-        self.target_input.setPlaceholderText("IPv4、末段范围或 /24 网段")
-        self.target_input.setClearButtonEnabled(True)
-        # 窄窗口下允许目标框收缩，避免覆盖右侧的选择设备按钮。
-        self.target_input.setMinimumWidth(160)
+
+        self.target_input = Ipv4TargetInput(self)
         self.device_button = PushButton("选择设备", self)
         self.device_button.setIcon(FluentIcon.PEOPLE)
         self.device_button.setMinimumWidth(106)
@@ -108,39 +194,70 @@ class TargetControls(QWidget):
         self.interval_input.setFixedWidth(160)
         self.fields = {"target": self.target_input, "port": self.port_input,
                        "loops": self.loop_input, "interval": self.interval_input}
-        labels = {"target": "目标地址", "port": "UDP 端口",
-                  "loops": "发送轮数", "interval": "间隔（秒）"}
-        for name, field in self.fields.items():
+        self.port_input.setValue(state.values["port"])
+        self.loop_input.setValue(state.values["loops"])
+        self.interval_input.setValue(state.values["interval"])
+        self.target_input.setText(state.resolve_target(state.values["target"]))
+
+        target_column = QVBoxLayout()
+        target_column.setSpacing(6)
+        target_column.addWidget(CaptionLabel("目标地址", self))
+        target_row = QHBoxLayout()
+        target_row.setSpacing(8)
+        target_row.addWidget(self.target_input)
+        target_row.addWidget(self.device_button)
+        target_row.addStretch()
+        target_column.addLayout(target_row)
+        layout.addLayout(target_column)
+
+        options_row = QHBoxLayout()
+        options_row.setSpacing(12)
+        labels = {"port": "UDP 端口", "loops": "发送轮数", "interval": "间隔（秒）"}
+        for name in ("port", "loops", "interval"):
+            field = self.fields[name]
             column = QVBoxLayout()
             column.setSpacing(6)
             column.addWidget(CaptionLabel(labels[name], self))
-            if name == "target":
-                target_row = QHBoxLayout()
-                target_row.setSpacing(8)
-                target_row.addWidget(field, 1)
-                target_row.addWidget(self.device_button)
-                column.addLayout(target_row)
-            else:
-                column.addWidget(field)
-            row.addLayout(column, 1 if name == "target" else 0)
-            if name == "target":
-                field.setText(state.values[name])
-                field.textChanged.connect(lambda value: state.set_value("target", value))
-            else:
-                field.setValue(state.values[name])
-                field.valueChanged.connect(lambda value, key=name: state.set_value(key, value))
-        layout.addLayout(row)
+            column.addWidget(field)
+            options_row.addLayout(column)
+        options_row.addStretch()
+        layout.addLayout(options_row)
+
         self.alias_hint = CaptionLabel("", self)
         self.alias_hint.hide()
         layout.addWidget(self.alias_hint)
-        self.target_input.textChanged.connect(lambda value: self._update_alias_hint(value))
+
+        self.target_input.textChanged.connect(lambda value: state.set_value("target", value))
+        self.port_input.valueChanged.connect(lambda value: state.set_value("port", value))
+        self.loop_input.valueChanged.connect(lambda value: state.set_value("loops", value))
+        self.interval_input.valueChanged.connect(lambda value: state.set_value("interval", value))
+        self.target_input.nextFieldRequested.connect(self._focus_options)
         state.changed.connect(self._on_changed)
         state.aliases.changed.connect(self._aliases_changed)
+        self._set_tab_order()
         self._update_count()
         self.interval_input.setEnabled(state.values["loops"] > 1)
 
+    def _set_tab_order(self):
+        segments = self.target_input.segments
+        for current, following in zip(segments, segments[1:]):
+            QWidget.setTabOrder(current, following)
+        QWidget.setTabOrder(segments[-1], self.device_button)
+        QWidget.setTabOrder(self.device_button, self.port_input)
+        QWidget.setTabOrder(self.port_input, self.loop_input)
+        QWidget.setTabOrder(self.loop_input, self.interval_input)
+
+    def _focus_options(self):
+        self.port_input.setFocus()
+        self.port_input.selectAll()
+
     @Slot()
     def _aliases_changed(self):
+        matched = self.state.aliases.match(self.state.values["target"])
+        if matched is not None:
+            with QSignalBlocker(self.target_input):
+                if self.target_input.text() != matched[1]:
+                    self.target_input.setText(matched[1])
         self._update_count()
 
     def choose_device(self):
@@ -180,14 +297,17 @@ class TargetControls(QWidget):
     @Slot(str, object)
     def _on_changed(self, name, value):
         field = self.fields[name]
-        with QSignalBlocker(field):
-            if name == "target":
-                if field.text() != value:
-                    field.setText(value)
+        if name == "target":
+            display = self.state.resolve_target(value) if str(value).strip() else ""
+            with QSignalBlocker(field):
+                if field.text() != display:
+                    field.setText(display)
                 field.setError(False)
                 self._update_count()
-            elif field.value() != value:
-                field.setValue(value)
+        else:
+            with QSignalBlocker(field):
+                if field.value() != value:
+                    field.setValue(value)
         self.interval_input.setEnabled(self.state.values["loops"] > 1)
 
     def _update_alias_hint(self, text):
@@ -201,11 +321,18 @@ class TargetControls(QWidget):
     def _update_count(self):
         text = self.state.values["target"].strip()
         self._update_alias_hint(text)
+        if not text:
+            self.target_count.setText("0 个目标")
+            self.target_input.setError(False)
+            return
         try:
-            count = len(core.get_ip(self.state.resolve_target(text))) if text else 0
-            self.target_count.setText("%d 个目标" % count)
+            count = len(core.get_ip(self.state.resolve_target(text)))
         except ValueError:
             self.target_count.setText("地址未完成")
+            self.target_input.setError(self.target_input.is_complete())
+        else:
+            self.target_count.setText("%d 个目标" % count)
+            self.target_input.setError(False)
 
 
 class TaskFooter(QWidget):

@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen")
 
-from PySide6.QtCore import QCoreApplication, QEvent, QSettings
+from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 from qfluentwidgets import FluentWindow, Theme, qconfig
@@ -28,9 +28,8 @@ class GuiTests(unittest.TestCase):
         guard = patch.object(socket, "socket", side_effect=AssertionError("禁止真实网络通信"))
         guard.start()
         self.addCleanup(guard.stop)
-        self.settings_dir = tempfile.TemporaryDirectory()
-        self.addCleanup(self.settings_dir.cleanup)
-        self.settings_path = os.path.join(self.settings_dir.name, "settings.ini")
+        self.settings_path = os.path.join(tempfile.gettempdir(), "jiyu-gui-test-%d.ini" % id(self))
+        self.addCleanup(self.cleanup_settings_file)
         settings = QSettings(self.settings_path, QSettings.IniFormat)
         self.alias_store = gui.DeviceAliasStore(settings=settings)
         self.window = gui.MainWindow(alias_store=self.alias_store)
@@ -45,6 +44,12 @@ class GuiTests(unittest.TestCase):
         self.confirm = confirm.start()
         self.addCleanup(confirm.stop)
         self.addCleanup(self.dispose_window)
+
+    def cleanup_settings_file(self):
+        try:
+            os.remove(self.settings_path)
+        except FileNotFoundError:
+            pass
 
     def wait_for(self, predicate):
         deadline = time.monotonic() + 5
@@ -77,6 +82,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(about.objectName(), "about")
         links = [button.getUrl().toString() for button in about.findChildren(gui.HyperlinkButton)]
         self.assertIn("https://github.com/JasonFang0109c", links)
+        self.assertIn("https://github.com/JasonFang0109c/jiyu_attack_next", links)
         self.assertIn("https://github.com/ht0Ruial/Jiyu_udp_attack", links)
         self.assertNotIn("https://github.com/JasonFang0109c", [
             button.text() for button in about.findChildren(gui.HyperlinkButton)
@@ -84,6 +90,11 @@ class GuiTests(unittest.TestCase):
         self.assertIn("JasonFang0109c", [
             button.text() for button in about.findChildren(gui.HyperlinkButton)
         ])
+        for key in ("author", "repository", "upstream"):
+            self.assertEqual(about.cards[key].objectName(), "aboutInfoCard")
+            self.assertEqual(about.cards[key].borderRadius, 12)
+        self.assertEqual(about.cards["repository"].detail.text(),
+                         "https://github.com/JasonFang0109c/jiyu_attack_next")
 
     def test_every_page_uses_rounded_section_cards(self):
         for page in self.window.pages.values():
@@ -134,6 +145,9 @@ class GuiTests(unittest.TestCase):
         page.save_button.click()
         self.assertEqual(self.state.values["target"], "一号机房")
         self.assertEqual(self.alias_store.match("一号机房"), ("一号机房", "192.168.1.11"))
+        self.assertEqual(self.message.targets.target_input.text(), "192.168.1.11")
+        self.assertEqual([edit.text() for edit in self.message.targets.target_input.segments],
+                         ["192", "168", "1", "11"])
 
         page.table.setCurrentCell(0, 0)
         with patch.object(gui.MessageBox, "exec", return_value=1):
@@ -158,13 +172,38 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(runner.call_args.args[0].target, "10.0.0.8")
         self.assertIn("解析为 10.0.0.8", self.window.logs.entries[-2].message)
 
-    def test_target_has_device_picker_and_manual_address_still_works(self):
+    def test_target_has_four_ipv4_segments_and_manual_address_still_works(self):
         targets = self.message.targets
         self.assertEqual(targets.device_button.text(), "选择设备")
         self.assertEqual(targets.device_button.parentWidget(), targets)
-        targets.target_input.setText("192.168.1.20")
+        self.assertEqual(len(targets.target_input.segments), 4)
+        for edit, text in zip(targets.target_input.segments, ("192", "168", "1", "20")):
+            edit.setText(text)
+        self.assertEqual(targets.target_input.text(), "192.168.1.20")
         self.assertEqual(self.state.values["target"], "192.168.1.20")
         self.assertEqual(targets.target_count.text(), "1 个目标")
+
+    def test_ipv4_segments_advance_on_enter_and_accept_last_segment_forms(self):
+        targets = self.message.targets
+        segments = targets.target_input.segments
+        self.window.show()
+        self.window.show_page("message")
+        self.application.processEvents()
+        segments[0].setFocus()
+        for edit, text in zip(segments[:3], ("10", "49", "151")):
+            edit.setText(text)
+            QTest.keyClick(edit, Qt.Key_Return)
+            self.application.processEvents()
+        self.assertTrue(segments[3].hasFocus())
+        segments[3].setText("1-10")
+        self.assertEqual(self.state.values["target"], "10.49.151.1-10")
+        self.assertEqual(targets.target_count.text(), "10 个目标")
+        segments[3].setText("0/24")
+        self.assertEqual(self.state.values["target"], "10.49.151.0/24")
+        self.assertEqual(targets.target_count.text(), "254 个目标")
+        QTest.keyClick(segments[3], Qt.Key_Return)
+        self.application.processEvents()
+        self.assertTrue(targets.port_input.hasFocus())
 
     def test_device_picker_lists_aliases_and_selects_target(self):
         self.alias_store.add("教室 A", "192.168.1.10")
@@ -178,7 +217,9 @@ class GuiTests(unittest.TestCase):
         finally:
             dialog.deleteLater()
         targets.state.set_value("target", "一号机房")
-        self.assertEqual(targets.target_input.text(), "一号机房")
+        self.assertEqual(targets.target_input.text(), "192.168.1.11")
+        self.assertEqual([edit.text() for edit in targets.target_input.segments],
+                         ["192", "168", "1", "11"])
         self.assertIn("192.168.1.11", targets.alias_hint.text())
 
     def test_device_picker_handles_no_aliases(self):
@@ -189,12 +230,14 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.state.values["target"], "")
 
     def test_connection_fields_are_shared_between_pages(self):
-        self.command.targets.target_input.setText("模拟目标")
+        self.command.targets.target_input.setText("10.0.0.8")
         self.message.targets.port_input.setValue(8800)
         self.device.targets.loop_input.setValue(3)
         self.command.targets.interval_input.setValue(0.5)
         for page in self.window.network_pages:
-            self.assertEqual(page.targets.target_input.text(), "模拟目标")
+            self.assertEqual(page.targets.target_input.text(), "10.0.0.8")
+            self.assertEqual([edit.text() for edit in page.targets.target_input.segments],
+                             ["10", "0", "0", "8"])
             self.assertEqual(page.targets.port_input.value(), 8800)
             self.assertEqual(page.targets.loop_input.value(), 3)
             self.assertEqual(page.targets.interval_input.value(), 0.5)
@@ -272,7 +315,7 @@ class GuiTests(unittest.TestCase):
     def test_invalid_target_does_not_start_worker(self):
         self.message.footer.send_button.click()
         self.assertIsNone(self.window.thread)
-        self.assertTrue(self.message.targets.target_input.isError())
+        self.assertTrue(self.message.targets.target_input.segments[-1].isError())
         self.assertIn("目标地址", self.message.footer.status.text())
 
     def test_oversized_command_is_rejected_before_worker(self):

@@ -29,8 +29,8 @@ def main():
     gui.configure_application(app)
     if args.theme == "dark":
         gui.setTheme(gui.Theme.DARK)
-    settings_dir = tempfile.TemporaryDirectory()
-    settings = QSettings(str(Path(settings_dir.name) / "settings.ini"), QSettings.IniFormat)
+    settings_path = Path(tempfile.gettempdir()) / ("jiyu-verify-%d.ini" % os.getpid())
+    settings = QSettings(str(settings_path), QSettings.IniFormat)
     alias_store = gui.DeviceAliasStore(settings=settings)
     window = gui.MainWindow(alias_store=alias_store)
     window.resize(args.width, args.height)
@@ -57,7 +57,10 @@ def main():
     window.deleteLater()
     gui.QCoreApplication.sendPostedEvents(None, gui.QEvent.DeferredDelete)
     app.processEvents()
-    settings_dir.cleanup()
+    try:
+        settings_path.unlink()
+    except FileNotFoundError:
+        pass
     return result
 
 
