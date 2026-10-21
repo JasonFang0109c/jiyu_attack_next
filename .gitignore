@@ -24,3 +24,6 @@ htmlcov/
 # 系统生成文件
 Thumbs.db
 .DS_Store
+
+# 本地协作规范
+/AGENTS.md
