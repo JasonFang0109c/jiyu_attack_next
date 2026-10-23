@@ -717,7 +717,9 @@ class GuiTests(unittest.TestCase):
                 label = row.itemAt(0).widget()
                 if isinstance(label, BodyLabel):
                     labels.append(label.text())
-        self.assertEqual(labels, ["界面主题", "关闭窗口时", "运行日志等级"])
+        self.assertEqual(labels, ["界面主题", "关闭时最小化到托盘", "运行日志等级"])
+        self.assertTrue(settings_page.close_behavior_switch.label.isHidden())
+        self.assertEqual(settings_page.close_behavior_switch.label.text(), "")
 
     def test_close_behavior_switch_persists_and_defaults_to_tray(self):
         window = gui.MainWindow(
@@ -816,6 +818,75 @@ class GuiTests(unittest.TestCase):
             self.assertIsNotNone(window.tray_icon)
             self.assertEqual(window.tray_icon.messages, [])
             self.assertEqual(window.logs.entries[-1].message, "窗口已隐藏到系统托盘")
+        finally:
+            window._quit_requested = True
+            window.close()
+            window.deleteLater()
+
+    def test_first_close_can_minimize_to_tray_and_prompts_only_once(self):
+        window = gui.MainWindow(
+            alias_store=gui.DeviceAliasStore(
+                settings=QSettings(self.settings_path, QSettings.IniFormat)),
+            data_dir=self.data_dir,
+            enable_tray=False,
+        )
+        try:
+            window.enable_tray = True
+            window.show()
+            window.tray_icon = TestTrayIcon(window)
+            window.tray_menu = gui.SystemTrayMenu(parent=window)
+            with patch.object(gui.Dialog, "exec", return_value=1) as execute:
+                window.close()
+            execute.assert_called_once()
+            self.assertFalse(window.isVisible())
+            self.assertEqual(window.close_behavior, models.CLOSE_BEHAVIOR_TRAY)
+            self.assertTrue(window.first_close_prompt_shown)
+            self.assertTrue(QSettings(self.settings_path, QSettings.IniFormat).value(
+                models.FIRST_CLOSE_PROMPT_SETTINGS_KEY, False, type=bool))
+
+            window.show()
+            with patch.object(gui.Dialog, "exec") as second_prompt:
+                window.close()
+            second_prompt.assert_not_called()
+            self.assertFalse(window.isVisible())
+            reloaded = gui.MainWindow(
+                alias_store=gui.DeviceAliasStore(
+                    settings=QSettings(self.settings_path, QSettings.IniFormat)),
+                data_dir=self.data_dir,
+                enable_tray=False,
+            )
+            try:
+                self.assertTrue(reloaded.first_close_prompt_shown)
+            finally:
+                reloaded._quit_requested = True
+                reloaded.close()
+                reloaded.deleteLater()
+        finally:
+            window._quit_requested = True
+            window.close()
+            window.deleteLater()
+
+    def test_first_close_can_choose_direct_exit(self):
+        window = gui.MainWindow(
+            alias_store=gui.DeviceAliasStore(
+                settings=QSettings(self.settings_path, QSettings.IniFormat)),
+            data_dir=self.data_dir,
+            enable_tray=False,
+        )
+        try:
+            window.enable_tray = True
+            window.show()
+            window.tray_icon = TestTrayIcon(window)
+            window.tray_menu = gui.SystemTrayMenu(parent=window)
+            with patch.object(gui.Dialog, "exec", return_value=0) as execute:
+                window.close()
+            execute.assert_called_once()
+            self.assertFalse(window.isVisible())
+            self.assertEqual(window.close_behavior, models.CLOSE_BEHAVIOR_QUIT)
+            self.assertTrue(window.first_close_prompt_shown)
+            self.assertIsNone(window.tray_icon)
+            self.assertTrue(QSettings(self.settings_path, QSettings.IniFormat).value(
+                models.FIRST_CLOSE_PROMPT_SETTINGS_KEY, False, type=bool))
         finally:
             window._quit_requested = True
             window.close()

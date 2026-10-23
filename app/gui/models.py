@@ -20,6 +20,7 @@ DATA_DIRECTORY_NAME = "JiYuAttackNextData"
 SETTINGS_FILE_NAME = "settings.ini"
 LOG_FILE_NAME = "runtime.log"
 CLOSE_BEHAVIOR_SETTINGS_KEY = "window/close_behavior"
+FIRST_CLOSE_PROMPT_SETTINGS_KEY = "window/first_close_prompt_shown"
 CLOSE_BEHAVIOR_TRAY = "tray"
 CLOSE_BEHAVIOR_QUIT = "quit"
 DEFAULT_CLOSE_BEHAVIOR = CLOSE_BEHAVIOR_TRAY

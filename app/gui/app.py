@@ -17,10 +17,10 @@ from qfluentwidgets import (Action, CaptionLabel, Dialog, FluentIcon as FIF,
 from cli import main as core
 from .models import (CLOSE_BEHAVIOR_QUIT, CLOSE_BEHAVIOR_SETTINGS_KEY,
                      CLOSE_BEHAVIOR_TRAY, DATA_DIRECTORY_NAME,
-                     DEFAULT_CLOSE_BEHAVIOR, SETTINGS_FILE_NAME, ConnectionState,
-                     DeviceAliasStore, LogLevel, LogStore, normalize_close_behavior,
-                     normalize_log_level, portable_data_dir, portable_log_path,
-                     portable_settings)
+                     DEFAULT_CLOSE_BEHAVIOR, FIRST_CLOSE_PROMPT_SETTINGS_KEY,
+                     SETTINGS_FILE_NAME, ConnectionState, DeviceAliasStore,
+                     LogLevel, LogStore, normalize_close_behavior, normalize_log_level,
+                     portable_data_dir, portable_log_path, portable_settings)
 from .pages import (AboutPage, AliasPage, CommandPage, DevicePage, FilePage,
                     FirewallPage, LocalPage, LogPage, MessagePage, SettingsPage)
 from .workers import SendWorker, TaskWorker
@@ -64,7 +64,9 @@ class MainWindow(FluentWindow):
         if not self.enable_tray:
             self.close_behavior = CLOSE_BEHAVIOR_QUIT
         self._settings_error = getattr(self, "_close_behavior_error", "")
+        self.first_close_prompt_shown = self._load_first_close_prompt_shown()
         self._quit_requested = False
+        self._first_close_dialog_open = False
         self.tray_icon = None
         self.tray_menu = None
         self.connection_state = ConnectionState(alias_store, parent=self)
@@ -119,6 +121,17 @@ class MainWindow(FluentWindow):
         except ValueError:
             self._close_behavior_error = "关闭窗口行为配置无效，已恢复默认托盘模式"
             return DEFAULT_CLOSE_BEHAVIOR
+
+    def _load_first_close_prompt_shown(self):
+        value = self.settings.value(FIRST_CLOSE_PROMPT_SETTINGS_KEY, False)
+        if isinstance(value, str):
+            return value.strip().casefold() in ("1", "true", "yes", "on")
+        return bool(value)
+
+    def _save_first_close_prompt_shown(self):
+        self.first_close_prompt_shown = True
+        self.settings.setValue(FIRST_CLOSE_PROMPT_SETTINGS_KEY, True)
+        self.settings.sync()
 
     def _setup_tray(self):
         if not self.enable_tray:
@@ -613,10 +626,10 @@ class MainWindow(FluentWindow):
         self.logs.info("系统托盘", "从系统托盘恢复主窗口")
 
     def quit_from_tray(self):
-        self._quit_requested = True
+        self._first_close_dialog_open = False
         if self.tray_icon is not None:
             self.tray_icon.hide()
-        self.close()
+        self.quit_application()
         if self.isVisible():
             self.logs.info("系统托盘", "退出请求将在当前任务结束后执行",
                            "任务：%s" % (self.active_kind or "无"))
@@ -630,6 +643,35 @@ class MainWindow(FluentWindow):
         self.logs.info("系统托盘", "窗口已隐藏到系统托盘",
                        "关闭行为：保留在系统托盘")
         return True
+
+    def _ask_first_close_behavior(self):
+        self._first_close_dialog_open = True
+        dialog = Dialog(
+            "关闭窗口",
+            "是否在关闭窗口时最小化到系统托盘？\n"
+            "最小化后后台任务继续运行，可从托盘恢复窗口。",
+            self,
+        )
+        dialog.setFixedSize(520, 280)
+        dialog.windowTitleLabel.hide()
+        dialog.yesButton.setText("最小化到托盘")
+        dialog.cancelButton.setText("直接退出")
+        try:
+            minimize_to_tray = bool(dialog.exec())
+        finally:
+            self._first_close_dialog_open = False
+        self._save_first_close_prompt_shown()
+        behavior = CLOSE_BEHAVIOR_TRAY if minimize_to_tray else CLOSE_BEHAVIOR_QUIT
+        self.set_close_behavior(behavior)
+        self.pages["settings"].set_close_behavior(behavior)
+        self.logs.info("设置", "首次关闭窗口行为已选择",
+                       "行为：%s" % behavior)
+        return behavior
+
+    def quit_application(self):
+        """请求退出应用，不触发关闭到托盘的首次询问。"""
+        self._quit_requested = True
+        self.close()
 
     def _remove_tray(self, destroy=True):
         if self.tray_icon is not None:
@@ -684,6 +726,7 @@ class MainWindow(FluentWindow):
         self.logs.clear(persist=False)
         self.settings = portable_settings(self.data_dir)
         self.close_behavior = DEFAULT_CLOSE_BEHAVIOR
+        self.first_close_prompt_shown = False
         self.pages["settings"].set_close_behavior(DEFAULT_CLOSE_BEHAVIOR)
         if self.enable_tray and QSystemTrayIcon.isSystemTrayAvailable():
             self._setup_tray()
@@ -695,15 +738,25 @@ class MainWindow(FluentWindow):
         self.logs.info("应用", "设备备注已更新", "当前备注数：%d" % len(self.alias_store.items()))
 
     def closeEvent(self, event):
+        selected_behavior = None
+        if (not self._quit_requested and self.tray_icon is not None
+                and self.enable_tray
+                and not self.first_close_prompt_shown
+                and not self._first_close_dialog_open):
+            selected_behavior = self._ask_first_close_behavior()
+            if selected_behavior == CLOSE_BEHAVIOR_QUIT:
+                self._quit_requested = True
+
+        effective_behavior = selected_behavior or self.close_behavior
+        if not self._quit_requested and effective_behavior == CLOSE_BEHAVIOR_TRAY:
+            event.ignore()
+            self._hide_to_tray()
+            return
+
         if self.thread is not None and self.thread.isRunning():
             self.close_after_task = True
             self.cancel_task()
             event.ignore()
-            return
-        if (not self._quit_requested and self.close_behavior == CLOSE_BEHAVIOR_TRAY
-                and self.tray_icon is not None):
-            event.ignore()
-            self._hide_to_tray()
             return
         for page in self.task_pages:
             page.footer.ring.stop()
@@ -734,8 +787,7 @@ def main():
     install_exception_logging(window.logs)
     window.show()
     result = application.exec()
-    window._quit_requested = True
-    window.close()
+    window.quit_application()
     if window.isVisible():
         window.hide()
     window.deleteLater()

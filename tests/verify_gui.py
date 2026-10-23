@@ -35,6 +35,7 @@ def main():
         data_dir = data_root / gui.DATA_DIRECTORY_NAME
         data_dir.mkdir(parents=True, exist_ok=True)
         settings = QSettings(str(data_dir / gui.SETTINGS_FILE_NAME), QSettings.IniFormat)
+        settings.setValue(gui.FIRST_CLOSE_PROMPT_SETTINGS_KEY, True)
         alias_store = gui.DeviceAliasStore(settings=settings)
         window = gui.MainWindow(alias_store=alias_store, data_dir=data_dir)
         window.resize(args.width, args.height)
@@ -68,7 +69,7 @@ def main():
 
         QTimer.singleShot(450, capture)
         result = app.exec()
-        window.close()
+        window.quit_application()
         window.deleteLater()
         gui.QCoreApplication.sendPostedEvents(None, gui.QEvent.DeferredDelete)
         app.processEvents()
