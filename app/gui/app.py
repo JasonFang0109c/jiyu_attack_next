@@ -1,3 +1,4 @@
+import shutil
 import sys
 import threading
 import time
@@ -5,17 +6,21 @@ import traceback
 from pathlib import Path
 from threading import Event
 
-from PySide6.QtCore import QCoreApplication, QEvent, QLocale, Qt, QTimer, Slot
+from PySide6.QtCore import QCoreApplication, QEvent, QLocale, QSettings, Qt, QTimer, Slot
 from PySide6.QtGui import QColor, QFont, QIcon
-from PySide6.QtWidgets import QApplication, QFileDialog
-from qfluentwidgets import (CaptionLabel, Dialog, FluentIcon as FIF, FluentTranslator,
-                            HyperlinkButton, FluentWindow, InfoBar, InfoBarPosition,
-                            NavigationItemPosition, Theme, setTheme, setThemeColor)
+from PySide6.QtWidgets import QApplication, QFileDialog, QSystemTrayIcon
+from qfluentwidgets import (Action, CaptionLabel, Dialog, FluentIcon as FIF,
+                            FluentTranslator, HyperlinkButton, FluentWindow, InfoBar,
+                            InfoBarPosition, NavigationItemPosition, SystemTrayMenu,
+                            Theme, setTheme, setThemeColor)
 
 from cli import main as core
-from .models import (DATA_DIRECTORY_NAME, SETTINGS_FILE_NAME, ConnectionState,
-                     DeviceAliasStore, LogLevel, LogStore, normalize_log_level,
-                     portable_data_dir, portable_log_path, portable_settings)
+from .models import (CLOSE_BEHAVIOR_QUIT, CLOSE_BEHAVIOR_SETTINGS_KEY,
+                     CLOSE_BEHAVIOR_TRAY, DATA_DIRECTORY_NAME,
+                     DEFAULT_CLOSE_BEHAVIOR, SETTINGS_FILE_NAME, ConnectionState,
+                     DeviceAliasStore, LogLevel, LogStore, normalize_close_behavior,
+                     normalize_log_level, portable_data_dir, portable_log_path,
+                     portable_settings)
 from .pages import (AboutPage, AliasPage, CommandPage, DevicePage, FilePage,
                     FirewallPage, LocalPage, LogPage, MessagePage, SettingsPage)
 from .workers import SendWorker, TaskWorker
@@ -42,19 +47,27 @@ def app_icon():
 
 
 class MainWindow(FluentWindow):
-    def __init__(self, alias_store=None, data_dir=None):
+    def __init__(self, alias_store=None, data_dir=None, enable_tray=True):
         super().__init__()
         self.data_dir = Path(data_dir).resolve() if data_dir is not None else portable_data_dir()
+        self.settings = portable_settings(self.data_dir)
         if alias_store is None:
-            alias_store = DeviceAliasStore(settings=portable_settings(self.data_dir))
+            alias_store = DeviceAliasStore(settings=self.settings)
         self.thread = None
         self.worker = None
         self.active_cancel = None
         self.active_kind = ""
         self.active_started_at = None
         self.close_after_task = False
-        self._reset_undo = None
-        self._reset_undo_timer = None
+        self.enable_tray = bool(enable_tray)
+        self.close_behavior = self._load_close_behavior()
+        if not self.enable_tray:
+            self.close_behavior = CLOSE_BEHAVIOR_QUIT
+        self._settings_error = getattr(self, "_close_behavior_error", "")
+        self._quit_requested = False
+        self._tray_hint_shown = False
+        self.tray_icon = None
+        self.tray_menu = None
         self.connection_state = ConnectionState(alias_store, parent=self)
         self.alias_store = self.connection_state.aliases
         self.alias_store.changed.connect(self._aliases_changed)
@@ -63,6 +76,7 @@ class MainWindow(FluentWindow):
         self.setWindowTitle(APP_NAME)
         self.titleBar.hBoxLayout.setContentsMargins(6, 0, 0, 0)
         self.setWindowIcon(app_icon())
+        self._setup_tray()
         self.setMicaEffectEnabled(False)
         self.setCustomBackgroundColor("#f5f6f8", "#202020")
         self.setMinimumSize(960, 640)
@@ -77,7 +91,7 @@ class MainWindow(FluentWindow):
             "local": LocalPage(self),
             "firewall": FirewallPage(self),
             "logs": LogPage(self.logs, self),
-            "settings": SettingsPage(self.logs, self),
+            "settings": SettingsPage(self.logs, self.close_behavior, self),
             "about": AboutPage(self),
         }
         self.network_pages = [self.pages[key] for key in ("message", "command", "device")]
@@ -88,12 +102,42 @@ class MainWindow(FluentWindow):
         self.logs.info(
             "应用",
             "界面已就绪",
-            details="数据目录：%s；运行等级：%s；Python：%s；日志格式：规范文本" % (
-                self.data_dir, self.logs.minimum_level, sys.version.split()[0]),
+            details="数据目录：%s；关闭行为：%s；运行等级：%s；Python：%s；日志格式：规范文本" % (
+                self.data_dir, self.close_behavior, self.logs.minimum_level,
+                sys.version.split()[0]),
         )
         if self.logs.storage_error:
             self.logs.warning("运行日志", self.logs.storage_error)
             self._notify("运行日志", self.logs.storage_error, "警告")
+        if self._settings_error:
+            self.logs.warning("设置", self._settings_error)
+
+    def _load_close_behavior(self):
+        self._close_behavior_error = ""
+        raw = self.settings.value(CLOSE_BEHAVIOR_SETTINGS_KEY, DEFAULT_CLOSE_BEHAVIOR)
+        try:
+            return normalize_close_behavior(raw)
+        except ValueError:
+            self._close_behavior_error = "关闭窗口行为配置无效，已恢复默认托盘模式"
+            return DEFAULT_CLOSE_BEHAVIOR
+
+    def _setup_tray(self):
+        if not self.enable_tray:
+            return
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            self.logs.warning("系统托盘", "系统托盘不可用，关闭窗口将直接退出")
+            return
+
+        self.tray_icon = QSystemTrayIcon(self.windowIcon(), self)
+        self.tray_icon.setToolTip(APP_NAME)
+        self.tray_menu = SystemTrayMenu(parent=self)
+        self.tray_menu.addActions([
+            Action("显示主窗口", triggered=self.show_from_tray),
+            Action("退出", triggered=self.quit_from_tray),
+        ])
+        self.tray_icon.setContextMenu(self.tray_menu)
+        self.tray_icon.activated.connect(self._tray_activated)
+        self.tray_icon.show()
 
     def _configure_file_logging(self):
         """启动时写入本次运行环境，便于从日志复现问题。"""
@@ -142,46 +186,12 @@ class MainWindow(FluentWindow):
         self.pages["logs"].deleteSelectedRequested.connect(self.delete_selected_logs)
         self.pages["logs"].cancelRequested.connect(self.cancel_task)
         self.pages["settings"].themeRequested.connect(self.set_theme)
+        self.pages["settings"].closeBehaviorRequested.connect(self.set_close_behavior)
         self.pages["settings"].logLevelRequested.connect(self.set_log_level)
-        self.pages["settings"].resetRequested.connect(self.reset_connection_parameters)
+        self.pages["about"].clearDataRequested.connect(self.clear_data)
 
     def show_page(self, key):
         self.switchTo(self.pages[key])
-
-    def _restore_after_reset(self, values):
-        self._cancel_reset_timer()
-        self.connection_state.restore(values)
-        self._notify("已撤销", "连接参数已恢复为修改前的值", "信息")
-        self.logs.info("应用", "已撤销连接参数重置", "恢复参数：%s" % values)
-
-    def _cancel_reset_timer(self):
-        timer = getattr(self, "_reset_undo_timer", None)
-        if timer is not None:
-            timer.stop()
-        pending = getattr(self, "_reset_undo", None)
-        if pending is not None:
-            pending.hide()
-            self.pages["settings"].hide_reset_undo()
-        self._reset_undo = None
-        self._reset_undo_timer = None
-
-    def reset_connection_parameters(self):
-        current = self.connection_state.snapshot()
-        if current == self.connection_state.DEFAULTS:
-            self.connection_state.reset()
-            self._notify("参数已是默认值", "目标地址为空，端口 4705，1 轮，间隔 22 秒", "信息")
-            self.logs.info("应用", "连接参数已是默认值")
-            return
-        self._cancel_reset_timer()
-        self.connection_state.reset()
-        self.logs.info("应用", "连接参数已恢复默认值",
-                       "重置前：%s" % current)
-        self._reset_undo = self.pages["settings"].show_reset_undo(
-            lambda: self._restore_after_reset(current))
-        self._reset_undo_timer = QTimer(self)
-        self._reset_undo_timer.setSingleShot(True)
-        self._reset_undo_timer.timeout.connect(self._cancel_reset_timer)
-        self._reset_undo_timer.start(8000)
 
     def current_page(self):
         return self.stackedWidget.currentWidget().objectName()
@@ -189,14 +199,18 @@ class MainWindow(FluentWindow):
     def _notify(self, title, message, level="信息"):
         if self.close_after_task:
             return
+        if not self.isVisible() and self.tray_icon is not None:
+            self.tray_icon.showMessage(
+                title, str(message), QSystemTrayIcon.MessageIcon.Information, 4000)
+            return
         function = {"错误": InfoBar.error, "成功": InfoBar.success, "警告": InfoBar.warning}.get(level, InfoBar.info)
         function(title=title, content=message, orient=Qt.Horizontal, isClosable=True,
                  position=InfoBarPosition.TOP_RIGHT, duration=4000, parent=self)
 
-    def _confirm(self, title, content):
+    def _confirm(self, title, content, confirm_text="确认执行"):
         dialog = Dialog(title, content, self)
         dialog.setFixedSize(520, 280)
-        dialog.yesButton.setText("确认执行")
+        dialog.yesButton.setText(confirm_text)
         dialog.cancelButton.setText("取消")
         return bool(dialog.exec())
 
@@ -386,7 +400,7 @@ class MainWindow(FluentWindow):
         for key in ("local", "firewall"):
             self.pages[key].footer.set_busy(busy)
         self.pages["firewall"].action_box.setEnabled(not busy)
-        self.pages["settings"].reset_button.setEnabled(not busy)
+        self.pages["about"].clear_data_button.setEnabled(not busy)
         self.pages["logs"].cancel_button.setEnabled(busy and self.active_cancel is not None)
         for key, page in self.pages.items():
             if key in CATEGORIES and key != self.active_kind:
@@ -564,6 +578,126 @@ class MainWindow(FluentWindow):
         setTheme(theme, save=False)
         self.logs.info("应用", "界面主题已切换", "主题：%s" % theme)
 
+    @Slot(str)
+    def set_close_behavior(self, behavior):
+        try:
+            normalized = normalize_close_behavior(behavior)
+        except ValueError as error:
+            self.logs.error("设置", "关闭窗口行为保存失败", "输入：%s；异常：%s" % (
+                behavior, error))
+            self._notify("设置保存失败", str(error), "错误")
+            return
+        previous = self.close_behavior
+        self.close_behavior = normalized
+        self.settings.setValue(CLOSE_BEHAVIOR_SETTINGS_KEY, normalized)
+        self.settings.sync()
+        if self.settings.status() != QSettings.NoError:
+            self.logs.error("设置", "关闭窗口行为保存失败",
+                            "设置文件：%s；状态：%s" % (
+                                self.settings.fileName(), self.settings.status()))
+            self.close_behavior = previous
+            self._notify("设置保存失败", "无法写入设置文件", "错误")
+            return
+        self.logs.info("设置", "关闭窗口行为已更新",
+                       "原行为：%s；新行为：%s" % (previous, normalized))
+
+    def _tray_activated(self, reason):
+        if reason in (QSystemTrayIcon.ActivationReason.Trigger,
+                      QSystemTrayIcon.ActivationReason.DoubleClick):
+            self.show_from_tray()
+
+    def show_from_tray(self):
+        self.show()
+        self.setWindowState(self.windowState() & ~Qt.WindowState.WindowMinimized)
+        self.raise_()
+        self.activateWindow()
+        self.logs.info("系统托盘", "从系统托盘恢复主窗口")
+
+    def quit_from_tray(self):
+        self._quit_requested = True
+        if self.tray_icon is not None:
+            self.tray_icon.hide()
+        self.close()
+        if self.isVisible():
+            self.logs.info("系统托盘", "退出请求将在当前任务结束后执行",
+                           "任务：%s" % (self.active_kind or "无"))
+
+    def _hide_to_tray(self):
+        if self.tray_icon is None:
+            return False
+        self.tray_icon.show()
+        self.setWindowState(self.windowState() & ~Qt.WindowState.WindowMinimized)
+        self.hide()
+        if not self._tray_hint_shown:
+            self.tray_icon.showMessage(
+                APP_NAME, "程序仍在系统托盘中运行，双击图标可恢复窗口。",
+                QSystemTrayIcon.MessageIcon.Information, 4000)
+            self._tray_hint_shown = True
+        self.logs.info("系统托盘", "窗口已隐藏到系统托盘",
+                       "关闭行为：保留在系统托盘")
+        return True
+
+    def _remove_tray(self, destroy=True):
+        if self.tray_icon is not None:
+            self.tray_icon.hide()
+            if destroy:
+                self.tray_icon.deleteLater()
+            self.tray_icon = None
+        if self.tray_menu is not None:
+            if destroy:
+                self.tray_menu.deleteLater()
+            self.tray_menu = None
+
+    @Slot()
+    def clear_data(self):
+        if self.thread is not None:
+            self._notify("无法清除数据", "请等待当前任务结束后再试", "警告")
+            return
+        confirmed = self._confirm(
+            "清除本地数据",
+            "将删除 JiYuAttackNextData 文件夹中的设备备注、界面设置和运行日志。\n"
+            "此操作无法撤销。",
+            "确认清除",
+        )
+        if not confirmed:
+            self.logs.info("关于", "用户取消了清除本地数据")
+            return
+        self.logs.info("关于", "开始清除本地数据", "目录：%s" % self.data_dir)
+        target = self.data_dir
+        log_path = self.logs.log_path
+        self.logs.log_path = None
+        self._remove_tray(destroy=False)
+        self.tray_icon = None
+        self.tray_menu = None
+        try:
+            if target.exists():
+                resolved = target.resolve()
+                if resolved == Path(resolved.anchor) or resolved == Path.cwd().resolve():
+                    raise OSError("拒绝删除非数据目录路径：%s" % resolved)
+                shutil.rmtree(resolved)
+        except OSError as error:
+            self.logs.log_path = log_path
+            if self.enable_tray and QSystemTrayIcon.isSystemTrayAvailable():
+                self._setup_tray()
+            self.logs.error("关于", "清除本地数据失败",
+                            "目录：%s；异常：%s" % (target, error))
+            self._notify("清除数据失败", str(error), "错误")
+            return
+        # 删除成功后本次运行不再写入旧日志文件，避免重新创建数据目录。
+        self.logs.log_path = None
+        self.alias_store.clear(persist=False)
+        self.connection_state.reset()
+        self.logs.clear(persist=False)
+        self.settings = portable_settings(self.data_dir)
+        self.close_behavior = DEFAULT_CLOSE_BEHAVIOR
+        self.pages["settings"].set_close_behavior(DEFAULT_CLOSE_BEHAVIOR)
+        self._tray_hint_shown = False
+        if self.enable_tray and QSystemTrayIcon.isSystemTrayAvailable():
+            self._setup_tray()
+        self.logs.info("关于", "本地数据已清除",
+                       "目录：%s；关闭行为已恢复默认托盘模式；本次运行文件日志暂停" % self.data_dir)
+        self._notify("数据已清除", "已删除 JiYuAttackNextData 文件夹并恢复默认设置", "成功")
+
     def _aliases_changed(self):
         self.logs.info("应用", "设备备注已更新", "当前备注数：%d" % len(self.alias_store.items()))
 
@@ -573,11 +707,16 @@ class MainWindow(FluentWindow):
             self.cancel_task()
             event.ignore()
             return
+        if (not self._quit_requested and self.close_behavior == CLOSE_BEHAVIOR_TRAY
+                and self.tray_icon is not None):
+            event.ignore()
+            self._hide_to_tray()
+            return
         for page in self.task_pages:
             page.footer.ring.stop()
-        self._cancel_reset_timer()
-        if not self.close_after_task:
-            self.logs.info("应用", "窗口关闭")
+        self.logs.info("应用", "应用退出",
+                       "关闭行为：%s" % self.close_behavior)
+        self._remove_tray()
         super().closeEvent(event)
 
 
@@ -602,7 +741,10 @@ def main():
     install_exception_logging(window.logs)
     window.show()
     result = application.exec()
+    window._quit_requested = True
     window.close()
+    if window.isVisible():
+        window.hide()
     window.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
     application.processEvents()

@@ -14,8 +14,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "windows" if sys.platform == "win32" el
 
 from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt, QTimer
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QDialog, QWidget
-from qfluentwidgets import FluentWindow, Theme, qconfig
+from PySide6.QtWidgets import QApplication, QDialog, QSystemTrayIcon, QWidget
+from qfluentwidgets import BodyLabel, FluentWindow, Theme, qconfig
 
 from app.gui import app as gui
 from app.gui import components, models
@@ -39,7 +39,8 @@ class GuiTests(unittest.TestCase):
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.settings_path = str(self.data_dir / "settings.ini")
         self.alias_store = gui.DeviceAliasStore(settings=QSettings(self.settings_path, QSettings.IniFormat))
-        self.window = gui.MainWindow(alias_store=self.alias_store, data_dir=self.data_dir)
+        self.window = gui.MainWindow(
+            alias_store=self.alias_store, data_dir=self.data_dir, enable_tray=False)
         self.message = self.window.pages["message"]
         self.command = self.window.pages["command"]
         self.device = self.window.pages["device"]
@@ -705,23 +706,75 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(models.LogStore(log_path=log_path).entries[0].level,
                          models.LogLevel.WARNING)
 
-    def test_settings_reset_preserves_drafts(self):
-        self.message.editor.setPlainText("保留的草稿")
-        self.state.set_value("port", 8800)
-        self.window.pages["settings"].reset_button.click()
-        self.assertEqual(self.state.values["port"], 4705)
-        self.assertEqual(self.message.editor.toPlainText(), "保留的草稿")
+    def test_settings_show_close_behavior_above_log_level(self):
+        settings_page = self.window.pages["settings"]
+        self.assertFalse(hasattr(settings_page, "reset_button"))
+        layout = settings_page.findChild(components.SectionCard).body
+        rows = [layout.itemAt(index).layout() for index in range(layout.count())]
+        labels = []
+        for row in rows:
+            if row is not None:
+                label = row.itemAt(0).widget()
+                if isinstance(label, BodyLabel):
+                    labels.append(label.text())
+        self.assertEqual(labels, ["界面主题", "关闭窗口时", "运行日志等级"])
 
-    def test_reset_connection_parameters_can_be_undone(self):
-        original = {"target": "模拟目标", "port": 8800, "loops": 2, "interval": 0.5}
-        for name, value in original.items():
-            self.state.set_value(name, value)
-        self.window.pages["settings"].reset_button.click()
+    def test_close_behavior_switch_persists_and_defaults_to_tray(self):
+        window = gui.MainWindow(
+            alias_store=gui.DeviceAliasStore(
+                settings=QSettings(self.settings_path, QSettings.IniFormat)),
+            data_dir=self.data_dir,
+        )
+        try:
+            settings_page = window.pages["settings"]
+            self.assertTrue(settings_page.close_behavior_switch.isChecked())
+            self.assertEqual(window.close_behavior, models.CLOSE_BEHAVIOR_TRAY)
+            settings_page.close_behavior_switch.setChecked(False)
+            self.assertEqual(window.close_behavior, models.CLOSE_BEHAVIOR_QUIT)
+        finally:
+            window._quit_requested = True
+            window.close()
+            window.deleteLater()
+        self.assertEqual(
+            QSettings(self.settings_path, QSettings.IniFormat).value(
+                models.CLOSE_BEHAVIOR_SETTINGS_KEY),
+            models.CLOSE_BEHAVIOR_QUIT,
+        )
+        reloaded = gui.MainWindow(
+            alias_store=gui.DeviceAliasStore(
+                settings=QSettings(self.settings_path, QSettings.IniFormat)),
+            data_dir=self.data_dir,
+            enable_tray=False,
+        )
+        try:
+            self.assertEqual(reloaded.close_behavior, models.CLOSE_BEHAVIOR_QUIT)
+            self.assertFalse(reloaded.pages["settings"].close_behavior_switch.isChecked())
+        finally:
+            reloaded._quit_requested = True
+            reloaded.close()
+            reloaded.deleteLater()
+
+    def test_clear_data_requires_confirmation_and_removes_portable_folder(self):
+        self.alias_store.add("教室 A", "192.168.1.10")
+        self.window.logs.info("应用", "清除前日志")
+        self.state.set_value("port", 8800)
+        about = self.window.pages["about"]
+        self.assertTrue(about.clear_data_button.isEnabled())
+        about.clear_data_button.click()
+        self.confirm.assert_called_once()
+        self.assertFalse(self.data_dir.exists())
+        self.assertEqual(self.alias_store.items(), [])
         self.assertEqual(self.state.values, self.state.DEFAULTS)
-        self.assertTrue(self.window.pages["settings"].reset_undo.isVisibleTo(self.window.pages["settings"]))
-        self.window.pages["settings"].reset_undo.click()
-        self.assertEqual(self.state.values, original)
-        self.assertFalse(self.window.pages["settings"].reset_undo.isVisibleTo(self.window.pages["settings"]))
+        self.assertEqual(len(self.window.logs.entries), 1)
+        self.assertEqual(self.window.logs.entries[-1].message, "本地数据已清除")
+        self.assertIsNone(self.window.logs.log_path)
+
+    def test_clear_data_cancel_keeps_folder(self):
+        self.confirm.return_value = False
+        self.alias_store.add("教室 A", "192.168.1.10")
+        self.window.pages["about"].clear_data_button.click()
+        self.assertTrue(self.data_dir.exists())
+        self.assertIsNotNone(self.alias_store.match("教室 A"))
 
     def test_theme_control_switches_to_dark(self):
         self.window.pages["settings"].theme_box.setCurrentIndex(1)
@@ -742,7 +795,92 @@ class GuiTests(unittest.TestCase):
                 self.window.close()
                 self.wait_for(lambda: self.window.thread is None and not self.window.isVisible())
         self.assertTrue(self.window.close_after_task)
-        self.assertEqual(self.window.logs.entries[-1].message, "操作已取消")
+        self.assertTrue(any(entry.message == "操作已取消"
+                            for entry in self.window.logs.entries))
+        self.assertEqual(self.window.logs.entries[-1].message, "应用退出")
+
+    def test_close_hides_to_tray_when_tray_mode_is_enabled(self):
+        window = gui.MainWindow(
+            alias_store=gui.DeviceAliasStore(
+                settings=QSettings(self.settings_path, QSettings.IniFormat)),
+            data_dir=self.data_dir,
+            enable_tray=False,
+        )
+        try:
+            window.show()
+            window.tray_icon = TestTrayIcon(window)
+            window.tray_menu = gui.SystemTrayMenu(parent=window)
+            window.close_behavior = models.CLOSE_BEHAVIOR_TRAY
+            window.close()
+            self.assertFalse(window.isVisible())
+            self.assertIsNotNone(window.tray_icon)
+            self.assertEqual(window.logs.entries[-1].message, "窗口已隐藏到系统托盘")
+        finally:
+            window._quit_requested = True
+            window.close()
+            window.deleteLater()
+
+    def test_close_quit_mode_exits_and_stops_tray(self):
+        window = gui.MainWindow(
+            alias_store=gui.DeviceAliasStore(
+                settings=QSettings(self.settings_path, QSettings.IniFormat)),
+            data_dir=self.data_dir,
+            enable_tray=False,
+        )
+        try:
+            window.show()
+            tray = TestTrayIcon(window)
+            window.tray_icon = tray
+            window.tray_menu = gui.SystemTrayMenu(parent=window)
+            window.set_close_behavior(models.CLOSE_BEHAVIOR_QUIT)
+            window.close()
+            self.assertFalse(window.isVisible())
+            self.assertIsNone(window.tray_icon)
+            self.assertEqual(window.logs.entries[-1].message, "应用退出")
+        finally:
+            window._quit_requested = True
+            window.close()
+            window.deleteLater()
+
+    def test_tray_menu_shows_window_and_quits(self):
+        window = gui.MainWindow(
+            alias_store=gui.DeviceAliasStore(
+                settings=QSettings(self.settings_path, QSettings.IniFormat)),
+            data_dir=self.data_dir,
+            enable_tray=False,
+        )
+        try:
+            tray = TestTrayIcon(window)
+            window.tray_icon = tray
+            window.tray_menu = gui.SystemTrayMenu(parent=window)
+            window.hide()
+            window.show_from_tray()
+            self.assertTrue(window.isVisible())
+            window.hide()
+            window.quit_from_tray()
+            self.assertFalse(window.isVisible())
+        finally:
+            window._quit_requested = True
+            window.close()
+            window.deleteLater()
+
+
+class TestTrayIcon(QSystemTrayIcon):
+    """不依赖真实 Windows 通知区域的测试托盘图标。"""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.messages = []
+        self.hideCount = 0
+
+    def show(self):
+        pass
+
+    def hide(self):
+        self.hideCount += 1
+
+    def showMessage(self, *args, **kwargs):
+        self.messages.append((args, kwargs))
 
 
 if __name__ == "__main__":

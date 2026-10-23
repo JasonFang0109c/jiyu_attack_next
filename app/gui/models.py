@@ -19,6 +19,30 @@ from cli import main as core
 DATA_DIRECTORY_NAME = "JiYuAttackNextData"
 SETTINGS_FILE_NAME = "settings.ini"
 LOG_FILE_NAME = "runtime.log"
+CLOSE_BEHAVIOR_SETTINGS_KEY = "window/close_behavior"
+CLOSE_BEHAVIOR_TRAY = "tray"
+CLOSE_BEHAVIOR_QUIT = "quit"
+DEFAULT_CLOSE_BEHAVIOR = CLOSE_BEHAVIOR_TRAY
+CLOSE_BEHAVIORS = (CLOSE_BEHAVIOR_TRAY, CLOSE_BEHAVIOR_QUIT)
+CLOSE_BEHAVIOR_LABELS = {
+    CLOSE_BEHAVIOR_TRAY: "保留在系统托盘",
+    CLOSE_BEHAVIOR_QUIT: "直接退出",
+}
+
+
+def normalize_close_behavior(value):
+    """把设置值转换为受支持的关闭窗口行为。"""
+    text = str(value or "").strip()
+    aliases = {
+        CLOSE_BEHAVIOR_TRAY: CLOSE_BEHAVIOR_TRAY,
+        CLOSE_BEHAVIOR_QUIT: CLOSE_BEHAVIOR_QUIT,
+        CLOSE_BEHAVIOR_LABELS[CLOSE_BEHAVIOR_TRAY]: CLOSE_BEHAVIOR_TRAY,
+        CLOSE_BEHAVIOR_LABELS[CLOSE_BEHAVIOR_QUIT]: CLOSE_BEHAVIOR_QUIT,
+    }
+    try:
+        return aliases[text.casefold()]
+    except KeyError as error:
+        raise ValueError("关闭窗口行为无效：%s" % text) from error
 
 
 def portable_data_dir(executable=None):
@@ -195,6 +219,24 @@ class DeviceAliasStore(QObject):
         }
         self._save(aliases)
         self.removed.emit(existing_name)
+        self.changed.emit()
+
+    def clear(self, persist=True):
+        """清空全部设备备注；需要时可跳过写入以配合数据目录删除。"""
+        previous_names = tuple(self._aliases)
+        previous_error = self.load_error
+        if persist:
+            self.load_error = ""
+            try:
+                self._save({})
+            except OSError:
+                self.load_error = previous_error
+                raise
+        else:
+            self._aliases = {}
+            self.load_error = ""
+        for name in previous_names:
+            self.removed.emit(name)
         self.changed.emit()
 
 
@@ -583,7 +625,9 @@ class LogStore(QObject):
         source = self.entries if entries is None else entries
         return "\n".join(entry.as_text() for entry in source)
 
-    def clear(self):
+    def clear(self, persist=True):
         self.entries.clear()
-        self._rewrite_file()
+        self.storage_error = ""
+        if persist:
+            self._rewrite_file()
         self.cleared.emit()

@@ -9,11 +9,11 @@ from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QHeaderView,
                                QHBoxLayout, QLabel, QSizePolicy, QTableWidgetItem,
                                QVBoxLayout, QWidget)
-from qfluentwidgets import (BodyLabel, CaptionLabel, CheckBox, ComboBox, FluentIcon as FIF,
-                            Dialog, HyperlinkButton, LineEdit, PlainTextEdit,
+from qfluentwidgets import (BodyLabel, CaptionLabel, CheckBox, ComboBox, Dialog,
+                            FluentIcon as FIF, HyperlinkButton, LineEdit, PlainTextEdit,
                             PrimaryPushButton, ProgressBar, PushButton, RadioButton,
-                            SearchLineEdit, StrongBodyLabel, TableWidget, Theme, TitleLabel,
-                            qconfig, setFont)
+                            SearchLineEdit, StrongBodyLabel, SwitchButton, TableWidget,
+                            Theme, TitleLabel, qconfig, setFont)
 from cli import main as core
 from .models import LOG_LEVELS, normalize_log_level
 from .components import (Ipv4TargetInput, SectionCard, TargetControls, TaskFooter,
@@ -852,10 +852,10 @@ class LogPage(Page):
 
 class SettingsPage(Page):
     themeRequested = Signal(object)
-    resetRequested = Signal()
+    closeBehaviorRequested = Signal(str)
     logLevelRequested = Signal(str)
 
-    def __init__(self, log_store, parent=None):
+    def __init__(self, log_store, close_behavior, parent=None):
         super().__init__("settings", parent)
         self.log_store = log_store
         page_heading(self.vbox, "设置")
@@ -870,6 +870,21 @@ class SettingsPage(Page):
         row.addWidget(self.theme_box)
         settings_card = SectionCard(self, spacing=18)
         settings_card.body.addLayout(row)
+
+        close_row = QHBoxLayout()
+        close_row.addWidget(BodyLabel("关闭窗口时", self))
+        close_row.addStretch()
+        self.close_behavior_switch = SwitchButton(self)
+        self.close_behavior_switch.setAccessibleName("关闭窗口时保留在系统托盘")
+        self.close_behavior_switch.setToolTip(
+            "开启：关闭窗口后保留在系统托盘；关闭：直接退出应用")
+        self.close_behavior_switch.setOnText("保留在系统托盘")
+        self.close_behavior_switch.setOffText("直接退出")
+        self.close_behavior_switch.setChecked(close_behavior == "tray")
+        self.close_behavior_switch.checkedChanged.connect(self._select_close_behavior)
+        close_row.addWidget(self.close_behavior_switch)
+        settings_card.body.addLayout(close_row)
+
         log_row = QHBoxLayout()
         log_row.addWidget(BodyLabel("运行日志等级", self))
         log_row.addStretch()
@@ -880,23 +895,6 @@ class SettingsPage(Page):
         self.log_level_box.currentIndexChanged.connect(self._select_log_level)
         log_row.addWidget(self.log_level_box)
         settings_card.body.addLayout(log_row)
-        reset_row = QHBoxLayout()
-        reset_row.addWidget(BodyLabel("连接参数", self))
-        reset_row.addStretch()
-        self.reset_hint = CaptionLabel("已恢复默认参数", self)
-        self.reset_undo = PushButton("撤销", self)
-        self.reset_undo.setIcon(FIF.RETURN)
-        self.reset_undo_callback = None
-        self.reset_undo.clicked.connect(self._invoke_reset_undo)
-        self.reset_hint.hide()
-        self.reset_undo.hide()
-        reset_row.addWidget(self.reset_hint)
-        reset_row.addWidget(self.reset_undo)
-        self.reset_button = PushButton("恢复默认参数", self)
-        self.reset_button.setIcon(FIF.SYNC)
-        self.reset_button.clicked.connect(lambda checked=False: self.resetRequested.emit())
-        reset_row.addWidget(self.reset_button)
-        settings_card.body.addLayout(reset_row)
         self.vbox.addWidget(settings_card)
         self.log_store.levelChanged.connect(self._log_level_changed)
 
@@ -904,6 +902,13 @@ class SettingsPage(Page):
 
     def _select_theme(self, index):
         self.themeRequested.emit([Theme.LIGHT, Theme.DARK, Theme.AUTO][index])
+
+    def _select_close_behavior(self, checked):
+        self.closeBehaviorRequested.emit("tray" if checked else "quit")
+
+    def set_close_behavior(self, behavior):
+        with QSignalBlocker(self.close_behavior_switch):
+            self.close_behavior_switch.setChecked(behavior == "tray")
 
     def _select_log_level(self, index):
         if 0 <= index < len(LOG_LEVELS):
@@ -914,22 +919,6 @@ class SettingsPage(Page):
         index = LOG_LEVELS.index(normalize_log_level(level))
         with QSignalBlocker(self.log_level_box):
             self.log_level_box.setCurrentIndex(index)
-
-    def show_reset_undo(self, callback):
-        self.reset_undo_callback = callback
-        self.reset_hint.show()
-        self.reset_undo.show()
-        return self.reset_undo
-
-    def _invoke_reset_undo(self):
-        callback = self.reset_undo_callback
-        self.reset_undo_callback = None
-        if callback is not None:
-            callback()
-
-    def hide_reset_undo(self):
-        self.reset_hint.hide()
-        self.reset_undo.hide()
 
 
 class AboutInfoCard(SectionCard):
@@ -956,6 +945,8 @@ class AboutInfoCard(SectionCard):
 
 
 class AboutPage(Page):
+    clearDataRequested = Signal()
+
     def __init__(self, parent=None):
         super().__init__("about", parent)
         page_heading(self.vbox, "关于")
@@ -1014,5 +1005,26 @@ class AboutPage(Page):
             versions.body.addLayout(version_row)
             self.versions[title_text] = value
         content.addWidget(versions)
+
+        self.data_card = SectionCard(self, spacing=12, margins=(18, 12, 18, 12))
+        self.data_card.setObjectName("aboutDataCard")
+        data_row = QHBoxLayout()
+        data_copy = QVBoxLayout()
+        data_copy.setSpacing(4)
+        data_copy.addWidget(BodyLabel("本地数据", self.data_card))
+        data_hint = CaptionLabel(
+            "删除设备备注、界面设置与运行日志所在的 JiYuAttackNextData 文件夹。",
+            self.data_card,
+        )
+        data_hint.setWordWrap(True)
+        data_copy.addWidget(data_hint)
+        data_row.addLayout(data_copy, 1)
+        self.clear_data_button = PushButton("清除数据", self.data_card)
+        self.clear_data_button.setIcon(FIF.DELETE)
+        self.clear_data_button.clicked.connect(
+            lambda checked=False: self.clearDataRequested.emit())
+        data_row.addWidget(self.clear_data_button, 0, Qt.AlignVCenter)
+        self.data_card.body.addLayout(data_row)
+        content.addWidget(self.data_card)
         content.addStretch()
         self.vbox.addLayout(content)
