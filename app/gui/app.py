@@ -5,8 +5,8 @@ from threading import Event
 from PySide6.QtCore import QCoreApplication, QEvent, QLocale, Qt, QTimer, Slot
 from PySide6.QtGui import QColor, QFont, QIcon
 from PySide6.QtWidgets import QApplication, QFileDialog
-from qfluentwidgets import (CaptionLabel, FluentIcon as FIF, FluentTranslator, HyperlinkButton,
-                            FluentWindow, InfoBar, InfoBarPosition, MessageBox,
+from qfluentwidgets import (CaptionLabel, Dialog, FluentIcon as FIF, FluentTranslator,
+                            HyperlinkButton, FluentWindow, InfoBar, InfoBarPosition,
                             NavigationItemPosition, Theme, setTheme, setThemeColor)
 
 from cli import main as core
@@ -166,7 +166,8 @@ class MainWindow(FluentWindow):
                  position=InfoBarPosition.TOP_RIGHT, duration=4000, parent=self)
 
     def _confirm(self, title, content):
-        dialog = MessageBox(title, content, self)
+        dialog = Dialog(title, content, self)
+        dialog.setFixedSize(520, 280)
         dialog.yesButton.setText("确认执行")
         dialog.cancelButton.setText("取消")
         return bool(dialog.exec())

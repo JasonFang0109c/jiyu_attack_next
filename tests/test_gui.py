@@ -11,9 +11,9 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen")
 
-from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt
+from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt, QTimer
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QApplication, QDialog, QWidget
 from qfluentwidgets import FluentWindow, Theme, qconfig
 
 from app.gui import app as gui
@@ -47,6 +47,7 @@ class GuiTests(unittest.TestCase):
         self.notify = notify.start()
         self.addCleanup(notify.stop)
         confirm = patch.object(self.window, "_confirm", return_value=True)
+        self.confirm_patcher = confirm
         self.confirm = confirm.start()
         self.addCleanup(confirm.stop)
         self.addCleanup(self.dispose_window)
@@ -157,7 +158,7 @@ class GuiTests(unittest.TestCase):
                          ["192", "168", "1", "11"])
 
         page.table.setCurrentCell(0, 0)
-        with patch.object(gui.MessageBox, "exec", return_value=1):
+        with patch.object(gui.Dialog, "exec", return_value=1):
             page.delete_button.click()
         self.assertIsNone(self.alias_store.match("一号机房"))
         self.assertEqual(self.state.values["target"], "")
@@ -395,6 +396,54 @@ class GuiTests(unittest.TestCase):
         self.assertIn("文件已传送到目标桌面", page.footer.status.text())
         self.assertEqual(self.window.logs.entries[-1].category, "文件传送")
         self.assertEqual(self.window.logs.entries[-1].level, "成功")
+
+    def test_file_transfer_confirmation_is_active_and_responsive(self):
+        page = self.window.pages["file"]
+        source = self.temp_root / "确认测试.txt"
+        source.write_text("确认测试", encoding="utf-8")
+        page.set_file(source, source.stat().st_size)
+        self.state.set_value("target", "模拟目标")
+        dialogs = []
+
+        def click_dialog(button_name):
+            modal = QApplication.activeModalWidget()
+            dialog = modal or next(
+                (widget for widget in self.window.findChildren(QDialog) if widget.isVisible()),
+                None,
+            )
+            dialogs.append((dialog, modal is dialog))
+            if dialog is not None:
+                QTest.mouseClick(getattr(dialog, button_name), Qt.LeftButton)
+
+        self.window.show()
+        self.window.activateWindow()
+        self.window.raise_()
+        QTest.qWait(200)
+        self.confirm_patcher.stop()
+        try:
+            with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
+                with patch.object(gui.core, "transfer_file", return_value={
+                        "name": source.name, "size": source.stat().st_size,
+                        "target": "模拟目标", "listen_ip": "127.0.0.1"}) as transfer:
+                    QTimer.singleShot(150, lambda: click_dialog("yesButton"))
+                    self.window.start_file_transfer()
+                    self.wait_for(lambda: self.window.thread is None)
+            transfer.assert_called_once()
+            with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
+                with patch.object(gui.core, "transfer_file") as cancelled_transfer:
+                    QTimer.singleShot(150, lambda: click_dialog("cancelButton"))
+                    self.window.start_file_transfer()
+                    self.assertIsNone(self.window.thread)
+            cancelled_transfer.assert_not_called()
+        finally:
+            self.confirm_patcher.start()
+        self.assertEqual(len(dialogs), 2)
+        for dialog, active in dialogs:
+            self.assertIsNotNone(dialog)
+            self.assertTrue(active)
+            self.assertEqual(dialog.yesButton.text(), "确认执行")
+            self.assertEqual(dialog.cancelButton.text(), "取消")
+        self.assertIn("文件已传送到目标桌面", page.footer.status.text())
 
     def test_file_page_requires_file_and_single_target(self):
         page = self.window.pages["file"]

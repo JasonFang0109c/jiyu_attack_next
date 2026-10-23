@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QHeaderView,
                                QHBoxLayout, QLabel, QSizePolicy, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 from qfluentwidgets import (BodyLabel, CaptionLabel, ComboBox, FluentIcon as FIF,
-                            HyperlinkButton, LineEdit, MessageBox, PlainTextEdit,
+                            Dialog, HyperlinkButton, LineEdit, PlainTextEdit,
                             PrimaryPushButton, ProgressBar, PushButton, RadioButton,
                             SearchLineEdit, StrongBodyLabel, TableWidget, Theme, TitleLabel,
                             qconfig, setFont)
@@ -471,11 +471,12 @@ class AliasPage(Page):
         matched = self.store.match(name) if name else None
         if matched is None:
             return
-        dialog = MessageBox(
+        dialog = Dialog(
             "删除设备备注",
             "确定删除备注「%s」（%s）？当前目标如果引用该备注，也会被清空。" % matched,
             self,
         )
+        dialog.setFixedSize(520, 280)
         dialog.yesButton.setText("删除")
         dialog.cancelButton.setText("取消")
         if not dialog.exec():
