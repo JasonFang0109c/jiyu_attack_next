@@ -814,6 +814,7 @@ class GuiTests(unittest.TestCase):
             window.close()
             self.assertFalse(window.isVisible())
             self.assertIsNotNone(window.tray_icon)
+            self.assertEqual(window.tray_icon.messages, [])
             self.assertEqual(window.logs.entries[-1].message, "窗口已隐藏到系统托盘")
         finally:
             window._quit_requested = True

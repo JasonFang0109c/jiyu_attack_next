@@ -65,7 +65,6 @@ class MainWindow(FluentWindow):
             self.close_behavior = CLOSE_BEHAVIOR_QUIT
         self._settings_error = getattr(self, "_close_behavior_error", "")
         self._quit_requested = False
-        self._tray_hint_shown = False
         self.tray_icon = None
         self.tray_menu = None
         self.connection_state = ConnectionState(alias_store, parent=self)
@@ -628,11 +627,6 @@ class MainWindow(FluentWindow):
         self.tray_icon.show()
         self.setWindowState(self.windowState() & ~Qt.WindowState.WindowMinimized)
         self.hide()
-        if not self._tray_hint_shown:
-            self.tray_icon.showMessage(
-                APP_NAME, "程序仍在系统托盘中运行，双击图标可恢复窗口。",
-                QSystemTrayIcon.MessageIcon.Information, 4000)
-            self._tray_hint_shown = True
         self.logs.info("系统托盘", "窗口已隐藏到系统托盘",
                        "关闭行为：保留在系统托盘")
         return True
@@ -691,7 +685,6 @@ class MainWindow(FluentWindow):
         self.settings = portable_settings(self.data_dir)
         self.close_behavior = DEFAULT_CLOSE_BEHAVIOR
         self.pages["settings"].set_close_behavior(DEFAULT_CLOSE_BEHAVIOR)
-        self._tray_hint_shown = False
         if self.enable_tray and QSystemTrayIcon.isSystemTrayAvailable():
             self._setup_tray()
         self.logs.info("关于", "本地数据已清除",
