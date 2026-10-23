@@ -75,6 +75,12 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      - name: Checkout repository metadata
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Download nightly artifact
         uses: actions/download-artifact@v8
         with:
@@ -88,12 +94,21 @@ jobs:
           short_sha="${GITHUB_SHA::7}"
           sha256="$(sha256sum dist/JiYuAttackNext.exe | awk '{print $1}')"
           built_at="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          commit_message="$(git log -1 --pretty=%B)"
+          if [[ -z "${commit_message}" ]]; then
+            commit_message="（无提交说明）"
+          fi
+          changelog="$(printf '%s\n' "${commit_message}" | sed 's/^/    /')"
           cat > release-notes.md <<EOF
           # Nightly Build
 
           - **Commit:** [\`${short_sha}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA})
           - **Built at:** \`${built_at}\`
           - **Workflow run:** [#${GITHUB_RUN_NUMBER}](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})
+
+          ## 更新日志
+
+          ${changelog}
 
           ## Asset
 

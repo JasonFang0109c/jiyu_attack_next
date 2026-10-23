@@ -23,6 +23,11 @@ class NightlyWorkflowTests(unittest.TestCase):
         self.assertIn("scripts\\build.ps1 -Clean", self.workflow)
         self.assertIn("path: dist/JiYuAttackNext.exe", self.workflow)
 
+    def test_workflow_includes_latest_commit_changelog(self):
+        self.assertIn("git log -1 --pretty=%B", self.workflow)
+        self.assertIn("## 更新日志", self.workflow)
+        self.assertIn("${changelog}", self.workflow)
+
     def test_workflow_replaces_prerelease_with_nightly_tag(self):
         self.assertIn("tag_name: nightly", self.workflow)
         self.assertIn("name: Nightly Build", self.workflow)
