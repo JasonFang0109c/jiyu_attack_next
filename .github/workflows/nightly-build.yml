@@ -49,21 +49,28 @@ jobs:
         shell: pwsh
         run: powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Clean
 
-      - name: Prepare release asset
+      - name: Prepare release assets
         shell: pwsh
         run: |
-          $source = "output\JiYuAttackNext.exe"
-          if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
-            throw "未找到构建产物：$source"
+          $exeSource = "output\JiYuAttackNext.exe"
+          $cliSource = "cli\main.py"
+          if (-not (Test-Path -LiteralPath $exeSource -PathType Leaf)) {
+            throw "未找到构建产物：$exeSource"
+          }
+          if (-not (Test-Path -LiteralPath $cliSource -PathType Leaf)) {
+            throw "未找到 CLI 脚本：$cliSource"
           }
           New-Item -ItemType Directory -Path "dist" -Force | Out-Null
-          Copy-Item -LiteralPath $source -Destination "dist\JiYuAttackNext.exe" -Force
+          Copy-Item -LiteralPath $exeSource -Destination "dist\JiYuAttackNext.exe" -Force
+          Copy-Item -LiteralPath $cliSource -Destination "dist\JiYuAttackNext-cli.py" -Force
 
       - name: Upload nightly artifact
         uses: actions/upload-artifact@v7
         with:
           name: JiYuAttackNext-nightly
-          path: dist/JiYuAttackNext.exe
+          path: |
+            dist/JiYuAttackNext.exe
+            dist/JiYuAttackNext-cli.py
           if-no-files-found: error
           retention-days: 7
 
@@ -92,7 +99,8 @@ jobs:
         run: |
           set -euo pipefail
           short_sha="${GITHUB_SHA::7}"
-          sha256="$(sha256sum dist/JiYuAttackNext.exe | awk '{print $1}')"
+          exe_sha256="$(sha256sum dist/JiYuAttackNext.exe | awk '{print $1}')"
+          cli_sha256="$(sha256sum dist/JiYuAttackNext-cli.py | awk '{print $1}')"
           built_at="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           commit_message="$(git log -1 --pretty=%B)"
           if [[ -z "${commit_message}" ]]; then
@@ -108,10 +116,12 @@ jobs:
           ## Assets
 
           - \`JiYuAttackNext.exe\`
+          - \`JiYuAttackNext-cli.py\` (Python 3.13)
 
           ## SHA256
 
-          - \`${sha256}\`
+          - GUI: \`${exe_sha256}\`
+          - CLI: \`${cli_sha256}\`
 
           ## Message
 
@@ -132,6 +142,8 @@ jobs:
           overwrite_files: true
           fail_on_unmatched_files: true
           make_latest: false
-          files: dist/JiYuAttackNext.exe
+          files: |
+            dist/JiYuAttackNext.exe
+            dist/JiYuAttackNext-cli.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

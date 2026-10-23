@@ -18,10 +18,12 @@ class NightlyWorkflowTests(unittest.TestCase):
         self.assertIn("- main", self.workflow)
         self.assertIn("workflow_dispatch:", self.workflow)
 
-    def test_workflow_builds_and_uploads_windows_exe(self):
+    def test_workflow_builds_and_uploads_release_assets(self):
         self.assertIn("runs-on: windows-latest", self.workflow)
         self.assertIn("scripts\\build.ps1 -Clean", self.workflow)
-        self.assertIn("path: dist/JiYuAttackNext.exe", self.workflow)
+        self.assertIn("cli\\main.py", self.workflow)
+        self.assertIn("dist/JiYuAttackNext.exe", self.workflow)
+        self.assertIn("dist/JiYuAttackNext-cli.py", self.workflow)
 
     def test_workflow_includes_latest_commit_changelog_last(self):
         self.assertIn("git log -1 --pretty=%B", self.workflow)
@@ -32,6 +34,13 @@ class NightlyWorkflowTests(unittest.TestCase):
             self.workflow.index("## Message"),
             self.workflow.index("## SHA256"),
         )
+
+    def test_workflow_publishes_gui_and_cli_assets(self):
+        self.assertIn("files: |", self.workflow)
+        self.assertIn("GUI:", self.workflow)
+        self.assertIn("${exe_sha256}", self.workflow)
+        self.assertIn("CLI:", self.workflow)
+        self.assertIn("${cli_sha256}", self.workflow)
 
     def test_workflow_replaces_prerelease_with_nightly_tag(self):
         self.assertIn("tag_name: nightly", self.workflow)

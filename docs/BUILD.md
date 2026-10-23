@@ -66,8 +66,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Python "C:\Python3
 - 推送到 `main` 时自动运行；也可在仓库的 Actions 页面选择该工作流并点击 `Run workflow` 手动运行。手动运行需选择 `main` 分支才会发布。
 - 工作流文件首次进入默认分支后，Actions 页面才会显示手动运行入口。
 - 在 `windows-latest` 上使用 Python 3.13 安装依赖、执行离线测试并运行 `scripts/build.ps1 -Clean`。
-- 构建成功后更新标签为 `nightly`、标题为 `Nightly Build` 的预发布版本，资产名为 `JiYuAttackNext.exe`。
-- 发布说明包含构建时间、工作流运行记录、EXE 的 SHA256，并在末尾的英文 `Message` 章节列出最新提交的完整提交信息。
+- 构建成功后更新标签为 `nightly`、标题为 `Nightly Build` 的预发布版本，资产包括 GUI 版 `JiYuAttackNext.exe` 和 CLI 版 `JiYuAttackNext-cli.py`。
+- 发布说明包含构建时间、工作流运行记录、两个资产的 SHA256，并在末尾的英文 `Message` 章节列出最新提交的完整提交信息。
 - 发布复用 `nightly` 标签，并通过 `overwrite_files` 覆盖旧资产和发布说明，因此下载地址保持为 `https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly`。
 - 为避免并发发布，工作流使用 `nightly-build` 并发组；新的运行会取消尚未完成的旧运行。
 - 工作流使用 `GITHUB_TOKEN`。仓库需要允许 Actions 写入内容；若发布步骤返回 403，请在 `Settings > Actions > General > Workflow permissions` 中允许读写权限。
