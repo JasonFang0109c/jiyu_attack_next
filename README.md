@@ -11,6 +11,7 @@
 | 编译输出 | `output/JiYuAttackNext.exe`，无需安装 Python 即可运行 |
 | 开发环境 | Python 3.13；GUI 使用 PySide6，EXE 构建使用 PyInstaller |
 | 默认通信 | UDP，目标端口 `4705` |
+| Nightly Build | 推送到 `main` 后自动构建 Windows EXE，并更新 `nightly` 预发布版本 |
 
 ## 文档导航
 

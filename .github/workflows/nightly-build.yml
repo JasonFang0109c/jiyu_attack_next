@@ -1,0 +1,123 @@
+name: Nightly Build
+
+# 推送到 main 自动触发；也可在 Actions 页面手动运行。
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Windows EXE
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      QT_QPA_PLATFORM: offscreen
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install --disable-pip-version-check -r requirements.txt
+
+      - name: Run offline checks
+        shell: pwsh
+        run: |
+          .\.venv\Scripts\python.exe -B -m unittest discover -s tests -v
+          .\.venv\Scripts\python.exe -X utf8 -m compileall -q cli app tests
+
+      - name: Build EXE
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Clean
+
+      - name: Prepare release asset
+        shell: pwsh
+        run: |
+          $source = "output\JiYuAttackNext.exe"
+          if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+            throw "未找到构建产物：$source"
+          }
+          New-Item -ItemType Directory -Path "dist" -Force | Out-Null
+          Copy-Item -LiteralPath $source -Destination "dist\JiYuAttackNext.exe" -Force
+
+      - name: Upload nightly artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: JiYuAttackNext-nightly
+          path: dist/JiYuAttackNext.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish Nightly Build
+    needs: build
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Download nightly artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: JiYuAttackNext-nightly
+          path: dist
+
+      - name: Prepare release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          short_sha="${GITHUB_SHA::7}"
+          sha256="$(sha256sum dist/JiYuAttackNext.exe | awk '{print $1}')"
+          built_at="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          cat > release-notes.md <<EOF
+          # Nightly Build
+
+          - **Commit:** [\`${short_sha}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA})
+          - **Built at:** \`${built_at}\`
+          - **Workflow run:** [#${GITHUB_RUN_NUMBER}](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})
+
+          ## Asset
+
+          - \`JiYuAttackNext.exe\`
+
+          ## SHA256
+
+          - \`${sha256}\`
+
+          > This is an automatically generated pre-release build and may be unstable.
+          EOF
+
+      - name: Publish Nightly Build pre-release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: nightly
+          name: Nightly Build
+          body_path: release-notes.md
+          draft: false
+          prerelease: true
+          target_commitish: ${{ github.sha }}
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          make_latest: false
+          files: dist/JiYuAttackNext.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

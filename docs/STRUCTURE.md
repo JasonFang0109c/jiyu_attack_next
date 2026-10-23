@@ -4,6 +4,9 @@
 
 ```text
 jiyu_attack_next/
+|-- .github/
+|   `-- workflows/
+|       `-- nightly-build.yml   # GitHub Actions Nightly 构建与预发布
 |-- README.md                     # 基础介绍与文档导航
 |-- requirements.txt              # GUI 与构建依赖
 |-- cli/
@@ -24,6 +27,7 @@ jiyu_attack_next/
 |   |-- test_core.py               # 协议与发送接口测试
 |   |-- test_entry.py              # 独立脚本与启动入口测试
 |   |-- test_gui.py                # 界面与线程生命周期测试
+|   |-- test_nightly_workflow.py   # Nightly Build 工作流配置测试
 |   `-- verify_gui.py              # 界面截图检查工具
 |-- scripts/
 |   |-- build.ps1                  # EXE 构建脚本
@@ -49,6 +53,7 @@ jiyu_attack_next/
 - `app/gui/components.py` 提供跨页面同步的连接参数和统一任务栏。
 - `app/gui/models.py` 保存连接状态、持久化设备备注，并提供可筛选的日志记录。
 - `app/gui/workers.py` 执行后台发送和本机工具任务，通过信号更新界面。
+- `.github/workflows/nightly-build.yml` 负责在推送到 `main` 后构建 EXE，并更新 `nightly` 预发布版本。
 - `scripts/` 统一存放启动脚本及 EXE 构建配置，自动按脚本位置定位项目根目录。
 - `tests/` 使用模拟套接字验证行为，不执行真实目标发送或防火墙变更。
 
