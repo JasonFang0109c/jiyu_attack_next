@@ -71,7 +71,7 @@ jiyu_attack_next/
 
 ## 相关文档
 
-- [脚本版使用说明](CLI.md)
+- [CLI 版使用说明](CLI.md)
 - [GUI 使用说明](GUI.md)
 - [EXE 构建说明](BUILD.md)
 - [开发与提交规范](CONTRIBUTING.md)

