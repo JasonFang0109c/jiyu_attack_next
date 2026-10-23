@@ -1,4 +1,7 @@
 import sys
+import threading
+import time
+import traceback
 from pathlib import Path
 from threading import Event
 
@@ -11,8 +14,8 @@ from qfluentwidgets import (CaptionLabel, Dialog, FluentIcon as FIF, FluentTrans
 
 from cli import main as core
 from .models import (DATA_DIRECTORY_NAME, SETTINGS_FILE_NAME, ConnectionState,
-                     DeviceAliasStore, LogStore, portable_data_dir, portable_log_path,
-                     portable_settings)
+                     DeviceAliasStore, LogLevel, LogStore, normalize_log_level,
+                     portable_data_dir, portable_log_path, portable_settings)
 from .pages import (AboutPage, AliasPage, CommandPage, DevicePage, FilePage,
                     FirewallPage, LocalPage, LogPage, MessagePage, SettingsPage)
 from .workers import SendWorker, TaskWorker
@@ -48,12 +51,15 @@ class MainWindow(FluentWindow):
         self.worker = None
         self.active_cancel = None
         self.active_kind = ""
+        self.active_started_at = None
         self.close_after_task = False
         self._reset_undo = None
         self._reset_undo_timer = None
         self.connection_state = ConnectionState(alias_store, parent=self)
         self.alias_store = self.connection_state.aliases
+        self.alias_store.changed.connect(self._aliases_changed)
         self.logs = LogStore(self, log_path=portable_log_path(self.data_dir))
+        self._configure_file_logging()
         self.setWindowTitle(APP_NAME)
         self.titleBar.hBoxLayout.setContentsMargins(6, 0, 0, 0)
         self.setWindowIcon(app_icon())
@@ -71,7 +77,7 @@ class MainWindow(FluentWindow):
             "local": LocalPage(self),
             "firewall": FirewallPage(self),
             "logs": LogPage(self.logs, self),
-            "settings": SettingsPage(self),
+            "settings": SettingsPage(self.logs, self),
             "about": AboutPage(self),
         }
         self.network_pages = [self.pages[key] for key in ("message", "command", "device")]
@@ -79,9 +85,25 @@ class MainWindow(FluentWindow):
                                                  self.pages["firewall"]]
         self._build_navigation()
         self._connect_actions()
-        self.logs.add("应用", "界面已就绪")
+        self.logs.info(
+            "应用",
+            "界面已就绪",
+            details="数据目录：%s；运行等级：%s；Python：%s；日志格式：规范文本" % (
+                self.data_dir, self.logs.minimum_level, sys.version.split()[0]),
+        )
         if self.logs.storage_error:
+            self.logs.warning("运行日志", self.logs.storage_error)
             self._notify("运行日志", self.logs.storage_error, "警告")
+
+    def _configure_file_logging(self):
+        """启动时写入本次运行环境，便于从日志复现问题。"""
+        self.logs.add(
+            "运行日志",
+            "日志系统已初始化",
+            LogLevel.INFO,
+            "日志文件：%s；线程：%s；GUI 版本：%s" % (
+                self.logs.log_path or "未启用", threading.current_thread().name, APP_NAME),
+        )
 
     def _build_navigation(self):
         self.navigationInterface.setExpandWidth(200)
@@ -116,9 +138,11 @@ class MainWindow(FluentWindow):
         message = self.pages["message"]
         message.importRequested.connect(self.import_message)
         message.saveRequested.connect(self.save_message)
-        self.pages["logs"].exportRequested.connect(self.export_logs)
+        self.pages["logs"].exportSelectedRequested.connect(self.export_selected_logs)
+        self.pages["logs"].deleteSelectedRequested.connect(self.delete_selected_logs)
         self.pages["logs"].cancelRequested.connect(self.cancel_task)
         self.pages["settings"].themeRequested.connect(self.set_theme)
+        self.pages["settings"].logLevelRequested.connect(self.set_log_level)
         self.pages["settings"].resetRequested.connect(self.reset_connection_parameters)
 
     def show_page(self, key):
@@ -128,6 +152,7 @@ class MainWindow(FluentWindow):
         self._cancel_reset_timer()
         self.connection_state.restore(values)
         self._notify("已撤销", "连接参数已恢复为修改前的值", "信息")
+        self.logs.info("应用", "已撤销连接参数重置", "恢复参数：%s" % values)
 
     def _cancel_reset_timer(self):
         timer = getattr(self, "_reset_undo_timer", None)
@@ -145,9 +170,12 @@ class MainWindow(FluentWindow):
         if current == self.connection_state.DEFAULTS:
             self.connection_state.reset()
             self._notify("参数已是默认值", "目标地址为空，端口 4705，1 轮，间隔 22 秒", "信息")
+            self.logs.info("应用", "连接参数已是默认值")
             return
         self._cancel_reset_timer()
         self.connection_state.reset()
+        self.logs.info("应用", "连接参数已恢复默认值",
+                       "重置前：%s" % current)
         self._reset_undo = self.pages["settings"].show_reset_undo(
             lambda: self._restore_after_reset(current))
         self._reset_undo_timer = QTimer(self)
@@ -192,17 +220,19 @@ class MainWindow(FluentWindow):
             page.targets.target_input.setError(True)
             page.targets.target_input.setFocus()
             alias_name = self.connection_state.values["target"].strip()
+            details = "输入目标：%s；端口：%d；异常：%s" % (
+                alias_name or "（空）", options.port, error)
             if self.connection_state.aliases.match(alias_name) is None:
-                self._validation_error(kind, str(error))
+                self._validation_error(kind, str(error), details)
             else:
-                self._validation_error(kind, "设备备注对应的 IP 无效")
+                self._validation_error(kind, "设备备注对应的 IP 无效", details)
             return
         try:
             core.validate_options(options)
             if options.command:
                 core.pkg_sendlist("-c", options.command)
         except (ValueError, UnicodeError) as error:
-            self._validation_error(kind, str(error))
+            self._validation_error(kind, str(error), "发送参数校验失败：%s" % error)
             return
         target_text = self.connection_state.format_target()
         target_input_text = self.connection_state.values["target"].strip()
@@ -211,6 +241,9 @@ class MainWindow(FluentWindow):
             content = "目标：%s\nUDP 端口：%d\n设备数量：%d\n操作：%s" % (
                 target_text, options.port, len(hosts), action)
             if not self._confirm("确认%s" % action, content):
+                self.logs.info(CATEGORIES[kind], "用户取消了%s确认" % action,
+                               "目标：%s；端口：%d；设备数量：%d" % (
+                                   target_text, options.port, len(hosts)))
                 return
         options.cancel_event = Event()
         self.active_cancel = options.cancel_event
@@ -220,12 +253,18 @@ class MainWindow(FluentWindow):
         else:
             message = "开始发送：%s，端口 %d，%d 轮" % (
                 target_text, options.port, options.loops)
-        self.logs.add(CATEGORIES[kind], message)
+        payload = options.message if kind == "message" else options.command
+        details = "功能：%s；目标：%s；设备数：%d；端口：%d；轮数：%d；间隔：%s；负载长度：%d" % (
+            CATEGORIES[kind], options.target, len(hosts), options.port, options.loops,
+            options.interval, len(payload or ""))
+        self.logs.info(CATEGORIES[kind], message, details)
+        self.logs.debug(CATEGORIES[kind], "发送参数快照", details)
         self._begin_task(kind, SendWorker(options, core.execute_send), self._send_finished, self._send_failed)
 
-    def _validation_error(self, kind, message):
+    def _validation_error(self, kind, message, details=""):
         self.pages[kind].footer.set_status(message)
-        self.logs.add(CATEGORIES[kind], message, "警告")
+        self.logs.warning(CATEGORIES[kind], message,
+                          details or "功能：%s；校验未通过" % CATEGORIES[kind])
         self._notify("请检查参数", message, "警告")
 
     def choose_transfer_file(self):
@@ -235,11 +274,14 @@ class MainWindow(FluentWindow):
         try:
             size = Path(filename).stat().st_size
         except OSError as error:
+            self.logs.error(CATEGORIES["file"], "无法读取待传送文件",
+                            "文件：%s；异常：%s" % (filename, error))
             self._notify("无法读取文件", str(error), "错误")
             return
         self.pages["file"].set_file(filename, size)
         self.pages["file"].footer.set_status("已选择：%s" % Path(filename).name)
-        self.logs.add(CATEGORIES["file"], "已选择文件：%s（%s）" % (filename, core.format_size(size)))
+        self.logs.info(CATEGORIES["file"], "已选择文件：%s（%s）" % (filename, core.format_size(size)),
+                       "文件路径：%s；字节数：%d" % (filename, size))
 
     def start_file_transfer(self):
         if self.thread is not None:
@@ -267,11 +309,15 @@ class MainWindow(FluentWindow):
                 "确认传送文件",
                 "目标：%s\n文件：%s\n大小：%s\n目标保存位置：当前用户桌面" % (
                     target, source.name, core.format_size(source.stat().st_size))):
+            self.logs.info(CATEGORIES["file"], "用户取消了文件传送确认",
+                           "目标：%s；文件：%s" % (target, source))
             return
         cancel_event = Event()
         self.active_cancel = cancel_event
         page.reset_progress()
-        self.logs.add(CATEGORIES["file"], "开始传送：%s → %s" % (source.name, target))
+        self.logs.info(CATEGORIES["file"], "开始传送：%s → %s" % (source.name, target),
+                       "文件：%s；字节数：%d；端口：%d；超时：120 秒" % (
+                           source, source.stat().st_size, self.connection_state.values["port"]))
         self._begin_task(
             "file",
             TaskWorker(core.transfer_file, target, self.connection_state.values["port"],
@@ -285,22 +331,27 @@ class MainWindow(FluentWindow):
         message = "文件已传送到目标桌面：%s（%s）" % (
             result["name"], core.format_size(result["size"]))
         page.footer.set_status(message)
-        self.logs.add(CATEGORIES["file"], message, "成功")
+        self.logs.info(CATEGORIES["file"], message, "目标：%s；文件：%s；字节数：%s" % (
+            result["target"], result["name"], result["size"]))
         self._notify("文件传送完成", message, "成功")
 
-    @Slot(str)
-    def _file_failed(self, message):
-        level = "信息" if message == "操作已取消" else "错误"
+    @Slot(str, str)
+    def _file_failed(self, message, details=""):
+        cancelled = message == "操作已取消"
         page = self.pages["file"]
         page.reset_progress()
         page.footer.set_status(message)
-        self.logs.add(CATEGORIES["file"], message, level)
-        self._notify("传送已取消" if level == "信息" else "文件传送失败", message, level)
+        if cancelled:
+            self.logs.info(CATEGORIES["file"], message, details)
+        else:
+            self.logs.error(CATEGORIES["file"], message, details)
+        self._notify("传送已取消" if cancelled else "文件传送失败", message,
+                     "信息" if cancelled else "错误")
 
     def start_local_probe(self):
         if self.thread is not None:
             return
-        self.logs.add("本机信息", "开始查询")
+        self.logs.info("本机信息", "开始查询本机 IP 与监听端口")
         self._begin_task("local", TaskWorker(probe_local), self._probe_finished, self._local_failed)
 
     def start_firewall(self):
@@ -309,12 +360,14 @@ class MainWindow(FluentWindow):
         action = self.pages["firewall"].action()
         action_name = "阻断连接" if action == "block" else "恢复允许"
         if not self._confirm("确认防火墙操作", "在本机对 StudentMain.exe 规则执行“%s”？" % action_name):
+            self.logs.info("防火墙", "用户取消了防火墙操作", "操作：%s" % action_name)
             return
-        self.logs.add("防火墙", "开始操作：%s" % action_name)
+        self.logs.info("防火墙", "开始操作：%s" % action_name, "操作代码：%s" % action)
         self._begin_task("firewall", TaskWorker(apply_firewall, action), self._firewall_finished, self._local_failed)
 
     def _begin_task(self, kind, worker, finished, failed):
         self.active_kind = kind
+        self.active_started_at = time.monotonic()
         self.thread = worker
         self.worker = worker
         worker.setParent(self)
@@ -345,7 +398,7 @@ class MainWindow(FluentWindow):
 
     @Slot(str)
     def _task_progress(self, message):
-        self.logs.add(CATEGORIES[self.active_kind], message)
+        self.logs.debug(CATEGORIES[self.active_kind], message, "任务函数进度回调")
         self.pages[self.active_kind].footer.set_status(message)
         if self.active_kind == "file" and "下载文件：" in message:
             try:
@@ -358,15 +411,22 @@ class MainWindow(FluentWindow):
     def _send_finished(self, count):
         message = "本机已发送 %d 个报文" % count
         self.pages[self.active_kind].footer.set_status(message)
-        self.logs.add(CATEGORIES[self.active_kind], message, "成功")
+        self.logs.info(CATEGORIES[self.active_kind], message,
+                       "已发送报文数：%d；耗时：%.3f 秒" % (count, time.monotonic() - self.active_started_at))
         self._notify("发送完成", message, "成功")
 
-    @Slot(str)
-    def _send_failed(self, message):
-        level = "信息" if message == "操作已取消" else "错误"
+    @Slot(str, str)
+    def _send_failed(self, message, details=""):
+        cancelled = message == "操作已取消"
         self.pages[self.active_kind].footer.set_status(message)
-        self.logs.add(CATEGORIES[self.active_kind], message, level)
-        self._notify("发送已取消" if level == "信息" else "发送失败", message, level)
+        details = "耗时：%.3f 秒；%s" % (
+            time.monotonic() - self.active_started_at, details or "无异常堆栈")
+        if cancelled:
+            self.logs.info(CATEGORIES[self.active_kind], message, details)
+        else:
+            self.logs.error(CATEGORIES[self.active_kind], message, details)
+        self._notify("发送已取消" if cancelled else "发送失败", message,
+                     "信息" if cancelled else "错误")
 
     @Slot(object)
     def _probe_finished(self, result):
@@ -374,7 +434,9 @@ class MainWindow(FluentWindow):
         self.pages["local"].set_result(ip, ports)
         message = "查询完成，发现 %d 个监听端口" % len(ports)
         self.pages["local"].footer.set_status(message)
-        self.logs.add("本机信息", "本机 IP：%s；监听端口：%s" % (ip, ", ".join(ports) or "未发现"), "成功")
+        self.logs.info("本机信息", "本机 IP：%s；监听端口：%s" % (ip, ", ".join(ports) or "未发现"),
+                       "IP：%s；端口数：%d；耗时：%.3f 秒" % (
+                           ip, len(ports), time.monotonic() - self.active_started_at))
 
     @Slot(object)
     def _firewall_finished(self, results):
@@ -394,13 +456,20 @@ class MainWindow(FluentWindow):
                 command, code, stdout, stderr = result
                 output = stdout or stderr
                 success = code == 0
-            self.logs.add("防火墙", "%s\n%s" % (command, output), "成功" if success else "错误")
+            message_text = "%s\n%s" % (command, output)
+            if success:
+                self.logs.info("防火墙", message_text, "命令执行成功")
+            else:
+                self.logs.error("防火墙", message_text, "命令执行失败")
         self._notify("防火墙", message, "警告" if failed else "成功")
 
-    @Slot(str)
-    def _local_failed(self, message):
+    @Slot(str, str)
+    def _local_failed(self, message, details=""):
         self.pages[self.active_kind].footer.set_status(message)
-        self.logs.add(CATEGORIES[self.active_kind], message, "错误")
+        self.logs.error(CATEGORIES[self.active_kind], message,
+                        "耗时：%.3f 秒；%s" % (
+                            time.monotonic() - self.active_started_at,
+                            details or "无异常堆栈"))
         self._notify("操作失败", message, "错误")
 
     def cancel_task(self):
@@ -410,13 +479,17 @@ class MainWindow(FluentWindow):
             for page in self.task_pages:
                 page.footer.cancel_button.setEnabled(False)
             self.pages["logs"].cancel_button.setEnabled(False)
-            self.logs.add(CATEGORIES[self.active_kind], "已请求取消")
+            self.logs.warning(CATEGORIES[self.active_kind], "已请求取消",
+                              "任务：%s；耗时：%.3f 秒" % (
+                                  CATEGORIES[self.active_kind],
+                                  time.monotonic() - self.active_started_at))
 
     @Slot()
     def _thread_finished(self):
         self.thread = None
         self.worker = None
         self.active_cancel = None
+        self.active_started_at = None
         if self.close_after_task:
             QTimer.singleShot(0, self.close)
         else:
@@ -434,7 +507,10 @@ class MainWindow(FluentWindow):
             page.editor.setPlainText(text)
             page.filename.setText(page.filename.fontMetrics().elidedText(Path(filename).name, Qt.ElideMiddle, 225))
             page.filename.setToolTip(filename)
+            self.logs.info("应用", "消息文本已导入",
+                           "文件：%s；字符数：%d" % (filename, len(text)))
         except (OSError, UnicodeError) as error:
+            self.logs.error("应用", "导入消息失败", "文件：%s；异常：%s" % (filename, error))
             self._notify("导入失败", str(error), "错误")
 
     def save_message(self):
@@ -442,26 +518,54 @@ class MainWindow(FluentWindow):
         if filename:
             self._save_text(filename, self.pages["message"].editor.toPlainText())
 
-    def export_logs(self):
-        filename, _ = QFileDialog.getSaveFileName(self, "导出日志", "运行日志.txt", "文本文件 (*.txt)")
+    @Slot(object)
+    def export_selected_logs(self, entries):
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "导出选中日志", "运行日志-选中.txt", "文本文件 (*.txt)")
         if filename:
-            self._save_text(filename, self.pages["logs"].export_text())
+            self._save_text(filename, self.pages["logs"].export_text(entries))
+
+    @Slot(object)
+    def delete_selected_logs(self, uids):
+        if not uids:
+            return
+        if not self._confirm("删除选中日志", "确定删除选中的 %d 条运行日志？此操作会同步更新日志文件。" % len(uids)):
+            self.logs.info("运行日志", "用户取消了日志删除", "待删除记录数：%d" % len(uids))
+            return
+        removed = self.logs.remove_entries(uids)
+        self.logs.info("运行日志", "已删除选中日志", "删除记录数：%d" % len(removed))
+
+    @Slot(str)
+    def set_log_level(self, level):
+        previous = self.logs.minimum_level
+        normalized = normalize_log_level(level)
+        self.logs.set_level(normalized)
+        self.logs.warning("运行日志", "运行日志等级已调整",
+                          "原等级：%s；新等级：%s" % (previous, normalized))
 
     def _save_text(self, filename, text):
         try:
             Path(filename).write_text(text, encoding="utf-8-sig")
         except OSError as error:
+            self.logs.error("应用", "保存文本失败", "文件：%s；异常：%s" % (filename, error))
             self._notify("保存失败", str(error), "错误")
         else:
+            self.logs.info("应用", "文本已保存", "文件：%s；字符数：%d" % (filename, len(text)))
             self._notify("已保存", Path(filename).name, "成功")
 
     def copy_local_ip(self):
-        QApplication.clipboard().setText(self.pages["local"].ip_label.text())
+        ip = self.pages["local"].ip_label.text()
+        QApplication.clipboard().setText(ip)
+        self.logs.info("本机信息", "本机 IP 已复制", "IP：%s" % ip)
         self._notify("已复制", "本机 IP 已复制到剪贴板", "成功")
 
     @Slot(object)
     def set_theme(self, theme):
         setTheme(theme, save=False)
+        self.logs.info("应用", "界面主题已切换", "主题：%s" % theme)
+
+    def _aliases_changed(self):
+        self.logs.info("应用", "设备备注已更新", "当前备注数：%d" % len(self.alias_store.items()))
 
     def closeEvent(self, event):
         if self.thread is not None and self.thread.isRunning():
@@ -472,6 +576,8 @@ class MainWindow(FluentWindow):
         for page in self.task_pages:
             page.footer.ring.stop()
         self._cancel_reset_timer()
+        if not self.close_after_task:
+            self.logs.info("应用", "窗口关闭")
         super().closeEvent(event)
 
 
@@ -493,6 +599,7 @@ def main():
     application = QApplication(sys.argv)
     configure_application(application)
     window = MainWindow()
+    install_exception_logging(window.logs)
     window.show()
     result = application.exec()
     window.close()
@@ -500,6 +607,21 @@ def main():
     QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
     application.processEvents()
     return result
+
+
+def install_exception_logging(store):
+    """把未捕获异常写入运行日志，保留原始异常钩子行为。"""
+    previous_hook = sys.excepthook
+
+    def handle_exception(exception_type, exception, tb):
+        try:
+            details = "".join(traceback.format_exception(exception_type, exception, tb))
+            store.error("应用", "未捕获异常：%s" % exception, details)
+        finally:
+            previous_hook(exception_type, exception, tb)
+
+    sys.excepthook = handle_exception
+    return previous_hook
 
 
 if __name__ == "__main__":

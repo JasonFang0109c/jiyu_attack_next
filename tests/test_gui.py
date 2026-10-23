@@ -1,5 +1,6 @@
 import os
 import json
+import io
 import shutil
 import socket
 import sys
@@ -74,6 +75,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.window.current_page(), "message")
         self.assertEqual(self.state.values["target"], "")
         self.assertEqual(self.state.values["port"], 4705)
+        self.assertEqual(self.window.logs.minimum_level, models.LogLevel.INFO)
         self.assertIn("0 / 163", self.command.statistics.text())
 
     def test_idle_status_is_hidden_and_about_page_has_project_info(self):
@@ -211,11 +213,15 @@ class GuiTests(unittest.TestCase):
         self.window.logs.add("应用", "第一行\n第二行", "成功")
         log_path = self.data_dir / models.LOG_FILE_NAME
         self.assertTrue(log_path.exists())
-        records = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
-        self.assertEqual(records[-1]["message"], "第一行\n第二行")
+        text = log_path.read_text(encoding="utf-8")
+        self.assertIn(" INFO    ", text)
+        self.assertIn("[应用] 第一行", text)
+        self.assertIn("    第二行", text)
         reloaded = models.LogStore(log_path=log_path)
         self.assertEqual(reloaded.entries[-1].message, "第一行\n第二行")
-        self.assertEqual(reloaded.entries[-1].level, "成功")
+        self.assertEqual(reloaded.entries[-1].level, models.LogLevel.INFO)
+        self.assertGreater(reloaded.entries[-1].line_number, 0)
+        self.assertTrue(reloaded.entries[-1].logger_name.endswith(".GuiTests"))
         self.window.logs.clear()
         self.assertEqual(log_path.read_text(encoding="utf-8"), "")
 
@@ -395,7 +401,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(page.progress.value(), 100)
         self.assertIn("文件已传送到目标桌面", page.footer.status.text())
         self.assertEqual(self.window.logs.entries[-1].category, "文件传送")
-        self.assertEqual(self.window.logs.entries[-1].level, "成功")
+        self.assertEqual(self.window.logs.entries[-1].level, models.LogLevel.INFO)
 
     def test_file_transfer_confirmation_is_active_and_responsive(self):
         page = self.window.pages["file"]
@@ -476,7 +482,7 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(self.message.footer.send_button.isEnabled())
         self.assertFalse(self.message.footer.cancel_button.isEnabled())
         self.assertIn("已发送 2 个报文", self.message.footer.status.text())
-        self.assertEqual(self.window.logs.entries[-1].level, "成功")
+        self.assertEqual(self.window.logs.entries[-1].level, models.LogLevel.INFO)
 
     def test_worker_failure_is_reported_and_logged(self):
         self.state.set_value("target", "模拟目标")
@@ -487,7 +493,8 @@ class GuiTests(unittest.TestCase):
                 self.wait_for(lambda: self.window.thread is None)
         self.assertIn("模拟错误", self.command.footer.status.text())
         self.assertEqual(self.window.logs.entries[-1].category, "远程命令")
-        self.assertEqual(self.window.logs.entries[-1].level, "错误")
+        self.assertEqual(self.window.logs.entries[-1].level, models.LogLevel.ERROR)
+        self.assertIn("OSError", self.window.logs.entries[-1].details)
         self.assertTrue(self.command.footer.send_button.isEnabled())
 
     def test_device_action_can_be_cancelled_in_confirmation(self):
@@ -546,6 +553,157 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(page.table.isRowHidden(1))
         store.clear()
         self.assertEqual(page.table.rowCount(), 0)
+
+    def test_log_page_controls_are_visible_at_minimum_size(self):
+        self.window.resize(960, 640)
+        self.window.show()
+        QTest.qWait(120)
+        page = self.window.pages["logs"]
+        self.window.show_page("logs")
+        QTest.qWait(120)
+        for button in (page.select_all_checkbox, page.export_button,
+                       page.delete_button, page.level_filter):
+            self.assertTrue(button.isVisible(), button.objectName() or button.text())
+        self.assertIs(page.select_all_checkbox.parentWidget(),
+                      page.table.horizontalHeader().viewport())
+        self.assertFalse(hasattr(page, "select_all_button"))
+        self.assertFalse(hasattr(page, "runtime_level"))
+        self.assertGreaterEqual(page.table.columnWidth(1), 180)
+        self.assertGreaterEqual(page.table.columnWidth(2), 100)
+        self.window.show_page("settings")
+        QTest.qWait(120)
+        settings = self.window.pages["settings"]
+        self.assertTrue(settings.log_level_box.isVisible())
+        hints = [label.text() for label in settings.findChildren(gui.CaptionLabel)]
+        self.assertNotIn("选择本次运行写入的最低日志等级，低于该等级的记录不会出现在日志页和日志文件中。", hints)
+
+    def test_uncaught_exception_is_written_to_runtime_log(self):
+        previous_stderr = sys.stderr
+        sys.stderr = io.StringIO()
+        previous = gui.install_exception_logging(self.window.logs)
+        try:
+            try:
+                raise RuntimeError("模拟未捕获异常")
+            except RuntimeError:
+                exception_type, exception, tb = sys.exc_info()
+                gui.sys.excepthook(exception_type, exception, tb)
+        finally:
+            gui.sys.excepthook = previous
+            sys.stderr = previous_stderr
+        entry = self.window.logs.entries[-1]
+        self.assertEqual(entry.level, models.LogLevel.ERROR)
+        self.assertIn("模拟未捕获异常", entry.message)
+        self.assertIn("RuntimeError", entry.details)
+
+    def test_log_level_filter_selection_and_selected_export(self):
+        store = self.window.logs
+        store.clear()
+        store.debug("应用", "调试记录")
+        store.info("文本消息", "普通记录")
+        store.warning("远程命令", "警告记录")
+        store.error("设备操作", "错误记录")
+        page = self.window.pages["logs"]
+        self.assertEqual(page.table.rowCount(), 3)
+        self.assertFalse(page.select_all_checkbox.isChecked())
+        self.assertFalse(page.export_button.isEnabled())
+        self.assertFalse(page.delete_button.isEnabled())
+        self.assertEqual(page.export_button.toolTip(), "导出选中日志")
+        self.assertEqual(page.delete_button.toolTip(), "删除选中日志")
+        page.level_filter.setCurrentIndex(3)
+        self.assertTrue(page.table.isRowHidden(0))
+        self.assertFalse(page.table.isRowHidden(1))
+        self.assertTrue(page.table.isRowHidden(2))
+        page.level_filter.setCurrentIndex(0)
+        page.search.clear()
+        self.assertEqual(page.selected_uids(), [])
+        page.select_all_checkbox.click()
+        self.assertTrue(page.select_all_checkbox.isChecked())
+        self.assertEqual(len(page.selected_entries()), 3)
+        self.assertTrue(page.export_button.isEnabled())
+        self.assertTrue(page.delete_button.isEnabled())
+        page.table.item(2, 0).setCheckState(Qt.Unchecked)
+        self.assertFalse(page.select_all_checkbox.isChecked())
+        self.assertEqual(len(page.selected_entries()), 2)
+        exported = page.export_text(page.selected_entries())
+        self.assertIn("普通记录", exported)
+        self.assertIn("警告记录", exported)
+        self.assertNotIn("错误记录", exported)
+        page.select_all_checkbox.click()
+        self.assertTrue(page.select_all_checkbox.isChecked())
+        page.select_all_checkbox.click()
+        self.assertFalse(page.select_all_checkbox.isChecked())
+        self.assertEqual(page.selected_uids(), [])
+        self.assertFalse(page.export_button.isEnabled())
+        self.assertFalse(page.delete_button.isEnabled())
+
+    def test_select_all_off_clears_rows_hidden_by_filter(self):
+        store = self.window.logs
+        store.clear()
+        store.info("文本消息", "消息记录")
+        store.error("远程命令", "命令记录")
+        page = self.window.pages["logs"]
+        page.category.setCurrentIndex(2)
+        page.select_all_checkbox.click()
+        self.assertEqual(len(page.selected_entries()), 1)
+        page.category.setCurrentIndex(0)
+        page.select_all_checkbox.click()
+        self.assertEqual(len(page.selected_entries()), 2)
+        page.select_all_checkbox.click()
+        self.assertEqual(page.selected_uids(), [])
+
+    def test_runtime_log_level_filters_new_entries_and_syncs_page(self):
+        store = self.window.logs
+        store.clear()
+        settings_page = self.window.pages["settings"]
+        settings_page.log_level_box.setCurrentIndex(2)
+        self.assertEqual(store.minimum_level, models.LogLevel.WARNING)
+        self.assertIsNone(store.info("应用", "被过滤"))
+        store.warning("应用", "保留警告")
+        self.assertEqual(settings_page.log_level_box.currentText(), "WARNING")
+        self.assertEqual(store.entries[-1].message, "保留警告")
+        self.assertTrue(self.window.pages["logs"].table.rowCount() >= 1)
+
+    def test_settings_log_level_syncs_when_store_changes(self):
+        settings_page = self.window.pages["settings"]
+        self.window.logs.set_level(models.LogLevel.DEBUG)
+        self.assertEqual(settings_page.log_level_box.currentText(), "DEBUG")
+        self.window.logs.set_level(models.LogLevel.INFO)
+
+    def test_delete_selected_logs_removes_rows_and_rewrites_file(self):
+        store = self.window.logs
+        store.clear()
+        first = store.info("应用", "保留记录")
+        removed = store.error("应用", "删除记录")
+        log_path = self.data_dir / models.LOG_FILE_NAME
+        page = self.window.pages["logs"]
+        row = page._row_by_uid[removed.uid]
+        page.table.item(row, 0).setCheckState(Qt.Checked)
+        self.window.delete_selected_logs([removed.uid])
+        remaining_uids = [entry.uid for entry in store.entries]
+        self.assertIn(first.uid, remaining_uids)
+        self.assertNotIn(removed.uid, remaining_uids)
+        text = log_path.read_text(encoding="utf-8")
+        self.assertIn("保留记录", text)
+        self.assertNotIn("[应用] 删除记录", text)
+
+    def test_legacy_json_log_is_loaded_and_migrated_on_next_write(self):
+        log_path = self.data_dir / models.LOG_FILE_NAME
+        legacy = {
+            "time": "2026-01-02 03:04:05",
+            "category": "应用",
+            "level": "警告",
+            "message": "旧格式记录",
+        }
+        log_path.write_text(json.dumps(legacy, ensure_ascii=False) + "\n", encoding="utf-8")
+        store = models.LogStore(log_path=log_path)
+        self.assertEqual(store.entries[0].level, models.LogLevel.WARNING)
+        store.info("应用", "新格式记录")
+        text = log_path.read_text(encoding="utf-8")
+        self.assertIn("WARNING", text)
+        self.assertIn("INFO", text)
+        self.assertIn("旧格式记录", text)
+        self.assertEqual(models.LogStore(log_path=log_path).entries[0].level,
+                         models.LogLevel.WARNING)
 
     def test_settings_reset_preserves_drafts(self):
         self.message.editor.setPlainText("保留的草稿")

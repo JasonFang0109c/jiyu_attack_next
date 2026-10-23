@@ -19,7 +19,7 @@ jiyu_attack_next/
 |       |-- __main__.py            # GUI 与打包入口
 |       |-- app.py                 # Fluent 窗口、导航与交互
 |       |-- components.py          # 共用目标参数与任务栏
-|       |-- models.py              # 连接状态、设备备注与日志存储
+|       |-- models.py              # 连接状态、设备备注与结构化运行日志
 |       |-- pages.py               # 功能页面
 |       `-- workers.py             # 后台任务
 |-- tests/
@@ -51,7 +51,7 @@ jiyu_attack_next/
 - `app/gui/app.py` 基于 `FluentWindow` 实现侧边导航、任务调度与页面联动。
 - `app/gui/pages.py` 按消息、命令、设备、文件传送、设备备注、本机信息、防火墙、日志、设置和关于拆分页面。
 - `app/gui/components.py` 提供跨页面同步的连接参数和统一任务栏。
-- `app/gui/models.py` 保存连接状态、持久化设备备注，并提供可筛选的日志记录。
+- `app/gui/models.py` 保存连接状态、持久化设备备注，并提供带等级、线程、输出位置和异常详情的结构化日志存储。
 - `app/gui/workers.py` 执行后台发送和本机工具任务，通过信号更新界面。
 - `.github/workflows/nightly-build.yml` 负责在推送到 `main` 后构建 EXE，并更新 `nightly` 预发布版本。
 - `scripts/` 统一存放启动脚本及 EXE 构建配置，自动按脚本位置定位项目根目录。

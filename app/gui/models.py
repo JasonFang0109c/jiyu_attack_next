@@ -1,11 +1,15 @@
 """界面会话参数、设备备注和运行记录。"""
 
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
+from enum import StrEnum
+import inspect
 import json
 from pathlib import Path
+import re
 import sys
+import threading
 
 from PySide6.QtCore import QObject, QSettings, Signal
 
@@ -247,22 +251,109 @@ class ConnectionState(QObject):
         return core.SendOptions(**values)
 
 
+class LogLevel(StrEnum):
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+
+    @property
+    def rank(self):
+        return LOG_LEVEL_RANK[self]
+
+
+LOG_LEVELS = tuple(LogLevel)
+LOG_LEVEL_RANK = {level: index for index, level in enumerate(LOG_LEVELS)}
+DEFAULT_LOG_LEVEL = LogLevel.INFO
+_LEVEL_ALIASES = {
+    "DEBUG": LogLevel.DEBUG,
+    "调试": LogLevel.DEBUG,
+    "INFO": LogLevel.INFO,
+    "信息": LogLevel.INFO,
+    "成功": LogLevel.INFO,
+    "WARN": LogLevel.WARNING,
+    "WARNING": LogLevel.WARNING,
+    "警告": LogLevel.WARNING,
+    "ERROR": LogLevel.ERROR,
+    "错误": LogLevel.ERROR,
+    "失败": LogLevel.ERROR,
+}
+_LOG_HEADER_RE = re.compile(
+    r"^(?P<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}) "
+    r"\[(?P<thread_id>\d+)\] \[(?P<thread_name>[^\]]+)\] "
+    r"(?P<level>DEBUG|INFO|WARNING|ERROR)\s+"
+    r"(?P<logger>[^:\s]+):(?P<line>\d+) - \[(?P<category>[^\]]*)\] "
+    r"(?P<message>.*)$"
+)
+
+
+def normalize_log_level(level):
+    """把新旧日志等级统一为规范中的 DEBUG|INFO|WARNING|ERROR。"""
+    if isinstance(level, LogLevel):
+        return level
+    value = str(level).strip().upper()
+    normalized = _LEVEL_ALIASES.get(value)
+    if normalized is None:
+        normalized = _LEVEL_ALIASES.get(str(level).strip())
+    if normalized is None:
+        raise ValueError("未知日志等级：%s" % level)
+    return normalized
+
+
+def normalize_log_time(value):
+    """统一历史日志时间为带毫秒的本地时间文本。"""
+    text = str(value).strip()
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return text
+    return parsed.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+
 @dataclass(frozen=True)
 class LogEntry:
     time: str
     category: str
-    level: str
+    level: LogLevel
     message: str
+    thread_id: int = 0
+    thread_name: str = "MainThread"
+    logger_name: str = "app.gui"
+    line_number: int = 0
+    details: str = ""
+    uid: int = 0
 
     def as_text(self):
-        return "[%s] [%s] [%s] %s" % (self.time, self.category, self.level, self.message)
+        lines = self.message.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        text = "%s [%d] [%s] %-7s %s:%d - [%s] %s" % (
+            self.time,
+            self.thread_id,
+            self.thread_name,
+            str(self.level),
+            self.logger_name,
+            self.line_number,
+            self.category,
+            lines[0],
+        )
+        continuation = ["    " + line for line in lines[1:]]
+        if self.details:
+            detail_lines = self.details.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+            continuation.extend("    " + line for line in detail_lines)
+        if continuation:
+            text += "\n" + "\n".join(continuation)
+        return text
 
     def as_record(self):
         return {
             "time": self.time,
             "category": self.category,
-            "level": self.level,
+            "level": str(self.level),
             "message": self.message,
+            "thread_id": self.thread_id,
+            "thread_name": self.thread_name,
+            "logger_name": self.logger_name,
+            "line_number": self.line_number,
+            "details": self.details,
         }
 
     @classmethod
@@ -270,23 +361,58 @@ class LogEntry:
         if not isinstance(record, dict):
             raise ValueError("日志记录格式无效")
         return cls(
-            str(record["time"]),
+            normalize_log_time(record["time"]),
             str(record["category"]),
-            str(record["level"]),
+            normalize_log_level(record["level"]),
             str(record["message"]),
+            int(record.get("thread_id") or 0),
+            str(record.get("thread_name") or "MainThread"),
+            str(record.get("logger_name") or record.get("source") or "app.gui"),
+            int(record.get("line_number") or record.get("line") or 0),
+            str(record.get("details") or ""),
+        )
+
+    @classmethod
+    def from_text(cls, block):
+        lines = block.splitlines()
+        if not lines:
+            raise ValueError("日志记录为空")
+        match = _LOG_HEADER_RE.match(lines[0])
+        if match is None:
+            raise ValueError("日志记录格式无效")
+        message_lines = [match.group("message")]
+        for line in lines[1:]:
+            message_lines.append(line[4:] if line.startswith("    ") else line)
+        return cls(
+            match.group("time"),
+            match.group("category"),
+            normalize_log_level(match.group("level")),
+            "\n".join(message_lines),
+            int(match.group("thread_id")),
+            match.group("thread_name"),
+            match.group("logger"),
+            int(match.group("line")),
         )
 
 
 class LogStore(QObject):
     added = Signal(object)
+    removed = Signal(object)
     cleared = Signal()
+    levelChanged = Signal(str)
 
-    def __init__(self, parent=None, limit=2000, log_path=None):
+    def __init__(self, parent=None, limit=2000, log_path=None, minimum_level=DEFAULT_LOG_LEVEL):
         super().__init__(parent)
         self.log_path = Path(log_path) if log_path is not None else None
         self.storage_error = ""
         self.entries = deque(maxlen=limit)
+        self._minimum_level = normalize_log_level(minimum_level)
+        self._next_uid = 1
         self._load()
+
+    @property
+    def minimum_level(self):
+        return self._minimum_level
 
     def _load(self):
         if self.log_path is None or not self.log_path.exists():
@@ -296,18 +422,69 @@ class LogStore(QObject):
         except (OSError, UnicodeError) as error:
             self.storage_error = "运行日志读取失败：%s" % error
             return
-        loaded = deque(maxlen=self.entries.maxlen)
+        parsed = []
+        pending = []
         invalid = 0
+        migrated = False
+
+        def flush_pending():
+            nonlocal invalid
+            if not pending:
+                return
+            try:
+                parsed.append(LogEntry.from_text("\n".join(pending)))
+            except (TypeError, ValueError):
+                invalid += 1
+            pending.clear()
+
         for line in lines:
             if not line.strip():
+                if pending:
+                    pending.append("")
                 continue
-            try:
-                loaded.append(LogEntry.from_record(json.loads(line)))
-            except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            if line.startswith("{"):
+                flush_pending()
+                try:
+                    parsed.append(LogEntry.from_record(json.loads(line)))
+                    migrated = True
+                except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+                    invalid += 1
+            elif _LOG_HEADER_RE.match(line):
+                flush_pending()
+                pending.append(line)
+            elif pending:
+                pending.append(line)
+            else:
                 invalid += 1
-        self.entries.extend(loaded)
+        flush_pending()
+
+        for entry in parsed:
+            self.entries.append(replace(entry, uid=self._next_uid))
+            self._next_uid += 1
+        if migrated:
+            self._rewrite_file()
         if invalid:
-            self.storage_error = "运行日志中有 %d 行无法读取" % invalid
+            self.storage_error = "运行日志中有 %d 条记录无法读取" % invalid
+
+    @staticmethod
+    def _caller_location(skip):
+        frame = inspect.currentframe()
+        try:
+            for _ in range(skip):
+                if frame is None:
+                    break
+                frame = frame.f_back
+            if frame is None:
+                return "app.gui", 0
+            module = frame.f_globals.get("__name__", "app.gui")
+            owner = frame.f_locals.get("self")
+            if owner is not None:
+                qualname = type(owner).__qualname__
+            else:
+                qualname = frame.f_code.co_name
+            return "%s.%s" % (module, qualname), frame.f_lineno
+        finally:
+            del frame
 
     def _append_to_file(self, entry):
         if self.log_path is None:
@@ -315,29 +492,98 @@ class LogStore(QObject):
         try:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)
             with self.log_path.open("a", encoding="utf-8", newline="\n") as target:
-                target.write(json.dumps(entry.as_record(), ensure_ascii=False,
-                                        separators=(",", ":")) + "\n")
+                target.write(entry.as_text() + "\n")
         except OSError as error:
             self.storage_error = "运行日志保存失败：%s" % error
 
-    def add(self, category, message, level="信息"):
+    def _rewrite_file(self):
+        if self.log_path is None:
+            return
+        temp_path = Path(str(self.log_path) + ".tmp")
+        try:
+            self.log_path.parent.mkdir(parents=True, exist_ok=True)
+            text = "\n".join(entry.as_text() for entry in self.entries)
+            temp_path.write_text(text + ("\n" if text else ""), encoding="utf-8")
+            temp_path.replace(self.log_path)
+        except OSError as error:
+            self.storage_error = "运行日志更新失败：%s" % error
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    def _emit(self, category, message, level, details="", logger_name=None,
+              line_number=None, skip=3):
+        normalized = normalize_log_level(level)
+        if normalized.rank < self._minimum_level.rank:
+            return None
+        if logger_name is None:
+            logger_name, captured_line = self._caller_location(skip)
+            line_number = captured_line
         entry = LogEntry(
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            category,
-            level,
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
+            str(category),
+            normalized,
             str(message),
+            threading.get_ident(),
+            threading.current_thread().name,
+            str(logger_name or "app.gui"),
+            int(line_number or 0),
+            str(details or ""),
+            self._next_uid,
         )
+        self._next_uid += 1
         self.entries.append(entry)
         self._append_to_file(entry)
         self.added.emit(entry)
         return entry
 
+    def add(self, category, message, level=DEFAULT_LOG_LEVEL, details="",
+            *, logger_name=None, line_number=None):
+        return self._emit(category, message, level, details, logger_name,
+                          line_number, skip=3)
+
+    def debug(self, category, message, details=""):
+        return self._emit(category, message, LogLevel.DEBUG, details,
+                          skip=3)
+
+    def info(self, category, message, details=""):
+        return self._emit(category, message, LogLevel.INFO, details,
+                          skip=3)
+
+    def warning(self, category, message, details=""):
+        return self._emit(category, message, LogLevel.WARNING, details,
+                          skip=3)
+
+    def error(self, category, message, details=""):
+        return self._emit(category, message, LogLevel.ERROR, details,
+                          skip=3)
+
+    def set_level(self, level):
+        normalized = normalize_log_level(level)
+        if normalized == self._minimum_level:
+            return
+        self._minimum_level = normalized
+        self.levelChanged.emit(str(normalized))
+
+    def remove_entries(self, uids):
+        selected = {int(uid) for uid in uids}
+        removed = [entry for entry in self.entries if entry.uid in selected]
+        if not removed:
+            return []
+        self.entries = deque(
+            (entry for entry in self.entries if entry.uid not in selected),
+            maxlen=self.entries.maxlen,
+        )
+        self._rewrite_file()
+        self.removed.emit(removed)
+        return removed
+
+    def export_text(self, entries=None):
+        source = self.entries if entries is None else entries
+        return "\n".join(entry.as_text() for entry in source)
+
     def clear(self):
         self.entries.clear()
-        if self.log_path is not None:
-            try:
-                self.log_path.parent.mkdir(parents=True, exist_ok=True)
-                self.log_path.write_text("", encoding="utf-8")
-            except OSError as error:
-                self.storage_error = "运行日志清空失败：%s" % error
+        self._rewrite_file()
         self.cleared.emit()

@@ -1,12 +1,14 @@
 """图形界面的后台任务。"""
 
+import traceback
+
 from PySide6.QtCore import QThread, Signal
 
 
 class SendWorker(QThread):
     progress = Signal(str)
     completed = Signal(int)
-    failed = Signal(str)
+    failed = Signal(str, str)
 
     def __init__(self, options, runner):
         super().__init__()
@@ -18,9 +20,9 @@ class SendWorker(QThread):
             sent_count = self.runner(
                 self.options, report=self.progress.emit)
         except RuntimeError as error:
-            self.failed.emit(str(error))
+            self.failed.emit(str(error), traceback.format_exc())
         except Exception as error:
-            self.failed.emit("发送失败：%s" % error)
+            self.failed.emit("发送失败：%s" % error, traceback.format_exc())
         else:
             self.completed.emit(sent_count)
 
@@ -28,7 +30,7 @@ class SendWorker(QThread):
 class TaskWorker(QThread):
     progress = Signal(str)
     completed = Signal(object)
-    failed = Signal(str)
+    failed = Signal(str, str)
 
     def __init__(self, function, *args, **kwargs):
         super().__init__()
@@ -41,6 +43,6 @@ class TaskWorker(QThread):
             result = self.function(
                 *self.args, report=self.progress.emit, **self.kwargs)
         except Exception as error:
-            self.failed.emit(str(error))
+            self.failed.emit(str(error), traceback.format_exc())
         else:
             self.completed.emit(result)

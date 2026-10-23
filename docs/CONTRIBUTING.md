@@ -55,6 +55,19 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Clean
 .\.venv\Scripts\python.exe -X utf8 -m compileall -q cli app tests
 ```
 
+## 运行日志
+
+GUI 运行日志遵循 [日志规范](https://itliwei.github.io/technology/engineer/develop/logger.html)，等级统一使用 `DEBUG`、`INFO`、`WARNING`、`ERROR`，其中 `warn` 写作 `warning`。默认运行等级为 `INFO`，可在“设置”页切换；低于当前等级的记录不会写入列表和 `runtime.log`。
+
+日志文件采用以下规范文本格式，多行消息与异常堆栈使用四空格缩进续行：
+
+```text
+2026-10-23 12:34:56.789 [12345] [MainThread] INFO    app.gui.app.MainWindow:123 - [文本消息] 开始发送：192.168.1.20，端口 4705，1 轮
+    目标设备数：1
+```
+
+新增日志时优先调用 `LogStore.debug/info/warning/error`，关键节点应携带目标、端口、文件名、耗时等定位信息，异常应附带堆栈。不要记录密码、令牌等敏感信息。日志页支持功能与级别筛选、多选、导出选中、删除选中和表头全选复选框；相关行为变更需同步更新 `docs/GUI.md` 和 `tests/test_gui.py`。根目录 `AGENTS.md` 包含完整日志系统约定。
+
 ## 提交信息
 
 本项目参照 [Git Commit Message 规范](https://codeewander.github.io/docs/git-commit) 编写提交信息。标题和正文使用中文，类型使用英文；代码标识符、文件名和命令参数按原样书写。

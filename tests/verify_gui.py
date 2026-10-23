@@ -20,6 +20,7 @@ def main():
     parser.add_argument("--page", choices=["message", "command", "device", "file", "aliases", "local", "firewall", "logs", "settings", "about"], default="message")
     parser.add_argument("--theme", choices=["light", "dark"], default="light")
     parser.add_argument("--sample", action="store_true")
+    parser.add_argument("--select-all", action="store_true")
     parser.add_argument("--width", type=int, default=1180)
     parser.add_argument("--height", type=int, default=760)
     args = parser.parse_args()
@@ -38,6 +39,7 @@ def main():
         window = gui.MainWindow(alias_store=alias_store, data_dir=data_dir)
         window.resize(args.width, args.height)
         if args.sample:
+            window.logs.clear()
             window.pages["message"].editor.setPlainText("维护通知\n\n请保存当前工作，准备进行例行维护。\n维护结束后将另行通知。")
             window.pages["command"].editor.setPlainText("cmd.exe /c ipconfig")
             if window.alias_store.match("教室 A 讲台") is None:
@@ -50,6 +52,10 @@ def main():
             window.pages["file"].set_file(sample_file, 8)
             window.pages["file"].set_progress(65)
             window.logs.add("应用", "本地界面预览已载入")
+            window.logs.warning("远程命令", "模拟目标未响应，准备重试")
+            window.logs.error("文件传送", "模拟下载失败：连接超时")
+        if args.select_all:
+            window.pages["logs"].select_all_checkbox.click()
         window.show_page(args.page)
         window.show()
 
