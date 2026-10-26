@@ -854,6 +854,7 @@ class SettingsPage(Page):
     themeRequested = Signal(object)
     closeBehaviorRequested = Signal(str)
     logLevelRequested = Signal(str)
+    clearDataRequested = Signal()
 
     def __init__(self, log_store, close_behavior, parent=None):
         super().__init__("settings", parent)
@@ -899,6 +900,28 @@ class SettingsPage(Page):
         settings_card.body.addLayout(log_row)
         self.vbox.addWidget(settings_card)
         self.log_store.levelChanged.connect(self._log_level_changed)
+
+        self.data_card = SectionCard(self, spacing=12, margins=(18, 12, 18, 12))
+        data_card = self.data_card
+        data_card.setObjectName("settingsDataCard")
+        data_row = QHBoxLayout()
+        data_copy = QVBoxLayout()
+        data_copy.setSpacing(4)
+        data_copy.addWidget(BodyLabel("本地数据", data_card))
+        data_hint = CaptionLabel(
+            "删除设备备注、界面设置与运行日志所在的 JiYuAttackNextData 文件夹。",
+            data_card,
+        )
+        data_hint.setWordWrap(True)
+        data_copy.addWidget(data_hint)
+        data_row.addLayout(data_copy, 1)
+        self.clear_data_button = PushButton("清除数据", data_card)
+        self.clear_data_button.setIcon(FIF.DELETE)
+        self.clear_data_button.clicked.connect(
+            lambda checked=False: self.clearDataRequested.emit())
+        data_row.addWidget(self.clear_data_button, 0, Qt.AlignVCenter)
+        data_card.body.addLayout(data_row)
+        self.vbox.addWidget(data_card)
 
         self.vbox.addStretch()
 
@@ -947,8 +970,6 @@ class AboutInfoCard(SectionCard):
 
 
 class AboutPage(Page):
-    clearDataRequested = Signal()
-
     def __init__(self, parent=None):
         super().__init__("about", parent)
         page_heading(self.vbox, "关于")
@@ -1007,26 +1028,5 @@ class AboutPage(Page):
             versions.body.addLayout(version_row)
             self.versions[title_text] = value
         content.addWidget(versions)
-
-        self.data_card = SectionCard(self, spacing=12, margins=(18, 12, 18, 12))
-        self.data_card.setObjectName("aboutDataCard")
-        data_row = QHBoxLayout()
-        data_copy = QVBoxLayout()
-        data_copy.setSpacing(4)
-        data_copy.addWidget(BodyLabel("本地数据", self.data_card))
-        data_hint = CaptionLabel(
-            "删除设备备注、界面设置与运行日志所在的 JiYuAttackNextData 文件夹。",
-            self.data_card,
-        )
-        data_hint.setWordWrap(True)
-        data_copy.addWidget(data_hint)
-        data_row.addLayout(data_copy, 1)
-        self.clear_data_button = PushButton("清除数据", self.data_card)
-        self.clear_data_button.setIcon(FIF.DELETE)
-        self.clear_data_button.clicked.connect(
-            lambda checked=False: self.clearDataRequested.emit())
-        data_row.addWidget(self.clear_data_button, 0, Qt.AlignVCenter)
-        self.data_card.body.addLayout(data_row)
-        content.addWidget(self.data_card)
         content.addStretch()
         self.vbox.addLayout(content)

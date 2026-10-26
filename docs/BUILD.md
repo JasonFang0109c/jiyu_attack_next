@@ -57,7 +57,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Python "C:\Python3
 
 删除 `build/` 不影响已生成的 EXE，下次构建会重新生成所需文件。`build/`、`output/` 和 `.venv/` 均不提交到 Git。
 
-运行 EXE 后，程序会在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 保存设备备注与关闭窗口行为，`runtime.log` 保存规范文本运行日志。日志包含毫秒时间、规范级别、线程、输出位置、功能分类、消息与异常详情，便于从用户环境回传排查。只移动 EXE 而不移动该文件夹时，新位置会按默认配置启动。第一次关闭主窗口时会询问是否最小化到 Windows 系统托盘并保存选择，之后可在“设置”页修改；也可从“关于”页清除整个 `JiYuAttackNextData` 文件夹。
+运行 EXE 后，程序会在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 保存设备备注与关闭窗口行为，`runtime.log` 保存规范文本运行日志。日志包含毫秒时间、规范级别、线程、输出位置、功能分类、消息与异常详情，便于从用户环境回传排查。只移动 EXE 而不移动该文件夹时，新位置会按默认配置启动。第一次关闭主窗口时会询问是否最小化到 Windows 系统托盘并保存选择，之后可在“设置”页修改；也可从“设置”页底部清除整个 `JiYuAttackNextData` 文件夹。
 
 ## GitHub Actions Nightly Build
 

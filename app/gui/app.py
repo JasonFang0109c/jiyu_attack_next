@@ -200,7 +200,7 @@ class MainWindow(FluentWindow):
         self.pages["settings"].themeRequested.connect(self.set_theme)
         self.pages["settings"].closeBehaviorRequested.connect(self.set_close_behavior)
         self.pages["settings"].logLevelRequested.connect(self.set_log_level)
-        self.pages["about"].clearDataRequested.connect(self.clear_data)
+        self.pages["settings"].clearDataRequested.connect(self.clear_data)
 
     def show_page(self, key):
         self.switchTo(self.pages[key])
@@ -412,7 +412,7 @@ class MainWindow(FluentWindow):
         for key in ("local", "firewall"):
             self.pages[key].footer.set_busy(busy)
         self.pages["firewall"].action_box.setEnabled(not busy)
-        self.pages["about"].clear_data_button.setEnabled(not busy)
+        self.pages["settings"].clear_data_button.setEnabled(not busy)
         self.pages["logs"].cancel_button.setEnabled(busy and self.active_cancel is not None)
         for key, page in self.pages.items():
             if key in CATEGORIES and key != self.active_kind:

@@ -720,6 +720,9 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(labels, ["界面主题", "关闭时最小化到托盘", "运行日志等级"])
         self.assertTrue(settings_page.close_behavior_switch.label.isHidden())
         self.assertEqual(settings_page.close_behavior_switch.label.text(), "")
+        self.assertEqual(settings_page.data_card.objectName(), "settingsDataCard")
+        self.assertTrue(settings_page.clear_data_button.isVisibleTo(settings_page))
+        self.assertFalse(hasattr(self.window.pages["about"], "clear_data_button"))
 
     def test_close_behavior_switch_persists_and_defaults_to_tray(self):
         window = gui.MainWindow(
@@ -760,9 +763,9 @@ class GuiTests(unittest.TestCase):
         self.alias_store.add("教室 A", "192.168.1.10")
         self.window.logs.info("应用", "清除前日志")
         self.state.set_value("port", 8800)
-        about = self.window.pages["about"]
-        self.assertTrue(about.clear_data_button.isEnabled())
-        about.clear_data_button.click()
+        settings_page = self.window.pages["settings"]
+        self.assertTrue(settings_page.clear_data_button.isEnabled())
+        settings_page.clear_data_button.click()
         self.confirm.assert_called_once()
         self.assertFalse(self.data_dir.exists())
         self.assertEqual(self.alias_store.items(), [])
@@ -774,7 +777,7 @@ class GuiTests(unittest.TestCase):
     def test_clear_data_cancel_keeps_folder(self):
         self.confirm.return_value = False
         self.alias_store.add("教室 A", "192.168.1.10")
-        self.window.pages["about"].clear_data_button.click()
+        self.window.pages["settings"].clear_data_button.click()
         self.assertTrue(self.data_dir.exists())
         self.assertIsNotNone(self.alias_store.match("教室 A"))
 
