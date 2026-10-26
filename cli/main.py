@@ -208,6 +208,22 @@ def validate_listen_ip(value):
         raise ValueError("发送端 IP 格式无效") from error
 
 
+def _is_usable_local_address(value, target=None):
+    try:
+        address = ipaddress.IPv4Address(str(value).strip())
+    except ValueError:
+        return False
+    if address.is_unspecified or address.is_loopback or address.is_link_local:
+        return bool(target and ipaddress.IPv4Address(target).is_loopback)
+    if address.is_multicast or address.is_reserved:
+        return False
+    # 198.18.0.0/15 是网络基准测试保留网段，Mihomo 等 TUN 虚拟网卡
+    # 常把它作为本地地址返回，但目标电脑无法通过该地址回连。
+    if address in ipaddress.IPv4Network("198.18.0.0/15"):
+        return False
+    return True
+
+
 def detect_local_ip(target=None):
     probes = []
     try:
@@ -218,6 +234,7 @@ def detect_local_ip(target=None):
         pass
     if not probes:
         probes.append(("8.8.8.8", 80))
+    route_local = None
     for address, port in probes:
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
@@ -225,14 +242,36 @@ def detect_local_ip(target=None):
                 local = probe.getsockname()[0]
         except OSError:
             continue
-        if local and (address.startswith("127.") or not local.startswith("127.")):
+        if local:
+            route_local = local
+        if _is_usable_local_address(local, address):
             return local
+
+    # TUN/VPN 会改变系统默认路由，socket 的出口地址可能是虚拟网卡地址。
+    # 如果出口地址不可用，则从主机名解析出的地址中选择真实局域网地址，
+    # 并优先选择与目标地址处于同一 /16 网段的候选。
+    candidates = []
     try:
-        address = socket.gethostbyname(socket.gethostname())
-        if address and not address.startswith("127."):
-            return address
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            address = info[4][0]
+            if address and address not in candidates:
+                candidates.append(address)
     except OSError:
         pass
+    target_host = hosts[0] if len(hosts) == 1 else None
+    usable = [value for value in candidates
+              if _is_usable_local_address(value, target_host)]
+    if usable:
+        if target_host and not ipaddress.IPv4Address(target_host).is_loopback:
+            target_value = ipaddress.IPv4Address(target_host)
+            usable.sort(key=lambda value: (
+                0 if ipaddress.IPv4Address(value).packed[:2] == target_value.packed[:2] else 1,
+                0 if ipaddress.IPv4Address(value).is_private else 1,
+                value,
+            ))
+        return usable[0]
+    if route_local:
+        return route_local
     return "127.0.0.1"
 
 
@@ -311,6 +350,7 @@ class _FileTransferRequestHandler(BaseHTTPRequestHandler):
         transfer = self.server.transfer
         path = urlsplit(self.path).path
         if path == "/b/" + transfer.token:
+            transfer.mark_requested("script")
             body = transfer.bootstrap_script.encode("utf-8-sig")
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
@@ -320,6 +360,7 @@ class _FileTransferRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
         if path == "/f/" + transfer.token:
+            transfer.mark_requested("file")
             self._send_file(transfer)
             return
         self.send_error(404)
@@ -362,6 +403,10 @@ class FileTransferServer:
         self.token = secrets.token_urlsafe(12)
         self.bootstrap_script = ""
         self.downloaded = Event()
+        self.requested = Event()
+        self.request_stage = ""
+        self.advertised_host = ""
+        self.failure_hint = ""
         self.error = ""
         self.progress = None
         self._progress_value = -1
@@ -389,6 +434,12 @@ class FileTransferServer:
 
     def file_url(self, host):
         return "http://%s:%d/f/%s" % (host, self.port, self.token)
+
+    def mark_requested(self, stage):
+        with self._lock:
+            if stage == "file" or not self.request_stage:
+                self.request_stage = stage
+        self.requested.set()
 
     def report_progress(self, sent, total):
         if self.progress is None:
@@ -426,16 +477,31 @@ class FileTransferServer:
                 raise RuntimeError("操作已取消")
             remaining = deadline - monotonic()
             if remaining <= 0:
-                raise RuntimeError("等待目标下载超时，请检查目标是否能访问发送端 IP 和端口")
+                raise RuntimeError("等待目标下载超时：%s" % self.timeout_reason())
             self.downloaded.wait(min(0.2, remaining))
         if self.error:
             raise RuntimeError(self.error)
 
+    def timeout_reason(self):
+        if self.request_stage == "file":
+            return ("目标已开始下载但未完成，请检查目标网络稳定性与磁盘空间后重试")
+        if self.request_stage == "script":
+            return ("目标已获取传送脚本但未下载文件，请确认目标系统 curl 可用，"
+                    "且目标能访问 %s:%d" % (self.advertised_host or "发送端 IP", self.port))
+        return ("目标未访问文件服务，请确认目标能访问发送端 IP %s 和临时端口 %d，"
+                "本机防火墙已放行，且目标允许执行远程命令"
+                % (self.advertised_host or "自动检测地址", self.port))
+
 
 def transfer_file(target, port, file_path, listen_ip=None, timeout=120,
-                  cancel_event=None, report=None, desktop_dir=None):
+                  cancel_event=None, report=None, desktop_dir=None,
+                  attempts=3, retry_delay=1.5):
     emit = report or (lambda message: None)
     source = validate_file_transfer(target, port, file_path)
+    if int(attempts) < 1:
+        raise ValueError("文件传送命令重试次数必须大于 0")
+    if float(retry_delay) < 0:
+        raise ValueError("文件传送命令重试间隔不能小于 0")
     if cancel_event and cancel_event.is_set():
         raise RuntimeError("操作已取消")
     advertised_ip = validate_listen_ip(listen_ip) or detect_local_ip(target)
@@ -444,13 +510,22 @@ def transfer_file(target, port, file_path, listen_ip=None, timeout=120,
     try:
         transfer.start()
         size = source.stat().st_size
+        transfer.advertised_host = advertised_ip
         transfer.bootstrap_script = build_bootstrap_script(
             transfer.file_url(advertised_ip), source.name, size, desktop_dir)
         transfer.progress = emit
         command = build_transfer_command(transfer.bootstrap_url(advertised_ip))
-        emit("文件传送服务已启动：%s:%d" % (advertised_ip, transfer.port))
-        emit("正在向目标发送文件传送命令")
-        send([pkg_sendlist("-c", command)], target, port, 1, 0, emit, cancel_event)
+        packet = pkg_sendlist("-c", command)
+        emit("文件传送服务已启动：%s:%d，文件：%s（%s）" % (
+            advertised_ip, transfer.port, source.name, format_size(size)))
+        # UDP 不保证可靠，单次下发可能丢包导致目标始终不下载。
+        for attempt in range(1, attempts + 1):
+            if cancel_event and cancel_event.is_set():
+                raise RuntimeError("操作已取消")
+            emit("正在向目标发送文件传送命令（第 %d/%d 次）" % (attempt, attempts))
+            send([packet], target, port, 1, 0, emit, cancel_event)
+            if transfer.requested.wait(0 if attempt == attempts else retry_delay):
+                break
         emit("等待目标下载到桌面")
         transfer.wait(timeout, cancel_event)
         emit("目标已下载文件：%s（%s）" % (source.name, format_size(size)))
@@ -459,6 +534,7 @@ def transfer_file(target, port, file_path, listen_ip=None, timeout=120,
             "size": size,
             "target": target,
             "listen_ip": advertised_ip,
+            "port": transfer.port,
         }
     finally:
         transfer.stop()

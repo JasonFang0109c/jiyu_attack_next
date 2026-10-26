@@ -257,6 +257,73 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(self.core.detect_local_ip("10.0.0.8"), "10.0.0.20")
         self.assertEqual(first.connect.call_args.args[0], ("10.0.0.8", 9))
 
+    def test_local_ip_detection_ignores_tun_route_source(self):
+        tun = MagicMock()
+        tun.__enter__.return_value = tun
+        tun.getsockname.return_value = ("198.18.0.0", 50000)
+        with patch.object(socket, "socket", return_value=tun), \
+                patch.object(socket, "getaddrinfo", return_value=[
+                    (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("198.18.0.0", 0)),
+                    (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.49.151.27", 0)),
+                    (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.22.16.1", 0)),
+                ]):
+            self.assertEqual(self.core.detect_local_ip("10.49.131.30"), "10.49.151.27")
+        self.assertFalse(self.core._is_usable_local_address("198.18.0.0"))
+        self.assertFalse(self.core._is_usable_local_address("127.0.0.1", "192.168.1.10"))
+        self.assertTrue(self.core._is_usable_local_address("127.0.0.1", "127.0.0.1"))
+
+    def test_file_transfer_retries_udp_command_until_target_requests_file(self):
+        self.network_guard.stop()
+        self.addCleanup(self.network_guard.start)
+        directory = self.test_root / "retry"
+        shutil.rmtree(directory, ignore_errors=True)
+        directory.mkdir(parents=True)
+        try:
+            source = directory / "payload.bin"
+            source.write_bytes(b"retry-payload")
+            sends = []
+            server_holder = []
+
+            def fake_send(packets, target, port, loops, interval, report=None, cancel_event=None):
+                sends.append((target, port))
+                if len(sends) == 2:
+                    server = server_holder[0]
+                    with urllib.request.urlopen(server.file_url("127.0.0.1"), timeout=5) as response:
+                        self.assertEqual(response.read(), b"retry-payload")
+                return 1
+
+            original_init = self.core.FileTransferServer.__init__
+
+            def capture_server(server, *args, **kwargs):
+                original_init(server, *args, **kwargs)
+                server_holder.append(server)
+
+            with patch.object(self.core, "send", side_effect=fake_send), \
+                    patch.object(self.core.FileTransferServer, "__init__", capture_server):
+                self.core.transfer_file(
+                    "192.168.1.10", 4705, str(source), listen_ip="127.0.0.1",
+                    timeout=5, attempts=3, retry_delay=0.01)
+            self.assertEqual(len(sends), 2)
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
+
+    def test_file_transfer_timeout_reports_connection_stage(self):
+        self.network_guard.stop()
+        self.addCleanup(self.network_guard.start)
+        directory = self.test_root / "timeout-stage"
+        shutil.rmtree(directory, ignore_errors=True)
+        directory.mkdir(parents=True)
+        try:
+            source = directory / "payload.bin"
+            source.write_bytes(b"data")
+            with patch.object(self.core, "send", return_value=1):
+                with self.assertRaisesRegex(RuntimeError, "目标未访问文件服务.*发送端 IP"):
+                    self.core.transfer_file(
+                        "192.168.1.10", 4705, str(source), listen_ip="127.0.0.1",
+                        timeout=0.2, attempts=1)
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
+
     def test_file_transfer_uses_http_server_and_sends_command(self):
         self.network_guard.stop()
         self.addCleanup(self.network_guard.start)
