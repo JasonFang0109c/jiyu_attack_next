@@ -287,6 +287,7 @@ class FilePage(Page):
         self.progress_text.hide()
         self.content_card.body.addWidget(self.progress_text)
         hint = CaptionLabel(
+            "目标地址支持单个 IPv4、末段范围或 /24 网段，将按目标逐个传送。"
             "目标电脑需要能访问本机 IP 与文件传送端口；传送期间请保持本页任务运行。"
             "目标需允许执行远程命令，并由系统 cmd 下载文件。", self.content_card)
         hint.setWordWrap(True)
@@ -311,7 +312,7 @@ class FilePage(Page):
         self.progress.show()
         self.progress_text.show()
         self.progress.setValue(max(0, min(100, int(percent))))
-        self.progress_text.setText("目标下载进度：%d%%" % max(0, min(100, int(percent))))
+        self.progress_text.setText("当前目标下载进度：%d%%" % max(0, min(100, int(percent))))
 
     def reset_progress(self):
         self.progress.setValue(0)

@@ -452,7 +452,7 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(dialog.cancelButton.text(), "取消")
         self.assertIn("文件已传送到目标桌面", page.footer.status.text())
 
-    def test_file_page_requires_file_and_single_target(self):
+    def test_file_page_requires_file_and_accepts_target_range(self):
         page = self.window.pages["file"]
         self.window.start_file_transfer()
         self.assertIsNone(self.window.thread)
@@ -461,9 +461,30 @@ class GuiTests(unittest.TestCase):
         source.write_text("测试文件", encoding="utf-8")
         page.set_file(source, source.stat().st_size)
         self.state.set_value("target", "192.168.1.1-2")
-        self.window.start_file_transfer()
-        self.assertIsNone(self.window.thread)
-        self.assertIn("单个目标", page.footer.status.text())
+
+        requested = []
+
+        def fake_transfer(target, port, path, listen_ip, timeout, cancel_event=None, report=None):
+            requested.append(target)
+            report("目标 1/2（192.168.1.1）正在下载文件：100%")
+            return {
+                "name": source.name,
+                "size": source.stat().st_size,
+                "target": target,
+                "targets": ["192.168.1.1", "192.168.1.2"],
+                "transferred": ["192.168.1.1", "192.168.1.2"],
+                "listen_ip": "127.0.0.1",
+                "port": None,
+            }
+
+        with patch.object(gui.core, "transfer_file", side_effect=fake_transfer) as transfer:
+            self.window.start_file_transfer()
+            self.wait_for(lambda: self.window.thread is None)
+        transfer.assert_called_once()
+        self.assertEqual(requested, ["192.168.1.1-2"])
+        self.assertIn("2 个目标桌面", page.footer.status.text())
+        self.assertEqual(page.progress.value(), 100)
+        self.assertEqual(self.window.logs.entries[-1].level, models.LogLevel.INFO)
 
     def test_worker_completes_and_reenables_controls(self):
         self.state.set_value("target", "模拟目标")

@@ -1,7 +1,9 @@
+import io
 import shutil
 import socket
 import unittest
 import urllib.request
+from contextlib import redirect_stdout
 from pathlib import Path
 from threading import Event
 from types import SimpleNamespace
@@ -221,8 +223,14 @@ class CoreTests(unittest.TestCase):
             source.write_bytes(b"hello")
             result = self.core.validate_file_transfer("192.168.1.10", 4705, str(source))
             self.assertEqual(result, source.resolve())
-            with self.assertRaisesRegex(ValueError, "单个目标"):
-                self.core.validate_file_transfer("192.168.1.1-2", 4705, str(source))
+            self.assertEqual(
+                self.core.validate_file_transfer("192.168.1.1-2", 4705, str(source)),
+                source.resolve())
+            self.assertEqual(
+                self.core.validate_file_transfer("192.168.1.0/24", 4705, str(source)),
+                source.resolve())
+            with self.assertRaisesRegex(ValueError, "IP 格式错误"):
+                self.core.validate_file_transfer("192.168.1.10-1", 4705, str(source))
             with self.assertRaisesRegex(ValueError, "文件不存在"):
                 self.core.validate_file_transfer("192.168.1.10", 4705, str(source) + ".missing")
             with self.assertRaisesRegex(ValueError, "文件"):
@@ -231,6 +239,104 @@ class CoreTests(unittest.TestCase):
                 self.core.validate_file_transfer("192.168.1.10", 0, str(source))
         finally:
             shutil.rmtree(directory, ignore_errors=True)
+
+    def test_file_transfer_supports_multiple_targets(self):
+        self.network_guard.stop()
+        self.addCleanup(self.network_guard.start)
+        directory = self.test_root / "multi-target"
+        shutil.rmtree(directory, ignore_errors=True)
+        directory.mkdir(parents=True)
+        try:
+            source = directory / "payload.bin"
+            payload = b"multi-mode-payload"
+            source.write_bytes(payload)
+            reported = []
+            sent_hosts = []
+
+            def fake_send(packets, target, port, loops, interval,
+                          report=None, cancel_event=None):
+                sent_hosts.append(target)
+                command = bytes(
+                    packets[0][self.core.COMMAND_OFFSET:]).decode(
+                        "utf-16le").split("\x00", 1)[0]
+                bootstrap_url = command.split('-o "%TEMP%\\jyt.cmd" "', 1)[1].split('"', 1)[0]
+                with urllib.request.urlopen(bootstrap_url, timeout=5) as response:
+                    script = response.read().decode("utf-8-sig")
+                file_url = script.split(
+                    'curl.exe -fsSL --noproxy "*" --retry 2 -o "%PART%" "', 1)[1].split('"', 1)[0]
+                with urllib.request.urlopen(file_url, timeout=5) as response:
+                    self.assertEqual(response.read(), payload)
+                return 1
+
+            with patch.object(self.core, "send", side_effect=fake_send):
+                result = self.core.transfer_file(
+                    "192.168.1.1-3", 4705, str(source), listen_ip="127.0.0.1",
+                    timeout=5, report=reported.append)
+            self.assertEqual(sent_hosts, ["192.168.1.1", "192.168.1.2", "192.168.1.3"])
+            self.assertEqual(result["targets"], sent_hosts)
+            self.assertEqual(result["transferred"], sent_hosts)
+            self.assertIsNone(result["port"])
+            self.assertTrue(any("全部 3 个目标" in message for message in reported))
+            self.assertTrue(any("目标 2/3（192.168.1.2）" in message for message in reported))
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
+
+    def test_file_transfer_continues_after_one_target_fails(self):
+        self.network_guard.stop()
+        self.addCleanup(self.network_guard.start)
+        directory = self.test_root / "multi-failure"
+        shutil.rmtree(directory, ignore_errors=True)
+        directory.mkdir(parents=True)
+        try:
+            source = directory / "payload.bin"
+            source.write_bytes(b"partial-payload")
+            requested = []
+
+            def fake_send(packets, target, port, loops, interval,
+                          report=None, cancel_event=None):
+                if target.endswith(".1"):
+                    return 1
+                requested.append(target)
+                command = bytes(
+                    packets[0][self.core.COMMAND_OFFSET:]).decode(
+                        "utf-16le").split("\x00", 1)[0]
+                bootstrap_url = command.split('-o "%TEMP%\\jyt.cmd" "', 1)[1].split('"', 1)[0]
+                with urllib.request.urlopen(bootstrap_url, timeout=5) as response:
+                    script = response.read().decode("utf-8-sig")
+                file_url = script.split(
+                    'curl.exe -fsSL --noproxy "*" --retry 2 -o "%PART%" "', 1)[1].split('"', 1)[0]
+                with urllib.request.urlopen(file_url, timeout=5) as response:
+                    self.assertEqual(response.read(), b"partial-payload")
+                return 1
+
+            with patch.object(self.core, "send", side_effect=fake_send):
+                with self.assertRaisesRegex(RuntimeError, "完成 1/2 个目标") as failure:
+                    self.core.transfer_file(
+                        "192.168.1.1-2", 4705, str(source), listen_ip="127.0.0.1",
+                        timeout=0.2, attempts=1, retry_delay=0)
+            self.assertIn("192.168.1.1", str(failure.exception))
+            self.assertEqual(requested, ["192.168.1.2"])
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
+
+    def test_file_transfer_cli_reports_multiple_targets(self):
+        result = {
+            "name": "report.pdf",
+            "size": 10,
+            "target": "192.168.1.1-2",
+            "targets": ["192.168.1.1", "192.168.1.2"],
+            "transferred": ["192.168.1.1", "192.168.1.2"],
+            "listen_ip": "192.168.1.20",
+            "port": None,
+        }
+        arguments = SimpleNamespace(
+            ip="192.168.1.1-2", p=4705, file="report.pdf",
+            file_ip=None, file_timeout=120)
+        buffer = io.StringIO()
+        with patch.object(self.core, "transfer_file", return_value=result):
+            with redirect_stdout(buffer):
+                self.assertEqual(self.core.run_file_transfer(arguments), 0)
+        self.assertIn("2 个目标桌面", buffer.getvalue())
 
     def test_file_transfer_command_and_bootstrap_script(self):
         command = self.core.build_transfer_command("http://192.168.1.10:54321/b/token")

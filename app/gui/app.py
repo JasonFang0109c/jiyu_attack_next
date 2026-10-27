@@ -323,9 +323,6 @@ class MainWindow(FluentWindow):
             page.targets.target_input.setError(True)
             self._validation_error("file", str(error))
             return
-        if len(hosts) != 1:
-            self._validation_error("file", "文件传送仅支持单个目标地址")
-            return
         try:
             source = core.validate_file_transfer(target, self.connection_state.values["port"], page.path)
         except ValueError as error:
@@ -333,17 +330,20 @@ class MainWindow(FluentWindow):
             return
         if not self._confirm(
                 "确认传送文件",
-                "目标：%s\n文件：%s\n大小：%s\n目标保存位置：当前用户桌面" % (
-                    target, source.name, core.format_size(source.stat().st_size))):
+                "目标：%s\n目标数量：%d\n文件：%s\n大小：%s\n目标保存位置：当前用户桌面" % (
+                    target, len(hosts), source.name,
+                    core.format_size(source.stat().st_size))):
             self.logs.info(CATEGORIES["file"], "用户取消了文件传送确认",
                            "目标：%s；文件：%s" % (target, source))
             return
         cancel_event = Event()
         self.active_cancel = cancel_event
         page.reset_progress()
-        self.logs.info(CATEGORIES["file"], "开始传送：%s → %s" % (source.name, target),
-                       "文件：%s；字节数：%d；端口：%d；超时：120 秒" % (
-                           source, source.stat().st_size, self.connection_state.values["port"]))
+        self.logs.info(CATEGORIES["file"], "开始传送：%s → %s（%d 个目标）" % (
+            source.name, target, len(hosts)),
+                       "文件：%s；字节数：%d；目标数：%d；端口：%d；单目标超时：120 秒" % (
+                           source, source.stat().st_size, len(hosts),
+                           self.connection_state.values["port"]))
         self._begin_task(
             "file",
             TaskWorker(core.transfer_file, target, self.connection_state.values["port"],
@@ -354,11 +354,18 @@ class MainWindow(FluentWindow):
     def _file_finished(self, result):
         page = self.pages["file"]
         page.set_progress(100)
-        message = "文件已传送到目标桌面：%s（%s）" % (
-            result["name"], core.format_size(result["size"]))
+        targets = result.get("targets") or [result.get("target", "")]
+        if len(targets) == 1:
+            message = "文件已传送到目标桌面：%s（%s）" % (
+                result["name"], core.format_size(result["size"]))
+        else:
+            message = "文件已传送到 %d 个目标桌面：%s（%s）" % (
+                len(targets), result["name"], core.format_size(result["size"]))
         page.footer.set_status(message)
-        self.logs.info(CATEGORIES["file"], message, "目标：%s；文件：%s；字节数：%s" % (
-            result["target"], result["name"], result["size"]))
+        self.logs.info(
+            CATEGORIES["file"], message,
+            "目标：%s；目标数量：%d；文件：%s；字节数：%s" % (
+                result["target"], len(targets), result["name"], result["size"]))
         self._notify("文件传送完成", message, "成功")
 
     @Slot(str, str)
@@ -426,6 +433,8 @@ class MainWindow(FluentWindow):
     def _task_progress(self, message):
         self.logs.debug(CATEGORIES[self.active_kind], message, "任务函数进度回调")
         self.pages[self.active_kind].footer.set_status(message)
+        if self.active_kind == "file" and "文件传送服务已启动" in message:
+            self.pages["file"].reset_progress()
         if self.active_kind == "file" and "下载文件：" in message:
             try:
                 percent = int(message.rsplit("：", 1)[1].rstrip("%"))

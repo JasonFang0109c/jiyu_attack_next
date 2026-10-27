@@ -228,7 +228,7 @@ def detect_local_ip(target=None):
     probes = []
     try:
         hosts = get_ip(target) if target else []
-        if len(hosts) == 1:
+        if hosts:
             probes.append((hosts[0], 9))
     except ValueError:
         pass
@@ -258,7 +258,7 @@ def detect_local_ip(target=None):
                 candidates.append(address)
     except OSError:
         pass
-    target_host = hosts[0] if len(hosts) == 1 else None
+    target_host = hosts[0] if hosts else None
     usable = [value for value in candidates
               if _is_usable_local_address(value, target_host)]
     if usable:
@@ -278,9 +278,7 @@ def detect_local_ip(target=None):
 def validate_file_transfer(target, port, file_path):
     if not isinstance(target, str) or not target.strip():
         raise ValueError("请填写目标地址")
-    hosts = get_ip(target.strip())
-    if len(hosts) != 1:
-        raise ValueError("文件传送仅支持单个目标地址")
+    get_ip(target.strip())
     try:
         port = int(port)
     except (TypeError, ValueError) as error:
@@ -498,6 +496,7 @@ def transfer_file(target, port, file_path, listen_ip=None, timeout=120,
                   attempts=3, retry_delay=1.5):
     emit = report or (lambda message: None)
     source = validate_file_transfer(target, port, file_path)
+    targets = get_ip(target.strip())
     if int(attempts) < 1:
         raise ValueError("文件传送命令重试次数必须大于 0")
     if float(retry_delay) < 0:
@@ -506,38 +505,69 @@ def transfer_file(target, port, file_path, listen_ip=None, timeout=120,
         raise RuntimeError("操作已取消")
     advertised_ip = validate_listen_ip(listen_ip) or detect_local_ip(target)
     bind_host = "127.0.0.1" if advertised_ip.startswith("127.") else "0.0.0.0"
-    transfer = FileTransferServer(source, bind_host=bind_host)
-    try:
-        transfer.start()
-        size = source.stat().st_size
-        transfer.advertised_host = advertised_ip
-        transfer.bootstrap_script = build_bootstrap_script(
-            transfer.file_url(advertised_ip), source.name, size, desktop_dir)
-        transfer.progress = emit
-        command = build_transfer_command(transfer.bootstrap_url(advertised_ip))
-        packet = pkg_sendlist("-c", command)
-        emit("文件传送服务已启动：%s:%d，文件：%s（%s）" % (
-            advertised_ip, transfer.port, source.name, format_size(size)))
-        # UDP 不保证可靠，单次下发可能丢包导致目标始终不下载。
-        for attempt in range(1, attempts + 1):
+    size = source.stat().st_size
+    transferred = []
+    failures = []
+    last_port = None
+    for index, host in enumerate(targets, 1):
+        if cancel_event and cancel_event.is_set():
+            raise RuntimeError("操作已取消")
+        transfer = FileTransferServer(source, bind_host=bind_host)
+        try:
+            transfer.start()
+            last_port = transfer.port
+            transfer.advertised_host = advertised_ip
+            transfer.bootstrap_script = build_bootstrap_script(
+                transfer.file_url(advertised_ip), source.name, size, desktop_dir)
+
+            def report_target(message, index=index, host=host):
+                if message.startswith("目标正在下载文件："):
+                    message = "正在下载文件：" + message.split("：", 1)[1]
+                emit("目标 %d/%d（%s）%s" % (index, len(targets), host, message))
+
+            transfer.progress = report_target
+            command = build_transfer_command(transfer.bootstrap_url(advertised_ip))
+            packet = pkg_sendlist("-c", command)
+            emit("目标 %d/%d（%s）文件传送服务已启动：%s:%d，文件：%s（%s）" % (
+                index, len(targets), host, advertised_ip, transfer.port,
+                source.name, format_size(size)))
+            # UDP 不保证可靠，单次下发可能丢包导致目标始终不下载。
+            for attempt in range(1, attempts + 1):
+                if cancel_event and cancel_event.is_set():
+                    raise RuntimeError("操作已取消")
+                emit("正在向目标 %d/%d（%s）发送文件传送命令（第 %d/%d 次）" % (
+                    index, len(targets), host, attempt, attempts))
+                send([packet], host, port, 1, 0, emit, cancel_event)
+                if transfer.requested.wait(0 if attempt == attempts else retry_delay):
+                    break
+            emit("等待目标 %d/%d（%s）下载到桌面" % (index, len(targets), host))
+            transfer.wait(timeout, cancel_event)
+            transferred.append(host)
+            emit("目标 %d/%d（%s）已下载文件：%s（%s）" % (
+                index, len(targets), host, source.name, format_size(size)))
+        except Exception as error:
             if cancel_event and cancel_event.is_set():
-                raise RuntimeError("操作已取消")
-            emit("正在向目标发送文件传送命令（第 %d/%d 次）" % (attempt, attempts))
-            send([packet], target, port, 1, 0, emit, cancel_event)
-            if transfer.requested.wait(0 if attempt == attempts else retry_delay):
-                break
-        emit("等待目标下载到桌面")
-        transfer.wait(timeout, cancel_event)
-        emit("目标已下载文件：%s（%s）" % (source.name, format_size(size)))
-        return {
-            "name": source.name,
-            "size": size,
-            "target": target,
-            "listen_ip": advertised_ip,
-            "port": transfer.port,
-        }
-    finally:
-        transfer.stop()
+                raise RuntimeError("操作已取消") from error
+            failures.append((host, str(error)))
+            emit("目标 %d/%d（%s）传送失败：%s" % (
+                index, len(targets), host, error))
+        finally:
+            transfer.stop()
+    if failures:
+        summary = "；".join("%s（%s）" % (host, reason) for host, reason in failures)
+        raise RuntimeError("文件传送完成 %d/%d 个目标，失败目标：%s" % (
+            len(transferred), len(targets), summary))
+    emit("全部 %d 个目标已下载文件：%s（%s）" % (
+        len(targets), source.name, format_size(size)))
+    return {
+        "name": source.name,
+        "size": size,
+        "target": target,
+        "targets": targets,
+        "transferred": transferred,
+        "listen_ip": advertised_ip,
+        "port": last_port if len(targets) == 1 else None,
+    }
 
 
 @dataclass
@@ -771,7 +801,12 @@ def run_file_transfer(arguments):
     result = transfer_file(
         arguments.ip, arguments.p, arguments.file,
         listen_ip=arguments.file_ip, timeout=arguments.file_timeout, report=print)
-    print("文件已传送：%s（%s）" % (result["name"], format_size(result["size"])))
+    if len(result["targets"]) == 1:
+        print("文件已传送：%s（%s）" % (
+            result["name"], format_size(result["size"])))
+    else:
+        print("文件已传送到 %d 个目标桌面：%s（%s）" % (
+            len(result["targets"]), result["name"], format_size(result["size"])))
     return 0
 
 
