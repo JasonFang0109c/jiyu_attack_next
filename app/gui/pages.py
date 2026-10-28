@@ -4,32 +4,34 @@ from pathlib import Path
 
 from importlib.metadata import version
 
-from PySide6.QtCore import QSignalBlocker, Qt, Signal, Slot
+from PySide6.QtCore import QSignalBlocker, QSize, Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QHeaderView,
                                QHBoxLayout, QLabel, QSizePolicy, QTableWidgetItem,
-                               QVBoxLayout, QWidget)
+                               QTreeWidgetItem, QVBoxLayout, QWidget)
 from qfluentwidgets import (BodyLabel, CaptionLabel, CheckBox, ComboBox, Dialog,
                             FluentIcon as FIF, HyperlinkButton, LineEdit, PlainTextEdit,
                             PrimaryPushButton, ProgressBar, PushButton, RadioButton,
                             SearchLineEdit, StrongBodyLabel, SwitchButton, TableWidget,
-                            Theme, TitleLabel, qconfig, setFont)
+                            Theme, TitleLabel, TreeWidget, qconfig, setFont)
 from cli import main as core
+from .build_info import build_time_text
 from .models import LOG_LEVELS, normalize_log_level
 from .components import (Ipv4TargetInput, SectionCard, TargetControls, TaskFooter,
                           page_heading, tool_button)
 
 
-class LogHeaderView(QHeaderView):
-    """日志表头首列内嵌与行复选框一致的全选控件。"""
+class SelectAllHeaderView(QHeaderView):
+    """在表头首列内嵌与行复选框一致的全选控件。"""
 
     CHECKBOX_SIZE = 18
 
-    def __init__(self, orientation, parent=None):
+    def __init__(self, orientation, parent=None,
+                 tooltip="全选当前筛选结果", accessible_name="全选当前筛选结果"):
         super().__init__(orientation, parent)
         self.select_all_checkbox = CheckBox(self.viewport())
-        self.select_all_checkbox.setAccessibleName("全选当前筛选结果")
-        self.select_all_checkbox.setToolTip("全选当前筛选结果；取消勾选会清空全部选择")
+        self.select_all_checkbox.setAccessibleName(accessible_name)
+        self.select_all_checkbox.setToolTip(tooltip)
         self.select_all_checkbox.setFixedSize(self.CHECKBOX_SIZE, self.CHECKBOX_SIZE)
         self.select_all_checkbox.raise_()
 
@@ -47,6 +49,27 @@ class LogHeaderView(QHeaderView):
     def showEvent(self, event):
         super().showEvent(event)
         self.position_checkbox()
+
+
+# 兼容旧命名。
+LogHeaderView = SelectAllHeaderView
+
+
+class FileTreeHeader(SelectAllHeaderView):
+    """文件树表头：全选复选框与首列行复选框对齐。"""
+
+    def position_checkbox(self):
+        if not self.isVisible():
+            return
+        tree = self.parent()
+        offset = 0
+        if tree is not None and hasattr(tree, "topLevelItem") and tree.topLevelItemCount():
+            rect = tree.visualItemRect(tree.topLevelItem(0))
+            if rect.isValid():
+                offset = rect.x()
+        x = self.sectionViewportPosition(0) + offset + 23
+        y = (self.height() - self.CHECKBOX_SIZE) // 2
+        self.select_all_checkbox.move(x, y)
 
 
 class LogTableWidget(TableWidget):
@@ -256,28 +279,86 @@ class DevicePage(NetworkPage):
 
 
 class FilePage(Page):
-    chooseRequested = Signal()
+    chooseFilesRequested = Signal()
+    chooseFolderRequested = Signal()
+    deleteRequested = Signal()
 
     def __init__(self, state, parent=None):
         super().__init__("file", parent)
+        self.items = []
+        self._syncing = False
+        self._busy = False
         page_heading(self.vbox, "文件传送")
         self.target_card = SectionCard(self)
         self.targets = TargetControls(state, self.target_card, show_round_options=False)
         self.target_card.body.addWidget(self.targets)
         self.vbox.addWidget(self.target_card)
-        self.content_card = SectionCard(self, spacing=12)
+
+        self.content_card = SectionCard(self, spacing=10)
         row = QHBoxLayout()
+        row.setSpacing(8)
         row.addWidget(BodyLabel("待传送文件", self.content_card))
+        self.count_label = CaptionLabel("0 个文件", self.content_card)
+        row.addWidget(self.count_label)
         row.addStretch()
-        self.choose_button = tool_button(FIF.FOLDER, "选择文件", self.content_card, self.chooseRequested.emit)
-        row.addWidget(self.choose_button)
+        self.delete_button = tool_button(
+            FIF.DELETE, "删除选中文件", self.content_card, self.deleteRequested.emit)
+        self.delete_button.setEnabled(False)
+        row.addWidget(self.delete_button)
+        self.choose_files_button = tool_button(
+            FIF.DOCUMENT, "添加文件", self.content_card, self.chooseFilesRequested.emit)
+        row.addWidget(self.choose_files_button)
+        self.choose_folder_button = tool_button(
+            FIF.FOLDER, "添加文件夹", self.content_card, self.chooseFolderRequested.emit)
+        row.addWidget(self.choose_folder_button)
         self.content_card.body.addLayout(row)
-        self.file_name = BodyLabel("尚未选择文件", self.content_card)
-        self.file_name.setWordWrap(True)
-        self.content_card.body.addWidget(self.file_name)
-        self.file_detail = CaptionLabel("选择任意本地文件，目标电脑将下载到当前用户桌面。", self.content_card)
-        self.file_detail.setWordWrap(True)
-        self.content_card.body.addWidget(self.file_detail)
+
+        self.empty_label = CaptionLabel(
+            "尚未选择文件。可一次添加多个文件或整个文件夹，勾选后点击“传送文件”。",
+            self.content_card)
+        self.empty_label.setWordWrap(True)
+        self.content_card.body.addWidget(self.empty_label)
+
+        self.tree = TreeWidget(self.content_card)
+        self.tree.setObjectName("transferFileTree")
+        self.tree.setColumnCount(4)
+        # 先设置边框与圆角，再安装带复选框的自定义表头；顺序颠倒时
+        # Fluent 样式刷新会访问未完成布局的表头子控件。
+        self.tree.setBorderVisible(True)
+        self.tree.setBorderRadius(6)
+        header = FileTreeHeader(
+            Qt.Horizontal, self.tree, tooltip="全选待传送文件",
+            accessible_name="全选待传送文件")
+        self.tree.setHeader(header)
+        self.tree.setHeaderLabels(["", "名称", "大小", "路径"])
+        self.tree.setUniformRowHeights(True)
+        self.tree.setIndentation(18)
+        self.tree.setIconSize(QSize(16, 16))
+        self.tree.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tree.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tree.setWordWrap(False)
+        self.select_all_checkbox = header.select_all_checkbox
+        # 三态复选框点击会按 未选→部分→全选 循环，这里按点击后的状态统一处理：
+        # 未选表示清空选择，其余情况（含部分选中）都视为全选。
+        self.select_all_checkbox.clicked.connect(self._header_check_state_changed)
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(0, QHeaderView.Fixed)
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.Fixed)
+        header.setSectionResizeMode(3, QHeaderView.Fixed)
+        self.tree.setColumnWidth(0, 42)
+        self.tree.setColumnWidth(2, 110)
+        self.tree.setColumnWidth(3, 220)
+        self.tree.itemChanged.connect(self._item_changed)
+        self.tree.itemClicked.connect(self._item_clicked)
+        self.tree.itemExpanded.connect(lambda item: self._sync_ancestors(item))
+        self.tree.itemCollapsed.connect(lambda item: self._sync_ancestors(item))
+        self.tree.itemExpanded.connect(lambda item: header.position_checkbox())
+        self.tree.itemCollapsed.connect(lambda item: header.position_checkbox())
+        self.tree.verticalScrollBar().valueChanged.connect(header.position_checkbox)
+        self.tree.horizontalScrollBar().valueChanged.connect(header.position_checkbox)
+        self.content_card.body.addWidget(self.tree, 1)
+
         self.progress = ProgressBar(self.content_card)
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
@@ -286,27 +367,274 @@ class FilePage(Page):
         self.progress_text = CaptionLabel("", self.content_card)
         self.progress_text.hide()
         self.content_card.body.addWidget(self.progress_text)
+
         hint = CaptionLabel(
+            "勾选的文件或文件夹会被传送到目标桌面，文件夹保持原有目录结构。"
             "目标地址支持单个 IPv4、末段范围或 /24 网段，将按目标逐个传送。"
-            "目标电脑需要能访问本机 IP 与文件传送端口；传送期间请保持本页任务运行。"
-            "目标需允许执行远程命令，并由系统 cmd 下载文件。", self.content_card)
+            "传送期间请保持本页任务运行；目标需允许执行远程命令，并由系统 cmd 下载文件。",
+            self.content_card)
         hint.setWordWrap(True)
         self.content_card.body.addWidget(hint)
-        self.content_card.body.addStretch()
         self.vbox.addWidget(self.content_card, 1)
+
         self.footer_card = SectionCard(self, spacing=0, margins=(8, 8, 8, 8))
         self.footer = TaskFooter("传送文件", self.footer_card, FIF.SEND)
         self.footer_card.body.addWidget(self.footer)
         self.vbox.addWidget(self.footer_card)
-        self.path = ""
-        self.size = 0
+        self._update_selection_controls()
 
-    def set_file(self, path, size):
-        self.path = str(path)
-        self.size = int(size)
-        self.file_name.setText(Path(path).name)
-        self.file_name.setToolTip(str(path))
-        self.file_detail.setText("%s · %s" % (core.format_size(size), path))
+    def add_paths(self, paths):
+        """添加文件或文件夹，并按默认勾选加入待传送列表。"""
+        current = list(self.items)
+        states = self._check_states()
+        existing = {relative.casefold() for _, relative, _ in current}
+        added = []
+        for path, relative, size in core.collect_transfer_items(paths):
+            if relative.casefold() in existing:
+                continue
+            existing.add(relative.casefold())
+            current.append((path, relative, size))
+            added.append((path, relative, size))
+        if not added:
+            return 0, 0
+        self.items = current
+        for _, relative, _ in added:
+            states[relative.casefold()] = True
+        self._rebuild_tree(states)
+        self.empty_label.hide()
+        self.tree.show()
+        self.footer.set_status("已添加 %d 个文件" % len(added))
+        return len(added), sum(size for _, _, size in added)
+
+    def set_file(self, path, size=None):
+        """兼容单文件调用，添加后默认勾选。"""
+        return self.add_paths([path])
+
+    def has_files(self):
+        return bool(self.items)
+
+    def selected_items(self):
+        """返回勾选的文件 (绝对路径, 目标相对路径) 列表。"""
+        selected = []
+        for item in self._file_items():
+            if item.checkState(0) == Qt.Checked:
+                path, relative, _ = item.data(0, Qt.UserRole + 1)
+                selected.append((str(path), relative))
+        return selected
+
+    def selected_entries(self):
+        """返回复选框选中的文件与整目录条目。"""
+        entries = []
+        for item in self._all_visible_items():
+            kind, relative = item.data(0, Qt.UserRole)
+            if kind == "dir" and item.checkState(0) == Qt.Checked:
+                entries.append((kind, relative))
+        for item in self._file_items():
+            if item.checkState(0) == Qt.Checked:
+                entries.append(("file", item.data(0, Qt.UserRole)[1]))
+        return entries
+
+    def remove_selected(self):
+        """删除复选框选中的文件与文件夹，返回被移除的条目。"""
+        targets = self.selected_entries()
+        if not targets:
+            return []
+        directories = [relative for kind, relative in targets if kind == "dir"]
+        files = {relative for kind, relative in targets if kind == "file"}
+
+        def matched(relative):
+            if relative in files:
+                return True
+            return any(relative == directory or relative.startswith(directory + "/")
+                       for directory in directories)
+
+        removed = [entry for entry in self.items if matched(entry[1])]
+        if not removed:
+            return []
+        self.items = [entry for entry in self.items if not matched(entry[1])]
+        states = self._check_states()
+        for _, relative, _ in removed:
+            states.pop(relative.casefold(), None)
+        self._rebuild_tree(states)
+        if not self.items:
+            self.tree.hide()
+            self.empty_label.show()
+        self.footer.set_status("已移除 %d 个文件" % len(removed))
+        return removed
+
+    def _check_states(self):
+        return {relative.casefold(): item.checkState(0) == Qt.Checked
+                for item in self._file_items()
+                for relative in [item.data(0, Qt.UserRole)[1]]}
+
+    def _all_visible_items(self):
+        def walk(parent):
+            for index in range(parent.childCount()):
+                item = parent.child(index)
+                yield item
+                yield from walk(item)
+        yield from walk(self.tree.invisibleRootItem())
+
+    def _file_items(self):
+        return [item for item in self._all_visible_items()
+                if item.data(0, Qt.UserRole)[0] == "file"]
+
+    def _rebuild_tree(self, states=None, expand=True):
+        expanded = {item.data(0, Qt.UserRole)[1] for item in self._all_visible_items()
+                    if item.isExpanded()}
+        self._syncing = True
+        self.tree.blockSignals(True)
+        try:
+            self.tree.clear()
+            folders = {}
+            for path, relative, size in self.items:
+                parts = relative.split("/")
+                parent = self.tree.invisibleRootItem()
+                for depth, name in enumerate(parts[:-1]):
+                    key = "/".join(parts[:depth + 1])
+                    folder = folders.get(key)
+                    if folder is None:
+                        folder = QTreeWidgetItem(parent, ["", name, "", key])
+                        folder.setIcon(1, FIF.FOLDER.icon())
+                        folder.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable
+                                        | Qt.ItemIsUserCheckable)
+                        folder.setData(0, Qt.UserRole, ("dir", key))
+                        folder.setToolTip(1, "全选文件夹：%s" % key)
+                        folder.setCheckState(0, Qt.Unchecked)
+                        folders[key] = folder
+                    parent = folder
+                file_item = QTreeWidgetItem(
+                    parent, ["", parts[-1], core.format_size(size), relative])
+                file_item.setIcon(1, FIF.DOCUMENT.icon())
+                file_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable
+                                   | Qt.ItemIsUserCheckable)
+                file_item.setData(0, Qt.UserRole, ("file", relative))
+                file_item.setData(0, Qt.UserRole + 1, (path, relative, size))
+                file_item.setToolTip(1, str(path))
+                checked = True if states is None else states.get(relative.casefold(), True)
+                file_item.setCheckState(0, Qt.Checked if checked else Qt.Unchecked)
+            # 树形展示按“文件夹在前、同类型按名称”排序，更接近资源管理器。
+            self._sort_item(self.tree.invisibleRootItem())
+            # 先同步最深层文件夹，再向上汇总，避免父文件夹状态过期。
+            for folder in reversed(list(folders.values())):
+                self._sync_folder_state(folder)
+            if expand and not expanded:
+                if len(self.items) <= 300:
+                    self.tree.expandAll()
+                else:
+                    for key, folder in folders.items():
+                        if "/" not in key:
+                            folder.setExpanded(True)
+            for key in expanded:
+                folder = folders.get(key)
+                if folder is not None:
+                    folder.setExpanded(True)
+        finally:
+            self.tree.blockSignals(False)
+            self._syncing = False
+        self._update_selection_controls()
+
+    def _sort_item(self, parent):
+        children = [parent.takeChild(0) for _ in range(parent.childCount())]
+        children.sort(key=lambda item: (
+            0 if item.data(0, Qt.UserRole)[0] == "dir" else 1,
+            item.text(1).casefold()))
+        parent.addChildren(children)
+        for child in children:
+            if child.childCount():
+                self._sort_item(child)
+
+    def _sync_folder_state(self, folder):
+        children = [folder.child(index) for index in range(folder.childCount())]
+        if not children:
+            return Qt.Unchecked
+        states = [child.checkState(0) for child in children]
+        if all(state == Qt.Checked for state in states):
+            state = Qt.Checked
+        elif all(state == Qt.Unchecked for state in states):
+            state = Qt.Unchecked
+        else:
+            state = Qt.PartiallyChecked
+        folder.setCheckState(0, state)
+        return state
+
+    def _set_item_state(self, item, state):
+        item.setCheckState(0, state)
+        for index in range(item.childCount()):
+            child = item.child(index)
+            if child.childCount():
+                self._set_item_state(child, state)
+            else:
+                child.setCheckState(0, state)
+
+    def _sync_ancestors(self, item):
+        parent = item.parent()
+        while parent is not None:
+            self._sync_folder_state(parent)
+            parent = parent.parent()
+
+    def _item_clicked(self, item, column):
+        if column != 0:
+            self._update_selection_controls()
+            return
+        # Qt 在点击后才切换复选状态，延后到下一轮事件同步文件夹状态。
+        QTimer.singleShot(0, self._update_selection_controls)
+
+    def _item_changed(self, item, column):
+        if self._syncing or column != 0:
+            return
+        kind = item.data(0, Qt.UserRole)[0]
+        if kind == "dir":
+            self._syncing = True
+            try:
+                self.tree.blockSignals(True)
+                self._set_item_state(item, item.checkState(0))
+            finally:
+                self.tree.blockSignals(False)
+                self._syncing = False
+        self._sync_ancestors(item)
+        self._update_selection_controls()
+
+    def _header_check_state_changed(self, _checked=False):
+        if self._syncing:
+            return
+        checked = self.select_all_checkbox.checkState() != Qt.Unchecked
+        self._syncing = True
+        self.tree.blockSignals(True)
+        try:
+            for index in range(self.tree.topLevelItemCount()):
+                self._set_item_state(
+                    self.tree.topLevelItem(index),
+                    Qt.Checked if checked else Qt.Unchecked)
+        finally:
+            self.tree.blockSignals(False)
+            self._syncing = False
+        self._update_selection_controls()
+
+    def _update_selection_controls(self):
+        file_items = self._file_items()
+        checked = [item for item in file_items if item.checkState(0) == Qt.Checked]
+        selected_size = sum(item.data(0, Qt.UserRole + 1)[2] for item in checked)
+        total_size = sum(size for _, _, size in self.items)
+        if not file_items:
+            header_state = Qt.Unchecked
+        elif len(checked) == len(file_items):
+            header_state = Qt.Checked
+        elif checked:
+            header_state = Qt.PartiallyChecked
+        else:
+            header_state = Qt.Unchecked
+        with QSignalBlocker(self.select_all_checkbox):
+            self.select_all_checkbox.setCheckState(header_state)
+        self.select_all_checkbox.setEnabled(bool(file_items))
+        self.delete_button.setEnabled(bool(self.selected_entries()))
+        self.count_label.setText(
+            "%d 个文件，共 %s | 已选 %d 个，%s" % (
+                len(self.items), core.format_size(total_size),
+                len(checked), core.format_size(selected_size)))
+        if not self._busy:
+            self.footer.send_button.setEnabled(bool(checked))
+        self.tree.header().position_checkbox()
 
     def set_progress(self, percent):
         self.progress.show()
@@ -320,9 +648,14 @@ class FilePage(Page):
         self.progress_text.hide()
 
     def set_busy(self, busy, cancellable=False):
+        self._busy = bool(busy)
         self.targets.setEnabled(not busy)
-        self.choose_button.setEnabled(not busy)
+        for button in (self.choose_files_button, self.choose_folder_button,
+                       self.delete_button, self.tree):
+            button.setEnabled(not busy)
         self.footer.set_busy(busy, cancellable)
+        if not busy:
+            self._update_selection_controls()
 
 
 class AliasPage(Page):
@@ -1012,6 +1345,13 @@ class AboutPage(Page):
             card = AboutInfoCard(label, text, self, url=url, icon=icon)
             self.cards[key] = card
             content.addWidget(card)
+
+        build_card = AboutInfoCard("构建时间", build_time_text(), self)
+        build_card.setObjectName("aboutBuildCard")
+        self.build_time_value = build_card.detail
+        self.build_time_value.setObjectName("aboutBuildTime")
+        self.build_time_value.setToolTip("打包 EXE 的时间；源码运行时不会生成构建时间")
+        content.addWidget(build_card)
 
         versions = SectionCard(self, spacing=8, margins=(18, 12, 18, 12))
         versions.setObjectName("aboutVersionsCard")

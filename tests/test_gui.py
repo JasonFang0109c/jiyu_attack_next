@@ -103,6 +103,19 @@ class GuiTests(unittest.TestCase):
         self.assertIsNotNone(hero)
         self.assertNotIsInstance(hero, components.SectionCard)
         self.assertFalse(hero.findChildren(components.SectionCard))
+        self.assertEqual(about.build_time_value.text(), "源码运行")
+        self.assertIn("构建时间", [label.text() for label in about.findChildren(BodyLabel)])
+        self.assertEqual(about.build_time_value.objectName(), "aboutBuildTime")
+
+    def test_build_time_comes_from_bundle_asset(self):
+        from app.gui import build_info
+        self.assertEqual(build_info.build_time_text(), "源码运行")
+        time_file = self.temp_root / "bundle" / build_info.BUILD_TIME_FILE_NAME
+        build_info.write_build_time(time_file)
+        with patch.object(gui.sys, "_MEIPASS", str(time_file.parent), create=True):
+            self.assertRegex(build_info.build_time_text(), r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
+        with patch.object(gui.sys, "_MEIPASS", str(self.temp_root / "missing"), create=True):
+            self.assertEqual(build_info.build_time_text(), "源码运行")
 
     def test_every_page_uses_rounded_section_cards(self):
         for page in self.window.pages.values():
@@ -388,17 +401,22 @@ class GuiTests(unittest.TestCase):
         source.write_text("测试文件", encoding="utf-8")
         page.set_file(source, source.stat().st_size)
         self.state.set_value("target", "模拟目标")
+        self.assertEqual(page.selected_items(), [(str(source.resolve()), "报告.txt")])
 
-        def fake_transfer(target, port, path, listen_ip, timeout, cancel_event=None, report=None):
+        def fake_transfer(target, port, path, listen_ip, timeout, cancel_event=None,
+                          report=None, items=None):
             report("目标正在下载文件：50%")
             report("目标正在下载文件：100%")
-            return {"name": "报告.txt", "size": 8, "target": target, "listen_ip": listen_ip}
+            return {"name": "报告.txt", "size": 8, "target": target,
+                    "listen_ip": listen_ip, "file_count": 1}
 
         with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
             with patch.object(gui.core, "transfer_file", side_effect=fake_transfer) as transfer:
                 self.window.start_file_transfer()
                 self.wait_for(lambda: self.window.thread is None)
         transfer.assert_called_once()
+        self.assertEqual(transfer.call_args.kwargs["items"],
+                         [(str(source.resolve()), "报告.txt")])
         self.assertEqual(page.progress.value(), 100)
         self.assertIn("文件已传送到目标桌面", page.footer.status.text())
         self.assertEqual(self.window.logs.entries[-1].category, "文件传送")
@@ -431,7 +449,8 @@ class GuiTests(unittest.TestCase):
             with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
                 with patch.object(gui.core, "transfer_file", return_value={
                         "name": source.name, "size": source.stat().st_size,
-                        "target": "模拟目标", "listen_ip": "127.0.0.1"}) as transfer:
+                        "target": "模拟目标", "listen_ip": "127.0.0.1",
+                        "file_count": 1}) as transfer:
                     QTimer.singleShot(150, lambda: click_dialog("yesButton"))
                     self.window.start_file_transfer()
                     self.wait_for(lambda: self.window.thread is None)
@@ -452,6 +471,116 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(dialog.cancelButton.text(), "取消")
         self.assertIn("文件已传送到目标桌面", page.footer.status.text())
 
+    def test_file_page_shows_tree_with_checkboxes_and_select_all(self):
+        page = self.window.pages["file"]
+        folder = self.temp_root / "课件"
+        (folder / "第二章").mkdir(parents=True)
+        (folder / "说明.txt").write_text("说明", encoding="utf-8")
+        (folder / "第二章" / "示例.docx").write_text("示例", encoding="utf-8")
+        single = self.temp_root / "通知.txt"
+        single.write_text("通知", encoding="utf-8")
+        page.add_paths([folder, single])
+        self.assertEqual(len(page.items), 3)
+        self.assertEqual(page.tree.topLevelItemCount(), 2)
+        self.assertEqual(page.selected_items(), [
+            (str((folder / "第二章" / "示例.docx").resolve()), "课件/第二章/示例.docx"),
+            (str((folder / "说明.txt").resolve()), "课件/说明.txt"),
+            (str(single.resolve()), "通知.txt"),
+        ])
+        self.assertEqual(page.select_all_checkbox.checkState(), Qt.Checked)
+        self.assertTrue(page.footer.send_button.isEnabled())
+        self.assertTrue(page.delete_button.isEnabled())
+        self.assertIn("3 个文件", page.count_label.text())
+
+        page.select_all_checkbox.click()
+        self.assertEqual(page.selected_items(), [])
+        self.assertFalse(page.footer.send_button.isEnabled())
+        self.assertFalse(page.delete_button.isEnabled())
+        self.assertEqual(page.delete_button.toolTip(), "删除选中文件")
+
+        page.select_all_checkbox.click()
+        self.assertEqual(len(page.selected_items()), 3)
+
+        folder_item = page.tree.topLevelItem(0)
+        self.assertEqual(folder_item.text(1), "课件")
+        folder_item.setCheckState(0, Qt.Unchecked)
+        self.assertEqual(page.selected_items(), [(str(single.resolve()), "通知.txt")])
+        self.assertEqual(page.select_all_checkbox.checkState(), Qt.PartiallyChecked)
+        folder_item.setCheckState(0, Qt.Checked)
+        self.assertEqual(len(page.selected_items()), 3)
+        self.assertEqual(page.select_all_checkbox.checkState(), Qt.Checked)
+
+    def test_file_page_deletes_selected_tree_items_only(self):
+        page = self.window.pages["file"]
+        folder = self.temp_root / "素材"
+        folder.mkdir()
+        (folder / "a.bin").write_bytes(b"a")
+        (folder / "b.bin").write_bytes(b"b")
+        single = self.temp_root / "保留.txt"
+        single.write_text("保留", encoding="utf-8")
+        page.add_paths([folder, single])
+        folder_item = page.tree.topLevelItem(0)
+        folder_item.setCheckState(0, Qt.Unchecked)
+        for index in range(page.tree.topLevelItemCount()):
+            item = page.tree.topLevelItem(index)
+            if item.text(1) == "保留.txt":
+                item.setCheckState(0, Qt.Checked)
+        removed = page.remove_selected()
+        self.assertEqual([relative for _, relative, _ in removed], ["保留.txt"])
+        self.assertEqual([relative for _, relative, _ in page.items],
+                         ["素材/a.bin", "素材/b.bin"])
+        self.assertTrue((single).exists())
+        self.assertTrue(page.has_files())
+
+        page.select_all_checkbox.click()
+        removed = page.remove_selected()
+        self.assertEqual(len(removed), 2)
+        self.assertFalse(page.has_files())
+        self.assertFalse(page.tree.isVisibleTo(page))
+        self.assertFalse(page.footer.send_button.isEnabled())
+
+    def test_file_transfer_sends_only_checked_files(self):
+        page = self.window.pages["file"]
+        folder = self.temp_root / "选中测试"
+        folder.mkdir()
+        (folder / "a.txt").write_text("a", encoding="utf-8")
+        (folder / "b.txt").write_text("bb", encoding="utf-8")
+        page.add_paths([folder])
+        folder_item = page.tree.topLevelItem(0)
+        for index in range(folder_item.childCount()):
+            child = folder_item.child(index)
+            child.setCheckState(0, Qt.Checked if child.text(1) == "b.txt" else Qt.Unchecked)
+        self.state.set_value("target", "模拟目标")
+        captured = {}
+
+        def fake_transfer(target, port, path, listen_ip, timeout, cancel_event=None,
+                          report=None, items=None):
+            captured["items"] = items
+            return {"name": "1 个文件", "size": 2, "target": target,
+                    "listen_ip": listen_ip, "file_count": 1}
+
+        with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
+            with patch.object(gui.core, "transfer_file", side_effect=fake_transfer) as transfer:
+                self.window.start_file_transfer()
+                self.wait_for(lambda: self.window.thread is None)
+        transfer.assert_called_once()
+        self.assertEqual(captured["items"],
+                         [(str((folder / "b.txt").resolve()), "选中测试/b.txt")])
+        self.assertIn("1 个文件", page.footer.status.text())
+
+    def test_file_transfer_requires_checked_tree_items(self):
+        page = self.window.pages["file"]
+        self.window.start_file_transfer()
+        self.assertIsNone(self.window.thread)
+        self.assertIn("请先选择要传送的文件", page.footer.status.text())
+        source = self.temp_root / "未勾选.txt"
+        source.write_text("未勾选", encoding="utf-8")
+        page.set_file(source)
+        page.select_all_checkbox.click()
+        self.window.start_file_transfer()
+        self.assertIsNone(self.window.thread)
+        self.assertIn("请勾选要传送的文件或文件夹", page.footer.status.text())
+
     def test_file_page_requires_file_and_accepts_target_range(self):
         page = self.window.pages["file"]
         self.window.start_file_transfer()
@@ -464,7 +593,8 @@ class GuiTests(unittest.TestCase):
 
         requested = []
 
-        def fake_transfer(target, port, path, listen_ip, timeout, cancel_event=None, report=None):
+        def fake_transfer(target, port, path, listen_ip, timeout, cancel_event=None,
+                          report=None, items=None):
             requested.append(target)
             report("目标 1/2（192.168.1.1）正在下载文件：100%")
             return {
@@ -475,6 +605,7 @@ class GuiTests(unittest.TestCase):
                 "transferred": ["192.168.1.1", "192.168.1.2"],
                 "listen_ip": "127.0.0.1",
                 "port": None,
+                "file_count": 1,
             }
 
         with patch.object(gui.core, "transfer_file", side_effect=fake_transfer) as transfer:
@@ -959,6 +1090,33 @@ class GuiTests(unittest.TestCase):
             window._quit_requested = True
             window.close()
             window.deleteLater()
+
+
+class SingleInstanceTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen")
+        cls.application = QApplication.instance() or QApplication([])
+
+    def test_second_instance_notifies_primary(self):
+        key = "JiYuAttackNext-test-%d" % id(self)
+        primary = gui.SingleInstance(key)
+        secondary = gui.SingleInstance(key)
+        try:
+            self.assertTrue(primary.acquire())
+            activations = []
+            primary.activationRequested.connect(lambda: activations.append(True))
+            self.assertFalse(secondary.acquire())
+            deadline = time.monotonic() + 3
+            while not activations and time.monotonic() < deadline:
+                QTest.qWait(10)
+            self.assertEqual(activations, [True])
+        finally:
+            primary.close()
+            secondary.close()
+
+    def test_single_instance_key_is_user_specific(self):
+        self.assertIn(gui.SINGLE_INSTANCE_KEY, gui.single_instance_key())
 
 
 class TestTrayIcon(QSystemTrayIcon):

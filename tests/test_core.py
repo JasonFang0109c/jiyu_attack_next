@@ -338,6 +338,79 @@ class CoreTests(unittest.TestCase):
                 self.assertEqual(self.core.run_file_transfer(arguments), 0)
         self.assertIn("2 个目标桌面", buffer.getvalue())
 
+    def test_collect_transfer_items_expands_folders(self):
+        directory = self.test_root / "collect"
+        shutil.rmtree(directory, ignore_errors=True)
+        (directory / "包" / "子目录").mkdir(parents=True)
+        try:
+            (directory / "包" / "a.txt").write_text("a", encoding="utf-8")
+            (directory / "包" / "子目录" / "b.bin").write_bytes(b"bb")
+            (directory / "单.txt").write_text("c", encoding="utf-8")
+            items = self.core.collect_transfer_items(
+                [directory / "包", directory / "单.txt", directory / "包" / "a.txt"])
+            relatives = [relative for _, relative, _ in items]
+            self.assertEqual(relatives, ["包/a.txt", "包/子目录/b.bin", "单.txt"])
+            self.assertEqual([size for _, _, size in items], [1, 2, 1])
+            with self.assertRaisesRegex(ValueError, "文件夹中没有可传送的文件"):
+                empty = directory / "空"
+                empty.mkdir()
+                self.core.collect_transfer_items([empty])
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
+
+    def test_bootstrap_script_restores_folder_structure(self):
+        script = self.core.build_items_bootstrap_script(
+            [("素材/说明.txt", 3), ("素材/第二章/示例.docx", 5)],
+            ["http://192.168.1.10:1/f/t", "http://192.168.1.10:1/f/t/1"],
+            desktop_dir=r"C:\Users\测试\Desktop")
+        self.assertIn('if not exist "%DESKTOP%\\素材" mkdir', script)
+        self.assertIn('if not exist "%DESKTOP%\\素材\\第二章" mkdir', script)
+        self.assertIn('set "TARGET=%DESKTOP%\\素材\\第二章\\示例.docx"', script)
+        self.assertEqual(script.count("curl.exe"), 2)
+        with self.assertRaisesRegex(ValueError, "不一致"):
+            self.core.build_items_bootstrap_script([("a.txt", 1)], [])
+
+    def test_file_transfer_serves_multiple_selected_files(self):
+        self.network_guard.stop()
+        self.addCleanup(self.network_guard.start)
+        directory = self.test_root / "multi-file"
+        shutil.rmtree(directory, ignore_errors=True)
+        (directory / "资料" / "子").mkdir(parents=True)
+        try:
+            (directory / "资料" / "a.txt").write_text("aaa", encoding="utf-8")
+            (directory / "资料" / "子" / "b.txt").write_text("bbbb", encoding="utf-8")
+            payloads = {}
+            reported = []
+
+            def fake_send(packets, target, port, loops, interval,
+                          report=None, cancel_event=None):
+                command = bytes(packets[0][self.core.COMMAND_OFFSET:]).decode(
+                    "utf-16le").split("\x00", 1)[0]
+                bootstrap_url = command.split('-o "%TEMP%\\jyt.cmd" "', 1)[1].split('"', 1)[0]
+                with urllib.request.urlopen(bootstrap_url, timeout=5) as response:
+                    script = response.read().decode("utf-8-sig")
+                for line in script.splitlines():
+                    if not line.startswith("curl.exe"):
+                        continue
+                    file_url = line.split('-o "%PART%" "', 1)[1].rstrip('"')
+                    with urllib.request.urlopen(file_url, timeout=5) as response:
+                        payloads[file_url.rsplit("/", 1)[-1]] = response.read()
+                return 1
+
+            items = self.core.collect_transfer_items([directory / "资料"])
+            with patch.object(self.core, "send", side_effect=fake_send):
+                result = self.core.transfer_file(
+                    "192.168.1.10", 4705, None, listen_ip="127.0.0.1",
+                    timeout=5, report=reported.append,
+                    items=[(str(path), relative) for path, relative, _ in items])
+            self.assertEqual(sorted(payloads.values()), [b"aaa", b"bbbb"])
+            self.assertEqual(result["file_count"], 2)
+            self.assertEqual(result["files"], ["资料/a.txt", "资料/子/b.txt"])
+            self.assertEqual(result["size"], 7)
+            self.assertEqual(result["name"], "2 个文件")
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
+
     def test_file_transfer_command_and_bootstrap_script(self):
         command = self.core.build_transfer_command("http://192.168.1.10:54321/b/token")
         self.assertIn("cmd /c curl ", command)

@@ -44,6 +44,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Python "C:\Python3
 
 脚本根据自身路径定位项目根目录，也可从其他目录通过绝对路径调用。默认使用项目 `.venv`，并读取 [scripts/JiYuAttackNext.spec](../scripts/JiYuAttackNext.spec)。打包配置会一并收集 Fluent Widgets 的运行时资源与包元数据。
 
+每次构建都会把当前本地时间写入 `build/assets/build_time.txt` 并打包进 EXE，“关于”页的构建时间即读取该文件；源码运行时显示“源码运行”。EXE 只允许同时运行一个实例，再次启动会唤醒已有窗口。
+
 ## 输出与清理
 
 | 路径 | 内容 | 是否保留 |
@@ -51,6 +53,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Python "C:\Python3
 | `output/JiYuAttackNext.exe` | 单文件窗口程序 | 保留用于运行和分发 |
 | `build/JiYuAttackNext/` | 打包中间文件与分析结果 | 构建后可删除 |
 | `build/assets/app.ico` | 从 SVG 转换的构建图标 | 构建后可删除 |
+| `build/assets/build_time.txt` | 本次构建时间，打包进 EXE | 构建后可删除 |
 | `build/previews/` | 手动生成的界面验证截图 | 检查后可删除 |
 | `assets/app.svg` | 图标源文件 | 随源码保留 |
 | `JiYuAttackNextData/`（EXE 同级） | 运行后生成的设备备注与日志 | 需要保留配置时随 EXE 一起移动 |

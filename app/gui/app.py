@@ -1,3 +1,5 @@
+import getpass
+import hashlib
 import shutil
 import sys
 import threading
@@ -6,8 +8,10 @@ import traceback
 from pathlib import Path
 from threading import Event
 
-from PySide6.QtCore import QCoreApplication, QEvent, QLocale, QSettings, Qt, QTimer, Slot
+from PySide6.QtCore import (QCoreApplication, QEvent, QLocale, QObject, QSettings,
+                            Qt, QTimer, Signal, Slot)
 from PySide6.QtGui import QColor, QFont, QIcon
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QFileDialog, QSystemTrayIcon
 from qfluentwidgets import (Action, CaptionLabel, Dialog, FluentIcon as FIF,
                             FluentTranslator, HyperlinkButton, FluentWindow, InfoBar,
@@ -27,8 +31,84 @@ from .workers import SendWorker, TaskWorker
 
 
 APP_NAME = "JiYu Attack Next"
+SINGLE_INSTANCE_KEY = "JiYuAttackNext-single-instance"
 CATEGORIES = {"message": "文本消息", "command": "远程命令", "device": "设备操作",
               "file": "文件传送", "local": "本机信息", "firewall": "防火墙"}
+
+
+def single_instance_key():
+    """生成当前用户的单实例标识，避免多用户会话互相阻塞。"""
+    try:
+        user = getpass.getuser()
+    except Exception:
+        user = ""
+    digest = hashlib.sha1(user.encode("utf-8", "replace")).hexdigest()[:12]
+    return "%s-%s" % (SINGLE_INSTANCE_KEY, digest)
+
+
+class SingleInstance(QObject):
+    """保证同一时间只运行一个 GUI 实例；再次启动会唤醒已有窗口。"""
+
+    activationRequested = Signal()
+
+    def __init__(self, key=None, parent=None):
+        super().__init__(parent)
+        self.key = key or single_instance_key()
+        self.server = None
+        self.primary = False
+
+    def acquire(self):
+        if self.notify_existing():
+            return False
+        server = QLocalServer(self)
+        server.setSocketOptions(QLocalServer.SocketOption.UserAccessOption)
+        if not server.listen(self.key):
+            # 上次异常退出可能遗留同名服务端，清理后重试一次。
+            QLocalServer.removeServer(self.key)
+            if not server.listen(self.key):
+                return False
+        server.newConnection.connect(self._handle_connection)
+        self.server = server
+        self.primary = True
+        return True
+
+    def notify_existing(self):
+        """通知已有实例显示窗口。"""
+        socket = QLocalSocket(self)
+        socket.connectToServer(self.key)
+        if not socket.waitForConnected(500):
+            return False
+        socket.write(b"show")
+        socket.flush()
+        socket.waitForBytesWritten(500)
+        socket.disconnectFromServer()
+        return True
+
+    def _handle_connection(self):
+        while self.server is not None and self.server.hasPendingConnections():
+            connection = self.server.nextPendingConnection()
+            if connection is None:
+                break
+            connection.readyRead.connect(
+                lambda link=connection: self._read_activation(link))
+            connection.disconnected.connect(connection.deleteLater)
+            if connection.bytesAvailable():
+                self._read_activation(connection)
+        self.activationRequested.emit()
+
+    def _read_activation(self, connection):
+        try:
+            connection.readAll()
+        except RuntimeError:
+            return
+
+    def close(self):
+        if self.server is not None:
+            self.server.close()
+            QLocalServer.removeServer(self.key)
+            self.server.deleteLater()
+            self.server = None
+        self.primary = False
 
 
 def configure_application(application):
@@ -184,7 +264,9 @@ class MainWindow(FluentWindow):
         for kind in ("message", "command", "device"):
             self.pages[kind].footer.requested.connect(lambda key=kind: self.start_send(key))
         self.pages["file"].footer.requested.connect(self.start_file_transfer)
-        self.pages["file"].chooseRequested.connect(self.choose_transfer_file)
+        self.pages["file"].chooseFilesRequested.connect(self.choose_transfer_files)
+        self.pages["file"].chooseFolderRequested.connect(self.choose_transfer_folder)
+        self.pages["file"].deleteRequested.connect(self.delete_transfer_files)
         self.pages["local"].footer.requested.connect(self.start_local_probe)
         self.pages["local"].copyRequested.connect(self.copy_local_ip)
         self.pages["firewall"].footer.requested.connect(self.start_firewall)
@@ -293,28 +375,65 @@ class MainWindow(FluentWindow):
                           details or "功能：%s；校验未通过" % CATEGORIES[kind])
         self._notify("请检查参数", message, "警告")
 
-    def choose_transfer_file(self):
-        filename, _ = QFileDialog.getOpenFileName(self, "选择要传送的文件", "", "所有文件 (*)")
-        if not filename:
+    def choose_transfer_files(self):
+        filenames, _ = QFileDialog.getOpenFileNames(
+            self, "选择要传送的文件", "", "所有文件 (*)")
+        if not filenames:
             return
+        self._add_transfer_paths(filenames)
+
+    def choose_transfer_folder(self):
+        directory = QFileDialog.getExistingDirectory(self, "选择要传送的文件夹")
+        if not directory:
+            return
+        self._add_transfer_paths([directory])
+
+    def _add_transfer_paths(self, paths):
+        page = self.pages["file"]
         try:
-            size = Path(filename).stat().st_size
-        except OSError as error:
-            self.logs.error(CATEGORIES["file"], "无法读取待传送文件",
-                            "文件：%s；异常：%s" % (filename, error))
-            self._notify("无法读取文件", str(error), "错误")
+            count, size = page.add_paths(paths)
+        except (OSError, ValueError) as error:
+            self.logs.error(CATEGORIES["file"], "无法添加待传送文件",
+                            "路径：%s；异常：%s" % ("；".join(map(str, paths)), error))
+            self._notify("无法添加文件", str(error), "错误")
             return
-        self.pages["file"].set_file(filename, size)
-        self.pages["file"].footer.set_status("已选择：%s" % Path(filename).name)
-        self.logs.info(CATEGORIES["file"], "已选择文件：%s（%s）" % (filename, core.format_size(size)),
-                       "文件路径：%s；字节数：%d" % (filename, size))
+        if not count:
+            self.logs.info(CATEGORIES["file"], "所选文件已在待传送列表中",
+                           "路径：%s" % "；".join(map(str, paths)))
+            self._notify("未添加文件", "所选文件已在待传送列表中", "信息")
+            return
+        page.footer.set_status("已添加 %d 个文件（%s）" % (count, core.format_size(size)))
+        self.logs.info(CATEGORIES["file"],
+                       "已添加 %d 个待传送文件（%s）" % (count, core.format_size(size)),
+                       "路径：%s；总字节数：%d" % ("；".join(map(str, paths)), size))
+
+    def delete_transfer_files(self):
+        page = self.pages["file"]
+        selected = page.selected_entries()
+        if not selected:
+            return
+        if not self._confirm(
+                "删除待传送文件",
+                "确定从待传送列表中移除选中的 %d 项（文件或文件夹）？源文件不会被删除。"
+                % len(selected),
+                "删除"):
+            self.logs.info(CATEGORIES["file"], "用户取消了待传送文件删除",
+                           "选中项：%d" % len(selected))
+            return
+        removed = page.remove_selected()
+        self.logs.info(CATEGORIES["file"], "已从待传送列表移除 %d 个文件" % len(removed),
+                       "条目：%s" % "；".join(relative for _, relative, _ in removed))
 
     def start_file_transfer(self):
         if self.thread is not None:
             return
         page = self.pages["file"]
-        if not page.path:
+        selected = page.selected_items()
+        if not page.has_files():
             self._validation_error("file", "请先选择要传送的文件")
+            return
+        if not selected:
+            self._validation_error("file", "请勾选要传送的文件或文件夹")
             return
         target = self.connection_state.resolve_target().strip()
         try:
@@ -324,30 +443,41 @@ class MainWindow(FluentWindow):
             self._validation_error("file", str(error))
             return
         try:
-            source = core.validate_file_transfer(target, self.connection_state.values["port"], page.path)
+            entries = core.normalize_transfer_items(selected)
+            source = core.validate_file_transfer(target, self.connection_state.values["port"],
+                                                 str(entries[0][0]))
         except ValueError as error:
             self._validation_error("file", str(error))
             return
+        total_size = sum(size for _, _, size in entries)
+        if len(entries) == 1:
+            file_label = source.name
+        else:
+            file_label = "%d 个文件" % len(entries)
         if not self._confirm(
                 "确认传送文件",
                 "目标：%s\n目标数量：%d\n文件：%s\n大小：%s\n目标保存位置：当前用户桌面" % (
-                    target, len(hosts), source.name,
-                    core.format_size(source.stat().st_size))):
+                    target, len(hosts), file_label, core.format_size(total_size))):
             self.logs.info(CATEGORIES["file"], "用户取消了文件传送确认",
-                           "目标：%s；文件：%s" % (target, source))
+                           "目标：%s；文件：%s" % (target, file_label))
             return
         cancel_event = Event()
         self.active_cancel = cancel_event
         page.reset_progress()
         self.logs.info(CATEGORIES["file"], "开始传送：%s → %s（%d 个目标）" % (
-            source.name, target, len(hosts)),
-                       "文件：%s；字节数：%d；目标数：%d；端口：%d；单目标超时：120 秒" % (
-                           source, source.stat().st_size, len(hosts),
+            file_label, target, len(hosts)),
+                       "文件：%s；文件数：%d；总字节数：%d；目标数：%d；端口：%d；"
+                       "单目标超时：120 秒" % (
+                           file_label, len(entries), total_size, len(hosts),
                            self.connection_state.values["port"]))
+        self.logs.debug(CATEGORIES["file"], "待传送文件清单",
+                        "；".join("%s (%d 字节)" % (relative, size)
+                                  for _, relative, size in entries))
         self._begin_task(
             "file",
             TaskWorker(core.transfer_file, target, self.connection_state.values["port"],
-                       str(source), None, 120, cancel_event=cancel_event),
+                       str(entries[0][0]), None, 120, cancel_event=cancel_event,
+                       items=[(str(path), relative) for path, relative, _ in entries]),
             self._file_finished, self._file_failed)
 
     @Slot(object)
@@ -355,17 +485,19 @@ class MainWindow(FluentWindow):
         page = self.pages["file"]
         page.set_progress(100)
         targets = result.get("targets") or [result.get("target", "")]
+        file_count = int(result.get("file_count") or 1)
+        label = result["name"] if file_count == 1 else "%d 个文件" % file_count
         if len(targets) == 1:
             message = "文件已传送到目标桌面：%s（%s）" % (
-                result["name"], core.format_size(result["size"]))
+                label, core.format_size(result["size"]))
         else:
             message = "文件已传送到 %d 个目标桌面：%s（%s）" % (
-                len(targets), result["name"], core.format_size(result["size"]))
+                len(targets), label, core.format_size(result["size"]))
         page.footer.set_status(message)
         self.logs.info(
             CATEGORIES["file"], message,
-            "目标：%s；目标数量：%d；文件：%s；字节数：%s" % (
-                result["target"], len(targets), result["name"], result["size"]))
+            "目标：%s；目标数量：%d；文件：%s；文件数：%d；字节数：%s" % (
+                result["target"], len(targets), label, file_count, result["size"]))
         self._notify("文件传送完成", message, "成功")
 
     @Slot(str, str)
@@ -772,6 +904,9 @@ class MainWindow(FluentWindow):
         self.logs.info("应用", "应用退出",
                        "关闭行为：%s" % self.close_behavior)
         self._remove_tray()
+        instance = getattr(self, "single_instance", None)
+        if instance is not None:
+            instance.close()
         super().closeEvent(event)
 
 
@@ -792,7 +927,12 @@ def main():
     QApplication.setOrganizationName("jiyu_attack_next")
     application = QApplication(sys.argv)
     configure_application(application)
+    instance = SingleInstance(parent=application)
+    if not instance.acquire():
+        return 0
     window = MainWindow()
+    window.single_instance = instance
+    instance.activationRequested.connect(window.show_from_tray)
     install_exception_logging(window.logs)
     window.show()
     result = application.exec()
@@ -802,6 +942,7 @@ def main():
     window.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
     application.processEvents()
+    instance.close()
     return result
 
 

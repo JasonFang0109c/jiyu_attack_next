@@ -31,6 +31,11 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "图标转换失败，退出码：$LASTEXITCODE"
     }
+    $buildTimeScript = "from app.gui.build_info import write_build_time; write_build_time('build/assets/build_time.txt')"
+    & $pythonExe -X utf8 -c $buildTimeScript
+    if ($LASTEXITCODE -ne 0) {
+        throw "构建时间写入失败，退出码：$LASTEXITCODE"
+    }
 
     $buildArguments = @(
         "-m", "PyInstaller", "--noconfirm",
