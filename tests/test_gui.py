@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen")
 
-from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt, QTimer
+from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QSettings, Qt, QTimer
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QSystemTrayIcon, QWidget
 from qfluentwidgets import BodyLabel, FluentWindow, Theme, qconfig
@@ -491,6 +491,11 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(page.footer.send_button.isEnabled())
         self.assertTrue(page.delete_button.isEnabled())
         self.assertIn("3 个文件", page.count_label.text())
+        self.assertEqual(page.tree.columnCount(), 3)
+        self.assertEqual(page.tree.headerItem().text(0), "名称")
+        self.assertTrue(all(Qt.CheckState(item.data(0, Qt.CheckStateRole)) == Qt.Checked
+                            and item.icon(0).isNull()
+                            for item in page._file_items()))
 
         page.select_all_checkbox.click()
         self.assertEqual(page.selected_items(), [])
@@ -502,13 +507,79 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(len(page.selected_items()), 3)
 
         folder_item = page.tree.topLevelItem(0)
-        self.assertEqual(folder_item.text(1), "课件")
+        self.assertEqual(folder_item.text(0), "课件")
         folder_item.setCheckState(0, Qt.Unchecked)
         self.assertEqual(page.selected_items(), [(str(single.resolve()), "通知.txt")])
         self.assertEqual(page.select_all_checkbox.checkState(), Qt.PartiallyChecked)
+        self.assertIsNone(folder_item.data(0, Qt.CheckStateRole))
+        self.assertFalse(folder_item.icon(0).isNull())
         folder_item.setCheckState(0, Qt.Checked)
         self.assertEqual(len(page.selected_items()), 3)
         self.assertEqual(page.select_all_checkbox.checkState(), Qt.Checked)
+
+    def test_file_tree_toggles_icon_and_checkbox_on_hover(self):
+        page = self.window.pages["file"]
+        path = self.temp_root / "hover.txt"
+        path.write_text("hover", encoding="utf-8")
+        folder = self.temp_root / "hover-folder"
+        folder.mkdir()
+        (folder / "nested.txt").write_text("nested", encoding="utf-8")
+        page.add_paths([path, folder])
+        item = next(item for item in page._file_items()
+                    if item.data(0, Qt.UserRole)[1] == "hover.txt")
+        item.setCheckState(0, Qt.Unchecked)
+        self.assertIsNone(item.data(0, Qt.CheckStateRole))
+        self.assertFalse(item.icon(0).isNull())
+
+        folder_item = next(item for item in page._all_visible_items()
+                           if item.data(0, Qt.UserRole) == ("dir", "hover-folder"))
+        folder_item.setCheckState(0, Qt.Unchecked)
+        self.assertIsNone(folder_item.data(0, Qt.CheckStateRole))
+        self.assertFalse(folder_item.icon(0).isNull())
+
+        self.window.show_page("file")
+        self.window.show()
+        QTest.qWait(50)
+        rect = page.tree.visualItemRect(item)
+        hover_pos = QPoint(rect.x() + 32, rect.center().y())
+        QTest.mouseMove(page.tree.viewport(), hover_pos)
+        QTest.qWait(150)
+        self.assertEqual(item.checkState(0), Qt.Unchecked)
+        self.assertEqual(item.data(0, Qt.CheckStateRole), Qt.Unchecked.value)
+        self.assertTrue(item.icon(0).isNull())
+
+        checkbox_pos = QPoint(rect.x() + 32, rect.center().y())
+        QTest.mouseClick(page.tree.viewport(), Qt.LeftButton, pos=checkbox_pos)
+        QTest.qWait(150)
+        self.assertEqual(item.checkState(0), Qt.Checked)
+        QTest.mouseMove(page.tree.viewport(), page.tree.viewport().rect().bottomRight())
+        QTest.qWait(150)
+        self.assertEqual(item.data(0, Qt.CheckStateRole), Qt.Checked.value)
+        self.assertTrue(item.icon(0).isNull())
+
+        item.setCheckState(0, Qt.Unchecked)
+        QTest.mouseMove(page.tree.viewport(), page.tree.viewport().rect().bottomRight())
+        QTest.qWait(150)
+        self.assertIsNone(item.data(0, Qt.CheckStateRole))
+        self.assertFalse(item.icon(0).isNull())
+
+        folder_rect = page.tree.visualItemRect(folder_item)
+        folder_pos = QPoint(folder_rect.x() + 32, folder_rect.center().y())
+        QTest.mouseMove(page.tree.viewport(), folder_pos)
+        QTest.qWait(150)
+        self.assertEqual(folder_item.data(0, Qt.CheckStateRole), Qt.Unchecked.value)
+        self.assertTrue(folder_item.icon(0).isNull())
+        QTest.mouseMove(page.tree.viewport(), page.tree.viewport().rect().bottomRight())
+        QTest.qWait(150)
+        self.assertIsNone(folder_item.data(0, Qt.CheckStateRole))
+        self.assertFalse(folder_item.icon(0).isNull())
+
+        folder_item.setCheckState(0, Qt.Checked)
+        QTest.mouseMove(page.tree.viewport(), page.tree.viewport().rect().bottomRight())
+        QTest.qWait(150)
+        self.assertEqual(folder_item.checkState(0), Qt.Checked)
+        self.assertEqual(folder_item.data(0, Qt.CheckStateRole), Qt.Checked.value)
+        self.assertTrue(folder_item.icon(0).isNull())
 
     def test_file_page_deletes_selected_tree_items_only(self):
         page = self.window.pages["file"]
@@ -523,7 +594,7 @@ class GuiTests(unittest.TestCase):
         folder_item.setCheckState(0, Qt.Unchecked)
         for index in range(page.tree.topLevelItemCount()):
             item = page.tree.topLevelItem(index)
-            if item.text(1) == "保留.txt":
+            if item.text(0) == "保留.txt":
                 item.setCheckState(0, Qt.Checked)
         removed = page.remove_selected()
         self.assertEqual([relative for _, relative, _ in removed], ["保留.txt"])
@@ -549,7 +620,7 @@ class GuiTests(unittest.TestCase):
         folder_item = page.tree.topLevelItem(0)
         for index in range(folder_item.childCount()):
             child = folder_item.child(index)
-            child.setCheckState(0, Qt.Checked if child.text(1) == "b.txt" else Qt.Unchecked)
+            child.setCheckState(0, Qt.Checked if child.text(0) == "b.txt" else Qt.Unchecked)
         self.state.set_value("target", "模拟目标")
         captured = {}
 

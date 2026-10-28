@@ -4,7 +4,7 @@ from pathlib import Path
 
 from importlib.metadata import version
 
-from PySide6.QtCore import QSignalBlocker, QSize, Qt, QTimer, Signal, Slot
+from PySide6.QtCore import QEvent, QSignalBlocker, QSize, Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QHeaderView,
                                QHBoxLayout, QLabel, QSizePolicy, QTableWidgetItem,
@@ -70,6 +70,36 @@ class FileTreeHeader(SelectAllHeaderView):
         x = self.sectionViewportPosition(0) + offset + 23
         y = (self.height() - self.CHECKBOX_SIZE) // 2
         self.select_all_checkbox.move(x, y)
+
+
+class FileTreeWidget(TreeWidget):
+    """报告鼠标当前悬停的名称列条目，供图标与复选框切换显示。"""
+
+    hoverItemChanged = Signal(object)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._hover_item = None
+        self.setMouseTracking(True)
+        self.viewport().setMouseTracking(True)
+
+    def viewportEvent(self, event):
+        if event.type() == QEvent.Type.MouseMove:
+            position = event.position().toPoint()
+            item = self.itemAt(position) if self.columnAt(position.x()) == 0 else None
+            self._set_hover_item(item)
+        elif event.type() == QEvent.Type.Leave:
+            self._set_hover_item(None)
+        return super().viewportEvent(event)
+
+    def _set_hover_item(self, item):
+        if item is self._hover_item:
+            return
+        self._hover_item = item
+        self.hoverItemChanged.emit(item)
+
+    def reset_hover_item(self):
+        self._hover_item = None
 
 
 class LogTableWidget(TableWidget):
@@ -319,9 +349,9 @@ class FilePage(Page):
         self.empty_label.setWordWrap(True)
         self.content_card.body.addWidget(self.empty_label)
 
-        self.tree = TreeWidget(self.content_card)
+        self.tree = FileTreeWidget(self.content_card)
         self.tree.setObjectName("transferFileTree")
-        self.tree.setColumnCount(4)
+        self.tree.setColumnCount(3)
         # 先设置边框与圆角，再安装带复选框的自定义表头；顺序颠倒时
         # Fluent 样式刷新会访问未完成布局的表头子控件。
         self.tree.setBorderVisible(True)
@@ -330,7 +360,7 @@ class FilePage(Page):
             Qt.Horizontal, self.tree, tooltip="全选待传送文件",
             accessible_name="全选待传送文件")
         self.tree.setHeader(header)
-        self.tree.setHeaderLabels(["", "名称", "大小", "路径"])
+        self.tree.setHeaderLabels(["名称", "大小", "路径"])
         self.tree.setUniformRowHeights(True)
         self.tree.setIndentation(18)
         self.tree.setIconSize(QSize(16, 16))
@@ -342,13 +372,12 @@ class FilePage(Page):
         # 未选表示清空选择，其余情况（含部分选中）都视为全选。
         self.select_all_checkbox.clicked.connect(self._header_check_state_changed)
         header.setStretchLastSection(False)
-        header.setSectionResizeMode(0, QHeaderView.Fixed)
-        header.setSectionResizeMode(1, QHeaderView.Stretch)
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.Fixed)
         header.setSectionResizeMode(2, QHeaderView.Fixed)
-        header.setSectionResizeMode(3, QHeaderView.Fixed)
-        self.tree.setColumnWidth(0, 42)
-        self.tree.setColumnWidth(2, 110)
-        self.tree.setColumnWidth(3, 220)
+        self.tree.setColumnWidth(1, 110)
+        self.tree.setColumnWidth(2, 220)
+        self.tree.hoverItemChanged.connect(self._hover_item_changed)
         self.tree.itemChanged.connect(self._item_changed)
         self.tree.itemClicked.connect(self._item_clicked)
         self.tree.itemExpanded.connect(lambda item: self._sync_ancestors(item))
@@ -485,6 +514,8 @@ class FilePage(Page):
         self._syncing = True
         self.tree.blockSignals(True)
         try:
+            self._hovered_item = None
+            self.tree.reset_hover_item()
             self.tree.clear()
             folders = {}
             for path, relative, size in self.items:
@@ -494,25 +525,26 @@ class FilePage(Page):
                     key = "/".join(parts[:depth + 1])
                     folder = folders.get(key)
                     if folder is None:
-                        folder = QTreeWidgetItem(parent, ["", name, "", key])
-                        folder.setIcon(1, FIF.FOLDER.icon())
+                        folder = QTreeWidgetItem(parent, [name, "", key])
+                        self._set_item_icon(folder, FIF.FOLDER.icon())
                         folder.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable
                                         | Qt.ItemIsUserCheckable)
                         folder.setData(0, Qt.UserRole, ("dir", key))
-                        folder.setToolTip(1, "全选文件夹：%s" % key)
-                        folder.setCheckState(0, Qt.Unchecked)
+                        folder.setToolTip(0, "全选文件夹：%s" % key)
+                        self._set_item_state_role(folder, Qt.Unchecked, hovered=False)
                         folders[key] = folder
                     parent = folder
                 file_item = QTreeWidgetItem(
-                    parent, ["", parts[-1], core.format_size(size), relative])
-                file_item.setIcon(1, FIF.DOCUMENT.icon())
+                    parent, [parts[-1], core.format_size(size), relative])
+                self._set_item_icon(file_item, FIF.DOCUMENT.icon())
                 file_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable
                                    | Qt.ItemIsUserCheckable)
                 file_item.setData(0, Qt.UserRole, ("file", relative))
                 file_item.setData(0, Qt.UserRole + 1, (path, relative, size))
-                file_item.setToolTip(1, str(path))
+                file_item.setToolTip(0, str(path))
                 checked = True if states is None else states.get(relative.casefold(), True)
-                file_item.setCheckState(0, Qt.Checked if checked else Qt.Unchecked)
+                self._set_item_state_role(
+                    file_item, Qt.Checked if checked else Qt.Unchecked, hovered=False)
             # 树形展示按“文件夹在前、同类型按名称”排序，更接近资源管理器。
             self._sort_item(self.tree.invisibleRootItem())
             # 先同步最深层文件夹，再向上汇总，避免父文件夹状态过期。
@@ -538,7 +570,7 @@ class FilePage(Page):
         children = [parent.takeChild(0) for _ in range(parent.childCount())]
         children.sort(key=lambda item: (
             0 if item.data(0, Qt.UserRole)[0] == "dir" else 1,
-            item.text(1).casefold()))
+            item.text(0).casefold()))
         parent.addChildren(children)
         for child in children:
             if child.childCount():
@@ -555,17 +587,44 @@ class FilePage(Page):
             state = Qt.Unchecked
         else:
             state = Qt.PartiallyChecked
-        folder.setCheckState(0, state)
+        self._set_item_state_role(folder, state)
         return state
 
     def _set_item_state(self, item, state):
-        item.setCheckState(0, state)
+        self._set_item_state_role(item, state)
         for index in range(item.childCount()):
             child = item.child(index)
             if child.childCount():
                 self._set_item_state(child, state)
             else:
-                child.setCheckState(0, state)
+                self._set_item_state_role(child, state)
+
+    def _set_item_icon(self, item, icon):
+        item.setData(0, Qt.UserRole + 2, icon)
+        item.setIcon(0, icon)
+
+    def _set_item_state_role(self, item, state, hovered=None):
+        if hovered is None:
+            hovered = item is getattr(self, "_hovered_item", None)
+        show_checkbox = hovered or state != Qt.Unchecked
+        was_blocked = self.tree.blockSignals(True)
+        try:
+            if show_checkbox:
+                item.setCheckState(0, state)
+                item.setIcon(0, QIcon())
+            else:
+                item.setData(0, Qt.CheckStateRole, None)
+                item.setIcon(0, item.data(0, Qt.UserRole + 2) or QIcon())
+        finally:
+            self.tree.blockSignals(was_blocked)
+
+    def _hover_item_changed(self, item):
+        previous = getattr(self, "_hovered_item", None)
+        if previous is not None:
+            self._set_item_state_role(previous, previous.checkState(0), hovered=False)
+        self._hovered_item = item
+        if item is not None:
+            self._set_item_state_role(item, item.checkState(0), hovered=True)
 
     def _sync_ancestors(self, item):
         parent = item.parent()
@@ -592,6 +651,7 @@ class FilePage(Page):
             finally:
                 self.tree.blockSignals(False)
                 self._syncing = False
+        self._set_item_state_role(item, item.checkState(0))
         self._sync_ancestors(item)
         self._update_selection_controls()
 
