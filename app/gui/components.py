@@ -1,6 +1,6 @@
 """Fluent 界面共用的连接参数、页面标题与任务栏。"""
 
-from PySide6.QtCore import QRegularExpression, QSignalBlocker, Qt, Signal, Slot
+from PySide6.QtCore import QRegularExpression, QSignalBlocker, QSize, Qt, Signal, Slot
 from PySide6.QtGui import QIntValidator, QRegularExpressionValidator
 from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import (BodyLabel, CaptionLabel, ComboBox, Dialog, DoubleSpinBox,
@@ -18,6 +18,20 @@ def tool_button(icon, text, parent, callback):
     button.setFixedSize(34, 34)
     button.installEventFilter(ToolTipFilter(button, showDelay=300, position=ToolTipPosition.TOP))
     button.clicked.connect(lambda checked=False: callback())
+    return button
+
+
+def info_button(text, parent):
+    """创建带 Fluent 悬停提示的信息图标按钮。"""
+    button = ToolButton(FluentIcon.INFO, parent)
+    button.setObjectName("pageInfoButton")
+    button.setAccessibleName("查看说明")
+    button.setAccessibleDescription(text)
+    button.setToolTip(text)
+    button.setFixedSize(28, 28)
+    button.setIconSize(QSize(16, 16))
+    button.installEventFilter(ToolTipFilter(button, showDelay=300,
+                                            position=ToolTipPosition.TOP))
     return button
 
 

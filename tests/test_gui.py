@@ -15,9 +15,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "windows" if sys.platform == "win32" el
 from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QSettings, Qt, QTimer
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QSystemTrayIcon, QWidget
-from qfluentwidgets import BodyLabel, FluentWindow, Theme, qconfig
+from qfluentwidgets import BodyLabel, FluentWindow, Theme, ToolTip, qconfig
 
-from app.gui import app as gui
+from app.gui import app as gui, pages as gui_pages
 from app.gui import components, models
 
 
@@ -149,6 +149,10 @@ class GuiTests(unittest.TestCase):
 
     def test_device_alias_can_be_added_edited_used_and_removed(self):
         page = self.window.pages["aliases"]
+        self.assertEqual(page.info_button.toolTip(),
+                         "备注名可直接用作目标；支持 IPv4、末段范围和 /24，"
+                         "修改后同步引用。")
+        self.assertEqual(page.info_button.size().width(), 28)
         page.name_input.setText("教室 A")
         for edit, text in zip(page.address_input.segments, ("192", "168", "1", "10")):
             edit.setText(text)
@@ -492,7 +496,20 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(page.delete_button.isEnabled())
         self.assertIn("3 个文件", page.count_label.text())
         self.assertEqual(page.tree.columnCount(), 3)
+        self.assertEqual(gui_pages.FileTreeHeader.CHECKBOX_SIZE, 16)
+        self.assertEqual(gui_pages.CompactHeaderCheckBox.INDICATOR_SIZE, 16)
+        self.assertEqual(gui_pages.CompactTreeItemDelegate.CHECKBOX_SIZE, 16)
         self.assertEqual(page.tree.headerItem().text(0), "名称")
+        self.assertEqual(page.select_all_checkbox.size().width(), 16)
+        self.assertEqual(page.select_all_checkbox.size().height(), 16)
+        self.assertEqual(page.select_all_checkbox.objectName(),
+                         "fileTreeSelectAllCheckbox")
+        self.assertIs(page.info_button.parent(), page)
+        self.assertEqual(page.info_button.toolTip(),
+                         "勾选项发送到目标桌面并保留文件夹结构；"
+                         "目标需支持远程命令和 curl。")
+        self.assertEqual(page.info_button.size().width(), 28)
+        self.assertEqual(page.info_button.size().height(), 28)
         self.assertTrue(all(Qt.CheckState(item.data(0, Qt.CheckStateRole)) == Qt.Checked
                             and item.icon(0).isNull()
                             for item in page._file_items()))
@@ -517,6 +534,18 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(len(page.selected_items()), 3)
         self.assertEqual(page.select_all_checkbox.checkState(), Qt.Checked)
 
+    def test_page_info_buttons_show_fluent_tooltip_on_hover(self):
+        for key in ("file", "aliases"):
+            self.window.show_page(key)
+            self.window.show()
+            QTest.qWait(80)
+            button = self.window.pages[key].info_button
+            QTest.mouseMove(button, button.rect().center())
+            QTest.qWait(400)
+            visible_tips = [widget for widget in QApplication.topLevelWidgets()
+                            if isinstance(widget, ToolTip) and widget.isVisible()]
+            self.assertTrue(any(tip.text() == button.toolTip() for tip in visible_tips), key)
+
     def test_file_tree_toggles_icon_and_checkbox_on_hover(self):
         page = self.window.pages["file"]
         path = self.temp_root / "hover.txt"
@@ -539,7 +568,7 @@ class GuiTests(unittest.TestCase):
 
         self.window.show_page("file")
         self.window.show()
-        QTest.qWait(50)
+        QTest.qWait(200)
         rect = page.tree.visualItemRect(item)
         hover_pos = QPoint(rect.x() + 32, rect.center().y())
         QTest.mouseMove(page.tree.viewport(), hover_pos)

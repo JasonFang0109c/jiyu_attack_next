@@ -4,8 +4,8 @@ from pathlib import Path
 
 from importlib.metadata import version
 
-from PySide6.QtCore import QEvent, QSignalBlocker, QSize, Qt, QTimer, Signal, Slot
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtCore import QEvent, QSignalBlocker, QRectF, QSize, Qt, QTimer, Signal, Slot
+from PySide6.QtGui import QFont, QIcon, QPainter
 from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QHeaderView,
                                QHBoxLayout, QLabel, QSizePolicy, QTableWidgetItem,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
@@ -13,12 +13,13 @@ from qfluentwidgets import (BodyLabel, CaptionLabel, CheckBox, ComboBox, Dialog,
                             FluentIcon as FIF, HyperlinkButton, LineEdit, PlainTextEdit,
                             PrimaryPushButton, ProgressBar, PushButton, RadioButton,
                             SearchLineEdit, StrongBodyLabel, SwitchButton, TableWidget,
-                            Theme, TitleLabel, TreeWidget, qconfig, setFont)
+                            Theme, TitleLabel, TreeItemDelegate, TreeWidget, qconfig, setFont)
+from qfluentwidgets.components.widgets.check_box import CheckBoxIcon
 from cli import main as core
 from .build_info import build_time_text
 from .models import LOG_LEVELS, normalize_log_level
 from .components import (Ipv4TargetInput, SectionCard, TargetControls, TaskFooter,
-                          page_heading, tool_button)
+                         info_button, page_heading, tool_button)
 
 
 class SelectAllHeaderView(QHeaderView):
@@ -29,11 +30,14 @@ class SelectAllHeaderView(QHeaderView):
     def __init__(self, orientation, parent=None,
                  tooltip="全选当前筛选结果", accessible_name="全选当前筛选结果"):
         super().__init__(orientation, parent)
-        self.select_all_checkbox = CheckBox(self.viewport())
+        self.select_all_checkbox = self._create_select_all_checkbox(self.viewport())
         self.select_all_checkbox.setAccessibleName(accessible_name)
         self.select_all_checkbox.setToolTip(tooltip)
         self.select_all_checkbox.setFixedSize(self.CHECKBOX_SIZE, self.CHECKBOX_SIZE)
         self.select_all_checkbox.raise_()
+
+    def _create_select_all_checkbox(self, parent):
+        return CheckBox(parent)
 
     def position_checkbox(self):
         if not self.isVisible():
@@ -58,6 +62,18 @@ LogHeaderView = SelectAllHeaderView
 class FileTreeHeader(SelectAllHeaderView):
     """文件树表头：全选复选框与首列行复选框对齐。"""
 
+    CHECKBOX_SIZE = 16
+
+    def _create_select_all_checkbox(self, parent):
+        checkbox = CompactHeaderCheckBox(parent)
+        checkbox.setObjectName("fileTreeSelectAllCheckbox")
+        checkbox.setStyleSheet(
+            checkbox.styleSheet()
+            + "\nCheckBox#fileTreeSelectAllCheckbox {"
+              " min-width: 16px; min-height: 16px; padding: 0; margin: 0; }"
+        )
+        return checkbox
+
     def position_checkbox(self):
         if not self.isVisible():
             return
@@ -67,9 +83,49 @@ class FileTreeHeader(SelectAllHeaderView):
             rect = tree.visualItemRect(tree.topLevelItem(0))
             if rect.isValid():
                 offset = rect.x()
-        x = self.sectionViewportPosition(0) + offset + 23
+        x = self.sectionViewportPosition(0) + offset + 24
         y = (self.height() - self.CHECKBOX_SIZE) // 2
         self.select_all_checkbox.move(x, y)
+
+
+class CompactHeaderCheckBox(CheckBox):
+    """以与文件行相同的 16px Fluent 样式绘制表头全选框。"""
+
+    INDICATOR_SIZE = 16
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        size = self.INDICATOR_SIZE
+        rect = QRectF((self.width() - size) / 2, (self.height() - size) / 2,
+                      size, size)
+        painter.setPen(self._borderColor())
+        painter.setBrush(self._backgroundColor())
+        radius = 4.5 * size / 19
+        painter.drawRoundedRect(rect, radius, radius)
+        if not self.isEnabled():
+            painter.setOpacity(0.8)
+        if self.checkState() == Qt.Checked:
+            CheckBoxIcon.ACCEPT.render(painter, rect)
+        elif self.checkState() == Qt.PartiallyChecked:
+            CheckBoxIcon.PARTIAL_ACCEPT.render(painter, rect)
+
+class CompactTreeItemDelegate(TreeItemDelegate):
+    """复用 Fluent 树委托的状态样式，只将选择框略微缩小。"""
+
+    CHECKBOX_SIZE = 16
+    DEFAULT_CHECKBOX_SIZE = 19
+
+    def _drawCheckBox(self, painter, option, index):
+        scale = self.CHECKBOX_SIZE / self.DEFAULT_CHECKBOX_SIZE
+        center_x = option.rect.x() + 23 + self.DEFAULT_CHECKBOX_SIZE / 2
+        center_y = option.rect.center().y() + 0.5
+        painter.save()
+        painter.translate(center_x, center_y)
+        painter.scale(scale, scale)
+        painter.translate(-center_x, -center_y)
+        super()._drawCheckBox(painter, option, index)
+        painter.restore()
 
 
 class FileTreeWidget(TreeWidget):
@@ -318,7 +374,11 @@ class FilePage(Page):
         self.items = []
         self._syncing = False
         self._busy = False
-        page_heading(self.vbox, "文件传送")
+        self.info_button = info_button(
+            "勾选项发送到目标桌面并保留文件夹结构；"
+            "目标需支持远程命令和 curl。",
+            self)
+        page_heading(self.vbox, "文件传送", self.info_button)
         self.target_card = SectionCard(self)
         self.targets = TargetControls(state, self.target_card, show_round_options=False)
         self.target_card.body.addWidget(self.targets)
@@ -360,6 +420,7 @@ class FilePage(Page):
             Qt.Horizontal, self.tree, tooltip="全选待传送文件",
             accessible_name="全选待传送文件")
         self.tree.setHeader(header)
+        self.tree.setItemDelegate(CompactTreeItemDelegate(self.tree))
         self.tree.setHeaderLabels(["名称", "大小", "路径"])
         self.tree.setUniformRowHeights(True)
         self.tree.setIndentation(18)
@@ -397,13 +458,6 @@ class FilePage(Page):
         self.progress_text.hide()
         self.content_card.body.addWidget(self.progress_text)
 
-        hint = CaptionLabel(
-            "勾选的文件或文件夹会被传送到目标桌面，文件夹保持原有目录结构。"
-            "目标地址支持单个 IPv4、末段范围或 /24 网段，将按目标逐个传送。"
-            "传送期间请保持本页任务运行；目标需允许执行远程命令，并由系统 cmd 下载文件。",
-            self.content_card)
-        hint.setWordWrap(True)
-        self.content_card.body.addWidget(hint)
         self.vbox.addWidget(self.content_card, 1)
 
         self.footer_card = SectionCard(self, spacing=0, margins=(8, 8, 8, 8))
@@ -725,13 +779,18 @@ class AliasPage(Page):
         self.store = state.aliases
         self._editing_name = None
         self.count_label = CaptionLabel("0 条备注", self)
-        page_heading(self.vbox, "设备备注", self.count_label)
-        hint = CaptionLabel(
-            "先为 IPv4 添加备注名，再在任意远程操作的目标地址中直接填写备注名。"
-            "修改备注后，已引用的目标会自动同步。", self)
-        hint.setWordWrap(True)
+        heading_actions = QWidget(self)
+        heading_actions_layout = QHBoxLayout(heading_actions)
+        heading_actions_layout.setContentsMargins(0, 0, 0, 0)
+        heading_actions_layout.setSpacing(8)
+        heading_actions_layout.addWidget(self.count_label)
+        self.info_button = info_button(
+            "备注名可直接用作目标；支持 IPv4、末段范围和 /24，"
+            "修改后同步引用。",
+            heading_actions)
+        heading_actions_layout.addWidget(self.info_button)
+        page_heading(self.vbox, "设备备注", heading_actions)
         form_card = SectionCard(self, spacing=14)
-        form_card.body.addWidget(hint)
         form = QHBoxLayout()
         form.setSpacing(12)
         name_column = QVBoxLayout()
