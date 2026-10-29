@@ -70,7 +70,8 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 
 
 工作流文件为 `.github/workflows/nightly-build.yml`，名称为 `Nightly Build`：
 
-- 推送到 `main` 时自动运行；也可在 Actions 页面选择该工作流并点击 `Run workflow` 手动运行，手动运行需选择 `main` 分支才会发布。
+- 推送到 `main` 时按改动路径决定是否运行：只有 `app/`、`cli/`、`scripts/`、`assets/`、`requirements.txt` 或工作流文件本身发生变化才会触发，纯文档与测试改动不会重新编译 EXE。
+- 也可在 Actions 页面选择该工作流并点击 `Run workflow` 手动运行，手动运行需选择 `main` 分支才会发布；手动运行不受路径过滤限制。
 - 工作流文件首次进入默认分支后，Actions 页面才会显示手动运行入口。
 - 在 `windows-latest` 上使用 Python 3.13 安装依赖、执行离线测试并运行 `scripts/build.ps1 -Clean`。
 - 构建成功后更新标签为 `nightly`、标题为 `Nightly Build` 的预发布版本，资产包括 GUI 版 `JiYuAttackNext.exe` 和 CLI 版 `JiYuAttackNext-cli.py`。

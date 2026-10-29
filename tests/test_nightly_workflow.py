@@ -18,6 +18,21 @@ class NightlyWorkflowTests(unittest.TestCase):
         self.assertIn("- main", self.workflow)
         self.assertIn("workflow_dispatch:", self.workflow)
 
+    def test_workflow_skips_docs_only_changes(self):
+        self.assertIn("paths:", self.workflow)
+        for pattern in (
+            '"app/**"',
+            '"cli/**"',
+            '"scripts/**"',
+            '"assets/**"',
+            '"requirements.txt"',
+            '".github/workflows/nightly-build.yml"',
+        ):
+            self.assertIn(pattern, self.workflow)
+        self.assertNotIn('"docs/**"', self.workflow)
+        self.assertNotIn('"tests/**"', self.workflow)
+        self.assertNotIn('"**/*.md"', self.workflow)
+
     def test_workflow_builds_and_uploads_release_assets(self):
         self.assertIn("runs-on: windows-latest", self.workflow)
         self.assertIn("scripts\\build.ps1 -Clean", self.workflow)

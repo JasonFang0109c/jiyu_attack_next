@@ -90,7 +90,7 @@
 - EXE：前往 [Nightly Build](https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly) 下载 `JiYuAttackNext.exe`
 - 脚本：下载 [JiYuAttackNext-cli.py](https://github.com/JasonFang0109c/jiyu_attack_next/releases/download/nightly/JiYuAttackNext-cli.py)
 
-推送到 `main` 后会自动构建并更新 `nightly` 预发布版本。EXE 无需安装 Python 即可运行。
+推送到 `main` 且改动涉及 `app/`、`cli/`、`scripts/`、`assets/`、依赖清单或工作流文件时，会自动构建并更新 `nightly` 预发布版本；纯文档改动不触发构建。EXE 无需安装 Python 即可运行。
 
 ## 文档
 

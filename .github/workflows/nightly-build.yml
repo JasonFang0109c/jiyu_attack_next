@@ -1,10 +1,18 @@
 name: Nightly Build
 
-# 推送到 main 自动触发；也可在 Actions 页面手动运行。
+# 推送到 main 时，仅当改动会影响 EXE 或 CLI 产物才触发；
+# 纯文档、测试等改动不重新编译。也可在 Actions 页面手动运行。
 on:
   push:
     branches:
       - main
+    paths:
+      - "app/**"
+      - "cli/**"
+      - "scripts/**"
+      - "assets/**"
+      - "requirements.txt"
+      - ".github/workflows/nightly-build.yml"
   workflow_dispatch:
 
 permissions:

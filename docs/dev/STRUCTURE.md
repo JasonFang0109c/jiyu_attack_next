@@ -64,7 +64,7 @@ jiyu_attack_next/
 - `app/gui/components.py` 提供跨页面同步的连接参数和统一任务栏。
 - `app/gui/models.py` 保存连接状态、持久化设备备注，并提供带等级、线程、输出位置和异常详情的结构化日志存储。
 - `app/gui/workers.py` 执行后台发送和本机工具任务，通过信号更新界面。
-- `.github/workflows/nightly-build.yml` 负责在推送到 `main` 后构建 EXE，并更新 `nightly` 预发布版本。
+- `.github/workflows/nightly-build.yml` 在推送到 `main` 且改动涉及 `app/`、`cli/`、`scripts/`、`assets/`、依赖清单或工作流文件时构建 EXE，并更新 `nightly` 预发布版本；纯文档改动不触发。
 - `scripts/` 统一存放启动脚本及 EXE 构建配置，自动按脚本位置定位项目根目录。
 - `tests/` 使用模拟套接字验证行为，不执行真实目标发送或防火墙变更。
 
