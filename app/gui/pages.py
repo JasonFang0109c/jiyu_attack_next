@@ -1425,6 +1425,10 @@ class AboutInfoCard(SectionCard):
 class AboutDetailCard(SectionCard):
     """关于页中带标题的多行信息卡片，行样式与组件信息一致。"""
 
+    # 行高统一：超链接按钮本身高 26，纯文本标签只有 12，
+    # 若不固定高度，两者共用的 8px 间距会显得疏密不一。
+    ROW_HEIGHT = 26
+
     def __init__(self, heading, parent=None):
         super().__init__(parent, spacing=8, margins=(18, 12, 18, 12))
         self.setObjectName("aboutDetailCard")
@@ -1436,13 +1440,18 @@ class AboutDetailCard(SectionCard):
         """追加一行“名称 + 值”，值可以是纯文本或超链接。"""
         row = QHBoxLayout()
         row.setSpacing(16)
-        row.addWidget(CaptionLabel(label, self))
+        name = CaptionLabel(label, self)
+        name.setFixedHeight(self.ROW_HEIGHT)
+        name.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        row.addWidget(name)
         row.addStretch()
         if url is None:
             detail = CaptionLabel(value, self)
             detail.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            detail.setFixedHeight(self.ROW_HEIGHT)
         else:
             detail = HyperlinkButton(url, value, self, icon=icon)
+            detail.setFixedHeight(self.ROW_HEIGHT)
             detail.setMaximumWidth(detail.sizeHint().width())
         if tooltip:
             detail.setToolTip(tooltip)
@@ -1478,9 +1487,13 @@ class AboutPage(Page):
         title = TitleLabel("JiYu Attack Next", hero)
         title.setAlignment(Qt.AlignCenter)
         hero_body.addWidget(title)
-        subtitle = BodyLabel("极域学生端 UDP 控制报文测试工具", hero)
-        subtitle.setAlignment(Qt.AlignCenter)
-        hero_body.addWidget(subtitle)
+        # 与 README 首页说明保持一致。
+        for line in ("极域学生端 UDP 控制报文测试工具，提供图形界面与独立脚本两种形态",
+                     "基于 PySide6-Fluent-Widgets 构建，支持打包为 Windows 单文件 EXE",
+                     "仅供已获授权的教学环境测试使用"):
+            subtitle = BodyLabel(line, hero)
+            subtitle.setAlignment(Qt.AlignCenter)
+            hero_body.addWidget(subtitle)
         content.addWidget(hero)
 
         self.author_card = AboutInfoCard(

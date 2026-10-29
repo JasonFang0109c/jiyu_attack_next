@@ -150,6 +150,34 @@ class GuiTests(unittest.TestCase):
         self.assertNotIn("组件版本", [
             label.text() for label in about.findChildren(BodyLabel)])
 
+    def test_about_detail_rows_share_uniform_height(self):
+        about = self.window.pages["about"]
+        self.window.show()
+        self.application.processEvents()
+        cards = (about.repository_card, about.version_card, about.component_card)
+        for card in cards:
+            heights = {widget.height() for widget in card.rows.values()}
+            self.assertEqual(heights, {gui_pages.AboutDetailCard.ROW_HEIGHT}, card.heading.text())
+            offsets = [widget.y() for widget in card.rows.values()]
+            self.assertEqual(offsets, sorted(offsets))
+        # 行高一致后，三张卡片的总高度也应一致。
+        self.assertEqual(len({card.height() for card in cards}), 1)
+        self.assertGreater(about.version_card.height(), 0)
+
+    def test_about_hero_subtitle_matches_readme(self):
+        about = self.window.pages["about"]
+        hero = about.findChild(QWidget, "aboutHero")
+        texts = [label.text() for label in hero.findChildren(BodyLabel)]
+        for line in (
+            "极域学生端 UDP 控制报文测试工具，提供图形界面与独立脚本两种形态",
+            "基于 PySide6-Fluent-Widgets 构建，支持打包为 Windows 单文件 EXE",
+            "仅供已获授权的教学环境测试使用",
+        ):
+            self.assertIn(line, texts)
+        readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+        for line in texts:
+            self.assertIn(line, readme)
+
     def test_about_page_merges_repository_links_into_one_card(self):
         about = self.window.pages["about"]
         self.assertEqual(about.repository_card.heading.text(), "仓库信息")
