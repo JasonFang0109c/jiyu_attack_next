@@ -1,4 +1,14 @@
-# EXE 构建说明
+<div align="center">
+<h1>EXE 构建说明</h1>
+<p>
+   <img alt="Python 3.13" src="https://img.shields.io/badge/Python-3.13-blue.svg?logo=python&logoColor=white">
+   <img alt="PyInstaller" src="https://img.shields.io/badge/打包-PyInstaller-yellow.svg">
+   <img alt="Platform" src="https://img.shields.io/badge/平台-Windows-0078D4.svg?logo=windows&logoColor=white">
+</p>
+<p><a href="../../README.md">返回项目首页</a> 丨 <a href="STRUCTURE.md">项目结构</a> 丨 <a href="CONTRIBUTING.md">开发与提交规范</a></p>
+</div>
+
+---
 
 以下命令均以项目根目录为工作目录。构建脚本位于 `scripts/`，使用 PyInstaller 生成 Windows 单文件图形程序。
 
@@ -10,7 +20,7 @@ py -3.13 -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-已有虚拟环境时无需重新创建，GUI 和打包依赖的版本以根目录 [requirements.txt](../requirements.txt) 为准。若虚拟环境早于 Fluent 组件库引入，重新执行一次安装命令即可。
+已有虚拟环境时无需重新创建，GUI 和打包依赖的版本以根目录 [requirements.txt](../../requirements.txt) 为准。若虚拟环境早于 Fluent 组件库引入，重新执行一次安装命令即可。
 
 ## 源码运行
 
@@ -32,7 +42,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Python "C:\Python3
 
 - 无参数时增量构建，`-Clean` 清理 PyInstaller 缓存后重建，`-Python` 指定其他解释器。
 - 脚本根据自身路径定位项目根目录，也可从其他目录通过绝对路径调用，默认使用项目虚拟环境。
-- 读取 [scripts/JiYuAttackNext.spec](../scripts/JiYuAttackNext.spec)，并收集 Fluent Widgets 的运行时资源与包元数据。
+- 读取 [scripts/JiYuAttackNext.spec](../../scripts/JiYuAttackNext.spec)，并收集 Fluent Widgets 的运行时资源与包元数据。
 - 每次构建都把当前本地时间打包进 EXE，“关于”页据此显示构建时间；源码运行时显示“源码运行”。
 
 ## 输出与生成内容

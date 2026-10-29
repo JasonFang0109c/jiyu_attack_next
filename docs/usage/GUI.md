@@ -1,4 +1,35 @@
-# GUI 使用说明
+<div align="center">
+<h1>GUI 使用说明</h1>
+<p>
+   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly"><img alt="Nightly Build" src="https://img.shields.io/badge/Nightly-Build-blue?style=for-the-badge&logo=githubactions&labelColor=212121"></a>
+   <img alt="PySide6" src="https://img.shields.io/badge/GUI-PySide6-41CD52?style=for-the-badge&logo=qt&logoColor=white&labelColor=212121">
+   <img alt="Platform" src="https://img.shields.io/badge/平台-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white&labelColor=212121">
+</p>
+<p><a href="../../README.md">← 返回项目首页</a> 丨 <a href="CLI.md">CLI 版使用说明</a></p>
+</div>
+
+---
+
+## 快速开始
+
+<div align="center">
+<table width="100%" style="border: none;">
+  <tr>
+    <td width="33%" valign="top">
+      <h3>📥 获取程序</h3>
+      <p>下载 <code>JiYuAttackNext.exe</code>，或从源码运行 <code>python -m app.gui</code>。</p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>🎯 填写目标</h3>
+      <p>按四段填写 IPv4，支持末段范围与 <code>/24</code> 网段。</p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>🚀 发送任务</h3>
+      <p>选择功能页，确认目标后发送，进度显示在页面与运行日志中。</p>
+    </td>
+  </tr>
+</table>
+</div>
 
 ## 运行 Python 版本
 
@@ -12,7 +43,12 @@ python -m app.gui
 
 也可执行 `powershell -ExecutionPolicy Bypass -File .\scripts\run_gui.ps1`，由启动脚本自动使用项目虚拟环境。
 
-界面使用 [PySide6-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets/tree/PySide6) 构建，采用 Fluent 侧边导航和统一圆角分区卡片。该组件库采用 GPLv3 与商业许可双授权，个人或非商业使用遵循项目随附许可条款，商业分发前请核对上游仓库的授权要求。
+界面使用 [PySide6-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets/tree/PySide6) 构建，采用 Fluent 侧边导航和统一圆角分区卡片。
+
+> **许可提示**
+> 该组件库采用 GPLv3 与商业许可双授权。个人或非商业使用遵循项目随附许可条款，商业分发前请核对上游仓库的授权要求。
+
+## 功能页面
 
 | 页面 | 主要用途 |
 | --- | --- |
@@ -27,7 +63,11 @@ python -m app.gui
 | 设置 | 切换主题、设置关闭时最小化到托盘与本次运行日志等级，确认后清除本地数据 |
 | 关于 | 查看作者、GitHub 仓库、上游仓库、构建时间和组件版本 |
 
-目标地址按 IPv4 四段分开填写，段间自动以 `.` 连接；前三段分别填写 0–255，最后一段支持单个末段、末段范围（如 `1-10`）和 `/24` 网段（如 `0/24`）。在四个地址输入框中按回车会依次跳到下一段，在最后一段按回车会进入端口输入框。目标地址和 UDP 端口在文本消息、远程命令、设备操作与文件传送之间同步；发送轮数和轮次间隔仅在前三个远程页面之间同步。消息、命令及设备选择分别保留，切换页面不会清空草稿。窗口较窄时侧边栏会收窄为图标，窗口最小尺寸为 960 × 640。
+## 目标地址
+
+目标地址按 IPv4 四段分开填写，段间自动以 `.` 连接；前三段分别填写 0–255，最后一段支持单个末段、末段范围（如 `1-10`）和 `/24` 网段（如 `0/24`）。在四个地址输入框中按回车会依次跳到下一段，在最后一段按回车会进入端口输入框。
+
+目标地址和 UDP 端口在文本消息、远程命令、设备操作与文件传送之间同步；发送轮数和轮次间隔仅在前三个远程页面之间同步。消息、命令及设备选择分别保留，切换页面不会清空草稿。窗口较窄时侧边栏会收窄为图标，窗口最小尺寸为 960 × 640。
 
 ## 文件传送
 

@@ -1,4 +1,13 @@
-# 项目结构
+<div align="center">
+<h1>项目结构</h1>
+<p>
+   <img alt="Python 3.13" src="https://img.shields.io/badge/Python-3.13-3776AB?style=for-the-badge&logo=python&logoColor=white&labelColor=212121">
+   <img alt="PySide6" src="https://img.shields.io/badge/GUI-PySide6-41CD52?style=for-the-badge&logo=qt&logoColor=white&labelColor=212121">
+</p>
+<p><a href="../../README.md">← 返回项目首页</a> 丨 <a href="BUILD.md">EXE 构建</a> 丨 <a href="CONTRIBUTING.md">开发与提交规范</a></p>
+</div>
+
+---
 
 根目录只保留仓库首页、依赖清单与 Git 配置。应用实现、独立脚本、测试、构建脚本及详细文档按用途分类。
 
@@ -35,11 +44,13 @@ jiyu_attack_next/
 |   |-- run_gui.ps1               # 使用虚拟环境启动 GUI
 |   `-- JiYuAttackNext.spec       # PyInstaller 配置
 |-- docs/
-|   |-- CLI.md                    # 独立脚本使用说明
-|   |-- GUI.md                    # GUI 使用说明
-|   |-- STRUCTURE.md              # 项目结构与模块职责
-|   |-- BUILD.md                  # 编译、输出与清理
-|   `-- CONTRIBUTING.md           # 开发与中文提交规范
+|   |-- usage/                    # 使用文档
+|   |   |-- CLI.md                # 独立脚本使用说明
+|   |   `-- GUI.md                # GUI 使用说明
+|   `-- dev/                      # 开发文档
+|       |-- STRUCTURE.md          # 项目结构与模块职责
+|       |-- BUILD.md              # 编译、输出与清理
+|       `-- CONTRIBUTING.md       # 开发与中文提交规范
 `-- assets/
     `-- app.svg                    # 图标源文件
 ```
@@ -70,7 +81,7 @@ jiyu_attack_next/
 
 ## 相关文档
 
-- [CLI 版使用说明](CLI.md)
-- [GUI 使用说明](GUI.md)
+- [CLI 版使用说明](../usage/CLI.md)
+- [GUI 使用说明](../usage/GUI.md)
 - [EXE 构建说明](BUILD.md)
 - [开发与提交规范](CONTRIBUTING.md)

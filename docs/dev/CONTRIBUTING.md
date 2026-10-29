@@ -1,4 +1,13 @@
-# 开发与提交规范
+<div align="center">
+<h1>开发与提交规范</h1>
+<p>
+   <img alt="Python 3.13" src="https://img.shields.io/badge/Python-3.13-3776AB?style=for-the-badge&logo=python&logoColor=white&labelColor=212121">
+   <img alt="Commit" src="https://img.shields.io/badge/提交信息-中文-2CA5E0?style=for-the-badge&labelColor=212121">
+</p>
+<p><a href="../../README.md">← 返回项目首页</a> 丨 <a href="STRUCTURE.md">项目结构</a> 丨 <a href="BUILD.md">EXE 构建</a></p>
+</div>
+
+---
 
 ## 开发环境
 
@@ -44,7 +53,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Clean
     目标设备数：1
 ```
 
-新增日志优先调用 `LogStore.debug/info/warning/error`，关键节点携带目标、端口、文件名、耗时等定位信息，异常附带堆栈，不记录密码、令牌等敏感信息。日志页支持功能与级别筛选、多选、导出选中、删除选中和表头全选；相关行为变更需同步更新 [GUI 说明](GUI.md) 和 `tests/test_gui.py`。
+新增日志优先调用 `LogStore.debug/info/warning/error`，关键节点携带目标、端口、文件名、耗时等定位信息，异常附带堆栈，不记录密码、令牌等敏感信息。日志页支持功能与级别筛选、多选、导出选中、删除选中和表头全选；相关行为变更需同步更新 [GUI 说明](../usage/GUI.md) 和 `tests/test_gui.py`。
 
 ## 提交信息
 

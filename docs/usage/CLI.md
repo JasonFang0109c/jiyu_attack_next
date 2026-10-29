@@ -1,10 +1,46 @@
-# CLI 版使用说明
+<div align="center">
+<h1>CLI 版使用说明</h1>
+<p>
+   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly"><img alt="Nightly Build" src="https://img.shields.io/badge/Nightly-Build-blue?style=for-the-badge&logo=githubactions&labelColor=212121"></a>
+   <img alt="Python 3.13" src="https://img.shields.io/badge/Python-3.13-3776AB?style=for-the-badge&logo=python&logoColor=white&labelColor=212121">
+   <img alt="Standard Library" src="https://img.shields.io/badge/依赖-仅标准库-3ddc84?style=for-the-badge&labelColor=212121">
+</p>
+<p><a href="../../README.md">← 返回项目首页</a> 丨 <a href="GUI.md">GUI 使用说明</a></p>
+</div>
+
+---
 
 CLI 版可从 Nightly Build 下载 [**JiYuAttackNext-cli.py**](https://github.com/JasonFang0109c/jiyu_attack_next/releases/download/nightly/JiYuAttackNext-cli.py)。该文件仅依赖 Python 标准库，可以单独保存到任意目录使用，无需安装 GUI 依赖。
 
+> **提示**
+> 单文件即可运行，不需要克隆仓库，也不需要安装 PySide6。相对文件路径按终端当前工作目录解析。
+
+## 快速开始
+
+三步即可发送第一条消息：
+
+<div align="center">
+<table width="100%" style="border: none;">
+  <tr>
+    <td width="33%" valign="top">
+      <h3>📥 获取脚本</h3>
+      <p>从 Nightly Build 下载 <code>JiYuAttackNext-cli.py</code>，保存到任意目录。</p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>▶️ 运行命令</h3>
+      <p>在脚本所在目录打开 PowerShell，带上目标地址与功能参数。</p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>✅ 查看结果</h3>
+      <p>终端输出发送状态；目标端是否执行由学生端决定。</p>
+    </td>
+  </tr>
+</table>
+</div>
+
 ## 运行环境
 
-使用 Python 3.13。以下示例默认在保存 `JiYuAttackNext-cli.py` 的目录中执行 PowerShell；文件位于其他位置时使用其实际路径。相对文件路径按终端当前工作目录解析。
+使用 Python 3.13。以下示例默认在保存 `JiYuAttackNext-cli.py` 的目录中执行 PowerShell；文件位于其他位置时使用其实际路径。
 
 ```powershell
 python JiYuAttackNext-cli.py -h
