@@ -3,10 +3,10 @@
 <img src="assets/app.svg" width="150" height="150" alt="JiYu Attack Next">
 <p></p>
 <p>
-   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases"><img alt="GitHub all releases" src="https://img.shields.io/github/downloads/JasonFang0109c/jiyu_attack_next/total?label=Downloads"></a>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/JasonFang0109c/jiyu_attack_next"></a>
-   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/JasonFang0109c/jiyu_attack_next"></a>
+   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases"><img alt="GitHub all releases" src="https://img.shields.io/github/downloads/JasonFang0109c/jiyu_attack_next/total?label=Downloads"></a>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly"><img alt="Nightly Build" src="https://img.shields.io/badge/Nightly-Build-blue.svg?logo=githubactions"></a>
+   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/JasonFang0109c/jiyu_attack_next"></a>
 </p>
 <p>极域学生端 UDP 控制报文测试工具，提供图形界面与独立脚本两种形态</p>
 <p>基于 PySide6-Fluent-Widgets 构建，支持打包为 Windows 单文件 EXE</p>
@@ -20,50 +20,50 @@
 <div align="center">
 <table width="100%" style="border: none;">
   <tr>
-    <td width="33%" valign="top">
+    <td width="33%" valign="top" align="center">
       <h3>💬 消息与命令</h3>
-      <ul>
-        <li><b>文本消息</b>：编辑、导入和保存多行消息，超长文本自动分条</li>
-        <li><b>远程命令</b>：发送单条命令，实时显示缓冲区容量</li>
+      <ul style="list-style-position: inside; padding-left: 0;">
+        <li><b>文本消息</b>：多行编辑与分条发送</li>
+        <li><b>远程命令</b>：实时显示缓冲区容量</li>
       </ul>
     </td>
-    <td width="33%" valign="top">
+    <td width="33%" valign="top" align="center">
       <h3>🎯 目标与操作</h3>
-      <ul>
-        <li><b>设备操作</b>：重启或关机，发送前预览解析结果</li>
-        <li><b>设备备注</b>：IPv4 映射易读名称，可直接设为当前目标</li>
-        <li><b>目标地址</b>：支持单个 IPv4、末段范围与 <code>/24</code> 网段</li>
+      <ul style="list-style-position: inside; padding-left: 0;">
+        <li><b>设备操作</b>：重启或关机前预览</li>
+        <li><b>设备备注</b>：IPv4 映射易读名称</li>
+        <li><b>目标地址</b>：IPv4、末段与 <code>/24</code></li>
       </ul>
     </td>
-    <td width="33%" valign="top">
+    <td width="33%" valign="top" align="center">
       <h3>📦 文件与工具</h3>
-      <ul>
-        <li><b>文件传送</b>：勾选文件树，通过目标端下载到桌面</li>
-        <li><b>本机信息</b>：查询本机 IP 与 Student 监听端口</li>
-        <li><b>防火墙</b>：修改 <code>StudentMain.exe</code> 现有规则</li>
+      <ul style="list-style-position: inside; padding-left: 0;">
+        <li><b>文件传送</b>：勾选文件树下载到桌面</li>
+        <li><b>本机信息</b>：查询 IP 与 Student 端口</li>
+        <li><b>防火墙</b>：修改现有规则并查看结果</li>
       </ul>
     </td>
   </tr>
   <tr>
-    <td width="33%" valign="top">
+    <td width="33%" valign="top" align="center">
       <h3>📋 运行日志</h3>
-      <ul>
+      <ul style="list-style-position: inside; padding-left: 0;">
         <li>按功能、级别与关键词筛选</li>
         <li>勾选导出或删除选中记录</li>
       </ul>
     </td>
-    <td width="33%" valign="top">
+    <td width="33%" valign="top" align="center">
       <h3>⚙️ 设置</h3>
-      <ul>
+      <ul style="list-style-position: inside; padding-left: 0;">
         <li>切换主题与关闭行为</li>
-        <li>调整本次运行日志等级</li>
+        <li>调整运行日志等级</li>
         <li>确认后清除本地数据</li>
       </ul>
     </td>
-    <td width="33%" valign="top">
+    <td width="33%" valign="top" align="center">
       <h3>ℹ️ 关于</h3>
-      <ul>
-        <li>作者、GitHub 与上游仓库</li>
+      <ul style="list-style-position: inside; padding-left: 0;">
+        <li>作者与仓库信息</li>
         <li>构建时间与组件版本</li>
       </ul>
     </td>
