@@ -28,6 +28,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Clean
 
 ## 离线检查
 
+按改动范围选择检查：只改 Markdown 时不需要跑测试；改 `cli/` 或 `app/` 时执行以下命令；改构建脚本或工作流时另需实际执行一次构建。
+
 ```powershell
 .\.venv\Scripts\python.exe -B -m unittest discover -s tests -v
 .\.venv\Scripts\python.exe -X utf8 -m compileall -q cli app tests
@@ -35,7 +37,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Clean
 
 ## 运行日志
 
-GUI 运行日志遵循 [日志规范](https://itliwei.github.io/technology/engineer/develop/logger.html)，等级统一使用 `DEBUG`、`INFO`、`WARNING`、`ERROR`，其中 `warn` 写作 `warning`。默认运行等级为 `INFO`，可在“设置”页切换；低于当前等级的记录不会写入列表和 `runtime.log`。
+仅在改动 GUI 日志行为或调用点时适用。GUI 运行日志遵循 [日志规范](https://itliwei.github.io/technology/engineer/develop/logger.html)，等级统一使用 `DEBUG`、`INFO`、`WARNING`、`ERROR`，其中 `warn` 写作 `warning`。默认运行等级为 `INFO`，可在“设置”页切换；低于当前等级的记录不会写入列表和 `runtime.log`。
 
 ```text
 2026-10-23 12:34:56.789 [12345] [MainThread] INFO    app.gui.app.MainWindow:123 - [文本消息] 开始发送：192.168.1.20，端口 4705，1 轮

@@ -71,6 +71,8 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 
 
 ## 验证
 
+改动 `app/`、`cli/`、构建脚本或打包配置后执行；纯文档改动不需要。
+
 ```powershell
 .\.venv\Scripts\python.exe -B -m unittest discover -s tests -v
 .\.venv\Scripts\python.exe -B -m tests.verify_gui --screenshot <截图路径>
