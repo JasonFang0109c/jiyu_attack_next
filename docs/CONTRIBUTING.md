@@ -2,7 +2,7 @@
 
 ## 开发环境
 
-Python 3.13，使用项目内的虚拟环境。CLI 只依赖标准库；GUI 使用 PySide6，EXE 构建使用 PyInstaller。
+Python 3.13，虚拟环境目录为 `.venv`。CLI 只依赖标准库；GUI 使用 PySide6，EXE 构建使用 PyInstaller。
 
 ```powershell
 py -3.13 -m venv .venv

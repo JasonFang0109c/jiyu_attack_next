@@ -37,14 +37,19 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Python "C:\Python3
 
 ## 输出与生成内容
 
-- 构建产物为单文件窗口程序，保留用于运行和分发，生成位置由 `.gitignore` 排除。
-- 构建中间文件、转换后的图标、构建时间标记与界面验证截图均由 `.gitignore` 排除，删除后下次构建会重新生成，不影响已有 EXE。
-- 构建前请关闭正在运行的同名程序。项目生成的是未签名 EXE，首次启动需数秒解压资源。
-- EXE 只允许同时运行一个实例，再次启动会唤醒已有窗口。
+| 路径 | 内容 | 是否保留 |
+| --- | --- | --- |
+| `output/JiYuAttackNext.exe` | 单文件窗口程序 | 保留用于运行和分发 |
+| `build/JiYuAttackNext/` | 打包中间文件与分析结果 | 构建后可删除 |
+| `build/assets/app.ico` | 从 SVG 转换的构建图标 | 构建后可删除 |
+| `build/assets/build_time.txt` | 本次构建时间，打包进 EXE | 构建后可删除 |
+| `build/previews/` | 手动生成的界面验证截图 | 检查后可删除 |
+
+删除 `build/` 不影响已生成的 EXE，下次构建会重新生成所需文件。`build/`、`output/` 与 `.venv/` 均由 `.gitignore` 排除，不提交 Git。构建前请关闭正在运行的同名程序。项目生成的是未签名 EXE，首次启动需数秒解压资源；EXE 只允许同时运行一个实例，再次启动会唤醒已有窗口。
 
 ## 运行数据
 
-EXE 在其所在目录创建数据子文件夹：`settings.ini` 保存设备备注与关闭窗口行为，`runtime.log` 保存规范文本运行日志。该目录由 `.gitignore` 排除，源码运行时位于项目根目录。
+EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 保存设备备注与关闭窗口行为，`runtime.log` 保存规范文本运行日志。该目录由 `.gitignore` 排除，源码运行时位于项目根目录。
 
 - 日志包含毫秒时间、规范级别、线程、输出位置、功能分类、消息与异常详情，便于从用户环境回传排查。
 - 只移动 EXE 而不移动该文件夹时，新位置按默认配置启动。

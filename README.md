@@ -8,7 +8,7 @@
 | --- | --- |
 | CLI 版 | [**JiYuAttackNext-cli.py**](https://github.com/JasonFang0109c/jiyu_attack_next/releases/download/nightly/JiYuAttackNext-cli.py)，单文件、仅依赖 Python 标准库，可独立保存使用 |
 | 图形界面 | [app/gui/](app/gui/)，Fluent 侧边导航，按消息、命令、设备操作、文件传送、设备备注与本机工具分页 |
-| 编译输出 | 单文件 EXE，无需安装 Python 即可运行，生成位置由 `.gitignore` 排除 |
+| 编译输出 | `output/JiYuAttackNext.exe`，无需安装 Python 即可运行，不纳入 Git |
 | 开发环境 | Python 3.13；GUI 使用 PySide6，EXE 构建使用 PyInstaller |
 | 默认通信 | UDP，目标端口 `4705` |
 | Nightly Build | 推送到 `main` 后自动构建 Windows EXE 和 CLI Python 脚本，并更新 `nightly` 预发布版本 |
