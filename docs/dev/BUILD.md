@@ -37,7 +37,7 @@ python -m pip install -r requirements.txt
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Clean
-powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Version 0.4.1
+powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Version 0.1.1
 powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Python "C:\Python313\python.exe"
 ```
 

@@ -1,7 +1,6 @@
 <div align="center">
 <h1>GUI 使用说明</h1>
 <p>
-   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/JasonFang0109c/jiyu_attack_next?label=Latest&style=for-the-badge&color=2CA5E0&labelColor=212121"></a>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly"><img alt="Nightly Build" src="https://img.shields.io/badge/Nightly-Build-blue?style=for-the-badge&logo=githubactions&labelColor=212121"></a>
    <img alt="PySide6" src="https://img.shields.io/badge/GUI-PySide6-41CD52?style=for-the-badge&logo=qt&logoColor=white&labelColor=212121">
    <img alt="Platform" src="https://img.shields.io/badge/平台-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white&labelColor=212121">
@@ -18,7 +17,7 @@
   <tr>
     <td width="33%" valign="top">
       <h3>📥 获取程序</h3>
-      <p>从正式版或 Nightly Build 下载 <code>JiYuAttackNext.exe</code>，或从源码运行 <code>python -m app.gui</code>。</p>
+      <p>从 Nightly Build 下载 <code>JiYuAttackNext.exe</code>，或从源码运行 <code>python -m app.gui</code>。</p>
     </td>
     <td width="33%" valign="top">
       <h3>🎯 填写目标</h3>

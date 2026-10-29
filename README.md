@@ -5,7 +5,6 @@
 <p>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/JasonFang0109c/jiyu_attack_next"></a>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases"><img alt="GitHub all releases" src="https://img.shields.io/github/downloads/JasonFang0109c/jiyu_attack_next/total?label=Downloads"></a>
-   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/JasonFang0109c/jiyu_attack_next?label=Latest&color=2CA5E0"></a>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly"><img alt="Nightly Build" src="https://img.shields.io/badge/Nightly-Build-blue.svg?logo=githubactions"></a>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/JasonFang0109c/jiyu_attack_next"></a>
 </p>
@@ -86,12 +85,12 @@
 
 ## 下载
 
-正式版与 nightly 均可在 Releases 页面获取：
+目前只发布 nightly，正式版将在准备就绪后通过 `Release` 工作流手动发布：
 
 | 通道 | 说明 | 下载 |
 | --- | --- | --- |
-| 正式版 | 版本号形如 `v0.4.0`，标记为 Latest | [最新正式版](https://github.com/JasonFang0109c/jiyu_attack_next/releases/latest) |
-| nightly | 版本号形如 `0.4.0-nightly.20261029`，随 `main` 更新 | [Nightly Build](https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly) |
+| nightly | 版本号形如 `0.1.0-nightly.20261029`，随 `main` 更新 | [Nightly Build](https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly) |
+| 正式版 | 版本号形如 `v0.1.0`，标记为 Latest；暂无发布 | [最新正式版](https://github.com/JasonFang0109c/jiyu_attack_next/releases/latest) |
 
 - EXE：`JiYuAttackNext.exe`，无需安装 Python 即可运行
 - 脚本：`JiYuAttackNext-cli.py`，仅依赖 Python 3.13 标准库
