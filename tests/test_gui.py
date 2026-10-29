@@ -121,22 +121,50 @@ class GuiTests(unittest.TestCase):
         self.assertIn("JasonFang0109c", [
             button.text() for button in about.findChildren(gui.HyperlinkButton)
         ])
-        for key in ("author", "repository", "upstream"):
-            self.assertEqual(about.cards[key].objectName(), "aboutInfoCard")
-            self.assertEqual(about.cards[key].borderRadius, 12)
-        self.assertEqual(about.cards["repository"].detail.text(),
-                         "https://github.com/JasonFang0109c/jiyu_attack_next")
+        self.assertEqual(about.author_card.objectName(), "aboutInfoCard")
+        self.assertEqual(about.author_card.borderRadius, 12)
+        self.assertEqual(about.author_card.detail.text(), "JasonFang0109c")
         hero = about.findChild(QWidget, "aboutHero")
         self.assertIsNotNone(hero)
         self.assertNotIsInstance(hero, components.SectionCard)
         self.assertFalse(hero.findChildren(components.SectionCard))
-        self.assertEqual(about.build_time_value.text(), "源码运行")
-        self.assertIn("构建时间", [label.text() for label in about.findChildren(BodyLabel)])
-        self.assertEqual(about.build_time_value.objectName(), "aboutBuildTime")
+
+    def test_about_page_groups_version_and_repository_info(self):
         from app.gui import build_info
+        about = self.window.pages["about"]
+        # 版本与构建时间合并到“版本信息”，组件版本改名为“组件信息”。
+        self.assertEqual(about.version_card.heading.text(), "版本信息")
+        self.assertEqual(about.version_card.objectName(), "aboutDetailCard")
+        self.assertEqual(about.version_card.borderRadius, 12)
         self.assertEqual(about.version_value.text(), build_info.version_text())
-        self.assertIn("版本", [label.text() for label in about.findChildren(BodyLabel)])
         self.assertEqual(about.version_value.objectName(), "aboutVersion")
+        self.assertEqual(about.build_time_value.text(), "源码运行")
+        self.assertEqual(about.build_time_value.objectName(), "aboutBuildTime")
+        self.assertEqual(
+            [label.text() for label in about.version_card.findChildren(gui.CaptionLabel)][::2],
+            ["版本", "构建时间"])
+        self.assertEqual(about.component_card.heading.text(), "组件信息")
+        self.assertEqual(about.component_card.objectName(), "aboutDetailCard")
+        self.assertIn("PySide6", about.component_card.rows)
+        self.assertIn("PySide6-Fluent-Widgets", about.component_card.rows)
+        self.assertNotIn("组件版本", [
+            label.text() for label in about.findChildren(BodyLabel)])
+
+    def test_about_page_merges_repository_links_into_one_card(self):
+        about = self.window.pages["about"]
+        self.assertEqual(about.repository_card.heading.text(), "仓库信息")
+        self.assertEqual(about.repository_card.objectName(), "aboutDetailCard")
+        self.assertEqual(
+            sorted(about.repository_card.rows),
+            ["repository", "upstream"])
+        self.assertEqual(
+            about.repository_card.rows["repository"].getUrl().toString(),
+            "https://github.com/JasonFang0109c/jiyu_attack_next")
+        self.assertEqual(
+            about.repository_card.rows["upstream"].getUrl().toString(),
+            "https://github.com/ht0Ruial/Jiyu_udp_attack")
+        self.assertNotIn("GitHub 仓库", [
+            label.text() for label in about.findChildren(BodyLabel)])
 
     def test_build_time_comes_from_bundle_asset(self):
         from app.gui import build_info

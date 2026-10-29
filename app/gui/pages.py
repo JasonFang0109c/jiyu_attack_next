@@ -1422,6 +1422,36 @@ class AboutInfoCard(SectionCard):
         self.detail = detail
 
 
+class AboutDetailCard(SectionCard):
+    """关于页中带标题的多行信息卡片，行样式与组件信息一致。"""
+
+    def __init__(self, heading, parent=None):
+        super().__init__(parent, spacing=8, margins=(18, 12, 18, 12))
+        self.setObjectName("aboutDetailCard")
+        self.heading = BodyLabel(heading, self)
+        self.body.addWidget(self.heading)
+        self.rows = {}
+
+    def add_row(self, key, label, value, url=None, icon=None, tooltip=None):
+        """追加一行“名称 + 值”，值可以是纯文本或超链接。"""
+        row = QHBoxLayout()
+        row.setSpacing(16)
+        row.addWidget(CaptionLabel(label, self))
+        row.addStretch()
+        if url is None:
+            detail = CaptionLabel(value, self)
+            detail.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        else:
+            detail = HyperlinkButton(url, value, self, icon=icon)
+            detail.setMaximumWidth(detail.sizeHint().width())
+        if tooltip:
+            detail.setToolTip(tooltip)
+        row.addWidget(detail)
+        self.body.addLayout(row)
+        self.rows[key] = detail
+        return detail
+
+
 class AboutPage(Page):
     def __init__(self, parent=None):
         super().__init__("about", parent)
@@ -1453,47 +1483,37 @@ class AboutPage(Page):
         hero_body.addWidget(subtitle)
         content.addWidget(hero)
 
-        self.cards = {}
-        for key, label, url, text, icon in [
-            ("author", "作者", "https://github.com/JasonFang0109c", "JasonFang0109c", FIF.GITHUB),
-            ("repository", "GitHub 仓库", "https://github.com/JasonFang0109c/jiyu_attack_next",
-             "https://github.com/JasonFang0109c/jiyu_attack_next", FIF.GITHUB),
-            ("upstream", "上游仓库", "https://github.com/ht0Ruial/Jiyu_udp_attack",
-             "https://github.com/ht0Ruial/Jiyu_udp_attack", FIF.LINK),
-        ]:
-            card = AboutInfoCard(label, text, self, url=url, icon=icon)
-            self.cards[key] = card
-            content.addWidget(card)
+        self.author_card = AboutInfoCard(
+            "作者", "JasonFang0109c", self,
+            url="https://github.com/JasonFang0109c", icon=FIF.GITHUB)
+        content.addWidget(self.author_card)
 
-        build_card = AboutInfoCard("构建时间", build_time_text(), self)
-        build_card.setObjectName("aboutBuildCard")
-        self.build_time_value = build_card.detail
-        self.build_time_value.setObjectName("aboutBuildTime")
-        self.build_time_value.setToolTip("打包 EXE 的时间；源码运行时不会生成构建时间")
-        content.addWidget(build_card)
+        self.repository_card = AboutDetailCard("仓库信息", self)
+        self.repository_card.add_row(
+            "repository", "主仓库",
+            "https://github.com/JasonFang0109c/jiyu_attack_next",
+            url="https://github.com/JasonFang0109c/jiyu_attack_next", icon=FIF.GITHUB)
+        self.repository_card.add_row(
+            "upstream", "上游仓库",
+            "https://github.com/ht0Ruial/Jiyu_udp_attack",
+            url="https://github.com/ht0Ruial/Jiyu_udp_attack", icon=FIF.LINK)
+        content.addWidget(self.repository_card)
 
-        version_card = AboutInfoCard("版本", version_text(), self)
-        version_card.setObjectName("aboutVersionCard")
-        self.version_value = version_card.detail
+        self.version_card = AboutDetailCard("版本信息", self)
+        self.version_value = self.version_card.add_row(
+            "version", "版本", version_text(),
+            tooltip="版本号遵循语义化版本，nightly 构建可能带预发布后缀")
         self.version_value.setObjectName("aboutVersion")
-        self.version_value.setToolTip("版本号遵循语义化版本，nightly 构建可能是 0.x 开发版")
-        content.addWidget(version_card)
+        self.build_time_value = self.version_card.add_row(
+            "build_time", "构建时间", build_time_text(),
+            tooltip="打包 EXE 的时间；源码运行时不会生成构建时间")
+        self.build_time_value.setObjectName("aboutBuildTime")
+        content.addWidget(self.version_card)
 
-        versions = SectionCard(self, spacing=8, margins=(18, 12, 18, 12))
-        versions.setObjectName("aboutVersionsCard")
-        heading = BodyLabel("组件版本", versions)
-        versions.body.addWidget(heading)
-        self.versions = {}
+        self.component_card = AboutDetailCard("组件信息", self)
         for title_text, package in [("PySide6", "PySide6"),
                                     ("Fluent Widgets", "PySide6-Fluent-Widgets")]:
-            version_row = QHBoxLayout()
-            version_row.addWidget(CaptionLabel(title_text, versions))
-            version_row.addStretch()
-            value = CaptionLabel(version(package), versions)
-            value.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            version_row.addWidget(value)
-            versions.body.addLayout(version_row)
-            self.versions[title_text] = value
-        content.addWidget(versions)
+            self.component_card.add_row(package, title_text, version(package))
+        content.addWidget(self.component_card)
         content.addStretch()
         self.vbox.addLayout(content)
