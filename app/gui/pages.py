@@ -6,14 +6,15 @@ from importlib.metadata import version
 
 from PySide6.QtCore import QEvent, QSignalBlocker, QRectF, QSize, Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QFont, QIcon, QPainter
-from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QHeaderView,
+from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QFrame, QHeaderView,
                                QHBoxLayout, QLabel, QSizePolicy, QTableWidgetItem,
                                QTreeWidgetItem, QVBoxLayout, QWidget)
 from qfluentwidgets import (BodyLabel, CaptionLabel, CheckBox, ComboBox, Dialog,
                             FluentIcon as FIF, HyperlinkButton, LineEdit, PlainTextEdit,
                             PrimaryPushButton, ProgressBar, PushButton, RadioButton,
-                            SearchLineEdit, StrongBodyLabel, SwitchButton, TableWidget,
-                            Theme, TitleLabel, TreeItemDelegate, TreeWidget, qconfig, setFont)
+                            SearchLineEdit, SmoothScrollArea, StrongBodyLabel, SwitchButton,
+                            TableWidget, Theme, TitleLabel, TreeItemDelegate, TreeWidget,
+                            qconfig, setFont)
 from qfluentwidgets.components.widgets.check_box import CheckBoxIcon
 from cli import main as core
 from .build_info import build_time_text, version_text
@@ -1425,33 +1426,45 @@ class AboutInfoCard(SectionCard):
 class AboutDetailCard(SectionCard):
     """关于页中带标题的多行信息卡片，行样式与组件信息一致。"""
 
-    # 行高统一：超链接按钮本身高 26，纯文本标签只有 12，
-    # 若不固定高度，两者共用的 8px 间距会显得疏密不一。
-    ROW_HEIGHT = 26
+    # 标题与内容行之间额外留白，比行与行之间更大，形成分组层次。
+    HEADING_GAP = 6
 
     def __init__(self, heading, parent=None):
         super().__init__(parent, spacing=8, margins=(18, 12, 18, 12))
         self.setObjectName("aboutDetailCard")
         self.heading = BodyLabel(heading, self)
         self.body.addWidget(self.heading)
+        self.body.addSpacing(self.HEADING_GAP)
         self.rows = {}
+        self._row_height = None
+
+    def row_height(self):
+        """超链接按钮的自然高度；文字行据此对齐。
+
+        用最小高度而非固定高度：固定值会随 DPI 变化裁掉按钮下缘的下划线，
+        最小高度只保证等高，不会限制按钮自身绘制。
+        """
+        if self._row_height is None:
+            probe = HyperlinkButton("https://example.invalid", "参考", self)
+            self._row_height = probe.sizeHint().height()
+            probe.deleteLater()
+        return self._row_height
 
     def add_row(self, key, label, value, url=None, icon=None, tooltip=None):
         """追加一行“名称 + 值”，值可以是纯文本或超链接。"""
         row = QHBoxLayout()
         row.setSpacing(16)
         name = CaptionLabel(label, self)
-        name.setFixedHeight(self.ROW_HEIGHT)
+        name.setMinimumHeight(self.row_height())
         name.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         row.addWidget(name)
         row.addStretch()
         if url is None:
             detail = CaptionLabel(value, self)
             detail.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            detail.setFixedHeight(self.ROW_HEIGHT)
+            detail.setMinimumHeight(self.row_height())
         else:
             detail = HyperlinkButton(url, value, self, icon=icon)
-            detail.setFixedHeight(self.ROW_HEIGHT)
             detail.setMaximumWidth(detail.sizeHint().width())
         if tooltip:
             detail.setToolTip(tooltip)
@@ -1465,14 +1478,22 @@ class AboutPage(Page):
     def __init__(self, parent=None):
         super().__init__("about", parent)
         page_heading(self.vbox, "关于")
-        content = QVBoxLayout()
+        # 关于页内容高于较矮的窗口，包一层平滑滚动区域避免布局被压缩。
+        scroll = SmoothScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        content_host = QWidget(scroll)
+        content_host.setObjectName("aboutContent")
+        content = QVBoxLayout(content_host)
+        content.setContentsMargins(0, 0, 0, 0)
         content.setSpacing(12)
 
-        hero = QWidget(self)
+        hero = QWidget(content_host)
         hero.setObjectName("aboutHero")
         hero_body = QVBoxLayout(hero)
         hero_body.setContentsMargins(20, 18, 20, 18)
-        hero_body.setSpacing(8)
+        hero_body.setSpacing(10)
         icon_path = Path(__file__).resolve().parents[2] / "assets" / "app.svg"
         icon = QIcon(str(icon_path)).pixmap(96, 96)
         icon_label = QLabel(hero)
@@ -1497,11 +1518,11 @@ class AboutPage(Page):
         content.addWidget(hero)
 
         self.author_card = AboutInfoCard(
-            "作者", "JasonFang0109c", self,
+            "作者", "JasonFang0109c", content_host,
             url="https://github.com/JasonFang0109c", icon=FIF.GITHUB)
         content.addWidget(self.author_card)
 
-        self.repository_card = AboutDetailCard("仓库信息", self)
+        self.repository_card = AboutDetailCard("仓库信息", content_host)
         self.repository_card.add_row(
             "repository", "主仓库",
             "https://github.com/JasonFang0109c/jiyu_attack_next",
@@ -1512,7 +1533,7 @@ class AboutPage(Page):
             url="https://github.com/ht0Ruial/Jiyu_udp_attack", icon=FIF.LINK)
         content.addWidget(self.repository_card)
 
-        self.version_card = AboutDetailCard("版本信息", self)
+        self.version_card = AboutDetailCard("版本信息", content_host)
         self.version_value = self.version_card.add_row(
             "version", "版本", version_text(),
             tooltip="版本号遵循语义化版本，nightly 构建可能带预发布后缀")
@@ -1523,10 +1544,11 @@ class AboutPage(Page):
         self.build_time_value.setObjectName("aboutBuildTime")
         content.addWidget(self.version_card)
 
-        self.component_card = AboutDetailCard("组件信息", self)
+        self.component_card = AboutDetailCard("组件信息", content_host)
         for title_text, package in [("PySide6", "PySide6"),
                                     ("Fluent Widgets", "PySide6-Fluent-Widgets")]:
             self.component_card.add_row(package, title_text, version(package))
         content.addWidget(self.component_card)
         content.addStretch()
-        self.vbox.addLayout(content)
+        scroll.setWidget(content_host)
+        self.vbox.addWidget(scroll)

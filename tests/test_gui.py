@@ -150,19 +150,51 @@ class GuiTests(unittest.TestCase):
         self.assertNotIn("组件版本", [
             label.text() for label in about.findChildren(BodyLabel)])
 
-    def test_about_detail_rows_share_uniform_height(self):
-        about = self.window.pages["about"]
+    def show_about_page(self):
+        """关于页放在 stacked 容器中，未切换过去时几何信息无效。"""
+        self.window.show_page("about")
         self.window.show()
         self.application.processEvents()
+        return self.window.pages["about"]
+
+    def test_about_detail_rows_share_uniform_height(self):
+        about = self.show_about_page()
         cards = (about.repository_card, about.version_card, about.component_card)
+        row_height = about.repository_card.row_height()
         for card in cards:
             heights = {widget.height() for widget in card.rows.values()}
-            self.assertEqual(heights, {gui_pages.AboutDetailCard.ROW_HEIGHT}, card.heading.text())
-            offsets = [widget.y() for widget in card.rows.values()]
+            self.assertEqual(heights, {row_height}, card.heading.text())
+            offsets = [widget.geometry().top() for widget in card.rows.values()]
             self.assertEqual(offsets, sorted(offsets))
-        # 行高一致后，三张卡片的总高度也应一致。
+        # 行高一致后三张卡片总高相同。
         self.assertEqual(len({card.height() for card in cards}), 1)
-        self.assertGreater(about.version_card.height(), 0)
+
+    def test_about_links_are_not_clipped(self):
+        about = self.show_about_page()
+        for card in (about.repository_card, about.version_card, about.component_card):
+            for widget in card.rows.values():
+                # 下划线位于按钮下缘，高度小于 sizeHint 就会被裁掉。
+                self.assertGreaterEqual(widget.height(), widget.sizeHint().height(),
+                                        widget.text() if hasattr(widget, "text") else "")
+
+    def test_about_heading_sits_further_from_rows_than_rows_do(self):
+        about = self.show_about_page()
+        card = about.repository_card
+        rows = list(card.rows.values())
+        heading_bottom = card.heading.geometry().bottom()
+        row_gap = rows[1].geometry().top() - rows[0].geometry().bottom()
+        heading_gap = rows[0].geometry().top() - heading_bottom
+        # 标题与首行的间距应明显大于行间距，形成分组层次。
+        self.assertGreater(heading_gap, row_gap)
+        self.assertGreaterEqual(heading_gap, row_gap + card.HEADING_GAP - 1)
+
+    def test_about_page_scrolls_when_window_is_short(self):
+        about = self.show_about_page()
+        scroll = about.findChild(gui_pages.SmoothScrollArea)
+        self.assertIsNotNone(scroll)
+        self.assertTrue(scroll.widgetResizable())
+        # 内容高于视口时可通过滚动查看，而不是压缩布局。
+        self.assertGreater(scroll.widget().sizeHint().height(), 0)
 
     def test_about_hero_subtitle_matches_readme(self):
         about = self.window.pages["about"]
