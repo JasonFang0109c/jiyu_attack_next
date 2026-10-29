@@ -1556,4 +1556,7 @@ class AboutPage(Page):
         content.addWidget(self.component_card)
         content.addStretch()
         scroll.setWidget(content_host)
+        # 必须在 setWidget 之后调用：transparent 背景要同时作用于滚动区域
+        # 与内容宿主，调用时机不对会漏掉后者，留下默认灰底。
+        scroll.enableTransparentBackground()
         self.vbox.addWidget(scroll)
