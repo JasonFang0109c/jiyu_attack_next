@@ -34,7 +34,11 @@ class GuiTests(unittest.TestCase):
         guard = patch.object(socket, "socket", side_effect=AssertionError("禁止真实网络通信"))
         guard.start()
         self.addCleanup(guard.stop)
-        self.temp_root = Path("build") / ("jiyu-gui-test-%d" % id(self))
+        # 用测试名而不是 id(self) 命名：CPython 会复用对象地址，id 命名会让
+        # 不同测试共用同一临时目录，残留的 runtime.log 干扰后续断言。
+        self.temp_root = (Path("build") / "jiyu-gui-test"
+                          / self._testMethodName.replace("/", "_"))
+        shutil.rmtree(self.temp_root, ignore_errors=True)
         self.temp_root.mkdir(parents=True, exist_ok=True)
         self.addCleanup(lambda: shutil.rmtree(self.temp_root, ignore_errors=True))
         self.data_dir = self.temp_root / "JiYuAttackNextData"
@@ -63,11 +67,14 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(predicate(), "界面任务未在预期时间内结束")
 
     def hover(self, widget, position):
-        """投递鼠标移动事件，不依赖系统光标位置。
+        """投递进入与移动事件，模拟鼠标悬停。
 
-        QTest.mouseMove 在 Windows 上驱动真实光标：光标已在该位置时
-        不会产生移动事件，悬停状态因此随机不更新。
+        不依赖系统光标位置：QTest.mouseMove 在 Windows 上驱动真实光标，
+        光标已在该位置时不产生移动事件；ToolTipFilter 也只在 Enter 事件
+        上启动计时，仅发送移动事件不会触发提示。
         """
+        self.leave(widget)
+        QApplication.sendEvent(widget, QEvent(QEvent.Type.Enter))
         event = QMouseEvent(QEvent.Type.MouseMove, QPointF(position),
                             widget.mapToGlobal(QPointF(position)),
                             Qt.MouseButton.NoButton, Qt.MouseButton.NoButton,
