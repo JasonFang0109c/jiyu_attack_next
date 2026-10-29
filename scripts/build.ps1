@@ -16,7 +16,8 @@ try {
     $buildRoot = Join-Path $projectRoot "build"
     $outputRoot = Join-Path $projectRoot "output"
     $exePath = Join-Path $outputRoot "JiYuAttackNext.exe"
-    $runningApp = Get-Process -Name "JiYuAttackNext.exe" -ErrorAction SilentlyContinue |
+    # 进程名不含扩展名；带 .exe 会让 -Name 匹配不到任何进程，导致保护形同虚设。
+    $runningApp = Get-Process -Name "JiYuAttackNext" -ErrorAction SilentlyContinue |
         Where-Object { $_.Path -eq $exePath }
     if ($runningApp) {
         throw "请关闭正在运行的 JiYuAttackNext.exe 后再构建。"
