@@ -1483,10 +1483,15 @@ class AboutPage(Page):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        # 滚动区域默认自带白色底色，会盖住页面背景形成色块。
+        scroll.enableTransparentBackground()
+        # 卡片是圆角的，滚动条内嵌进视口会压在圆角上，
+        # 给内容右侧留出滚动条宽度，让滚动条落在页面留白里。
+        bar_width = scroll.verticalScrollBar().sizeHint().width()
         content_host = QWidget(scroll)
         content_host.setObjectName("aboutContent")
         content = QVBoxLayout(content_host)
-        content.setContentsMargins(0, 0, 0, 0)
+        content.setContentsMargins(0, 0, bar_width + 4, 0)
         content.setSpacing(12)
 
         hero = QWidget(content_host)
