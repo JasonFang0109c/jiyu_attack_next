@@ -20,14 +20,14 @@
 <div align="center">
 <table width="100%" style="border: none;">
   <tr>
-    <td width="33%" valign="top" align="center">
+    <td width="33%" valign="middle">
       <h3>💬 消息与命令</h3>
       <ul style="list-style-position: inside; padding-left: 0;">
         <li><b>文本消息</b>：多行编辑与分条发送</li>
         <li><b>远程命令</b>：实时显示缓冲区容量</li>
       </ul>
     </td>
-    <td width="33%" valign="top" align="center">
+    <td width="33%" valign="middle">
       <h3>🎯 目标与操作</h3>
       <ul style="list-style-position: inside; padding-left: 0;">
         <li><b>设备操作</b>：重启或关机前预览</li>
@@ -35,7 +35,7 @@
         <li><b>目标地址</b>：IPv4、末段与 <code>/24</code></li>
       </ul>
     </td>
-    <td width="33%" valign="top" align="center">
+    <td width="33%" valign="middle">
       <h3>📦 文件与工具</h3>
       <ul style="list-style-position: inside; padding-left: 0;">
         <li><b>文件传送</b>：勾选文件树下载到桌面</li>
@@ -45,14 +45,14 @@
     </td>
   </tr>
   <tr>
-    <td width="33%" valign="top" align="center">
+    <td width="33%" valign="middle">
       <h3>📋 运行日志</h3>
       <ul style="list-style-position: inside; padding-left: 0;">
         <li>按功能、级别与关键词筛选</li>
         <li>勾选导出或删除选中记录</li>
       </ul>
     </td>
-    <td width="33%" valign="top" align="center">
+    <td width="33%" valign="middle">
       <h3>⚙️ 设置</h3>
       <ul style="list-style-position: inside; padding-left: 0;">
         <li>切换主题与关闭行为</li>
@@ -60,7 +60,7 @@
         <li>确认后清除本地数据</li>
       </ul>
     </td>
-    <td width="33%" valign="top" align="center">
+    <td width="33%" valign="middle">
       <h3>ℹ️ 关于</h3>
       <ul style="list-style-position: inside; padding-left: 0;">
         <li>作者与仓库信息</li>
