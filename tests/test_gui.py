@@ -12,7 +12,9 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen")
 
-from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QSettings, Qt, QTimer
+from PySide6.QtCore import (QCoreApplication, QEvent, QPoint, QPointF, QSettings, Qt,
+                            QTimer)
+from PySide6.QtGui import QMouseEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QSystemTrayIcon, QWidget
 from qfluentwidgets import BodyLabel, FluentWindow, Theme, ToolTip, qconfig
@@ -59,6 +61,24 @@ class GuiTests(unittest.TestCase):
         while not predicate() and time.monotonic() < deadline:
             QTest.qWait(10)
         self.assertTrue(predicate(), "界面任务未在预期时间内结束")
+
+    def hover(self, widget, position):
+        """投递鼠标移动事件，不依赖系统光标位置。
+
+        QTest.mouseMove 在 Windows 上驱动真实光标：光标已在该位置时
+        不会产生移动事件，悬停状态因此随机不更新。
+        """
+        event = QMouseEvent(QEvent.Type.MouseMove, QPointF(position),
+                            widget.mapToGlobal(QPointF(position)),
+                            Qt.MouseButton.NoButton, Qt.MouseButton.NoButton,
+                            Qt.KeyboardModifier.NoModifier)
+        QApplication.sendEvent(widget, event)
+        QTest.qWait(30)
+
+    def leave(self, widget):
+        """投递离开事件，模拟鼠标移出控件。"""
+        QApplication.sendEvent(widget, QEvent(QEvent.Type.Leave))
+        QTest.qWait(30)
 
     def dispose_window(self):
         self.window.close()
@@ -540,11 +560,12 @@ class GuiTests(unittest.TestCase):
             self.window.show()
             QTest.qWait(80)
             button = self.window.pages[key].info_button
-            QTest.mouseMove(button, button.rect().center())
+            self.hover(button, button.rect().center())
             QTest.qWait(400)
             visible_tips = [widget for widget in QApplication.topLevelWidgets()
                             if isinstance(widget, ToolTip) and widget.isVisible()]
             self.assertTrue(any(tip.text() == button.toolTip() for tip in visible_tips), key)
+            self.leave(button)
 
     def test_file_tree_toggles_icon_and_checkbox_on_hover(self):
         page = self.window.pages["file"]
@@ -571,8 +592,7 @@ class GuiTests(unittest.TestCase):
         QTest.qWait(200)
         rect = page.tree.visualItemRect(item)
         hover_pos = QPoint(rect.x() + 32, rect.center().y())
-        QTest.mouseMove(page.tree.viewport(), hover_pos)
-        QTest.qWait(150)
+        self.hover(page.tree.viewport(), hover_pos)
         self.assertEqual(item.checkState(0), Qt.Unchecked)
         self.assertEqual(item.data(0, Qt.CheckStateRole), Qt.Unchecked.value)
         self.assertTrue(item.icon(0).isNull())
@@ -581,31 +601,26 @@ class GuiTests(unittest.TestCase):
         QTest.mouseClick(page.tree.viewport(), Qt.LeftButton, pos=checkbox_pos)
         QTest.qWait(150)
         self.assertEqual(item.checkState(0), Qt.Checked)
-        QTest.mouseMove(page.tree.viewport(), page.tree.viewport().rect().bottomRight())
-        QTest.qWait(150)
+        self.leave(page.tree.viewport())
         self.assertEqual(item.data(0, Qt.CheckStateRole), Qt.Checked.value)
         self.assertTrue(item.icon(0).isNull())
 
         item.setCheckState(0, Qt.Unchecked)
-        QTest.mouseMove(page.tree.viewport(), page.tree.viewport().rect().bottomRight())
-        QTest.qWait(150)
+        self.leave(page.tree.viewport())
         self.assertIsNone(item.data(0, Qt.CheckStateRole))
         self.assertFalse(item.icon(0).isNull())
 
         folder_rect = page.tree.visualItemRect(folder_item)
         folder_pos = QPoint(folder_rect.x() + 32, folder_rect.center().y())
-        QTest.mouseMove(page.tree.viewport(), folder_pos)
-        QTest.qWait(150)
+        self.hover(page.tree.viewport(), folder_pos)
         self.assertEqual(folder_item.data(0, Qt.CheckStateRole), Qt.Unchecked.value)
         self.assertTrue(folder_item.icon(0).isNull())
-        QTest.mouseMove(page.tree.viewport(), page.tree.viewport().rect().bottomRight())
-        QTest.qWait(150)
+        self.leave(page.tree.viewport())
         self.assertIsNone(folder_item.data(0, Qt.CheckStateRole))
         self.assertFalse(folder_item.icon(0).isNull())
 
         folder_item.setCheckState(0, Qt.Checked)
-        QTest.mouseMove(page.tree.viewport(), page.tree.viewport().rect().bottomRight())
-        QTest.qWait(150)
+        self.leave(page.tree.viewport())
         self.assertEqual(folder_item.checkState(0), Qt.Checked)
         self.assertEqual(folder_item.data(0, Qt.CheckStateRole), Qt.Checked.value)
         self.assertTrue(folder_item.icon(0).isNull())
