@@ -7,6 +7,8 @@ from PyInstaller.utils.hooks import copy_metadata
 root = Path(SPECPATH).parent
 icon = root / "build" / "assets" / "app.ico"
 build_time = root / "build" / "assets" / "build_time.txt"
+version_file = root / "build" / "assets" / "version.txt"
+version_info = root / "build" / "assets" / "version_info.txt"
 
 a = Analysis(
     [str(root / "app" / "gui" / "__main__.py")],
@@ -14,6 +16,7 @@ a = Analysis(
     binaries=[],
     datas=[(str(root / "assets" / "app.svg"), "assets")]
           + ([(str(build_time), ".")] if build_time.exists() else [])
+          + ([(str(version_file), ".")] if version_file.exists() else [])
           + copy_metadata("PySide6") + copy_metadata("PySide6-Fluent-Widgets"),
     hiddenimports=[],
     hookspath=[],
@@ -42,4 +45,5 @@ exe = EXE(
     console=False,
     uac_admin=True,
     icon=str(icon) if icon.exists() else None,
+    version=str(version_info) if version_info.exists() else None,
 )

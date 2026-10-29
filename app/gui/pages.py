@@ -16,7 +16,7 @@ from qfluentwidgets import (BodyLabel, CaptionLabel, CheckBox, ComboBox, Dialog,
                             Theme, TitleLabel, TreeItemDelegate, TreeWidget, qconfig, setFont)
 from qfluentwidgets.components.widgets.check_box import CheckBoxIcon
 from cli import main as core
-from .build_info import build_time_text
+from .build_info import build_time_text, version_text
 from .models import LOG_LEVELS, normalize_log_level
 from .components import (Ipv4TargetInput, SectionCard, TargetControls, TaskFooter,
                          info_button, page_heading, tool_button)
@@ -1471,6 +1471,13 @@ class AboutPage(Page):
         self.build_time_value.setObjectName("aboutBuildTime")
         self.build_time_value.setToolTip("打包 EXE 的时间；源码运行时不会生成构建时间")
         content.addWidget(build_card)
+
+        version_card = AboutInfoCard("版本", version_text(), self)
+        version_card.setObjectName("aboutVersionCard")
+        self.version_value = version_card.detail
+        self.version_value.setObjectName("aboutVersion")
+        self.version_value.setToolTip("版本号遵循语义化版本，nightly 构建可能是 0.x 开发版")
+        content.addWidget(version_card)
 
         versions = SectionCard(self, spacing=8, margins=(18, 12, 18, 12))
         versions.setObjectName("aboutVersionsCard")

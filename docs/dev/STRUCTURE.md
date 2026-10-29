@@ -4,7 +4,7 @@
    <img alt="Python 3.13" src="https://img.shields.io/badge/Python-3.13-3776AB?style=for-the-badge&logo=python&logoColor=white&labelColor=212121">
    <img alt="PySide6" src="https://img.shields.io/badge/GUI-PySide6-41CD52?style=for-the-badge&logo=qt&logoColor=white&labelColor=212121">
 </p>
-<p><a href="../../README.md">← 返回项目首页</a> 丨 <a href="BUILD.md">EXE 构建</a> 丨 <a href="CONTRIBUTING.md">开发与提交规范</a></p>
+<p><a href="../../README.md">← 返回项目首页</a> 丨 <a href="BUILD.md">EXE 构建</a> 丨 <a href="VERSIONING.md">版本规范</a> 丨 <a href="CONTRIBUTING.md">开发与提交规范</a></p>
 </div>
 
 ---
@@ -15,19 +15,21 @@
 jiyu_attack_next/
 |-- .github/
 |   `-- workflows/
-|       `-- nightly-build.yml   # GitHub Actions Nightly 构建与预发布
+|       |-- build.yml             # 可复用打包流程，供下面两个工作流调用
+|       |-- nightly-build.yml     # Nightly 构建与滚动预发布
+|       `-- release.yml           # 正式版发布（仅手动触发）
 |-- README.md                     # 基础介绍与文档导航
 |-- requirements.txt              # GUI 与构建依赖
 |-- cli/
 |   `-- main.py                   # 独立脚本版，仅使用标准库
 |-- app/                          # 图形应用包
-|   |-- __init__.py
+|   |-- __init__.py               # 包入口与版本号唯一来源
 |   |-- __main__.py               # 应用包入口
 |   `-- gui/
 |       |-- __init__.py
 |       |-- __main__.py           # GUI 与打包入口
 |       |-- app.py                # Fluent 窗口、导航、单实例与交互
-|       |-- build_info.py         # 读取打包构建时间
+|       |-- build_info.py         # 读取打包构建时间与版本号
 |       |-- components.py         # 共用目标参数与任务栏
 |       |-- models.py             # 连接状态、设备备注与结构化运行日志
 |       |-- pages.py              # 功能页面
@@ -37,10 +39,12 @@ jiyu_attack_next/
 |   |-- test_core.py              # 协议与发送接口测试
 |   |-- test_entry.py             # 独立脚本与启动入口测试
 |   |-- test_gui.py               # 界面与线程生命周期测试
-|   |-- test_nightly_workflow.py  # Nightly Build 工作流配置测试
+|   |-- test_nightly_workflow.py  # Nightly 与 Release 工作流配置测试
+|   |-- test_versioning.py        # 版本号一致性与读取测试
 |   `-- verify_gui.py             # 界面截图检查工具
 |-- scripts/
 |   |-- build.ps1                 # EXE 构建脚本
+|   |-- gen_version_info.py       # 生成 EXE 版本资源
 |   |-- run_gui.ps1               # 使用虚拟环境启动 GUI
 |   `-- JiYuAttackNext.spec       # PyInstaller 配置
 |-- docs/
@@ -50,6 +54,7 @@ jiyu_attack_next/
 |   `-- dev/                      # 开发文档
 |       |-- STRUCTURE.md          # 项目结构与模块职责
 |       |-- BUILD.md              # 编译、输出与清理
+|       |-- VERSIONING.md         # 版本号、发布通道与正式版发布流程
 |       `-- CONTRIBUTING.md       # 开发与中文提交规范
 `-- assets/
     `-- app.svg                    # 图标源文件
@@ -60,12 +65,14 @@ jiyu_attack_next/
 - `cli/main.py` 同时提供独立 CLI 和可复用的报文接口，不依赖 `app/` 或 PySide6。
 - `app/gui/app.py` 基于 `FluentWindow` 实现侧边导航、任务调度、单实例运行与页面联动。
 - `app/gui/pages.py` 按消息、命令、设备、文件传送、设备备注、本机信息、防火墙、日志、设置和关于拆分页面；文件传送页使用带复选框与全选的文件树。
-- `app/gui/build_info.py` 从打包资源读取构建时间，源码运行时显示“源码运行”。
+- `app/gui/build_info.py` 从打包资源读取构建时间与版本号，源码运行时分别显示“源码运行”和 `app.__version__`。
 - `app/gui/components.py` 提供跨页面同步的连接参数和统一任务栏。
 - `app/gui/models.py` 保存连接状态、持久化设备备注，并提供带等级、线程、输出位置和异常详情的结构化日志存储。
 - `app/gui/workers.py` 执行后台发送和本机工具任务，通过信号更新界面。
-- `.github/workflows/nightly-build.yml` 在推送到 `main` 且改动涉及 `app/`、`cli/`、`scripts/`、`assets/`、依赖清单或工作流文件时构建 EXE，并更新 `nightly` 预发布版本；纯文档改动不触发。
-- `scripts/` 统一存放启动脚本及 EXE 构建配置，自动按脚本位置定位项目根目录。
+- `.github/workflows/build.yml` 提供可复用的打包流程，`nightly-build.yml` 与 `release.yml` 分别以 nightly、stable 通道调用它。
+- `.github/workflows/nightly-build.yml` 在推送到 `main` 且改动涉及 `app/`、`cli/`、`scripts/`、`assets/`、依赖清单或工作流文件时构建 EXE，并滚动更新 `nightly` 预发布；纯文档改动不触发。
+- `.github/workflows/release.yml` 仅在 Actions 页面手动触发，校验版本号与标签后创建 `vX.Y.Z` 正式发布，规则见[版本规范](VERSIONING.md)。
+- `scripts/` 统一存放启动脚本及 EXE 构建配置，自动按脚本位置定位项目根目录；`gen_version_info.py` 生成 EXE 的版本资源。
 - `tests/` 使用模拟套接字验证行为，不执行真实目标发送或防火墙变更。
 
 ## 本地生成目录

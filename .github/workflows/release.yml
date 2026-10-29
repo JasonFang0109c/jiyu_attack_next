@@ -1,0 +1,132 @@
+name: Release
+
+# 正式版发布：仅在 Actions 页面手动触发，不随推送自动运行。
+# 版本号取自 app/__init__.py 的 __version__，可用 version 输入显式覆盖。
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 版本号（留空则读取 app/__init__.py 的 __version__）
+        type: string
+        required: false
+        default: ""
+      draft:
+        description: 以草稿形式创建 Release（勾选后不对外可见）
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Release
+    uses: ./.github/workflows/build.yml
+    with:
+      channel: stable
+      version: ${{ inputs.version }}
+
+  publish:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository metadata
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: JiYuAttackNext-build
+          path: dist
+
+      - name: Verify version and tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.build.outputs.version }}"
+          source_version="$(grep -oP '__version__\s*=\s*"\K[^"]+' app/__init__.py)"
+          if [[ "${version}" != "${source_version}" ]]; then
+            echo "::error::版本号 ${version} 与 app/__init__.py 中的 ${source_version} 不一致；请先提交版本号变更，或改用 source 中的版本号。"
+            exit 1
+          fi
+          if [[ "${version}" == *-* ]]; then
+            echo "::error::正式版版本号不能带预发布后缀：${version}"
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v${version}" >/dev/null; then
+            echo "::error::标签 v${version} 已存在；已发布的版本不可覆盖，请提升版本号。"
+            exit 1
+          fi
+
+      - name: Prepare release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.build.outputs.version }}"
+          short_sha="${GITHUB_SHA::7}"
+          exe_sha256="$(sha256sum dist/JiYuAttackNext.exe | awk '{print $1}')"
+          cli_sha256="$(sha256sum "dist/JiYuAttackNext-cli-${version}.py" | awk '{print $1}')"
+          built_at="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          previous_tag="$(git describe --tags --abbrev=0 --match 'v*' HEAD 2>/dev/null || true)"
+          if [[ -n "${previous_tag}" ]]; then
+            changes="$(git log --pretty='- %s' "${previous_tag}..HEAD")"
+          else
+            changes="$(git log --pretty='- %s' -n 30)"
+          fi
+          if [[ -z "${changes}" ]]; then
+            changes="- （无新增提交）"
+          fi
+          cat > release-notes.md <<EOF
+          # JiYu Attack Next v${version}
+
+          - **Version:** \`${version}\`
+          - **Commit:** [\`${short_sha}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA})
+          - **Built at:** \`${built_at}\`
+          - **Workflow run:** [#${GITHUB_RUN_NUMBER}](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})
+
+          ## Changes
+
+          ${changes}
+
+          ## Assets
+
+          - \`JiYuAttackNext.exe\`（图形界面，无需安装 Python）
+          - \`JiYuAttackNext-cli.py\`（脚本版，仅依赖 Python 3.13 标准库）
+
+          ## SHA256
+
+          - GUI: \`${exe_sha256}\`
+          - CLI: \`${cli_sha256}\`
+          EOF
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ needs.build.outputs.version }}
+          name: JiYu Attack Next v${{ needs.build.outputs.version }}
+          body_path: release-notes.md
+          draft: ${{ inputs.draft }}
+          prerelease: false
+          target_commitish: ${{ github.sha }}
+          overwrite_files: false
+          fail_on_unmatched_files: true
+          make_latest: true
+          files: |
+            dist/JiYuAttackNext.exe
+            dist/JiYuAttackNext-cli.py
+            dist/JiYuAttackNext-${{ needs.build.outputs.version }}.exe
+            dist/JiYuAttackNext-cli-${{ needs.build.outputs.version }}.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -12,7 +12,7 @@ on:
       - "scripts/**"
       - "assets/**"
       - "requirements.txt"
-      - ".github/workflows/nightly-build.yml"
+      - ".github/workflows/**"
   workflow_dispatch:
 
 permissions:
@@ -24,63 +24,10 @@ concurrency:
 
 jobs:
   build:
-    name: Build Windows EXE
-    runs-on: windows-latest
-    timeout-minutes: 30
-    env:
-      QT_QPA_PLATFORM: offscreen
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Set up Python 3.13
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.13"
-          cache: pip
-          cache-dependency-path: requirements.txt
-
-      - name: Install dependencies
-        shell: pwsh
-        run: |
-          python -m venv .venv
-          .\.venv\Scripts\python.exe -m pip install --disable-pip-version-check -r requirements.txt
-
-      - name: Run offline checks
-        shell: pwsh
-        run: |
-          .\.venv\Scripts\python.exe -B -m unittest discover -s tests -v
-          .\.venv\Scripts\python.exe -X utf8 -m compileall -q cli app tests
-
-      - name: Build EXE
-        shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Clean
-
-      - name: Prepare release assets
-        shell: pwsh
-        run: |
-          $exeSource = "output\JiYuAttackNext.exe"
-          $cliSource = "cli\main.py"
-          if (-not (Test-Path -LiteralPath $exeSource -PathType Leaf)) {
-            throw "未找到构建产物：$exeSource"
-          }
-          if (-not (Test-Path -LiteralPath $cliSource -PathType Leaf)) {
-            throw "未找到 CLI 脚本：$cliSource"
-          }
-          New-Item -ItemType Directory -Path "dist" -Force | Out-Null
-          Copy-Item -LiteralPath $exeSource -Destination "dist\JiYuAttackNext.exe" -Force
-          Copy-Item -LiteralPath $cliSource -Destination "dist\JiYuAttackNext-cli.py" -Force
-
-      - name: Upload nightly artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: JiYuAttackNext-nightly
-          path: |
-            dist/JiYuAttackNext.exe
-            dist/JiYuAttackNext-cli.py
-          if-no-files-found: error
-          retention-days: 7
+    name: Build Nightly
+    uses: ./.github/workflows/build.yml
+    with:
+      channel: nightly
 
   release:
     name: Publish Nightly Build
@@ -96,10 +43,10 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Download nightly artifact
+      - name: Download build artifact
         uses: actions/download-artifact@v8
         with:
-          name: JiYuAttackNext-nightly
+          name: JiYuAttackNext-build
           path: dist
 
       - name: Prepare release notes
@@ -107,6 +54,7 @@ jobs:
         run: |
           set -euo pipefail
           short_sha="${GITHUB_SHA::7}"
+          version="${{ needs.build.outputs.version }}"
           exe_sha256="$(sha256sum dist/JiYuAttackNext.exe | awk '{print $1}')"
           cli_sha256="$(sha256sum dist/JiYuAttackNext-cli.py | awk '{print $1}')"
           built_at="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
@@ -115,8 +63,9 @@ jobs:
             commit_message="（无提交说明）"
           fi
           cat > release-notes.md <<EOF
-          # Nightly Build
+          # Nightly Build ${version}
 
+          - **Version:** \`${version}\`
           - **Commit:** [\`${short_sha}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA})
           - **Built at:** \`${built_at}\`
           - **Workflow run:** [#${GITHUB_RUN_NUMBER}](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})
@@ -142,7 +91,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: nightly
-          name: Nightly Build
+          name: Nightly Build ${{ needs.build.outputs.version }}
           body_path: release-notes.md
           draft: false
           prerelease: true

@@ -1,0 +1,111 @@
+name: Build
+
+# 可复用构建流程：nightly 与正式版发布共用，避免两处重复维护打包步骤。
+on:
+  workflow_call:
+    inputs:
+      channel:
+        description: 构建通道，nightly 会在版本号后追加 -nightly.YYYYMMDD
+        type: string
+        required: false
+        default: stable
+      version:
+        description: 显式指定版本号；留空时读取 app/__init__.py 的 __version__
+        type: string
+        required: false
+        default: ""
+    outputs:
+      version:
+        description: 本次打包使用的版本号
+        value: ${{ jobs.build.outputs.version }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Windows EXE
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      QT_QPA_PLATFORM: offscreen
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install --disable-pip-version-check -r requirements.txt
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        env:
+          INPUT_CHANNEL: ${{ inputs.channel }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          $version = $env:INPUT_VERSION.Trim()
+          if (-not $version) {
+            $version = (& .\.venv\Scripts\python.exe -X utf8 -c "import app; print(app.__version__)").Trim()
+          }
+          if ($env:INPUT_CHANNEL -eq "nightly") {
+            $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMdd')
+            $version = "$version-nightly.$stamp"
+          }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "打包版本：$version"
+
+      - name: Run offline checks
+        shell: pwsh
+        run: |
+          .\.venv\Scripts\python.exe -B -m unittest discover -s tests -v
+          .\.venv\Scripts\python.exe -X utf8 -m compileall -q cli app tests
+
+      - name: Build EXE
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Clean `
+            -Version "${{ steps.version.outputs.version }}"
+
+      - name: Prepare release assets
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $exeSource = "output\JiYuAttackNext.exe"
+          $cliSource = "cli\main.py"
+          if (-not (Test-Path -LiteralPath $exeSource -PathType Leaf)) {
+            throw "未找到构建产物：$exeSource"
+          }
+          if (-not (Test-Path -LiteralPath $cliSource -PathType Leaf)) {
+            throw "未找到 CLI 脚本：$cliSource"
+          }
+          New-Item -ItemType Directory -Path "dist" -Force | Out-Null
+          Copy-Item -LiteralPath $exeSource -Destination "dist\JiYuAttackNext.exe" -Force
+          Copy-Item -LiteralPath $cliSource -Destination "dist\JiYuAttackNext-cli.py" -Force
+          Copy-Item -LiteralPath $exeSource -Destination "dist\JiYuAttackNext-$env:VERSION.exe" -Force
+          Copy-Item -LiteralPath $cliSource -Destination "dist\JiYuAttackNext-cli-$env:VERSION.py" -Force
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: JiYuAttackNext-build
+          path: |
+            dist/JiYuAttackNext.exe
+            dist/JiYuAttackNext-cli.py
+            dist/JiYuAttackNext-*.exe
+            dist/JiYuAttackNext-cli-*.py
+          if-no-files-found: error
+          retention-days: 7

@@ -1,6 +1,7 @@
 <div align="center">
 <h1>GUI 使用说明</h1>
 <p>
+   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/JasonFang0109c/jiyu_attack_next?label=Latest&style=for-the-badge&color=2CA5E0&labelColor=212121"></a>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly"><img alt="Nightly Build" src="https://img.shields.io/badge/Nightly-Build-blue?style=for-the-badge&logo=githubactions&labelColor=212121"></a>
    <img alt="PySide6" src="https://img.shields.io/badge/GUI-PySide6-41CD52?style=for-the-badge&logo=qt&logoColor=white&labelColor=212121">
    <img alt="Platform" src="https://img.shields.io/badge/平台-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white&labelColor=212121">
@@ -17,7 +18,7 @@
   <tr>
     <td width="33%" valign="top">
       <h3>📥 获取程序</h3>
-      <p>下载 <code>JiYuAttackNext.exe</code>，或从源码运行 <code>python -m app.gui</code>。</p>
+      <p>从正式版或 Nightly Build 下载 <code>JiYuAttackNext.exe</code>，或从源码运行 <code>python -m app.gui</code>。</p>
     </td>
     <td width="33%" valign="top">
       <h3>🎯 填写目标</h3>
@@ -61,7 +62,7 @@ python -m app.gui
 | 防火墙 | 修改 `StudentMain.exe` 的现有防火墙规则并查看逐项结果 |
 | 运行日志 | 按功能、级别和关键词筛选，勾选导出或删除日志，并取消正在发送的任务 |
 | 设置 | 切换主题、设置关闭时最小化到托盘与本次运行日志等级，确认后清除本地数据 |
-| 关于 | 查看作者、GitHub 仓库、上游仓库、构建时间和组件版本 |
+| 关于 | 查看作者、GitHub 仓库、上游仓库、构建时间、版本和组件版本 |
 
 ## 目标地址
 
@@ -122,7 +123,7 @@ python -m app.gui
 - 发送设备指令前会显示目标数量、端口和操作类型并要求二次确认。
 - 反向 Shell 功能保留在 CLI 的 `-e nc` 中，GUI 不提供对应入口。
 - 日志中的“发送完成”只表示本机发送调用完成，不代表目标已收到或执行成功。
-- “关于”页顶部的图片与项目名称区域不绘制圆角卡片背景；下方作者、GitHub 仓库、上游仓库、构建时间与组件版本仍分别显示独立卡片。构建时间取自打包时写入的构建时间标记，源码运行时显示“源码运行”。
+- “关于”页顶部的图片与项目名称区域不绘制圆角卡片背景；下方作者、GitHub 仓库、上游仓库、构建时间、版本与组件版本仍分别显示独立卡片。构建时间取自打包时写入的构建时间标记，源码运行时显示“源码运行”；版本号在 EXE 中取自打包时写入的版本，源码运行时显示 `app/__version__`。
 - 程序同一时间只允许运行一个实例（含托盘中的隐藏窗口）。再次启动 EXE 时不会打开第二个窗口，而是唤醒已运行的主窗口并置于前台。
 - “设置”页底部的“清除数据”会先显示确认框；确认后删除程序数据目录（包括设备备注、界面设置与运行日志），取消则不做修改。清除后关闭窗口行为恢复为默认的最小化到托盘，首次关闭提示也会重新出现；本次运行的文件日志暂停，重启程序后恢复写入。
 - 运行日志默认以 `INFO` 等级运行，可在“设置”页的“运行日志等级”下拉框中切换为 `DEBUG`、`INFO`、`WARNING` 或 `ERROR`。运行等级是写入阈值：选择 `WARNING` 后，新的 `DEBUG`、`INFO` 记录不会进入列表和日志文件；本次运行结束后不会持久化该设置。

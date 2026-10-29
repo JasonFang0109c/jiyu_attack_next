@@ -133,6 +133,10 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(about.build_time_value.text(), "源码运行")
         self.assertIn("构建时间", [label.text() for label in about.findChildren(BodyLabel)])
         self.assertEqual(about.build_time_value.objectName(), "aboutBuildTime")
+        from app.gui import build_info
+        self.assertEqual(about.version_value.text(), build_info.version_text())
+        self.assertIn("版本", [label.text() for label in about.findChildren(BodyLabel)])
+        self.assertEqual(about.version_value.objectName(), "aboutVersion")
 
     def test_build_time_comes_from_bundle_asset(self):
         from app.gui import build_info
@@ -143,6 +147,15 @@ class GuiTests(unittest.TestCase):
             self.assertRegex(build_info.build_time_text(), r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
         with patch.object(gui.sys, "_MEIPASS", str(self.temp_root / "missing"), create=True):
             self.assertEqual(build_info.build_time_text(), "源码运行")
+
+    def test_version_comes_from_bundle_asset(self):
+        from app.gui import build_info
+        from app import __version__
+        self.assertEqual(build_info.version_text(), __version__)
+        version_file = self.temp_root / "bundle" / build_info.VERSION_FILE_NAME
+        build_info.write_version(version_file, "9.9.9")
+        with patch.object(gui.sys, "_MEIPASS", str(version_file.parent), create=True):
+            self.assertEqual(build_info.version_text(), "9.9.9")
 
     def test_every_page_uses_rounded_section_cards(self):
         for page in self.window.pages.values():

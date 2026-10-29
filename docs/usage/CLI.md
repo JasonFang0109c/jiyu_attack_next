@@ -1,6 +1,7 @@
 <div align="center">
 <h1>CLI 版使用说明</h1>
 <p>
+   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/JasonFang0109c/jiyu_attack_next?label=Latest&style=for-the-badge&color=2CA5E0&labelColor=212121"></a>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly"><img alt="Nightly Build" src="https://img.shields.io/badge/Nightly-Build-blue?style=for-the-badge&logo=githubactions&labelColor=212121"></a>
    <img alt="Python 3.13" src="https://img.shields.io/badge/Python-3.13-3776AB?style=for-the-badge&logo=python&logoColor=white&labelColor=212121">
    <img alt="Standard Library" src="https://img.shields.io/badge/依赖-仅标准库-3ddc84?style=for-the-badge&labelColor=212121">
@@ -10,7 +11,7 @@
 
 ---
 
-CLI 版可从 Nightly Build 下载 [**JiYuAttackNext-cli.py**](https://github.com/JasonFang0109c/jiyu_attack_next/releases/download/nightly/JiYuAttackNext-cli.py)。该文件仅依赖 Python 标准库，可以单独保存到任意目录使用，无需安装 GUI 依赖。
+CLI 版可从 [最新正式版](https://github.com/JasonFang0109c/jiyu_attack_next/releases/latest) 或 [Nightly Build](https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly) 下载 **JiYuAttackNext-cli.py**。该文件仅依赖 Python 标准库，可以单独保存到任意目录使用，无需安装 GUI 依赖。正式版偏稳定，nightly 随 `main` 更新，两者版本号格式见[版本规范](../dev/VERSIONING.md)。
 
 > **提示**
 > 单文件即可运行，不需要克隆仓库，也不需要安装 PySide6。相对文件路径按终端当前工作目录解析。
@@ -24,7 +25,7 @@ CLI 版可从 Nightly Build 下载 [**JiYuAttackNext-cli.py**](https://github.co
   <tr>
     <td width="33%" valign="top">
       <h3>📥 获取脚本</h3>
-      <p>从 Nightly Build 下载 <code>JiYuAttackNext-cli.py</code>，保存到任意目录。</p>
+      <p>从正式版或 Nightly Build 下载 <code>JiYuAttackNext-cli.py</code>，保存到任意目录。</p>
     </td>
     <td width="33%" valign="top">
       <h3>▶️ 运行命令</h3>
@@ -44,7 +45,10 @@ CLI 版可从 Nightly Build 下载 [**JiYuAttackNext-cli.py**](https://github.co
 
 ```powershell
 python JiYuAttackNext-cli.py -h
+python JiYuAttackNext-cli.py --version
 ```
+
+`--version` 输出脚本自身的版本号（例如 `0.4.0`），用于确认下载到的版本；版本号规则见[版本规范](../dev/VERSIONING.md)。
 
 通用格式：
 
@@ -61,6 +65,7 @@ python JiYuAttackNext-cli.py -ip <目标地址> [-p <目标端口>] <功能参�
 | 参数 | 类型 | 默认值 | 用途与说明 |
 | --- | --- | --- | --- |
 | `-h` / `--help` | 开关 | 无 | 显示帮助并退出 |
+| `-V` / `--version` | 开关 | 无 | 显示版本号并退出 |
 | `-ip` | 字符串 | 无 | 目标地址，支持单个 IPv4、同网段末段范围及 `/24` |
 | `-p` | 整数 | `4705` | 目标 UDP 端口 |
 | `-msg` | 字符串 | 无 | 发送文本消息，保留多行内容；超长文本自动分条 |

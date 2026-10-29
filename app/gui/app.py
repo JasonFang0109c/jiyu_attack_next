@@ -19,6 +19,7 @@ from qfluentwidgets import (Action, CaptionLabel, Dialog, FluentIcon as FIF,
                             Theme, setTheme, setThemeColor)
 
 from cli import main as core
+from .build_info import version_text
 from .models import (CLOSE_BEHAVIOR_QUIT, CLOSE_BEHAVIOR_SETTINGS_KEY,
                      CLOSE_BEHAVIOR_TRAY, DATA_DIRECTORY_NAME,
                      DEFAULT_CLOSE_BEHAVIOR, FIRST_CLOSE_PROMPT_SETTINGS_KEY,
@@ -237,8 +238,9 @@ class MainWindow(FluentWindow):
             "运行日志",
             "日志系统已初始化",
             LogLevel.INFO,
-            "日志文件：%s；线程：%s；GUI 版本：%s" % (
-                self.logs.log_path or "未启用", threading.current_thread().name, APP_NAME),
+            "日志文件：%s；线程：%s；GUI 版本：%s %s" % (
+                self.logs.log_path or "未启用", threading.current_thread().name,
+                APP_NAME, version_text()),
         )
 
     def _build_navigation(self):

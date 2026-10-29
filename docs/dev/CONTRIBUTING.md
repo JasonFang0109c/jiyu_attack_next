@@ -4,7 +4,7 @@
    <img alt="Python 3.13" src="https://img.shields.io/badge/Python-3.13-3776AB?style=for-the-badge&logo=python&logoColor=white&labelColor=212121">
    <img alt="Commit" src="https://img.shields.io/badge/提交信息-中文-2CA5E0?style=for-the-badge&labelColor=212121">
 </p>
-<p><a href="../../README.md">← 返回项目首页</a> 丨 <a href="STRUCTURE.md">项目结构</a> 丨 <a href="BUILD.md">EXE 构建</a></p>
+<p><a href="../../README.md">← 返回项目首页</a> 丨 <a href="STRUCTURE.md">项目结构</a> 丨 <a href="BUILD.md">EXE 构建</a> 丨 <a href="VERSIONING.md">版本规范</a></p>
 </div>
 
 ---
@@ -33,7 +33,16 @@ python -m app.gui
 powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Clean
 ```
 
-`scripts/build.ps1` 接受 `-Python` 参数指定其他虚拟环境解释器。构建产物与虚拟环境、缓存文件均由 `.gitignore` 排除，不提交到仓库。
+`scripts/build.ps1` 接受 `-Python` 参数指定其他虚拟环境解释器，`-Version` 覆盖版本号（默认读取 `app/__init__.py` 的 `__version__`）。构建产物与虚拟环境、缓存文件均由 `.gitignore` 排除，不提交到仓库。
+
+## 版本号
+
+版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)，当前处于 `0.y.z` 阶段，完整规则与发布流程见[版本规范](VERSIONING.md)。
+
+- 权威来源是 `app/__init__.py` 的 `__version__`；`cli/main.py` 因需独立运行而保留一份镜像值，两者由 `tests/test_versioning.py` 校验。
+- 新增功能升次版本号，修复升修订号，文档、测试、工作流等不影响产物的改动不递增。
+- nightly 与正式版共用同一版本号，nightly 由工作流追加 `-nightly.YYYYMMDD`，不需要手工维护。
+- 正式版通过 Actions 页面的 `Release` 工作流手动发布，不要在本地打标签后手工上传资产。
 
 ## 离线检查
 

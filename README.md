@@ -5,6 +5,7 @@
 <p>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/JasonFang0109c/jiyu_attack_next"></a>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases"><img alt="GitHub all releases" src="https://img.shields.io/github/downloads/JasonFang0109c/jiyu_attack_next/total?label=Downloads"></a>
+   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/JasonFang0109c/jiyu_attack_next?label=Latest&color=2CA5E0"></a>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly"><img alt="Nightly Build" src="https://img.shields.io/badge/Nightly-Build-blue.svg?logo=githubactions"></a>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/JasonFang0109c/jiyu_attack_next"></a>
 </p>
@@ -85,12 +86,17 @@
 
 ## 下载
 
-图形界面与脚本版均通过 Nightly Build 发布：
+正式版与 nightly 均可在 Releases 页面获取：
 
-- EXE：前往 [Nightly Build](https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly) 下载 `JiYuAttackNext.exe`
-- 脚本：下载 [JiYuAttackNext-cli.py](https://github.com/JasonFang0109c/jiyu_attack_next/releases/download/nightly/JiYuAttackNext-cli.py)
+| 通道 | 说明 | 下载 |
+| --- | --- | --- |
+| 正式版 | 版本号形如 `v0.4.0`，标记为 Latest | [最新正式版](https://github.com/JasonFang0109c/jiyu_attack_next/releases/latest) |
+| nightly | 版本号形如 `0.4.0-nightly.20261029`，随 `main` 更新 | [Nightly Build](https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly) |
 
-推送到 `main` 且改动涉及 `app/`、`cli/`、`scripts/`、`assets/`、依赖清单或工作流文件时，会自动构建并更新 `nightly` 预发布版本；纯文档改动不触发构建。EXE 无需安装 Python 即可运行。
+- EXE：`JiYuAttackNext.exe`，无需安装 Python 即可运行
+- 脚本：`JiYuAttackNext-cli.py`，仅依赖 Python 3.13 标准库
+
+推送到 `main` 且改动涉及 `app/`、`cli/`、`scripts/`、`assets/`、依赖清单或工作流文件时，会自动构建并滚动更新 `nightly` 预发布版本；纯文档改动不触发构建。正式版需在 Actions 页面手动运行 `Release`，版本号规则见[版本规范](docs/dev/VERSIONING.md)。
 
 ## 文档
 
@@ -107,6 +113,7 @@
 | --- | --- |
 | [项目结构](docs/dev/STRUCTURE.md) | 目录布局与模块职责 |
 | [EXE 构建](docs/dev/BUILD.md) | 环境准备、编译脚本、输出位置与验证步骤 |
+| [版本规范](docs/dev/VERSIONING.md) | 语义化版本号、nightly 与正式版通道、发布流程 |
 | [开发与提交规范](docs/dev/CONTRIBUTING.md) | 开发环境、离线测试及中文提交规范 |
 
 ## 开发环境
