@@ -10,40 +10,38 @@ jiyu_attack_next/
 |-- README.md                     # 基础介绍与文档导航
 |-- requirements.txt              # GUI 与构建依赖
 |-- cli/
-|   `-- main.py                    # 独立脚本版，仅使用标准库
+|   `-- main.py                   # 独立脚本版，仅使用标准库
 |-- app/                          # 图形应用包
 |   |-- __init__.py
-|   |-- __main__.py                # 应用包入口
+|   |-- __main__.py               # 应用包入口
 |   `-- gui/
 |       |-- __init__.py
-|       |-- __main__.py            # GUI 与打包入口
-|       |-- app.py                 # Fluent 窗口、导航、单实例与交互
-|       |-- build_info.py          # 读取打包构建时间
-|       |-- components.py          # 共用目标参数与任务栏
-|       |-- models.py              # 连接状态、设备备注与结构化运行日志
-|       |-- pages.py               # 功能页面
-|       `-- workers.py             # 后台任务
+|       |-- __main__.py           # GUI 与打包入口
+|       |-- app.py                # Fluent 窗口、导航、单实例与交互
+|       |-- build_info.py         # 读取打包构建时间
+|       |-- components.py         # 共用目标参数与任务栏
+|       |-- models.py             # 连接状态、设备备注与结构化运行日志
+|       |-- pages.py              # 功能页面
+|       `-- workers.py            # 后台任务
 |-- tests/
 |   |-- __init__.py
-|   |-- test_core.py               # 协议与发送接口测试
-|   |-- test_entry.py              # 独立脚本与启动入口测试
-|   |-- test_gui.py                # 界面与线程生命周期测试
-|   |-- test_nightly_workflow.py   # Nightly Build 工作流配置测试
-|   `-- verify_gui.py              # 界面截图检查工具
+|   |-- test_core.py              # 协议与发送接口测试
+|   |-- test_entry.py             # 独立脚本与启动入口测试
+|   |-- test_gui.py               # 界面与线程生命周期测试
+|   |-- test_nightly_workflow.py  # Nightly Build 工作流配置测试
+|   `-- verify_gui.py             # 界面截图检查工具
 |-- scripts/
-|   |-- build.ps1                  # EXE 构建脚本
-|   |-- run_gui.ps1                # 使用虚拟环境启动 GUI
-|   `-- JiYuAttackNext.spec           # PyInstaller 配置
+|   |-- build.ps1                 # EXE 构建脚本
+|   |-- run_gui.ps1               # 使用虚拟环境启动 GUI
+|   `-- JiYuAttackNext.spec       # PyInstaller 配置
 |-- docs/
 |   |-- CLI.md                    # 独立脚本使用说明
 |   |-- GUI.md                    # GUI 使用说明
 |   |-- STRUCTURE.md              # 项目结构与模块职责
 |   |-- BUILD.md                  # 编译、输出与清理
 |   `-- CONTRIBUTING.md           # 开发与中文提交规范
-|-- assets/
-|   `-- app.svg                    # 图标源文件
-`-- output/                       # 本机编译输出，不提交 Git
-    `-- JiYu Attack Next.exe
+`-- assets/
+    `-- app.svg                    # 图标源文件
 ```
 
 ## 模块关系
@@ -59,17 +57,11 @@ jiyu_attack_next/
 - `scripts/` 统一存放启动脚本及 EXE 构建配置，自动按脚本位置定位项目根目录。
 - `tests/` 使用模拟套接字验证行为，不执行真实目标发送或防火墙变更。
 
-## 本地生成目录
+## 生成内容
 
-| 路径 | 用途 | 清理方式 |
-| --- | --- | --- |
-| `.venv/` | Python 虚拟环境 | 保留供开发和构建使用 |
-| `build/` | 构建缓存、转换后的图标、测试临时目录与截图 | 验证结束后可删除，按需重新生成 |
-| `output/` | 最终 EXE | 保留需要运行或分发的产物 |
-| `JiYuAttackNextData/` | 便携数据目录：EXE 同级生成，保存设备备注、关闭窗口行为与运行日志；源码运行时位于项目根目录 | 需要保留配置时随 EXE 一起移动，删除后恢复默认；也可在 GUI“设置”页底部清除 |
-| `__pycache__/` | Python 字节码缓存 | 可删除，不影响源码 |
+虚拟环境、构建缓存、构建产物、便携运行数据和缓存文件均位于仓库工作目录内，由 `.gitignore` 排除，不提交 Git；可随时删除并在下次运行或构建时重新生成。
 
-这些生成目录均已通过 `.gitignore` 排除。根目录不保留重复的旧入口文件或遗留截图。
+根目录不保留重复的旧入口文件或遗留截图。
 
 ## 相关文档
 
