@@ -232,10 +232,11 @@ class CoreTests(unittest.TestCase):
 
     def test_windows_output_decoding_supports_utf8_and_gbk(self):
         self.assertEqual(
-            self.core._decode_windows_output("规则已更新".encode("utf-8")), "规则已更新"
+            self.core.firewall._decode_windows_output("规则已更新".encode("utf-8")),
+            "规则已更新",
         )
         self.assertEqual(
-            self.core._decode_windows_output("服务已在运行".encode("gbk")),
+            self.core.firewall._decode_windows_output("服务已在运行".encode("gbk")),
             "服务已在运行",
         )
 
@@ -605,11 +606,13 @@ class CoreTests(unittest.TestCase):
             ),
         ):
             self.assertEqual(self.core.detect_local_ip("10.49.131.30"), "10.49.151.27")
-        self.assertFalse(self.core._is_usable_local_address("198.18.0.0"))
+        self.assertFalse(self.core.local_info._is_usable_local_address("198.18.0.0"))
         self.assertFalse(
-            self.core._is_usable_local_address("127.0.0.1", "192.168.1.10")
+            self.core.local_info._is_usable_local_address("127.0.0.1", "192.168.1.10")
         )
-        self.assertTrue(self.core._is_usable_local_address("127.0.0.1", "127.0.0.1"))
+        self.assertTrue(
+            self.core.local_info._is_usable_local_address("127.0.0.1", "127.0.0.1")
+        )
 
     def test_file_transfer_retries_udp_command_until_target_requests_file(self):
         self.network_guard.stop()

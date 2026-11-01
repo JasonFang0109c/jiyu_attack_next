@@ -347,14 +347,11 @@ class FileTransferServer:
         progress: 进度回调，接收中文状态文本。
     """
 
-    def __init__(self, source, bind_host="0.0.0.0", port=0, items=None):
+    def __init__(self, items, bind_host="0.0.0.0", port=0):
         self.token = secrets.token_urlsafe(12)
         self.items = [
-            (Path(path), relative, int(size)) for path, relative, size in (items or [])
+            (Path(path), relative, int(size)) for path, relative, size in items
         ]
-        if not self.items:
-            self.items = [(Path(source), Path(source).name, 0)]
-        self.source = self.items[0][0]
         self.sources = [(path, relative) for path, relative, _ in self.items]
         self.total_size = sum(size for _, _, size in self.items)
         # 各文件在总进度中的起始偏移，避免每次请求都重新累加前面的文件大小。
@@ -367,7 +364,6 @@ class FileTransferServer:
         self.requested = Event()
         self.request_stage = ""
         self.advertised_host = ""
-        self.failure_hint = ""
         self.error = ""
         self.progress = None
         self._progress_value = -1
@@ -437,10 +433,6 @@ class FileTransferServer:
         if finished:
             self.report_progress(self.total_size)
             self.downloaded.set()
-
-    def complete(self):
-        """标记传送成功结束。"""
-        self.downloaded.set()
 
     def fail(self, message):
         """记录失败原因并结束等待，先到的原因保留。"""
@@ -591,11 +583,7 @@ def transfer_file(
     for index, host in enumerate(targets, 1):
         if cancel_event and cancel_event.is_set():
             raise RuntimeError("操作已取消")
-        transfer = FileTransferServer(
-            entries[0][0],
-            bind_host=bind_host,
-            items=[(path, relative, size) for path, relative, size in entries],
-        )
+        transfer = FileTransferServer(entries, bind_host=bind_host)
         transfer.desktop_dir = desktop_dir
         try:
             transfer.start()
@@ -669,8 +657,6 @@ def transfer_file(
         "files": [relative for _, relative, _ in entries],
         "file_count": len(entries),
     }
-    if len(entries) == 1:
-        result["name"] = Path(entries[0][0]).name
     return result
 
 

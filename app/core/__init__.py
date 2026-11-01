@@ -14,18 +14,12 @@ from .constants import (
 from .firewall import (
     FIREWALL_HELPER_ARGUMENT,
     FIREWALL_RESULT_ARGUMENT,
-    _decode_windows_output,
-    _firewall_result,
-    _is_admin,
-    _run_elevated_process,
-    _run_firewall_elevated,
     run_windows_command,
     request_firewall_rule,
     run_firewall_helper,
     set_firewall_rule,
 )
 from .local_info import (
-    _is_usable_local_address,
     detect_local_ip,
     local_ip_and_ports,
     validate_listen_ip,
@@ -42,9 +36,6 @@ from .protocol import (
 )
 from .transport import (
     FileTransferServer,
-    _FileTransferRequestHandler,
-    _bootstrap_desktop_lines,
-    _validate_transfer_request,
     build_bootstrap_script,
     build_items_bootstrap_script,
     build_transfer_command,
