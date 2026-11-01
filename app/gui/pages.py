@@ -1485,10 +1485,6 @@ class AboutPage(Page):
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setObjectName("aboutScroll")
-        # Fluent 滚动条默认在轨道上下各留 14px 内边距，短窗口下看起来像
-        # 上方空了一截。这里收掉内边距，让滚动条从页面顶部贯通到底部。
-        for bar in (scroll.delegate.vScrollBar, scroll.delegate.hScrollBar):
-            bar._padding = 0
         bar_width = scroll.verticalScrollBar().sizeHint().width()
         content_host = QWidget(scroll)
         content_host.setObjectName("aboutContent")
