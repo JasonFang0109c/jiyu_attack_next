@@ -28,9 +28,9 @@ try {
     }
 
     if (-not $Version) {
-        $Version = (& $pythonExe -X utf8 -c "import app; print(app.__version__)").Trim()
+        $Version = (& $pythonExe -X utf8 -c "import jiyu_attack_next; print(jiyu_attack_next.__version__)").Trim()
         if ($LASTEXITCODE -ne 0 -or -not $Version) {
-            throw "无法从 app/__init__.py 读取版本号，请使用 -Version 指定。"
+            throw "无法从 jiyu_attack_next/core/constants.py 读取版本号，请使用 -Version 指定。"
         }
     }
     $versionPattern = '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
@@ -44,12 +44,12 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "图标转换失败，退出码：$LASTEXITCODE"
     }
-    $buildTimeScript = "from app.gui.build_info import write_build_time; write_build_time('build/assets/build_time.txt')"
+    $buildTimeScript = "from jiyu_attack_next.gui.build_info import write_build_time; write_build_time('build/assets/build_time.txt')"
     & $pythonExe -X utf8 -c $buildTimeScript
     if ($LASTEXITCODE -ne 0) {
         throw "构建时间写入失败，退出码：$LASTEXITCODE"
     }
-    $versionScript = "from app.gui.build_info import write_version; write_version('build/assets/version.txt', '$Version')"
+    $versionScript = "from jiyu_attack_next.gui.build_info import write_version; write_version('build/assets/version.txt', '$Version')"
     & $pythonExe -X utf8 -c $versionScript
     if ($LASTEXITCODE -ne 0) {
         throw "版本号写入失败，退出码：$LASTEXITCODE"

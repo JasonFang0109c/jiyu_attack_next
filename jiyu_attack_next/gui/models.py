@@ -13,7 +13,7 @@ import threading
 
 from PySide6.QtCore import QObject, QSettings, Signal
 
-from cli import main as core
+from .. import core
 
 
 DATA_DIRECTORY_NAME = "JiYuAttackNextData"

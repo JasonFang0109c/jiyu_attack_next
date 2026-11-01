@@ -23,36 +23,36 @@ python -m pip install -r requirements.txt
 
 ```powershell
 python --version
-python -m app -h
+python -m jiyu_attack_next -h
 ```
 
-`python -m app` 是统一入口：无参数启动 GUI，带参数运行命令行模式。只调试命令行核心时也可直接运行 `python cli/main.py -h`。
+`python -m jiyu_attack_next` 是统一入口：无参数启动 GUI，带参数运行命令行模式。运行时代码位于 `jiyu_attack_next/{core,cli,gui}`，不再保留可单独复制的 `cli/main.py` 入口。
 
 ## 启动与构建
 
 ```powershell
-python -m app
-powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Clean
+python -m jiyu_attack_next
+powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Clean
 ```
 
-`scripts/build.ps1` 接受 `-Python` 参数指定其他虚拟环境解释器，`-Version` 覆盖版本号（默认读取 `app/__init__.py` 的 `__version__`）。构建产物与虚拟环境、缓存文件均由 `.gitignore` 排除，不提交到仓库。
+`packaging/build.ps1` 接受 `-Python` 参数指定其他虚拟环境解释器，`-Version` 覆盖版本号（默认读取 `jiyu_attack_next/core/constants.py` 的 `__version__`）。构建产物与虚拟环境、缓存文件均由 `.gitignore` 排除，不提交到仓库。
 
 ## 版本号
 
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)，当前处于 `0.y.z` 阶段，完整规则与发布流程见[版本规范](VERSIONING.md)。
 
-- 权威来源是 `app/__init__.py` 的 `__version__`；`cli/main.py` 因需独立运行而保留一份镜像值，两者由 `tests/test_versioning.py` 校验。
+- 权威来源是 `jiyu_attack_next/core/constants.py` 的 `__version__`；`jiyu_attack_next/__init__.py` 只重新导出该值，命令行 `--version` 也读取同一来源，由 `tests/test_versioning.py` 校验。
 - 新增功能升次版本号，修复升修订号，文档、测试、工作流等不影响产物的改动不递增。
 - nightly 与正式版共用同一版本号，nightly 由工作流追加 `-nightly.YYYYMMDD`，不需要手工维护。
 - 正式版通过 Actions 页面的 `Release` 工作流手动发布，不要在本地打标签后手工上传资产。
 
 ## 离线检查
 
-按改动范围选择检查：只改 Markdown 时不需要跑测试；改 `cli/` 或 `app/` 时执行以下命令；改构建脚本或工作流时另需实际执行一次构建。
+按改动范围选择检查：只改 Markdown 时不需要跑测试；改 `jiyu_attack_next/`、`packaging/` 或 `scripts/` 时执行以下命令；改构建脚本或工作流时另需实际执行一次构建。
 
 ```powershell
 .\.venv\Scripts\python.exe -B -m unittest discover -s tests -v
-.\.venv\Scripts\python.exe -X utf8 -m compileall -q cli app tests
+.\.venv\Scripts\python.exe -X utf8 -m compileall -q jiyu_attack_next tests scripts
 ```
 
 ### 本机 IP 自测
@@ -72,7 +72,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Clean
 仅在改动 GUI 日志行为或调用点时适用。GUI 运行日志遵循 [日志规范](https://itliwei.github.io/technology/engineer/develop/logger.html)，等级统一使用 `DEBUG`、`INFO`、`WARNING`、`ERROR`，其中 `warn` 写作 `warning`。默认运行等级为 `INFO`，可在“设置”页切换；低于当前等级的记录不会写入列表和 `runtime.log`。
 
 ```text
-2026-10-23 12:34:56.789 [12345] [MainThread] INFO    app.gui.app.MainWindow:123 - [文本消息] 开始发送：192.168.1.20，端口 4705，1 轮
+2026-10-23 12:34:56.789 [12345] [MainThread] INFO    jiyu_attack_next.gui.app.MainWindow:123 - [文本消息] 开始发送：192.168.1.20，端口 4705，1 轮
     目标设备数：1
 ```
 

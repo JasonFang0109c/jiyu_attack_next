@@ -47,11 +47,11 @@ nightly 的后缀符合 SemVer 第 9 条“先行版本号”的约定：标识�
 
 | 位置 | 作用 |
 | --- | --- |
-| `app/__init__.py` 的 `__version__` | 权威来源，构建脚本与工作流都从这里读取 |
-| `cli/main.py` 的 `__version__` | 镜像值；该文件需可单独复制运行，因此不导入 `app` |
+| `jiyu_attack_next/core/constants.py` 的 `__version__` | 唯一权威来源，构建脚本与工作流都从这里读取 |
+| `jiyu_attack_next/__init__.py` | 重新导出 `__version__`，供运行时代码和“关于”页使用 |
 | `build/assets/version.txt` | 构建时写入并打包进 EXE，供“关于”页显示 |
 
-两处 `__version__` 必须一致，由 `tests/test_versioning.py` 校验；`scripts/build.ps1` 会拒绝不符合 SemVer 的版本号，`release.yml` 会拒绝与源码不一致或已存在标签的版本号。
+`tests/test_versioning.py` 校验版本号格式、包导出值与命令行 `--version` 输出一致；`packaging/build.ps1` 会拒绝不符合 SemVer 的版本号，`release.yml` 会拒绝与源码不一致或已存在标签的版本号。
 
 ## 发布通道
 
@@ -64,10 +64,11 @@ nightly 的后缀符合 SemVer 第 9 条“先行版本号”的约定：标识�
 - 正式版额外提供带版本号的资产名，便于归档；固定名资产保证 README 与文档中的下载链接长期有效。该资产是同一个 EXE，同时提供 GUI 与 CLI。
 - nightly 沿用滚动覆盖：复用 `nightly` 标签与同名预发布，覆盖旧资产与说明，下载地址固定为 `https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly`。
 - 发布说明中的日期使用 ISO 8601 格式（`YYYY-MM-DD`），与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 的建议一致。
+- 同一个 EXE 同时提供 GUI 与 CLI，发布资产不再附带独立的命令行脚本。
 
 ## 发布正式版
 
-1. 确认 `app/__init__.py` 与 `cli/main.py` 的 `__version__` 已改为目标版本，并已提交到 `main`。
+1. 确认 `jiyu_attack_next/core/constants.py` 的 `__version__` 已改为目标版本，并已提交到 `main`。
 2. 打开仓库的 `Actions` 页面，左侧选择 `Release`，点击 `Run workflow`。
 3. 分支选择 `main`；`version` 留空表示使用源码中的 `__version__`，需要覆盖时再填写。
 4. 需要先自检时勾选 `draft`，Release 会以草稿创建，确认无误后在 Releases 页面发布。

@@ -1,58 +1,25 @@
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import unittest
 from unittest.mock import patch
 
-from app.__main__ import main
+from jiyu_attack_next.__main__ import main
 
 
 class EntryTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.test_root = Path(__file__).resolve().parents[1] / "build" / "test-entry-temp"
-        cls.test_root.mkdir(parents=True, exist_ok=True)
-
-    def run_cli(self, script, directory):
-        return subprocess.run(
-            [sys.executable, "-X", "utf8", "-B", str(script), "-h"],
-            cwd=directory, capture_output=True, text=True, encoding="utf-8", timeout=10)
-
-    def test_cli_launcher_works_outside_project_directory(self):
-        script = Path(__file__).resolve().parents[1] / "cli" / "main.py"
-        directory = self.test_root / "outside"
-        shutil.rmtree(directory, ignore_errors=True)
-        directory.mkdir(parents=True)
-        try:
-            result = self.run_cli(script, directory)
-        finally:
-            shutil.rmtree(directory, ignore_errors=True)
+    def test_package_cli_help_works(self):
+        project_root = Path(__file__).resolve().parents[1]
+        result = subprocess.run(
+            [sys.executable, "-X", "utf8", "-B", "-m", "jiyu_attack_next", "-h"],
+            cwd=project_root, capture_output=True, text=True, encoding="utf-8", timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("-msg", result.stdout)
         self.assertIn("--msg-file", result.stdout)
 
-    def test_single_script_can_be_copied_and_run_independently(self):
-        project_root = Path(__file__).resolve().parents[1]
-        source = project_root / "cli" / "main.py"
-        isolation_root = project_root / "build" / "test-isolation"
-        isolation_root.mkdir(parents=True, exist_ok=True)
-        directory = isolation_root / "standalone"
-        shutil.rmtree(directory, ignore_errors=True)
-        directory.mkdir(parents=True)
-        try:
-            standalone = directory / "standalone.py"
-            shutil.copyfile(source, standalone)
-            result = self.run_cli(standalone, directory)
-        finally:
-            shutil.rmtree(directory, ignore_errors=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("standalone.py", result.stdout)
-        self.assertIn("--msg-file", result.stdout)
-
     def test_cli_entry_does_not_import_qt(self):
         project_root = Path(__file__).resolve().parents[1]
-        program = ("import sys; from cli.main import parser; "
+        program = ("import sys; from jiyu_attack_next.cli.main import parser; "
                    "assert not any(name.startswith('PySide6') for name in sys.modules); "
                    "parser.parse_args(['-h'])")
         result = subprocess.run(
@@ -61,14 +28,14 @@ class EntryTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_gui_package_entry_dispatches_to_gui(self):
-        with patch("app.gui.app.main", return_value=7) as launch:
+        with patch("jiyu_attack_next.gui.app.main", return_value=7) as launch:
             self.assertEqual(main([]), 7)
         launch.assert_called_once_with()
 
     def test_cli_arguments_dispatch_to_cli(self):
         arguments = ["-ip", "10.49.151.29", "-msg", "Hello"]
-        with patch("app.__main__._show_cli_console") as show, \
-                patch("cli.main.main", return_value=3) as run_cli:
+        with patch("jiyu_attack_next.__main__._show_cli_console") as show, \
+                patch("jiyu_attack_next.cli.main.main", return_value=3) as run_cli:
             self.assertEqual(main(arguments), 3)
         show.assert_called_once_with()
         run_cli.assert_called_once_with(arguments)
@@ -76,17 +43,29 @@ class EntryTests(unittest.TestCase):
     def test_firewall_helper_dispatch_skips_console(self):
         arguments = ["--firewall-helper", "block",
                      "--firewall-result", "result.json"]
-        with patch("app.__main__._show_cli_console") as show, \
-                patch("cli.main.main", return_value=0) as run_cli:
+        with patch("jiyu_attack_next.__main__._show_cli_console") as show, \
+                patch("jiyu_attack_next.cli.main.main", return_value=0) as run_cli:
             self.assertEqual(main(arguments), 0)
         show.assert_not_called()
         run_cli.assert_called_once_with(arguments)
+
+    def test_frozen_entry_runs_as_main_without_package_context(self):
+        project_root = Path(__file__).resolve().parents[1]
+        program = """import runpy, sys
+sys.argv = ['JiYuAttackNext.exe', '--version']
+runpy.run_path('jiyu_attack_next/__main__.py', run_name='__main__')
+"""
+        result = subprocess.run(
+            [sys.executable, "-X", "utf8", "-B", "-c", program],
+            cwd=project_root, capture_output=True, text=True, encoding="utf-8", timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("0.1.0", result.stdout)
 
     def test_unified_entry_runs_cli_without_importing_qt(self):
         project_root = Path(__file__).resolve().parents[1]
         program = (
             "import sys\n"
-            "from app.__main__ import main\n"
+            "from jiyu_attack_next.__main__ import main\n"
             "assert not any(name.startswith('PySide6') for name in sys.modules)\n"
             "try:\n"
             "    main(['-h'])\n"

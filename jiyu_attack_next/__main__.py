@@ -23,10 +23,10 @@ def main(argv=None):
     if arguments:
         if arguments[0] != "--firewall-helper":
             _show_cli_console()
-        from cli.main import main as run_cli
+        from jiyu_attack_next.cli.main import main as run_cli
 
         return run_cli(arguments)
-    from app.gui.app import main as run_gui
+    from jiyu_attack_next.gui.app import main as run_gui
 
     return run_gui()
 

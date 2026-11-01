@@ -18,7 +18,7 @@ from qfluentwidgets import (Action, CaptionLabel, Dialog, FluentIcon as FIF,
                             InfoBarPosition, NavigationItemPosition, SystemTrayMenu,
                             Theme, setTheme, setThemeColor)
 
-from cli import main as core
+from .. import core
 from .build_info import version_text
 from .models import (CLOSE_BEHAVIOR_QUIT, CLOSE_BEHAVIOR_SETTINGS_KEY,
                      CLOSE_BEHAVIOR_TRAY, DATA_DIRECTORY_NAME,

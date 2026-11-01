@@ -11,7 +11,7 @@ if hasattr(sys.stdout, "reconfigure"):
 from PySide6.QtCore import QSettings, QTimer
 from PySide6.QtWidgets import QApplication
 
-from app.gui import app as gui
+from jiyu_attack_next.gui import app as gui
 
 
 def main():

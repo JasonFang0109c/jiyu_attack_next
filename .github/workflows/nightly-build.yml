@@ -7,8 +7,8 @@ on:
     branches:
       - main
     paths:
-      - "app/**"
-      - "cli/**"
+      - "jiyu_attack_next/**"
+      - "packaging/**"
       - "scripts/**"
       - "assets/**"
       - "requirements.txt"

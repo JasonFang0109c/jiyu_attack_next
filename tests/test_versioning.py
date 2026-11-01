@@ -4,9 +4,10 @@ import sys
 import unittest
 from unittest.mock import patch
 
-from app import __version__ as package_version
-from app.gui import build_info
-from cli import main as core
+from jiyu_attack_next import __version__ as package_version
+from jiyu_attack_next.gui import build_info
+from jiyu_attack_next import core
+from jiyu_attack_next.cli.main import parser
 
 
 SEMVER_PATTERN = re.compile(
@@ -22,12 +23,12 @@ class VersionTests(unittest.TestCase):
         self.assertRegex(package_version, SEMVER_PATTERN)
 
     def test_cli_version_matches_package_version(self):
-        # cli/main.py 需可单独复制运行，因此版本号在本地重复一次。
+        # 版本号由 core/constants.py 单独维护，包入口重新导出。
         self.assertEqual(core.__version__, package_version)
 
     def test_cli_reports_version(self):
         with self.assertRaises(SystemExit) as raised:
-            core.parser.parse_args(["--version"])
+            parser.parse_args(["--version"])
         self.assertEqual(raised.exception.code, 0)
 
     def test_version_text_falls_back_to_package_version(self):
@@ -44,7 +45,7 @@ class VersionTests(unittest.TestCase):
 
     def test_build_does_not_force_admin_on_startup(self):
         project_root = Path(__file__).resolve().parents[1]
-        spec = (project_root / "scripts" / "JiYuAttackNext.spec").read_text(
+        spec = (project_root / "packaging" / "JiYuAttackNext.spec").read_text(
             encoding="utf-8")
         self.assertIn("uac_admin=False", spec)
         self.assertNotIn("uac_admin=True", spec)

@@ -41,11 +41,11 @@ def build_time_text():
 
 
 def version_text():
-    """读取版本号；打包时优先取构建写入的版本，源码运行时取 app.__version__。"""
+    """读取版本号；打包时优先取构建写入的版本，源码运行时取包版本。"""
     bundled = _read_bundle_text(VERSION_FILE_NAME)
     if bundled:
         return bundled
-    from app import __version__
+    from .. import __version__
     return __version__
 
 

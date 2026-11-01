@@ -10,7 +10,8 @@ from threading import Event
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
-from cli import main as core
+from jiyu_attack_next import core
+from jiyu_attack_next.cli import main as cli
 
 
 class CoreTests(unittest.TestCase):
@@ -135,14 +136,14 @@ class CoreTests(unittest.TestCase):
                     self.core.get_ip(value)
 
     def test_gui_send_uses_bytes_and_shared_transport(self):
-        options = self.core.SendOptions("模拟目标", message="a" * 449,
+        options = self.core.SendOptions("192.168.1.10", message="a" * 449,
                                        command="whoami", loops=2, interval=0)
         fake_socket = MagicMock()
         fake_socket.__enter__.return_value = fake_socket
         packets = [bytes(self.core.pkg_sendlist("-msg", chunk))
                    for chunk in self.core.split_message(options.message)]
         packets.append(bytes(self.core.pkg_sendlist("-c", options.command)))
-        with patch.object(self.core, "get_ip", return_value=["模拟目标甲", "模拟目标乙"]):
+        with patch.object(self.core.transport, "get_ip", return_value=["模拟目标甲", "模拟目标乙"]):
             with patch.object(socket, "socket", return_value=fake_socket):
                 count = self.core.execute_send(options)
         self.assertEqual(count, 12)
@@ -155,8 +156,8 @@ class CoreTests(unittest.TestCase):
     def test_cancellation_before_send_opens_no_socket(self):
         stopped = Event()
         stopped.set()
-        options = self.core.SendOptions("模拟目标", message="通知", cancel_event=stopped)
-        with patch.object(self.core, "get_ip", return_value=["模拟目标"]):
+        options = self.core.SendOptions("192.168.1.10", message="通知", cancel_event=stopped)
+        with patch.object(self.core.transport, "get_ip", return_value=["模拟目标"]):
             with patch.object(socket, "socket") as factory:
                 with self.assertRaisesRegex(RuntimeError, "操作已取消"):
                     self.core.execute_send(options)
@@ -164,7 +165,7 @@ class CoreTests(unittest.TestCase):
 
     def test_cancellation_interrupts_long_interval(self):
         stopped = Event()
-        options = self.core.SendOptions("模拟目标", message="通知",
+        options = self.core.SendOptions("192.168.1.10", message="通知",
                                        loops=2, interval=3600, cancel_event=stopped)
         fake_socket = MagicMock()
         fake_socket.__enter__.return_value = fake_socket
@@ -173,7 +174,7 @@ class CoreTests(unittest.TestCase):
             if "轮已发送" in message:
                 stopped.set()
 
-        with patch.object(self.core, "get_ip", return_value=["模拟目标"]):
+        with patch.object(self.core.transport, "get_ip", return_value=["模拟目标"]):
             with patch.object(socket, "socket", return_value=fake_socket):
                 with self.assertRaisesRegex(RuntimeError, "操作已取消"):
                     self.core.execute_send(options, report)
@@ -184,7 +185,7 @@ class CoreTests(unittest.TestCase):
         fake_socket = MagicMock()
         fake_socket.__enter__.return_value = fake_socket
         fake_socket.sendto.side_effect = OSError("模拟发送失败")
-        with patch.object(self.core, "get_ip", return_value=["模拟目标"]):
+        with patch.object(self.core.transport, "get_ip", return_value=["模拟目标"]):
             with patch.object(socket, "socket", return_value=fake_socket):
                 with self.assertRaisesRegex(OSError, "模拟发送失败"):
                     self.core.send([[1, 2, 3]], "模拟目标")
@@ -197,7 +198,7 @@ class CoreTests(unittest.TestCase):
                                 "UDP 0.0.0.0:4705 *:* 123\n"
                                 "UDP [::]:4705 *:* 123\n"
                                 "UDP 0.0.0.0:9999 *:* 5123\n")
-        with patch.object(self.core, "_windows_command", side_effect=[tasks, ports]):
+        with patch.object(self.core.local_info, "_windows_command", side_effect=[tasks, ports]):
             with patch.object(socket, "gethostbyname", return_value="模拟本机"):
                 ip, result = self.core.local_ip_and_ports()
         self.assertEqual(ip, "模拟本机")
@@ -213,7 +214,7 @@ class CoreTests(unittest.TestCase):
             SimpleNamespace(returncode=0, stdout="确定。", stderr=""),
             SimpleNamespace(returncode=0, stdout="已更新 6 规则。", stderr=""),
         ]
-        with patch.object(self.core, "_windows_command", side_effect=responses) as command:
+        with patch.object(self.core.firewall, "_windows_command", side_effect=responses) as command:
             results = self.core.set_firewall_rule("block")
         self.assertEqual(command.call_count, 3)
         self.assertEqual(results[0]["command"], "net.exe start MpsSvc")
@@ -224,21 +225,21 @@ class CoreTests(unittest.TestCase):
 
     def test_firewall_rule_elevates_only_when_needed(self):
         results = [{"command": "netsh", "success": True}]
-        with patch.object(self.core.sys, "platform", "win32"), \
-                patch.object(self.core, "_is_admin", return_value=False), \
-                patch.object(self.core, "_run_firewall_elevated",
+        with patch.object(self.core.firewall.sys, "platform", "win32"), \
+                patch.object(self.core.firewall, "_is_admin", return_value=False), \
+                patch.object(self.core.firewall, "_run_firewall_elevated",
                              return_value=results) as elevated, \
-                patch.object(self.core, "set_firewall_rule") as local:
+                patch.object(self.core.firewall, "set_firewall_rule") as local:
             self.assertIs(self.core.request_firewall_rule("block"), results)
         elevated.assert_called_once_with("block")
         local.assert_not_called()
 
     def test_firewall_rule_runs_locally_when_already_admin(self):
         results = [{"command": "netsh", "success": True}]
-        with patch.object(self.core.sys, "platform", "win32"), \
-                patch.object(self.core, "_is_admin", return_value=True), \
-                patch.object(self.core, "set_firewall_rule", return_value=results) as local, \
-                patch.object(self.core, "_run_firewall_elevated") as elevated:
+        with patch.object(self.core.firewall.sys, "platform", "win32"), \
+                patch.object(self.core.firewall, "_is_admin", return_value=True), \
+                patch.object(self.core.firewall, "set_firewall_rule", return_value=results) as local, \
+                patch.object(self.core.firewall, "_run_firewall_elevated") as elevated:
             self.assertIs(self.core.request_firewall_rule("allow"), results)
         local.assert_called_once_with("allow")
         elevated.assert_not_called()
@@ -247,13 +248,13 @@ class CoreTests(unittest.TestCase):
         result_path = self.test_root / "firewall-helper.json"
         self.addCleanup(lambda: result_path.unlink(missing_ok=True))
         results = [{"command": "netsh", "success": True}]
-        with patch.object(self.core, "set_firewall_rule", return_value=results):
+        with patch.object(self.core.firewall, "set_firewall_rule", return_value=results):
             code = self.core.run_firewall_helper(
                 ["block", "--firewall-result", str(result_path)])
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(result_path.read_text(encoding="utf-8")),
                          {"results": results})
-        with patch.object(self.core, "set_firewall_rule",
+        with patch.object(self.core.firewall, "set_firewall_rule",
                           side_effect=RuntimeError("权限不足")):
             code = self.core.run_firewall_helper(
                 ["block", "--firewall-result", str(result_path)])
@@ -319,7 +320,7 @@ class CoreTests(unittest.TestCase):
                     self.assertEqual(response.read(), payload)
                 return 1
 
-            with patch.object(self.core, "send", side_effect=fake_send):
+            with patch.object(self.core.transport, "send", side_effect=fake_send):
                 result = self.core.transfer_file(
                     "192.168.1.1-3", 4705, str(source), listen_ip="127.0.0.1",
                     timeout=5, report=reported.append)
@@ -360,7 +361,7 @@ class CoreTests(unittest.TestCase):
                     self.assertEqual(response.read(), b"partial-payload")
                 return 1
 
-            with patch.object(self.core, "send", side_effect=fake_send):
+            with patch.object(self.core.transport, "send", side_effect=fake_send):
                 with self.assertRaisesRegex(RuntimeError, "完成 1/2 个目标") as failure:
                     self.core.transfer_file(
                         "192.168.1.1-2", 4705, str(source), listen_ip="127.0.0.1",
@@ -384,9 +385,9 @@ class CoreTests(unittest.TestCase):
             ip="192.168.1.1-2", p=4705, file="report.pdf",
             file_ip=None, file_timeout=120)
         buffer = io.StringIO()
-        with patch.object(self.core, "transfer_file", return_value=result):
+        with patch.object(cli, "transfer_file", return_value=result):
             with redirect_stdout(buffer):
-                self.assertEqual(self.core.run_file_transfer(arguments), 0)
+                self.assertEqual(cli.run_file_transfer(arguments), 0)
         self.assertIn("2 个目标桌面", buffer.getvalue())
 
     def test_collect_transfer_items_expands_folders(self):
@@ -449,7 +450,7 @@ class CoreTests(unittest.TestCase):
                 return 1
 
             items = self.core.collect_transfer_items([directory / "资料"])
-            with patch.object(self.core, "send", side_effect=fake_send):
+            with patch.object(self.core.transport, "send", side_effect=fake_send):
                 result = self.core.transfer_file(
                     "192.168.1.10", 4705, None, listen_ip="127.0.0.1",
                     timeout=5, report=reported.append,
@@ -522,14 +523,14 @@ class CoreTests(unittest.TestCase):
                         self.assertEqual(response.read(), b"retry-payload")
                 return 1
 
-            original_init = self.core.FileTransferServer.__init__
+            original_init = self.core.transport.FileTransferServer.__init__
 
             def capture_server(server, *args, **kwargs):
                 original_init(server, *args, **kwargs)
                 server_holder.append(server)
 
-            with patch.object(self.core, "send", side_effect=fake_send), \
-                    patch.object(self.core.FileTransferServer, "__init__", capture_server):
+            with patch.object(self.core.transport, "send", side_effect=fake_send), \
+                    patch.object(self.core.transport.FileTransferServer, "__init__", capture_server):
                 self.core.transfer_file(
                     "192.168.1.10", 4705, str(source), listen_ip="127.0.0.1",
                     timeout=5, attempts=3, retry_delay=0.01)
@@ -546,7 +547,7 @@ class CoreTests(unittest.TestCase):
         try:
             source = directory / "payload.bin"
             source.write_bytes(b"data")
-            with patch.object(self.core, "send", return_value=1):
+            with patch.object(self.core.transport, "send", return_value=1):
                 with self.assertRaisesRegex(RuntimeError, "目标未访问文件服务.*发送端 IP"):
                     self.core.transfer_file(
                         "192.168.1.10", 4705, str(source), listen_ip="127.0.0.1",
@@ -580,7 +581,7 @@ class CoreTests(unittest.TestCase):
                     self.assertEqual(response.read(), payload)
                 return 1
 
-            with patch.object(self.core, "send", side_effect=fake_send):
+            with patch.object(self.core.transport, "send", side_effect=fake_send):
                 result = self.core.transfer_file(
                     "192.168.1.10", 4705, str(source), listen_ip="127.0.0.1",
                     timeout=5, report=reported.append, desktop_dir=str(desktop))
@@ -601,7 +602,7 @@ class CoreTests(unittest.TestCase):
         try:
             source = directory / "payload.bin"
             source.write_bytes(b"data")
-            with patch.object(self.core, "send", return_value=1):
+            with patch.object(self.core.transport, "send", return_value=1):
                 with self.assertRaisesRegex(RuntimeError, "超时"):
                     self.core.transfer_file(
                         "192.168.1.10", 4705, str(source), listen_ip="127.0.0.1",
@@ -616,7 +617,7 @@ class CoreTests(unittest.TestCase):
             shutil.rmtree(directory, ignore_errors=True)
 
     def test_file_transfer_cli_parser_and_dispatch(self):
-        parser = self.core.build_parser()
+        parser = cli.build_parser()
         args = parser.parse_args(["-ip", "192.168.1.10", "--file", "report.pdf",
                                   "--file-ip", "192.168.1.20", "--file-timeout", "30"])
         self.assertEqual(args.file, "report.pdf")
@@ -626,7 +627,7 @@ class CoreTests(unittest.TestCase):
             parser.parse_args(["--file", "report.pdf", "-msg", "通知"])
 
     def test_send_cli_parser_keeps_existing_options(self):
-        parser = self.core.build_parser()
+        parser = cli.build_parser()
         args = parser.parse_args([
             "-ip", "192.168.1.10", "-p", "4705", "-msg", "通知",
             "-l", "2", "-t", "3", "-e", "r"])

@@ -40,7 +40,7 @@ GUI 与 CLI 已合并到同一个单文件 EXE：从 [Nightly Build](https://git
 
 ## 运行环境
 
-Windows 10/11。EXE 已包含 Python 运行时，命令行模式无需安装 Python 或 PySide6；只有从源码运行 CLI 时才需要 Python 3.13。
+Windows 10/11。EXE 已包含 Python 运行时，命令行模式无需安装 Python 或 PySide6；只有从源码运行 CLI 时才需要 Python 3.13，在项目根目录执行 `python -m jiyu_attack_next ...` 即可。
 
 以下示例默认在保存 `JiYuAttackNext.exe` 的目录中执行 PowerShell。PowerShell 需要 `.\` 前缀；命令提示符（cmd）可直接写 `JiYuAttackNext.exe`。
 

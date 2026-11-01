@@ -8,7 +8,7 @@ from qfluentwidgets import (BodyLabel, CaptionLabel, ComboBox, Dialog, DoubleSpi
                             PrimaryPushButton, PushButton, SimpleCardWidget, SpinBox,
                             SubtitleLabel, ToolButton, ToolTipFilter, ToolTipPosition)
 
-from cli import main as core
+from .. import core
 
 
 def tool_button(icon, text, parent, callback):

@@ -25,8 +25,8 @@ class NightlyWorkflowTests(unittest.TestCase):
     def test_workflow_skips_docs_only_changes(self):
         self.assertIn("paths:", self.workflow)
         for pattern in (
-            '"app/**"',
-            '"cli/**"',
+            '"jiyu_attack_next/**"',
+            '"packaging/**"',
             '"scripts/**"',
             '"assets/**"',
             '"requirements.txt"',
@@ -40,11 +40,11 @@ class NightlyWorkflowTests(unittest.TestCase):
     def test_workflow_reuses_shared_build_with_nightly_channel(self):
         self.assertIn("uses: ./.github/workflows/build.yml", self.workflow)
         self.assertIn("channel: nightly", self.workflow)
-        self.assertNotIn("scripts\\build.ps1", self.workflow)
+        self.assertNotIn("build.ps1", self.workflow)
 
     def test_shared_build_produces_unified_exe(self):
         self.assertIn("runs-on: windows-latest", self.build)
-        self.assertIn("scripts\\build.ps1 -Clean", self.build)
+        self.assertIn("packaging\\build.ps1 -Clean", self.build)
         self.assertIn("dist\\JiYuAttackNext.exe", self.build)
         self.assertIn("name: JiYuAttackNext-build", self.build)
         self.assertNotIn("cli\\main.py", self.build)
@@ -140,7 +140,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
 class WorkflowVersionSourceTests(unittest.TestCase):
     def test_workflows_read_version_from_package(self):
         build = read_workflow("build.yml")
-        self.assertIn("import app; print(app.__version__)", build)
+        self.assertIn("import jiyu_attack_next; print(jiyu_attack_next.__version__)", build)
         self.assertIsNone(re.search(r'__version__\s*=\s*"', build))
 
 

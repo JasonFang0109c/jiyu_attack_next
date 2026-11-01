@@ -7,5 +7,5 @@ if (-not (Test-Path -LiteralPath $pythonExe)) {
 }
 
 Set-Location -LiteralPath $projectRoot
-& $pythonExe -X utf8 -m app.gui
+& $pythonExe -X utf8 -m jiyu_attack_next
 exit $LASTEXITCODE

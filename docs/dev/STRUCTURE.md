@@ -9,7 +9,7 @@
 
 ---
 
-根目录只保留仓库首页、依赖清单与 Git 配置。应用实现、命令行核心、测试、构建脚本及详细文档按用途分类。
+根目录只保留仓库首页、依赖清单与 Git 配置。运行时代码、打包配置、测试与文档按职责分类，不再保留 `app/` 与 `cli/` 两个并列入口。
 
 ```text
 jiyu_attack_next/
@@ -20,11 +20,19 @@ jiyu_attack_next/
 |       `-- release.yml           # 正式版发布（仅手动触发）
 |-- README.md                     # 基础介绍与文档导航
 |-- requirements.txt              # GUI 与构建依赖
-|-- cli/
-|   `-- main.py                   # 命令行模式核心，仅使用标准库
-|-- app/                          # 图形应用包
-|   |-- __init__.py               # 包入口与版本号唯一来源
+|-- jiyu_attack_next/             # 唯一运行时代码包
+|   |-- __init__.py               # 包入口，导出版本号
 |   |-- __main__.py               # 统一入口与 PyInstaller 打包入口
+|   |-- core/                     # 与界面无关的标准库核心
+|   |   |-- __init__.py           # 汇总导出核心接口
+|   |   |-- constants.py          # 报文常量、命令表与版本号唯一来源
+|   |   |-- protocol.py           # 报文构造、分片、地址校验
+|   |   |-- transport.py          # UDP 发送、文件传送与结果解析
+|   |   |-- firewall.py           # 防火墙规则与按需 UAC 提权
+|   |   `-- local_info.py         # 本机 IP 与端口探测
+|   |-- cli/
+|   |   |-- __init__.py
+|   |   `-- main.py               # argparse、命令分发与终端输出
 |   `-- gui/
 |       |-- __init__.py
 |       |-- __main__.py           # GUI 源码入口
@@ -32,22 +40,35 @@ jiyu_attack_next/
 |       |-- build_info.py         # 读取打包构建时间与版本号
 |       |-- components.py         # 共用目标参数与任务栏
 |       |-- models.py             # 连接状态、设备备注与结构化运行日志
-|       |-- pages.py              # 功能页面
-|       `-- workers.py            # 后台任务
+|       |-- workers.py            # 后台任务
+|       `-- pages/
+|           |-- __init__.py       # 汇总导出页面类
+|           |-- common.py         # 页面基类、文件树与日志表格组件
+|           |-- message.py        # 消息页
+|           |-- command.py        # 命令页
+|           |-- device.py         # 设备页
+|           |-- file.py           # 文件传送页
+|           |-- alias.py          # 设备备注页
+|           |-- local.py          # 本机信息页
+|           |-- firewall.py       # 防火墙页
+|           |-- log.py            # 日志页
+|           |-- settings.py       # 设置页
+|           `-- about.py          # 关于页
+|-- packaging/
+|   |-- build.ps1                 # EXE 构建脚本
+|   |-- gen_version_info.py       # 生成 EXE 版本资源
+|   `-- JiYuAttackNext.spec       # PyInstaller 配置
+|-- scripts/
+|   |-- run_gui.ps1               # 使用虚拟环境启动 GUI
+|   `-- test_local_ip.py          # 本机 IPv4 报文收发自测
 |-- tests/
 |   |-- __init__.py
-|   |-- test_core.py              # 协议与发送接口测试
-|   |-- test_entry.py             # 独立脚本与启动入口测试
+|   |-- test_core.py              # 核心协议、传输与防火墙测试
+|   |-- test_entry.py             # 统一入口与命令行启动测试
 |   |-- test_gui.py               # 界面与线程生命周期测试
 |   |-- test_nightly_workflow.py  # Nightly 与 Release 工作流配置测试
 |   |-- test_versioning.py        # 版本号一致性与读取测试
 |   `-- verify_gui.py             # 界面截图检查工具
-|-- scripts/
-|   |-- build.ps1                 # EXE 构建脚本
-|   |-- gen_version_info.py       # 生成 EXE 版本资源
-|   |-- run_gui.ps1               # 使用虚拟环境启动 GUI
-|   |-- test_local_ip.py          # 本机 IPv4 报文收发自测
-|   `-- JiYuAttackNext.spec       # PyInstaller 配置
 |-- docs/
 |   |-- usage/                    # 使用文档
 |   |   |-- CLI.md                # CLI 模式使用说明
@@ -63,18 +84,20 @@ jiyu_attack_next/
 
 ## 模块关系
 
-- `cli/main.py` 提供命令行模式与可复用的报文接口，不依赖 `app/` 或 PySide6，仍可单独复制运行。
-- `app/__main__.py` 是统一入口：无参数时启动 GUI，带参数时调用 `cli/main.py`；PyInstaller 也从此文件打包。
-- `app/gui/app.py` 基于 `FluentWindow` 实现侧边导航、任务调度、单实例运行与页面联动。
-- `app/gui/pages.py` 按消息、命令、设备、文件传送、设备备注、本机信息、防火墙、日志、设置和关于拆分页面；文件传送页使用带复选框与全选的文件树。
-- `app/gui/build_info.py` 从打包资源读取构建时间与版本号，源码运行时分别显示“源码运行”和 `app.__version__`。
-- `app/gui/components.py` 提供跨页面同步的连接参数和统一任务栏。
-- `app/gui/models.py` 保存连接状态、持久化设备备注，并提供带等级、线程、输出位置和异常详情的结构化日志存储。
-- `app/gui/workers.py` 执行后台发送和本机工具任务，通过信号更新界面。
+- `jiyu_attack_next/__main__.py` 是唯一入口：无参数时启动 GUI，带参数时调用 `jiyu_attack_next/cli/main.py`；`--firewall-helper` 由隐藏提权助手直接执行，不显示控制台。PyInstaller 也从此文件打包。
+- `jiyu_attack_next/core/` 只依赖标准库，提供报文常量、协议构造、UDP 与文件传送、防火墙规则和本机信息探测。CLI 与 GUI 都通过 `from .. import core` 使用这些接口。
+- `jiyu_attack_next/cli/main.py` 负责 argparse、参数校验、单条命令、文件传送、防火墙命令与终端输出；不再作为可单独复制的单文件脚本维护。
+- `jiyu_attack_next/gui/app.py` 基于 `FluentWindow` 实现侧边导航、任务调度、单实例运行与页面联动。
+- `jiyu_attack_next/gui/pages/` 按消息、命令、设备、文件传送、设备备注、本机信息、防火墙、日志、设置和关于拆分页面；文件传送页使用带复选框与全选的文件树，公共控件集中在 `common.py`。
+- `jiyu_attack_next/gui/build_info.py` 从打包资源读取构建时间与版本号，源码运行时分别显示“源码运行”和 `jiyu_attack_next.__version__`。
+- `jiyu_attack_next/gui/components.py` 提供跨页面同步的连接参数和统一任务栏。
+- `jiyu_attack_next/gui/models.py` 保存连接状态、持久化设备备注，并提供带等级、线程、输出位置和异常详情的结构化日志存储。
+- `jiyu_attack_next/gui/workers.py` 执行后台发送和本机工具任务，通过信号更新界面。
+- `packaging/` 存放 PyInstaller 配置、构建脚本与版本资源生成器；EXE 以普通用户权限启动，防火墙操作在需要时通过 UAC 启动隐藏助手。
 - `.github/workflows/build.yml` 提供可复用的打包流程，`nightly-build.yml` 与 `release.yml` 分别以 nightly、stable 通道调用它。
-- `.github/workflows/nightly-build.yml` 在推送到 `main` 且改动涉及 `app/`、`cli/`、`scripts/`、`assets/`、依赖清单或工作流文件时构建 EXE，并滚动更新 `nightly` 预发布；纯文档改动不触发。
+- `.github/workflows/nightly-build.yml` 在推送到 `main` 且改动涉及 `jiyu_attack_next/`、`packaging/`、`scripts/`、`assets/`、依赖清单或工作流文件时构建 EXE，并滚动更新 `nightly` 预发布；纯文档改动不触发。
 - `.github/workflows/release.yml` 仅在 Actions 页面手动触发，校验版本号与标签后创建 `vX.Y.Z` 正式发布，规则见[版本规范](VERSIONING.md)。
-- `scripts/` 统一存放启动、构建与本机自测脚本，自动按脚本位置定位项目根目录；`gen_version_info.py` 生成 EXE 的版本资源，`test_local_ip.py` 用本机地址验证真实报文收发。
+- `scripts/` 存放启动与本机自测脚本，自动按脚本位置定位项目根目录；`test_local_ip.py` 用本机地址验证真实报文收发。
 - `tests/` 使用模拟套接字验证行为，不执行真实目标发送或防火墙变更。
 
 ## 本地生成目录
