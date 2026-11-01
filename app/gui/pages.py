@@ -1477,22 +1477,27 @@ class AboutDetailCard(SectionCard):
 class AboutPage(Page):
     def __init__(self, parent=None):
         super().__init__("about", parent)
-        page_heading(self.vbox, "关于")
-        # 关于页内容高于较矮的窗口，包一层平滑滚动区域避免布局被压缩。
+        # 滚动区域铺满整页：滚动条因此贴住窗口右缘并从页面顶部贯通到底部。
+        self.vbox.setContentsMargins(0, 0, 0, 0)
+        self.vbox.setSpacing(0)
         scroll = SmoothScrollArea(self)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        # 滚动区域默认自带白色底色，会盖住页面背景形成色块。
-        scroll.enableTransparentBackground()
-        # 卡片是圆角的，滚动条内嵌进视口会压在圆角上，
-        # 给内容右侧留出滚动条宽度，让滚动条落在页面留白里。
+        scroll.setObjectName("aboutScroll")
+        # Fluent 滚动条默认在轨道上下各留 14px 内边距，短窗口下看起来像
+        # 上方空了一截。这里收掉内边距，让滚动条从页面顶部贯通到底部。
+        for bar in (scroll.delegate.vScrollBar, scroll.delegate.hScrollBar):
+            bar._padding = 0
         bar_width = scroll.verticalScrollBar().sizeHint().width()
         content_host = QWidget(scroll)
         content_host.setObjectName("aboutContent")
         content = QVBoxLayout(content_host)
-        content.setContentsMargins(0, 0, bar_width + 4, 0)
+        # 右侧只让出滚动条宽度，卡片与滚动条之间保留页面常规留白。
+        content.setContentsMargins(28, 24, 28 + bar_width, 24)
         content.setSpacing(12)
+        page_heading(content, "关于")
+        content.addSpacing(8)
 
         hero = QWidget(content_host)
         hero.setObjectName("aboutHero")
