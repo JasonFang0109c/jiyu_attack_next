@@ -267,9 +267,11 @@ def _validate_transfer_request(target, port):
 
 
 class _FileTransferRequestHandler(BaseHTTPRequestHandler):
+    # 响应带 Content-Length 并主动断开，目标端读完即可结束，不必维持长连接。
     protocol_version = "HTTP/1.0"
 
     def log_message(self, format, *args):
+        # 覆盖掉 http.server 默认的访问日志，避免刷屏干扰命令行输出。
         return
 
     def do_GET(self):

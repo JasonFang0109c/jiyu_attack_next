@@ -66,6 +66,7 @@ class MessagePage(NetworkPage):
             self.statistics.setToolTip(str(error))
 
     def set_busy(self, busy, cancellable=False, queueable=False):
+        """在基类忙碌状态之外锁定编辑框与改动正文的按钮。"""
         super().set_busy(busy, cancellable, queueable)
         self.editor.setReadOnly(busy)
         for button in [self.import_button, self.clear_button]:
