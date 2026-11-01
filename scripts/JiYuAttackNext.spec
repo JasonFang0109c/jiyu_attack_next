@@ -45,7 +45,9 @@ exe = EXE(
     # 统一入口需要控制台承载 CLI 输出；双击时由 bootloader 隐藏自有控制台。
     console=True,
     hide_console="hide-early",
-    uac_admin=True,
+    # 不随程序启动请求管理员权限，避免终端启动时另开提升的控制台；
+    # 防火墙操作在需要时通过 UAC 启动隐藏助手。
+    uac_admin=False,
     icon=str(icon) if icon.exists() else None,
     version=str(version_info) if version_info.exists() else None,
 )

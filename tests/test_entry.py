@@ -73,6 +73,15 @@ class EntryTests(unittest.TestCase):
         show.assert_called_once_with()
         run_cli.assert_called_once_with(arguments)
 
+    def test_firewall_helper_dispatch_skips_console(self):
+        arguments = ["--firewall-helper", "block",
+                     "--firewall-result", "result.json"]
+        with patch("app.__main__._show_cli_console") as show, \
+                patch("cli.main.main", return_value=0) as run_cli:
+            self.assertEqual(main(arguments), 0)
+        show.assert_not_called()
+        run_cli.assert_called_once_with(arguments)
+
     def test_unified_entry_runs_cli_without_importing_qt(self):
         project_root = Path(__file__).resolve().parents[1]
         program = (

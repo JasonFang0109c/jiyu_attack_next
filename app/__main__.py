@@ -21,7 +21,8 @@ def _show_cli_console():
 def main(argv=None):
     arguments = list(sys.argv[1:] if argv is None else argv)
     if arguments:
-        _show_cli_console()
+        if arguments[0] != "--firewall-helper":
+            _show_cli_console()
         from cli.main import main as run_cli
 
         return run_cli(arguments)

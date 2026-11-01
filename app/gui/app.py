@@ -955,7 +955,7 @@ def probe_local(report=None):
 def apply_firewall(action, report=None):
     if report:
         report("正在修改 StudentMain.exe 防火墙规则")
-    return core.set_firewall_rule(action)
+    return core.request_firewall_rule(action)
 
 
 def main():

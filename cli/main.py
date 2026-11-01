@@ -6,7 +6,10 @@ import random
 import argparse
 import codecs
 import csv
+import json
+import os
 import secrets
+import tempfile
 from time import monotonic, sleep
 from os import system
 from multiprocessing import Pool, freeze_support
@@ -961,6 +964,134 @@ def set_firewall_rule(action):
         results.append(_firewall_result(command_text, process, success=success, note=note))
     return results
 
+
+FIREWALL_HELPER_ARGUMENT = "--firewall-helper"
+FIREWALL_RESULT_ARGUMENT = "--firewall-result"
+
+
+def _is_admin():
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return False
+
+
+def _run_elevated_process(executable, parameters):
+    """通过 UAC 启动隐藏的管理员进程并等待其退出。"""
+    import ctypes
+    from ctypes import wintypes
+
+    class ShellExecuteInfo(ctypes.Structure):
+        _fields_ = [
+            ("cbSize", wintypes.DWORD),
+            ("fMask", wintypes.ULONG),
+            ("hwnd", wintypes.HWND),
+            ("lpVerb", wintypes.LPCWSTR),
+            ("lpFile", wintypes.LPCWSTR),
+            ("lpParameters", wintypes.LPCWSTR),
+            ("lpDirectory", wintypes.LPCWSTR),
+            ("nShow", ctypes.c_int),
+            ("hInstApp", wintypes.HINSTANCE),
+            ("lpIDList", ctypes.c_void_p),
+            ("lpClass", wintypes.LPCWSTR),
+            ("hkeyClass", wintypes.HKEY),
+            ("dwHotKey", wintypes.DWORD),
+            ("hIcon", wintypes.HANDLE),
+            ("hProcess", wintypes.HANDLE),
+        ]
+
+    shell32 = ctypes.WinDLL("shell32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    shell32.ShellExecuteExW.argtypes = [ctypes.POINTER(ShellExecuteInfo)]
+    shell32.ShellExecuteExW.restype = wintypes.BOOL
+    kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    kernel32.WaitForSingleObject.restype = wintypes.DWORD
+    kernel32.GetExitCodeProcess.argtypes = [
+        wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+    kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+
+    info = ShellExecuteInfo()
+    info.cbSize = ctypes.sizeof(info)
+    info.fMask = 0x00000040 | 0x00000100  # NOCLOSEPROCESS | NOASYNC
+    info.lpVerb = "runas"
+    info.lpFile = executable
+    info.lpParameters = parameters
+    info.nShow = 0  # SW_HIDE
+    if not shell32.ShellExecuteExW(ctypes.byref(info)):
+        error = ctypes.WinError(ctypes.get_last_error())
+        if getattr(error, "winerror", None) == 1223:
+            raise RuntimeError("管理员授权已取消，未执行防火墙操作")
+        raise error
+    if not info.hProcess:
+        raise RuntimeError("无法启动管理员权限进程")
+    try:
+        kernel32.WaitForSingleObject(info.hProcess, 0xFFFFFFFF)
+        exit_code = wintypes.DWORD()
+        if not kernel32.GetExitCodeProcess(info.hProcess, ctypes.byref(exit_code)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return exit_code.value
+    finally:
+        kernel32.CloseHandle(info.hProcess)
+
+
+def _run_firewall_elevated(action):
+    handle, result_path = tempfile.mkstemp(prefix="jiyu-firewall-", suffix=".json")
+    os.close(handle)
+    try:
+        arguments = [FIREWALL_HELPER_ARGUMENT, action,
+                     FIREWALL_RESULT_ARGUMENT, result_path]
+        if not getattr(sys, "frozen", False):
+            arguments.insert(0, str(Path(__file__).resolve()))
+        exit_code = _run_elevated_process(
+            sys.executable, subprocess.list2cmdline(arguments))
+        try:
+            payload = json.loads(Path(result_path).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            raise RuntimeError("管理员权限进程未返回防火墙结果") from error
+        if payload.get("error"):
+            raise RuntimeError(payload["error"])
+        if exit_code:
+            raise RuntimeError("防火墙操作失败（退出码 %d）" % exit_code)
+        results = payload.get("results")
+        if not isinstance(results, list):
+            raise RuntimeError("管理员权限进程返回的防火墙结果无效")
+        return results
+    finally:
+        try:
+            os.unlink(result_path)
+        except OSError:
+            pass
+
+
+def request_firewall_rule(action):
+    """当前进程不是管理员时，通过 UAC 启动隐藏助手完成操作。"""
+    if sys.platform == "win32" and not _is_admin():
+        return _run_firewall_elevated(action)
+    return set_firewall_rule(action)
+
+
+def run_firewall_helper(arguments):
+    if len(arguments) != 3 or arguments[1] != FIREWALL_RESULT_ARGUMENT:
+        return 2
+    action, result_path = arguments[0], arguments[2]
+    try:
+        payload = {"results": set_firewall_rule(action)}
+        exit_code = 0
+    except Exception as error:
+        payload = {"error": str(error) or error.__class__.__name__}
+        exit_code = 1
+    try:
+        Path(result_path).write_text(
+            json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        return 1
+    return exit_code
+
+
 def single_command(arguments):
     if arguments.e == 'g':
         try:
@@ -975,7 +1106,7 @@ def single_command(arguments):
         return
 
     elif arguments.e == "break":
-        results = set_firewall_rule("block")
+        results = request_firewall_rule("block")
         sleep(1)
         system("cls")
         failed = any(not item["success"] for item in results)
@@ -983,7 +1114,7 @@ def single_command(arguments):
         return
 
     elif arguments.e == "continue":
-        results = set_firewall_rule("allow")
+        results = request_firewall_rule("allow")
         failed = any(not item["success"] for item in results)
         if failed:
             print("[-] 部分防火墙设置失败，请检查管理员权限")
@@ -1043,7 +1174,10 @@ def run_from_cmd(arguments):
 
 
 def main(argv=None):
-    return run_from_cmd(parser.parse_args(argv))
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments[:1] == [FIREWALL_HELPER_ARGUMENT]:
+        return run_firewall_helper(arguments[1:])
+    return run_from_cmd(parser.parse_args(arguments))
 
 
 if __name__ == "__main__":

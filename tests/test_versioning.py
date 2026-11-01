@@ -42,6 +42,13 @@ class VersionTests(unittest.TestCase):
         with patch.object(sys, "_MEIPASS", str(target.parent), create=True):
             self.assertEqual(build_info.version_text(), "9.9.9")
 
+    def test_build_does_not_force_admin_on_startup(self):
+        project_root = Path(__file__).resolve().parents[1]
+        spec = (project_root / "scripts" / "JiYuAttackNext.spec").read_text(
+            encoding="utf-8")
+        self.assertIn("uac_admin=False", spec)
+        self.assertNotIn("uac_admin=True", spec)
+
 
 if __name__ == "__main__":
     unittest.main()

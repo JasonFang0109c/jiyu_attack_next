@@ -1,4 +1,5 @@
 import io
+import json
 import shutil
 import socket
 import unittest
@@ -220,6 +221,49 @@ class CoreTests(unittest.TestCase):
         self.assertIn("原本已在运行", results[0]["stdout"])
         self.assertTrue(results[1]["success"])
         self.assertTrue(results[2]["success"])
+
+    def test_firewall_rule_elevates_only_when_needed(self):
+        results = [{"command": "netsh", "success": True}]
+        with patch.object(self.core.sys, "platform", "win32"), \
+                patch.object(self.core, "_is_admin", return_value=False), \
+                patch.object(self.core, "_run_firewall_elevated",
+                             return_value=results) as elevated, \
+                patch.object(self.core, "set_firewall_rule") as local:
+            self.assertIs(self.core.request_firewall_rule("block"), results)
+        elevated.assert_called_once_with("block")
+        local.assert_not_called()
+
+    def test_firewall_rule_runs_locally_when_already_admin(self):
+        results = [{"command": "netsh", "success": True}]
+        with patch.object(self.core.sys, "platform", "win32"), \
+                patch.object(self.core, "_is_admin", return_value=True), \
+                patch.object(self.core, "set_firewall_rule", return_value=results) as local, \
+                patch.object(self.core, "_run_firewall_elevated") as elevated:
+            self.assertIs(self.core.request_firewall_rule("allow"), results)
+        local.assert_called_once_with("allow")
+        elevated.assert_not_called()
+
+    def test_firewall_helper_reports_results_and_errors(self):
+        result_path = self.test_root / "firewall-helper.json"
+        self.addCleanup(lambda: result_path.unlink(missing_ok=True))
+        results = [{"command": "netsh", "success": True}]
+        with patch.object(self.core, "set_firewall_rule", return_value=results):
+            code = self.core.run_firewall_helper(
+                ["block", "--firewall-result", str(result_path)])
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(result_path.read_text(encoding="utf-8")),
+                         {"results": results})
+        with patch.object(self.core, "set_firewall_rule",
+                          side_effect=RuntimeError("权限不足")):
+            code = self.core.run_firewall_helper(
+                ["block", "--firewall-result", str(result_path)])
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(result_path.read_text(encoding="utf-8")),
+                         {"error": "权限不足"})
+
+    def test_firewall_helper_rejects_invalid_arguments(self):
+        self.assertEqual(self.core.run_firewall_helper([]), 2)
+        self.assertEqual(self.core.run_firewall_helper(["block"]), 2)
 
     def test_file_transfer_validation(self):
         directory = self.test_root / "validation"

@@ -950,6 +950,11 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.window.pages["local"].ip_label.text(), "模拟本机")
         self.assertEqual(self.window.pages["local"].port_table.rowCount(), 1)
 
+    def test_apply_firewall_uses_on_demand_elevation(self):
+        with patch.object(gui.core, "request_firewall_rule", return_value=[]) as request:
+            self.assertEqual(gui.apply_firewall("block"), [])
+        request.assert_called_once_with("block")
+
     def test_firewall_result_preserves_failure_status(self):
         result = [("模拟规则", 1, "", "模拟失败")]
         with patch.object(gui, "apply_firewall", return_value=result) as apply:

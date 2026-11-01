@@ -30,7 +30,7 @@ python -m pip install -r requirements.txt
 | 命令行帮助 | `python -m app -h` 或 `python cli/main.py -h` |
 | 虚拟环境启动脚本 | `powershell -ExecutionPolicy Bypass -File .\scripts\run_gui.ps1` |
 
-`app/__main__.py` 是统一入口：无参数时启动 GUI，带参数时交给 `cli/main.py`。`cli/main.py` 仍是独立单文件，可直接复制运行，不依赖项目其他文件或第三方库；GUI 实现位于 `app/gui/`，复用其中的标准库接口。
+`app/__main__.py` 是统一入口：无参数时启动 GUI，带参数时交给 `cli/main.py`。`cli/main.py` 仍是独立单文件，可直接复制运行，不依赖项目其他文件或第三方库；GUI 实现位于 `app/gui/`，复用其中的标准库接口。EXE 以普通用户权限启动，避免在终端运行 CLI 时另开提升窗口；只有防火墙操作在未提升时按需通过 UAC 启动隐藏助手。
 
 ## 构建 EXE
 
@@ -121,4 +121,4 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 
 .\.venv\Scripts\python.exe -B .\scripts\test_local_ip.py
 ```
 
-生成的 EXE 无参数时打开图形界面，带参数时运行命令行模式；两种模式都无需安装 Python。双击启动会隐藏控制台，从终端带参数启动会保留控制台以显示 CLI 输出。
+生成的 EXE 无参数时打开图形界面，带参数时运行命令行模式；两种模式都无需安装 Python。双击启动会隐藏控制台，从终端带参数启动会保留控制台以显示 CLI 输出。EXE 不强制请求管理员权限；防火墙操作在需要时单独弹出 UAC，并由隐藏助手执行。
