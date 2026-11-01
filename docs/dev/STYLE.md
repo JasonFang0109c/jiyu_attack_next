@@ -33,10 +33,12 @@ python -m pip install -r requirements-dev.txt
 
 采用 Google 风格：段落关键字用英文（`Args`、`Returns`、`Yields`、`Raises`、`Attributes`），说明文字用中文，首行是一句以句号结尾的摘要。
 
+当前代码没有类型注解，示例与正文也不要求补注解，参数说明只描述含义与约束。今后若引入注解，`Args` 段落仍按“参数名: 说明”书写，不在 docstring 里重复类型。
+
 只为模块、公共类、公共函数和逻辑复杂的函数写 docstring；私有小函数不强制，名字能说清楚就不写。接口的参数、返回值与异常发生变化时必须同步更新 docstring，不写与实现不符的历史描述。
 
 ```python
-def split_message(content: str) -> Iterator[str]:
+def split_message(content):
     """按报文容量把长文本拆成多条消息。
 
     逐个字符累计 UTF-16 编码后的字节数，超出 MESSAGE_MAX_BYTES 时先交付
