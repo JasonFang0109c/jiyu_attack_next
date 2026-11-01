@@ -1621,6 +1621,7 @@ class UsageNoticeTests(unittest.TestCase):
     def test_startup_opens_window_after_agreement(self):
         with (
             patch.object(gui, "QApplication"),
+            patch.object(gui, "configure_application"),
             patch.object(gui, "SingleInstance"),
             patch.object(gui, "confirm_usage_notice", return_value=True),
             patch.object(gui, "install_exception_logging"),

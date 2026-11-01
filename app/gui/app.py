@@ -73,6 +73,8 @@ from .workers import SendWorker, TaskWorker
 
 APP_NAME = "JiYu Attack Next"
 SINGLE_INSTANCE_KEY = "JiYuAttackNext-single-instance"
+# 测试会把模块里的 QApplication 换成替身，这里留住真实类用于启动流程的类型判断。
+REAL_APPLICATION = QApplication
 USAGE_NOTICE_TITLE = "使用须知"
 USAGE_NOTICE_TEXT = (
     "本工具仅面向已获授权的教学环境测试与安全研究，"
@@ -1339,8 +1341,11 @@ def main():
     if window.isVisible():
         window.hide()
     window.deleteLater()
-    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
-    application.processEvents()
+    # 延迟删除事件只在真实应用实例上派发：测试会用替身替换 QApplication，
+    # 此前创建过的实例也可能已被销毁，此时静态调用会让 Qt 直接终止进程。
+    if isinstance(application, REAL_APPLICATION):
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+        application.processEvents()
     instance.close()
     return result
 
