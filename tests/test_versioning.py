@@ -4,10 +4,10 @@ import sys
 import unittest
 from unittest.mock import patch
 
-from jiyu_attack_next import __version__ as package_version
-from jiyu_attack_next.gui import build_info
-from jiyu_attack_next import core
-from jiyu_attack_next.cli.main import parser
+from app import __version__ as package_version
+from app.gui import build_info
+from app import core
+from app.cli.main import parser
 
 
 SEMVER_PATTERN = re.compile(

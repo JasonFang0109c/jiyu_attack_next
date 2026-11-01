@@ -10,8 +10,8 @@ from threading import Event
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
-from jiyu_attack_next import core
-from jiyu_attack_next.cli import main as cli
+from app import core
+from app.cli import main as cli
 
 
 class CoreTests(unittest.TestCase):

@@ -25,7 +25,7 @@ class NightlyWorkflowTests(unittest.TestCase):
     def test_workflow_skips_docs_only_changes(self):
         self.assertIn("paths:", self.workflow)
         for pattern in (
-            '"jiyu_attack_next/**"',
+            '"app/**"',
             '"packaging/**"',
             '"scripts/**"',
             '"assets/**"',
@@ -140,7 +140,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
 class WorkflowVersionSourceTests(unittest.TestCase):
     def test_workflows_read_version_from_package(self):
         build = read_workflow("build.yml")
-        self.assertIn("import jiyu_attack_next; print(jiyu_attack_next.__version__)", build)
+        self.assertIn("import app; print(app.__version__)", build)
         self.assertIsNone(re.search(r'__version__\s*=\s*"', build))
 
 

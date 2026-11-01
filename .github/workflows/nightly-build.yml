@@ -7,7 +7,7 @@ on:
     branches:
       - main
     paths:
-      - "jiyu_attack_next/**"
+      - "app/**"
       - "packaging/**"
       - "scripts/**"
       - "assets/**"

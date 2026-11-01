@@ -10,7 +10,7 @@ on:
         required: false
         default: stable
       version:
-        description: 显式指定版本号；留空时读取 jiyu_attack_next/core/constants.py 的 __version__
+        description: 显式指定版本号；留空时读取 app/core/constants.py 的 __version__
         type: string
         required: false
         default: ""
@@ -58,7 +58,7 @@ jobs:
         run: |
           $version = $env:INPUT_VERSION.Trim()
           if (-not $version) {
-            $version = (& .\.venv\Scripts\python.exe -X utf8 -c "import jiyu_attack_next; print(jiyu_attack_next.__version__)").Trim()
+            $version = (& .\.venv\Scripts\python.exe -X utf8 -c "import app; print(app.__version__)").Trim()
           }
           if ($env:INPUT_CHANNEL -eq "nightly") {
             $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMdd')
@@ -71,7 +71,7 @@ jobs:
         shell: pwsh
         run: |
           .\.venv\Scripts\python.exe -B -m unittest discover -s tests -v
-          .\.venv\Scripts\python.exe -X utf8 -m compileall -q jiyu_attack_next tests
+          .\.venv\Scripts\python.exe -X utf8 -m compileall -q app tests
 
       - name: Build EXE
         shell: pwsh

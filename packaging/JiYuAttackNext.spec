@@ -11,7 +11,7 @@ version_file = root / "build" / "assets" / "version.txt"
 version_info = root / "build" / "assets" / "version_info.txt"
 
 a = Analysis(
-    [str(root / "jiyu_attack_next" / "__main__.py")],
+    [str(root / "app" / "__main__.py")],
     pathex=[str(root)],
     binaries=[],
     datas=[(str(root / "assets" / "app.svg"), "assets")]

@@ -960,7 +960,7 @@ def apply_firewall(action, report=None):
 
 def main():
     QApplication.setApplicationName(APP_NAME)
-    QApplication.setOrganizationName("jiyu_attack_next")
+    QApplication.setOrganizationName("JiYuAttackNext")
     application = QApplication(sys.argv)
     configure_application(application)
     instance = SingleInstance(parent=application)

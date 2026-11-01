@@ -26,11 +26,11 @@ python -m pip install -r requirements.txt
 
 | 运行方式 | 命令 |
 | --- | --- |
-| 图形界面（无参数） | `python -m jiyu_attack_next` |
-| 命令行帮助 | `python -m jiyu_attack_next -h` |
+| 图形界面（无参数） | `python -m app` |
+| 命令行帮助 | `python -m app -h` |
 | 虚拟环境启动脚本 | `powershell -ExecutionPolicy Bypass -File .\scripts\run_gui.ps1` |
 
-`jiyu_attack_next/__main__.py` 是统一入口：无参数时启动 GUI，带参数时交给 `jiyu_attack_next/cli/main.py`。运行时代码集中在 `jiyu_attack_next/`：`core/` 提供协议、传输、防火墙与本机信息等标准库实现，`cli/` 负责参数解析和命令分发，`gui/` 提供 PySide6 界面。EXE 以普通用户权限启动，避免在终端运行 CLI 时另开提升窗口；只有防火墙操作在未提升时按需通过 UAC 启动隐藏助手。
+`app/__main__.py` 是统一入口：无参数时启动 GUI，带参数时交给 `app/cli/main.py`。运行时代码集中在 `app/`：`core/` 提供协议、传输、防火墙与本机信息等标准库实现，`cli/` 负责参数解析和命令分发，`gui/` 提供 PySide6 界面。EXE 以普通用户权限启动，避免在终端运行 CLI 时另开提升窗口；只有防火墙操作在未提升时按需通过 UAC 启动隐藏助手。
 
 ## 构建 EXE
 
@@ -42,7 +42,7 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python "C:\Pytho
 ```
 
 - 无参数时增量构建，`-Clean` 清理 PyInstaller 缓存后重建，`-Python` 指定其他解释器。
-- `-Version` 覆盖版本号；省略时读取 `jiyu_attack_next/core/constants.py` 的 `__version__`。版本号须符合语义化版本格式，规则见[版本规范](VERSIONING.md)。
+- `-Version` 覆盖版本号；省略时读取 `app/core/constants.py` 的 `__version__`。版本号须符合语义化版本格式，规则见[版本规范](VERSIONING.md)。
 - 脚本根据自身路径定位项目根目录，也可从其他目录通过绝对路径调用，默认使用项目虚拟环境。
 - 读取 [packaging/JiYuAttackNext.spec](../../packaging/JiYuAttackNext.spec)，并收集 Fluent Widgets 的运行时资源与包元数据。
 - 每次构建都把当前本地时间打包进 EXE，“关于”页据此显示构建时间；源码运行时显示“源码运行”。
@@ -85,7 +85,7 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 
 
 ### Nightly Build
 
-- 推送到 `main` 时按改动路径决定是否运行：只有 `jiyu_attack_next/`、`packaging/`、`scripts/`、`assets/`、`requirements.txt` 或工作流文件本身发生变化才会触发，纯文档与测试改动不会重新编译 EXE。
+- 推送到 `main` 时按改动路径决定是否运行：只有 `app/`、`packaging/`、`scripts/`、`assets/`、`requirements.txt` 或工作流文件本身发生变化才会触发，纯文档与测试改动不会重新编译 EXE。
 - 也可在 Actions 页面选择该工作流并点击 `Run workflow` 手动运行，手动运行需选择 `main` 分支才会发布；手动运行不受路径过滤限制。
 - 工作流文件首次进入默认分支后，Actions 页面才会显示手动运行入口。
 - 在 `windows-latest` 上使用 Python 3.13 安装依赖、执行离线测试并运行 `packaging/build.ps1 -Clean`。
@@ -97,7 +97,7 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 
 
 ### Release
 
-- 只支持手动触发，不随推送自动运行；不会自动递增版本号，需先修改 `jiyu_attack_next/core/constants.py` 的 `__version__` 并提交。
+- 只支持手动触发，不随推送自动运行；不会自动递增版本号，需先修改 `app/core/constants.py` 的 `__version__` 并提交。
 - 发布前校验版本号与源码一致、正式版不带预发布后缀、标签 `vX.Y.Z` 尚不存在，任一不满足即失败。
 - 资产为固定名 `JiYuAttackNext.exe`，另附带版本号的 `JiYuAttackNext-X.Y.Z.exe`；同一文件同时提供 GUI 与 CLI。
 - 发布说明的 `Changes` 章节列出上一个 `v*` 标签以来的提交标题；`make_latest: true` 使正式版成为最新版本，nightly 不受影响。
@@ -108,7 +108,7 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 
 
 ## 验证
 
-改动 `jiyu_attack_next/`、构建脚本或打包配置后执行；纯文档改动不需要。
+改动 `app/`、构建脚本或打包配置后执行；纯文档改动不需要。
 
 ```powershell
 .\.venv\Scripts\python.exe -B -m unittest discover -s tests -v

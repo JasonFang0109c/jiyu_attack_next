@@ -1,12 +1,12 @@
 name: Release
 
 # 正式版发布：仅在 Actions 页面手动触发，不随推送自动运行。
-# 版本号取自 jiyu_attack_next/core/constants.py 的 __version__，可用 version 输入显式覆盖。
+# 版本号取自 app/core/constants.py 的 __version__，可用 version 输入显式覆盖。
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 版本号（留空则读取 jiyu_attack_next/core/constants.py 的 __version__）
+        description: 版本号（留空则读取 app/core/constants.py 的 __version__）
         type: string
         required: false
         default: ""
@@ -56,9 +56,9 @@ jobs:
         run: |
           set -euo pipefail
           version="${{ needs.build.outputs.version }}"
-          source_version="$(grep -oP '__version__\s*=\s*"\K[^"]+' jiyu_attack_next/core/constants.py)"
+          source_version="$(grep -oP '__version__\s*=\s*"\K[^"]+' app/core/constants.py)"
           if [[ "${version}" != "${source_version}" ]]; then
-            echo "::error::版本号 ${version} 与 jiyu_attack_next/core/constants.py 中的 ${source_version} 不一致；请先提交版本号变更，或改用 source 中的版本号。"
+            echo "::error::版本号 ${version} 与 app/core/constants.py 中的 ${source_version} 不一致；请先提交版本号变更，或改用 source 中的版本号。"
             exit 1
           fi
           if [[ "${version}" == *-* ]]; then

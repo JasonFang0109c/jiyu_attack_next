@@ -20,8 +20,8 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QSystemTrayIcon, QWidget
 from qfluentwidgets import BodyLabel, FluentWindow, Theme, ToolTip, qconfig
 
-from jiyu_attack_next.gui import app as gui, pages as gui_pages
-from jiyu_attack_next.gui import components, models
+from app.gui import app as gui, pages as gui_pages
+from app.gui import components, models
 
 
 class GuiTests(unittest.TestCase):
@@ -131,7 +131,7 @@ class GuiTests(unittest.TestCase):
         self.assertFalse(hero.findChildren(components.SectionCard))
 
     def test_about_page_groups_version_and_repository_info(self):
-        from jiyu_attack_next.gui import build_info
+        from app.gui import build_info
         about = self.window.pages["about"]
         # 版本与构建时间合并到“版本信息”，组件版本改名为“组件信息”。
         self.assertEqual(about.version_card.heading.text(), "版本信息")
@@ -228,7 +228,7 @@ class GuiTests(unittest.TestCase):
             label.text() for label in about.findChildren(BodyLabel)])
 
     def test_build_time_comes_from_bundle_asset(self):
-        from jiyu_attack_next.gui import build_info
+        from app.gui import build_info
         self.assertEqual(build_info.build_time_text(), "源码运行")
         time_file = self.temp_root / "bundle" / build_info.BUILD_TIME_FILE_NAME
         build_info.write_build_time(time_file)
@@ -238,8 +238,8 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(build_info.build_time_text(), "源码运行")
 
     def test_version_comes_from_bundle_asset(self):
-        from jiyu_attack_next.gui import build_info
-        from jiyu_attack_next import __version__
+        from app.gui import build_info
+        from app import __version__
         self.assertEqual(build_info.version_text(), __version__)
         version_file = self.temp_root / "bundle" / build_info.VERSION_FILE_NAME
         build_info.write_version(version_file, "9.9.9")

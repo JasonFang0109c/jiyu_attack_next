@@ -47,8 +47,8 @@ nightly 的后缀符合 SemVer 第 9 条“先行版本号”的约定：标识�
 
 | 位置 | 作用 |
 | --- | --- |
-| `jiyu_attack_next/core/constants.py` 的 `__version__` | 唯一权威来源，构建脚本与工作流都从这里读取 |
-| `jiyu_attack_next/__init__.py` | 重新导出 `__version__`，供运行时代码和“关于”页使用 |
+| `app/core/constants.py` 的 `__version__` | 唯一权威来源，构建脚本与工作流都从这里读取 |
+| `app/__init__.py` | 重新导出 `__version__`，供运行时代码和“关于”页使用 |
 | `build/assets/version.txt` | 构建时写入并打包进 EXE，供“关于”页显示 |
 
 `tests/test_versioning.py` 校验版本号格式、包导出值与命令行 `--version` 输出一致；`packaging/build.ps1` 会拒绝不符合 SemVer 的版本号，`release.yml` 会拒绝与源码不一致或已存在标签的版本号。
@@ -68,7 +68,7 @@ nightly 的后缀符合 SemVer 第 9 条“先行版本号”的约定：标识�
 
 ## 发布正式版
 
-1. 确认 `jiyu_attack_next/core/constants.py` 的 `__version__` 已改为目标版本，并已提交到 `main`。
+1. 确认 `app/core/constants.py` 的 `__version__` 已改为目标版本，并已提交到 `main`。
 2. 打开仓库的 `Actions` 页面，左侧选择 `Release`，点击 `Run workflow`。
 3. 分支选择 `main`；`version` 留空表示使用源码中的 `__version__`，需要覆盖时再填写。
 4. 需要先自检时勾选 `draft`，Release 会以草稿创建，确认无误后在 Releases 页面发布。

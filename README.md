@@ -79,8 +79,8 @@
 
 | 模式 | 启动方式 | 说明 |
 | --- | --- | --- |
-| GUI | 双击 EXE；源码 `python -m jiyu_attack_next` | 无参数启动，打开图形界面 |
-| CLI | `JiYuAttackNext.exe -ip ...`；源码 `python -m jiyu_attack_next -ip ...` | 带参数启动，在终端显示输出 |
+| GUI | 双击 EXE；源码 `python -m app` | 无参数启动，打开图形界面 |
+| CLI | `JiYuAttackNext.exe -ip ...`；源码 `python -m app -ip ...` | 带参数启动，在终端显示输出 |
 
 EXE 无需安装 Python；从源码运行 CLI 仍只依赖标准库。两者共用同一套报文实现，默认通信为 UDP，目标端口 `4705`。PowerShell 中若 EXE 不在 `PATH`，需写成 `.\JiYuAttackNext.exe ...`；cmd 可直接运行。
 
@@ -94,9 +94,9 @@ EXE 无需安装 Python；从源码运行 CLI 仍只依赖标准库。两者共�
 | 正式版 | 版本号形如 `v0.1.0`，标记为 Latest；暂无发布 | [最新正式版](https://github.com/JasonFang0109c/jiyu_attack_next/releases/latest) |
 
 - EXE：`JiYuAttackNext.exe`，同一个文件支持 GUI 与 CLI，无需安装 Python
-- CLI 不再单独发布脚本；需要从源码调试时使用 `python -m jiyu_attack_next ...`
+- CLI 不再单独发布脚本；需要从源码调试时使用 `python -m app ...`
 
-推送 `main` 且改动涉及 `jiyu_attack_next/`、`packaging/`、`scripts/`、`assets/`、依赖清单或工作流文件时，会自动构建并滚动更新 `nightly` 预发布版本；纯文档改动不触发构建。正式版需在 Actions 页面手动运行 `Release`，版本号规则见[版本规范](docs/dev/VERSIONING.md)。
+推送 `main` 且改动涉及 `app/`、`packaging/`、`scripts/`、`assets/`、依赖清单或工作流文件时，会自动构建并滚动更新 `nightly` 预发布版本；纯文档改动不触发构建。正式版需在 Actions 页面手动运行 `Release`，版本号规则见[版本规范](docs/dev/VERSIONING.md)。
 
 ## 文档
 
@@ -125,10 +125,10 @@ EXE 无需安装 Python；从源码运行 CLI 仍只依赖标准库。两者共�
 py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python -m jiyu_attack_next
+python -m app
 ```
 
-`python -m jiyu_attack_next` 是无参数统一入口；源码运行 CLI 可用 `python -m jiyu_attack_next -h`。
+`python -m app` 是无参数统一入口；源码运行 CLI 可用 `python -m app -h`。
 
 构建 EXE：
 
