@@ -301,10 +301,6 @@ class ConnectionState(QObject):
         for name, value in self.DEFAULTS.items():
             self.set_value(name, value)
 
-    def snapshot(self):
-        """返回会话参数的浅拷贝。"""
-        return self.values.copy()
-
     def resolve_target(self, target=None):
         """把设备备注名换成真实地址，未命中时原样返回。"""
         value = self.values["target"] if target is None else target
@@ -431,20 +427,6 @@ class LogEntry:
         if continuation:
             text += "\n" + "\n".join(continuation)
         return text
-
-    def as_record(self):
-        """导出为可序列化的字典，不含运行时生成的 uid。"""
-        return {
-            "time": self.time,
-            "category": self.category,
-            "level": str(self.level),
-            "message": self.message,
-            "thread_id": self.thread_id,
-            "thread_name": self.thread_name,
-            "logger_name": self.logger_name,
-            "line_number": self.line_number,
-            "details": self.details,
-        }
 
     @classmethod
     def from_record(cls, record):

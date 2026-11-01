@@ -233,9 +233,6 @@ class LogPage(Page):
         self.table.setRowHidden(row, not matched)
         return matched
 
-    def _entry_checked(self, uid):
-        return uid in self._checked_uids
-
     def selected_entries(self):
         """按日志顺序返回勾选的记录。"""
         return [

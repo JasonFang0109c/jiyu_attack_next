@@ -29,11 +29,6 @@ def _read_bundle_text(name):
     return value or None
 
 
-def build_time_path():
-    """返回构建时间文件路径；源码运行时返回 None。"""
-    return _bundle_file(BUILD_TIME_FILE_NAME)
-
-
 def build_time_text():
     """读取打包时间；无法读取时返回源码运行提示。"""
     return _read_bundle_text(BUILD_TIME_FILE_NAME) or UNKNOWN_BUILD_TIME
