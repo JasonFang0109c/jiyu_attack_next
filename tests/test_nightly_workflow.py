@@ -66,6 +66,22 @@ class NightlyWorkflowTests(unittest.TestCase):
             self.workflow.index("## SHA256"),
         )
 
+    def test_workflow_lists_commits_in_push_range(self):
+        # 路径过滤按整个推送判定，tip 是文档也可能包含代码提交；
+        # 发布说明列出 before..head 的全部提交，避免误判构建范围。
+        self.assertIn("github.event.before", self.workflow)
+        self.assertIn("## Commits", self.workflow)
+        self.assertIn("${commit_list}", self.workflow)
+        self.assertIn("fetch-depth: 0", self.workflow)
+        self.assertGreater(
+            self.workflow.index("## Commits"),
+            self.workflow.index("## SHA256"),
+        )
+        self.assertLess(
+            self.workflow.index("## Commits"),
+            self.workflow.index("## Message"),
+        )
+
     def test_workflow_publishes_gui_and_cli_assets(self):
         self.assertIn("files: |", self.workflow)
         self.assertIn("GUI:", self.workflow)

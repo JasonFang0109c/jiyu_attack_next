@@ -40,7 +40,9 @@ jobs:
       - name: Checkout repository metadata
         uses: actions/checkout@v7
         with:
-          fetch-depth: 1
+          # 需要完整历史才能列出本次 push 范围内（before..head）的全部提交；
+          # 只取 1 个提交时，文档提交排在代码提交之后会让发布说明看起来像只构建了文档。
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Download build artifact
@@ -62,6 +64,17 @@ jobs:
           if [[ -z "${commit_message}" ]]; then
             commit_message="（无提交说明）"
           fi
+          # paths 过滤按整个 push 的 before..head 判定，tip 提交是文档也可能
+          # 带着代码提交一起构建；列出范围内全部提交说明本次构建立足于哪些改动。
+          before="${{ github.event.before }}"
+          commit_list=""
+          if [[ -n "${before}" && "${before}" != "0000000000000000000000000000000000000000" ]] \
+            && git cat-file -e "${before}^{commit}" 2>/dev/null; then
+            commit_list="$(git log --pretty=format:'- `%h` %s' "${before}..${GITHUB_SHA}" || true)"
+          fi
+          if [[ -z "${commit_list}" ]]; then
+            commit_list="$(git log -1 --pretty=format:'- `%h` %s' "${GITHUB_SHA}")"
+          fi
           cat > release-notes.md <<EOF
           # Nightly Build ${version}
 
@@ -79,6 +92,10 @@ jobs:
 
           - GUI: \`${exe_sha256}\`
           - CLI: \`${cli_sha256}\`
+
+          ## Commits
+
+          ${commit_list}
 
           ## Message
 

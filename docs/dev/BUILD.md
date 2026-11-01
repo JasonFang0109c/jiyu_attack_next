@@ -90,7 +90,8 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 
 - 工作流文件首次进入默认分支后，Actions 页面才会显示手动运行入口。
 - 在 `windows-latest` 上使用 Python 3.13 安装依赖、执行离线测试并运行 `scripts/build.ps1 -Clean`。
 - 构建成功后更新标签为 `nightly`、标题为 `Nightly Build <版本>` 的预发布版本，资产包括 GUI 版 `JiYuAttackNext.exe` 和 CLI 版 `JiYuAttackNext-cli.py`。
-- 发布说明包含版本号、构建时间、工作流运行记录、两个资产的 SHA256，并在末尾的英文 `Message` 章节列出最新提交的完整提交信息。
+- 发布说明包含版本号、构建时间、工作流运行记录、两个资产的 SHA256，`Commits` 章节列出本次推送范围内的全部提交，末尾的英文 `Message` 章节列出最新提交的完整提交信息。
+- 路径过滤按整个推送的 `before..head` 判定，因此把文档提交与代码提交一起推送时仍会构建；`Commits` 章节据此说明本次构建实际包含哪些改动。
 - 复用 `nightly` 标签并通过 `overwrite_files` 覆盖旧资产与说明，下载地址固定为 `https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly`。
 - 使用 `nightly-build` 并发组，新的运行会取消尚未完成的旧运行。
 
