@@ -46,6 +46,7 @@ jiyu_attack_next/
 |   |-- build.ps1                 # EXE 构建脚本
 |   |-- gen_version_info.py       # 生成 EXE 版本资源
 |   |-- run_gui.ps1               # 使用虚拟环境启动 GUI
+|   |-- test_local_ip.py          # 本机 IPv4 报文收发自测
 |   `-- JiYuAttackNext.spec       # PyInstaller 配置
 |-- docs/
 |   |-- usage/                    # 使用文档
@@ -72,7 +73,7 @@ jiyu_attack_next/
 - `.github/workflows/build.yml` 提供可复用的打包流程，`nightly-build.yml` 与 `release.yml` 分别以 nightly、stable 通道调用它。
 - `.github/workflows/nightly-build.yml` 在推送到 `main` 且改动涉及 `app/`、`cli/`、`scripts/`、`assets/`、依赖清单或工作流文件时构建 EXE，并滚动更新 `nightly` 预发布；纯文档改动不触发。
 - `.github/workflows/release.yml` 仅在 Actions 页面手动触发，校验版本号与标签后创建 `vX.Y.Z` 正式发布，规则见[版本规范](VERSIONING.md)。
-- `scripts/` 统一存放启动脚本及 EXE 构建配置，自动按脚本位置定位项目根目录；`gen_version_info.py` 生成 EXE 的版本资源。
+- `scripts/` 统一存放启动、构建与本机自测脚本，自动按脚本位置定位项目根目录；`gen_version_info.py` 生成 EXE 的版本资源，`test_local_ip.py` 用本机地址验证真实报文收发。
 - `tests/` 使用模拟套接字验证行为，不执行真实目标发送或防火墙变更。
 
 ## 本地生成目录

@@ -114,4 +114,10 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 
 .\.venv\Scripts\python.exe -B -m tests.verify_gui --screenshot <截图路径>
 ```
 
+没有第二台测试设备时，可另外运行本机 IP 自测：
+
+```powershell
+.\.venv\Scripts\python.exe -B .\scripts\test_local_ip.py
+```
+
 生成的 EXE 默认打开图形界面，无需安装 Python。

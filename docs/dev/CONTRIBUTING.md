@@ -53,6 +53,18 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Clean
 .\.venv\Scripts\python.exe -X utf8 -m compileall -q cli app tests
 ```
 
+### 本机 IP 自测
+
+没有第二台测试设备时，可用本机 IPv4 地址验证真实报文收发：
+
+```powershell
+.\.venv\Scripts\python.exe -B .\scripts\test_local_ip.py
+```
+
+脚本自动选择本机局域网地址，在系统分配的空闲 UDP 端口上依次发送并校验文本消息、远程命令、重启、关机、注销和连续发送报文，不需要安装或运行学生端。默认使用多网卡环境检测到的可用地址，检测异常时可用 `--target 127.0.0.1` 指定回环地址，用 `--repeat` 调整连续发送次数，用 `--port` 固定接收端口。
+
+该脚本会创建真实 UDP 套接字，不属于 `tests/` 下的离线测试套件；`unittest` 运行期间仍保持全局禁止真实网络访问。
+
 ## 运行日志
 
 仅在改动 GUI 日志行为或调用点时适用。GUI 运行日志遵循 [日志规范](https://itliwei.github.io/technology/engineer/develop/logger.html)，等级统一使用 `DEBUG`、`INFO`、`WARNING`、`ERROR`，其中 `warn` 写作 `warning`。默认运行等级为 `INFO`，可在“设置”页切换；低于当前等级的记录不会写入列表和 `runtime.log`。

@@ -133,6 +133,14 @@ python -m app.gui
 powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1
 ```
 
+没有第二台测试设备时，可用本机 IPv4 地址验证报文收发：
+
+```powershell
+.\.venv\Scripts\python.exe -B .\scripts\test_local_ip.py
+```
+
+脚本会自动选择本机局域网地址，在系统分配的空闲 UDP 端口上依次验证文本消息、远程命令、重启、关机、注销和连续发送，无需安装或运行学生端。`--target 127.0.0.1` 可改用回环地址，`--repeat` 可调整连续发送次数。
+
 ## 项目来源
 
 上游仓库：[ht0Ruial/Jiyu_udp_attack](https://github.com/ht0Ruial/Jiyu_udp_attack)。当前仓库的具体行为以本项目代码和文档为准。
