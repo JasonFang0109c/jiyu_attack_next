@@ -73,19 +73,17 @@ def detect_local_ip(target=None):
     ]
     if usable:
         if target_host and not ipaddress.IPv4Address(target_host).is_loopback:
-            target_value = ipaddress.IPv4Address(target_host)
-            usable.sort(
-                key=lambda value: (
-                    (
-                        0
-                        if ipaddress.IPv4Address(value).packed[:2]
-                        == target_value.packed[:2]
-                        else 1
-                    ),
-                    0 if ipaddress.IPv4Address(value).is_private else 1,
-                    value,
+            # 每个候选地址只解析一次 IPv4Address，排序 key 里直接复用解析结果。
+            target_prefix = ipaddress.IPv4Address(target_host).packed[:2]
+            parsed = [(value, ipaddress.IPv4Address(value)) for value in usable]
+            parsed.sort(
+                key=lambda item: (
+                    0 if item[1].packed[:2] == target_prefix else 1,
+                    0 if item[1].is_private else 1,
+                    item[0],
                 )
             )
+            return parsed[0][0]
         return usable[0]
     if route_local:
         return route_local

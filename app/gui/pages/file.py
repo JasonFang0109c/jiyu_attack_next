@@ -167,21 +167,31 @@ class FilePage(Page):
         targets = self.selected_entries()
         if not targets:
             return []
-        directories = [relative for kind, relative in targets if kind == "dir"]
+        directories = {relative for kind, relative in targets if kind == "dir"}
         files = {relative for kind, relative in targets if kind == "file"}
 
         def matched(relative):
             if relative in files:
                 return True
-            return any(
-                relative == directory or relative.startswith(directory + "/")
-                for directory in directories
-            )
+            # 目录匹配只需要看自身与各级父路径，避免为每个文件遍历全部目录。
+            candidate = relative
+            while True:
+                if candidate in directories:
+                    return True
+                candidate, _, _ = candidate.rpartition("/")
+                if not candidate:
+                    return False
 
-        removed = [entry for entry in self.items if matched(entry[1])]
+        removed = []
+        remaining = []
+        for entry in self.items:
+            if matched(entry[1]):
+                removed.append(entry)
+            else:
+                remaining.append(entry)
         if not removed:
             return []
-        self.items = [entry for entry in self.items if not matched(entry[1])]
+        self.items = remaining
         states = self._check_states()
         for _, relative, _ in removed:
             states.pop(relative.casefold(), None)

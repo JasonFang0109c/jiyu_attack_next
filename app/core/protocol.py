@@ -17,10 +17,12 @@ from .constants import (
 
 
 def format_b4_send(content):
+    """把文本编码为 UTF-16LE 字节值列表，供报文字节数组填充。"""
     return list(content.encode("utf-16le"))
 
 
 def read_message(arguments):
+    """读取消息文本：优先使用 `--msg`，其次读取 `--msg-file`（`-` 表示标准输入）。"""
     if arguments.msg_file is None:
         return arguments.msg
     if arguments.msg_file == "-":
@@ -30,20 +32,32 @@ def read_message(arguments):
 
 
 def split_message(content):
-    chunk = []
+    """按报文容量把消息切成若干分片。
+
+    Args:
+        content: 待发送的消息文本。
+
+    Yields:
+        str: 不超过 ``MESSAGE_MAX_BYTES`` 的分片。
+
+    Raises:
+        ValueError: 消息包含 NUL 字符。
+    """
+    if "\x00" in content:
+        raise ValueError("消息不能包含 NUL 字符")
+    # 容量以 UTF-16 字节数计算：BMP 字符占 2 字节，增补平面字符（emoji 等）占 4 字节。
+    # 逐字符 encode 只为了拿长度，改为按码位判断宽度后再整体切片。
+    chunk_start = 0
     byte_count = 0
-    for character in content:
-        if character == "\x00":
-            raise ValueError("消息不能包含 NUL 字符")
-        character_bytes = len(character.encode("utf-16le"))
+    for index, character in enumerate(content):
+        character_bytes = 4 if ord(character) > 0xFFFF else 2
         if byte_count + character_bytes > MESSAGE_MAX_BYTES:
-            yield "".join(chunk)
-            chunk = []
+            yield content[chunk_start:index]
+            chunk_start = index
             byte_count = 0
-        chunk.append(character)
         byte_count += character_bytes
-    if chunk:
-        yield "".join(chunk)
+    if chunk_start < len(content):
+        yield content[chunk_start:]
 
 
 def get_ip(ip):

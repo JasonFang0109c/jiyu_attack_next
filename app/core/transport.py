@@ -277,16 +277,11 @@ class _FileTransferRequestHandler(BaseHTTPRequestHandler):
         self.send_error(404)
 
     def _send_file(self, transfer, index=0):
-        sources = getattr(transfer, "sources", None)
-        if sources is None:
-            source = transfer.source
-            total = 0
-        else:
-            if not 0 <= index < len(sources):
-                self.send_error(404)
-                return
-            source = sources[index][0]
-            total = transfer.completed_before(index)
+        if not 0 <= index < len(transfer.sources):
+            self.send_error(404)
+            return
+        source = transfer.sources[index][0]
+        total = transfer.completed_before(index)
         try:
             size = source.stat().st_size
         except OSError:
@@ -328,6 +323,11 @@ class FileTransferServer:
         self.source = self.items[0][0]
         self.sources = [(path, relative) for path, relative, _ in self.items]
         self.total_size = sum(size for _, _, size in self.items)
+        # 各文件在总进度中的起始偏移，避免每次请求都重新累加前面的文件大小。
+        self._offsets = [0]
+        for _, _, size in self.items:
+            self._offsets.append(self._offsets[-1] + size)
+        self.desktop_dir = None
         self.bootstrap_script = ""
         self.downloaded = Event()
         self.requested = Event()
@@ -366,7 +366,8 @@ class FileTransferServer:
         return "http://%s:%d/f/%s" % (host, self.port, self.token)
 
     def completed_before(self, index):
-        return sum(size for _, _, size in self.items[:index])
+        """返回第 index 个文件之前的累计字节数。"""
+        return self._offsets[index]
 
     def mark_requested(self, stage):
         with self._lock:
@@ -380,6 +381,9 @@ class FileTransferServer:
         total = self.total_size if total is None else total
         percent = 100 if total == 0 else min(100, int(sent * 100 / total))
         percent = 100 if percent == 100 else percent // 5 * 5
+        # 分块下载会频繁回调，先按 5% 粒度粗筛，命中变化再进锁确认。
+        if percent == self._progress_value:
+            return
         with self._lock:
             if percent == self._progress_value:
                 return
@@ -446,7 +450,7 @@ class FileTransferServer:
         return build_items_bootstrap_script(
             [(relative, size) for _, relative, size in self.items],
             urls,
-            getattr(self, "desktop_dir", None),
+            self.desktop_dir,
         )
 
 
