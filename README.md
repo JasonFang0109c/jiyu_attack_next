@@ -3,7 +3,7 @@
 <img src="assets/app.svg" width="150" height="150" alt="JiYu Attack Next">
 <p></p>
 <p>
-   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/JasonFang0109c/jiyu_attack_next"></a>
+   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/JasonFang0109c/jiyu_attack_next?label=Stars&style=flat"></a>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases"><img alt="GitHub all releases" src="https://img.shields.io/github/downloads/JasonFang0109c/jiyu_attack_next/total?label=Downloads"></a>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly"><img alt="Nightly Build" src="https://img.shields.io/badge/Nightly-Build-blue.svg?logo=githubactions"></a>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/JasonFang0109c/jiyu_attack_next"></a>
