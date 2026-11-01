@@ -11,7 +11,7 @@ version_file = root / "build" / "assets" / "version.txt"
 version_info = root / "build" / "assets" / "version_info.txt"
 
 a = Analysis(
-    [str(root / "app" / "gui" / "__main__.py")],
+    [str(root / "app" / "__main__.py")],
     pathex=[str(root)],
     binaries=[],
     datas=[(str(root / "assets" / "app.svg"), "assets")]
@@ -42,7 +42,9 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=False,
+    # 统一入口需要控制台承载 CLI 输出；双击时由 bootloader 隐藏自有控制台。
+    console=True,
+    hide_console="hide-early",
     uac_admin=True,
     icon=str(icon) if icon.exists() else None,
     version=str(version_info) if version_info.exists() else None,

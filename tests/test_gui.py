@@ -202,8 +202,8 @@ class GuiTests(unittest.TestCase):
         hero = about.findChild(QWidget, "aboutHero")
         texts = [label.text() for label in hero.findChildren(BodyLabel)]
         for line in (
-            "极域学生端 UDP 控制报文测试工具，提供图形界面与独立脚本两种形态",
-            "基于 PySide6-Fluent-Widgets 构建，支持打包为 Windows 单文件 EXE",
+            "极域学生端 UDP 控制报文测试工具，图形界面与命令行合并为同一个 Windows EXE",
+            "基于 PySide6-Fluent-Widgets 构建，打包后无需安装 Python 即可使用 GUI 与 CLI",
             "仅供已获授权的教学环境测试使用",
         ):
             self.assertIn(line, texts)

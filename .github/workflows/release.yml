@@ -77,7 +77,6 @@ jobs:
           version="${{ needs.build.outputs.version }}"
           short_sha="${GITHUB_SHA::7}"
           exe_sha256="$(sha256sum dist/JiYuAttackNext.exe | awk '{print $1}')"
-          cli_sha256="$(sha256sum "dist/JiYuAttackNext-cli-${version}.py" | awk '{print $1}')"
           built_at="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           previous_tag="$(git describe --tags --abbrev=0 --match 'v*' HEAD 2>/dev/null || true)"
           if [[ -n "${previous_tag}" ]]; then
@@ -102,13 +101,11 @@ jobs:
 
           ## Assets
 
-          - \`JiYuAttackNext.exe\`（图形界面，无需安装 Python）
-          - \`JiYuAttackNext-cli.py\`（脚本版，仅依赖 Python 3.13 标准库）
+          - \`JiYuAttackNext.exe\`（图形界面与命令行共用，无需安装 Python）
 
           ## SHA256
 
-          - GUI: \`${exe_sha256}\`
-          - CLI: \`${cli_sha256}\`
+          - EXE: \`${exe_sha256}\`
           EOF
 
       - name: Publish Release
@@ -125,8 +122,6 @@ jobs:
           make_latest: true
           files: |
             dist/JiYuAttackNext.exe
-            dist/JiYuAttackNext-cli.py
             dist/JiYuAttackNext-${{ needs.build.outputs.version }}.exe
-            dist/JiYuAttackNext-cli-${{ needs.build.outputs.version }}.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

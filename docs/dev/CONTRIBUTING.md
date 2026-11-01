@@ -11,7 +11,7 @@
 
 ## 开发环境
 
-Python 3.13，虚拟环境目录为 `.venv`。CLI 只依赖标准库；GUI 使用 PySide6，EXE 构建使用 PyInstaller。
+Python 3.13，虚拟环境目录为 `.venv`。命令行模式只依赖标准库；GUI 使用 PySide6，EXE 构建使用 PyInstaller。
 
 ```powershell
 py -3.13 -m venv .venv
@@ -23,13 +23,15 @@ python -m pip install -r requirements.txt
 
 ```powershell
 python --version
-python cli/main.py -h
+python -m app -h
 ```
+
+`python -m app` 是统一入口：无参数启动 GUI，带参数运行命令行模式。只调试命令行核心时也可直接运行 `python cli/main.py -h`。
 
 ## 启动与构建
 
 ```powershell
-python -m app.gui
+python -m app
 powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Clean
 ```
 
@@ -74,7 +76,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Clean
     目标设备数：1
 ```
 
-新增日志优先调用 `LogStore.debug/info/warning/error`，关键节点携带目标、端口、文件名、耗时等定位信息，异常附带堆栈，不记录密码、令牌等敏感信息。日志页支持功能与级别筛选、多选、导出选中、删除选中和表头全选；相关行为变更需同步更新 [GUI 说明](../usage/GUI.md) 和 `tests/test_gui.py`。
+新增日志优先调用 `LogStore.debug/info/warning/error`，关键节点携带目标、端口、文件名、耗时等定位信息，异常附带堆栈，不记录密码、令牌等敏感信息。日志页支持功能与级别筛选、多选、导出选中、删除选中和表头全选；相关行为变更需同步更新 [GUI 模式使用说明](../usage/GUI.md) 和 `tests/test_gui.py`。
 
 ## 提交信息
 

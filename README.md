@@ -8,8 +8,8 @@
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly"><img alt="Nightly Build" src="https://img.shields.io/badge/Nightly-Build-blue?style=flat&logo=githubactions&logoColor=white"></a>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/JasonFang0109c/jiyu_attack_next?label=Issues&style=flat&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCc+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J00xMiAyYTEwIDEwIDAgMSAwIDAgMjAgMTAgMTAgMCAwIDAgMC0yMHptMSAxNWgtMnYtMmgydjJ6bTAtNGgtMlY3aDJ2NnonLz48L3N2Zz4="></a>
 </p>
-<p>极域学生端 UDP 控制报文测试工具，提供图形界面与独立脚本两种形态</p>
-<p>基于 PySide6-Fluent-Widgets 构建，支持打包为 Windows 单文件 EXE</p>
+<p>极域学生端 UDP 控制报文测试工具，图形界面与命令行合并为同一个 Windows EXE</p>
+<p>基于 PySide6-Fluent-Widgets 构建，打包后无需安装 Python 即可使用 GUI 与 CLI</p>
 <p>仅供已获授权的教学环境测试使用</p>
 </div>
 
@@ -73,15 +73,16 @@
 
 目标地址和 UDP 端口在文本消息、远程命令、设备操作与文件传送之间同步。
 
-## 两种形态
+## 两种操作模式
 
-| | 图形界面 | 脚本版 |
+同一个 `JiYuAttackNext.exe` 同时包含 GUI 与 CLI，启动方式决定进入哪种模式：
+
+| 模式 | 启动方式 | 说明 |
 | --- | --- | --- |
-| 入口 | `python -m app.gui` | `JiYuAttackNext-cli.py` |
-| 依赖 | PySide6 与 PySide6-Fluent-Widgets | 仅 Python 标准库 |
-| 分发 | Windows 单文件 EXE | 单文件脚本，可独立保存 |
+| GUI | 双击 EXE；源码 `python -m app` | 无参数启动，打开图形界面 |
+| CLI | `JiYuAttackNext.exe -ip ...`；源码 `python cli/main.py ...` | 带参数启动，在终端显示输出 |
 
-两者共用同一套报文实现，默认通信为 UDP，目标端口 `4705`。
+EXE 无需安装 Python；从源码运行 CLI 仍只依赖标准库。两者共用同一套报文实现，默认通信为 UDP，目标端口 `4705`。PowerShell 中若 EXE 不在 `PATH`，需写成 `.\JiYuAttackNext.exe ...`；cmd 可直接运行。
 
 ## 下载
 
@@ -92,10 +93,10 @@
 | nightly | 版本号形如 `0.1.0-nightly.20261029`，随 `main` 更新 | [Nightly Build](https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly) |
 | 正式版 | 版本号形如 `v0.1.0`，标记为 Latest；暂无发布 | [最新正式版](https://github.com/JasonFang0109c/jiyu_attack_next/releases/latest) |
 
-- EXE：`JiYuAttackNext.exe`，无需安装 Python 即可运行
-- 脚本：`JiYuAttackNext-cli.py`，仅依赖 Python 3.13 标准库
+- EXE：`JiYuAttackNext.exe`，同一个文件支持 GUI 与 CLI，无需安装 Python
+- CLI 不再单独发布脚本；需要从源码调试时使用仓库中的 `cli/main.py`
 
-推送到 `main` 且改动涉及 `app/`、`cli/`、`scripts/`、`assets/`、依赖清单或工作流文件时，会自动构建并滚动更新 `nightly` 预发布版本；纯文档改动不触发构建。正式版需在 Actions 页面手动运行 `Release`，版本号规则见[版本规范](docs/dev/VERSIONING.md)。
+推送 `main` 且改动涉及 `app/`、`cli/`、`scripts/`、`assets/`、依赖清单或工作流文件时，会自动构建并滚动更新 `nightly` 预发布版本；纯文档改动不触发构建。正式版需在 Actions 页面手动运行 `Release`，版本号规则见[版本规范](docs/dev/VERSIONING.md)。
 
 ## 文档
 
@@ -103,8 +104,8 @@
 
 | 文档 | 内容 |
 | --- | --- |
-| [CLI 版使用](docs/usage/CLI.md) | 参数表、目标地址格式、多行消息、使用示例与排查说明 |
-| [GUI 使用](docs/usage/GUI.md) | 源码启动、EXE 运行、界面操作与行为说明 |
+| [CLI 模式使用](docs/usage/CLI.md) | 命令行参数、目标地址格式、多行消息、使用示例与排查说明 |
+| [GUI 模式使用](docs/usage/GUI.md) | 源码启动、EXE 运行、界面操作与行为说明 |
 
 ### 🛠️ 开发文档
 
@@ -124,8 +125,10 @@
 py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python -m app.gui
+python -m app
 ```
+
+`python -m app` 是无参数统一入口；源码运行 CLI 可用 `python -m app -h` 或 `python cli/main.py -h`。
 
 构建 EXE：
 

@@ -85,18 +85,12 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           $exeSource = "output\JiYuAttackNext.exe"
-          $cliSource = "cli\main.py"
           if (-not (Test-Path -LiteralPath $exeSource -PathType Leaf)) {
             throw "未找到构建产物：$exeSource"
           }
-          if (-not (Test-Path -LiteralPath $cliSource -PathType Leaf)) {
-            throw "未找到 CLI 脚本：$cliSource"
-          }
           New-Item -ItemType Directory -Path "dist" -Force | Out-Null
           Copy-Item -LiteralPath $exeSource -Destination "dist\JiYuAttackNext.exe" -Force
-          Copy-Item -LiteralPath $cliSource -Destination "dist\JiYuAttackNext-cli.py" -Force
           Copy-Item -LiteralPath $exeSource -Destination "dist\JiYuAttackNext-$env:VERSION.exe" -Force
-          Copy-Item -LiteralPath $cliSource -Destination "dist\JiYuAttackNext-cli-$env:VERSION.py" -Force
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
@@ -104,8 +98,6 @@ jobs:
           name: JiYuAttackNext-build
           path: |
             dist/JiYuAttackNext.exe
-            dist/JiYuAttackNext-cli.py
             dist/JiYuAttackNext-*.exe
-            dist/JiYuAttackNext-cli-*.py
           if-no-files-found: error
           retention-days: 7

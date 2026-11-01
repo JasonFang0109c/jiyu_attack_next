@@ -1,6 +1,6 @@
 name: Nightly Build
 
-# 推送到 main 时，仅当改动会影响 EXE 或 CLI 产物才触发；
+# 推送到 main 时，仅当改动会影响 EXE 产物才触发；
 # 纯文档、测试等改动不重新编译。也可在 Actions 页面手动运行。
 on:
   push:
@@ -58,7 +58,6 @@ jobs:
           short_sha="${GITHUB_SHA::7}"
           version="${{ needs.build.outputs.version }}"
           exe_sha256="$(sha256sum dist/JiYuAttackNext.exe | awk '{print $1}')"
-          cli_sha256="$(sha256sum dist/JiYuAttackNext-cli.py | awk '{print $1}')"
           built_at="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           commit_message="$(git log -1 --pretty=%B)"
           if [[ -z "${commit_message}" ]]; then
@@ -85,13 +84,11 @@ jobs:
 
           ## Assets
 
-          - \`JiYuAttackNext.exe\`
-          - \`JiYuAttackNext-cli.py\` (Python 3.13)
+          - \`JiYuAttackNext.exe\`（图形界面与命令行共用）
 
           ## SHA256
 
-          - GUI: \`${exe_sha256}\`
-          - CLI: \`${cli_sha256}\`
+          - EXE: \`${exe_sha256}\`
 
           ## Commits
 
@@ -118,6 +115,5 @@ jobs:
           make_latest: false
           files: |
             dist/JiYuAttackNext.exe
-            dist/JiYuAttackNext-cli.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

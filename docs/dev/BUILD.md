@@ -10,7 +10,7 @@
 
 ---
 
-以下命令均以项目根目录为工作目录。构建脚本位于 `scripts/`，使用 PyInstaller 生成 Windows 单文件图形程序。
+以下命令均以项目根目录为工作目录。构建脚本位于 `scripts/`，使用 PyInstaller 生成同时包含 GUI 与 CLI 的 Windows 单文件程序。
 
 ## 准备环境
 
@@ -26,11 +26,11 @@ python -m pip install -r requirements.txt
 
 | 运行方式 | 命令 |
 | --- | --- |
-| 命令行帮助 | `python cli/main.py -h` |
-| 图形界面 | `python -m app.gui` |
+| 图形界面（无参数） | `python -m app` |
+| 命令行帮助 | `python -m app -h` 或 `python cli/main.py -h` |
 | 虚拟环境启动脚本 | `powershell -ExecutionPolicy Bypass -File .\scripts\run_gui.ps1` |
 
-`cli/main.py` 是独立单文件，可直接复制运行，不依赖项目其他文件或第三方库。GUI 实现位于 `app/gui/`，复用脚本版中的标准库接口。
+`app/__main__.py` 是统一入口：无参数时启动 GUI，带参数时交给 `cli/main.py`。`cli/main.py` 仍是独立单文件，可直接复制运行，不依赖项目其他文件或第三方库；GUI 实现位于 `app/gui/`，复用其中的标准库接口。
 
 ## 构建 EXE
 
@@ -52,7 +52,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build.ps1 -Python "C:\Python3
 
 | 路径 | 内容 | 是否保留 |
 | --- | --- | --- |
-| `output/JiYuAttackNext.exe` | 单文件窗口程序 | 保留用于运行和分发 |
+| `output/JiYuAttackNext.exe` | 单文件程序，GUI 与 CLI 共用 | 保留用于运行和分发 |
 | `build/JiYuAttackNext/` | 打包中间文件与分析结果 | 构建后可删除 |
 | `build/assets/app.ico` | 从 SVG 转换的构建图标 | 构建后可删除 |
 | `build/assets/build_time.txt` | 本次构建时间，打包进 EXE | 构建后可删除 |
@@ -89,8 +89,8 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 
 - 也可在 Actions 页面选择该工作流并点击 `Run workflow` 手动运行，手动运行需选择 `main` 分支才会发布；手动运行不受路径过滤限制。
 - 工作流文件首次进入默认分支后，Actions 页面才会显示手动运行入口。
 - 在 `windows-latest` 上使用 Python 3.13 安装依赖、执行离线测试并运行 `scripts/build.ps1 -Clean`。
-- 构建成功后更新标签为 `nightly`、标题为 `Nightly Build <版本>` 的预发布版本，资产包括 GUI 版 `JiYuAttackNext.exe` 和 CLI 版 `JiYuAttackNext-cli.py`。
-- 发布说明包含版本号、构建时间、工作流运行记录、两个资产的 SHA256，`Commits` 章节列出本次推送范围内的全部提交，末尾的英文 `Message` 章节列出最新提交的完整提交信息。
+- 构建成功后更新标签为 `nightly`、标题为 `Nightly Build <版本>` 的预发布版本，资产只有 `JiYuAttackNext.exe`（GUI 与 CLI 共用）。
+- 发布说明包含版本号、构建时间、工作流运行记录、该资产的 SHA256，`Commits` 章节列出本次推送范围内的全部提交，末尾的英文 `Message` 章节列出最新提交的完整提交信息。
 - 路径过滤按整个推送的 `before..head` 判定，因此把文档提交与代码提交一起推送时仍会构建；`Commits` 章节据此说明本次构建实际包含哪些改动。
 - 复用 `nightly` 标签并通过 `overwrite_files` 覆盖旧资产与说明，下载地址固定为 `https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly`。
 - 使用 `nightly-build` 并发组，新的运行会取消尚未完成的旧运行。
@@ -99,7 +99,7 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 
 
 - 只支持手动触发，不随推送自动运行；不会自动递增版本号，需先修改 `app/__init__.py` 与 `cli/main.py` 的 `__version__` 并提交。
 - 发布前校验版本号与源码一致、正式版不带预发布后缀、标签 `vX.Y.Z` 尚不存在，任一不满足即失败。
-- 资产为固定名 `JiYuAttackNext.exe`、`JiYuAttackNext-cli.py`，另附带版本号的 `JiYuAttackNext-X.Y.Z.exe`、`JiYuAttackNext-cli-X.Y.Z.py`。
+- 资产为固定名 `JiYuAttackNext.exe`，另附带版本号的 `JiYuAttackNext-X.Y.Z.exe`；同一文件同时提供 GUI 与 CLI。
 - 发布说明的 `Changes` 章节列出上一个 `v*` 标签以来的提交标题；`make_latest: true` 使正式版成为最新版本，nightly 不受影响。
 - 可选择以草稿（`draft`）创建，确认后再在 Releases 页面发布；`overwrite_files: false` 保证不会覆盖已发布资产。
 - 使用 `release` 并发组且不取消进行中的运行，避免两次发布互相干扰。
@@ -121,4 +121,4 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 
 .\.venv\Scripts\python.exe -B .\scripts\test_local_ip.py
 ```
 
-生成的 EXE 默认打开图形界面，无需安装 Python。
+生成的 EXE 无参数时打开图形界面，带参数时运行命令行模式；两种模式都无需安装 Python。双击启动会隐藏控制台，从终端带参数启动会保留控制台以显示 CLI 输出。

@@ -9,7 +9,7 @@
 
 ---
 
-根目录只保留仓库首页、依赖清单与 Git 配置。应用实现、独立脚本、测试、构建脚本及详细文档按用途分类。
+根目录只保留仓库首页、依赖清单与 Git 配置。应用实现、命令行核心、测试、构建脚本及详细文档按用途分类。
 
 ```text
 jiyu_attack_next/
@@ -21,13 +21,13 @@ jiyu_attack_next/
 |-- README.md                     # 基础介绍与文档导航
 |-- requirements.txt              # GUI 与构建依赖
 |-- cli/
-|   `-- main.py                   # 独立脚本版，仅使用标准库
+|   `-- main.py                   # 命令行模式核心，仅使用标准库
 |-- app/                          # 图形应用包
 |   |-- __init__.py               # 包入口与版本号唯一来源
-|   |-- __main__.py               # 应用包入口
+|   |-- __main__.py               # 统一入口与 PyInstaller 打包入口
 |   `-- gui/
 |       |-- __init__.py
-|       |-- __main__.py           # GUI 与打包入口
+|       |-- __main__.py           # GUI 源码入口
 |       |-- app.py                # Fluent 窗口、导航、单实例与交互
 |       |-- build_info.py         # 读取打包构建时间与版本号
 |       |-- components.py         # 共用目标参数与任务栏
@@ -50,8 +50,8 @@ jiyu_attack_next/
 |   `-- JiYuAttackNext.spec       # PyInstaller 配置
 |-- docs/
 |   |-- usage/                    # 使用文档
-|   |   |-- CLI.md                # 独立脚本使用说明
-|   |   `-- GUI.md                # GUI 使用说明
+|   |   |-- CLI.md                # CLI 模式使用说明
+|   |   `-- GUI.md                # GUI 模式使用说明
 |   `-- dev/                      # 开发文档
 |       |-- STRUCTURE.md          # 项目结构与模块职责
 |       |-- BUILD.md              # 编译、输出与清理
@@ -63,7 +63,8 @@ jiyu_attack_next/
 
 ## 模块关系
 
-- `cli/main.py` 同时提供独立 CLI 和可复用的报文接口，不依赖 `app/` 或 PySide6。
+- `cli/main.py` 提供命令行模式与可复用的报文接口，不依赖 `app/` 或 PySide6，仍可单独复制运行。
+- `app/__main__.py` 是统一入口：无参数时启动 GUI，带参数时调用 `cli/main.py`；PyInstaller 也从此文件打包。
 - `app/gui/app.py` 基于 `FluentWindow` 实现侧边导航、任务调度、单实例运行与页面联动。
 - `app/gui/pages.py` 按消息、命令、设备、文件传送、设备备注、本机信息、防火墙、日志、设置和关于拆分页面；文件传送页使用带复选框与全选的文件树。
 - `app/gui/build_info.py` 从打包资源读取构建时间与版本号，源码运行时分别显示“源码运行”和 `app.__version__`。
@@ -89,7 +90,7 @@ jiyu_attack_next/
 
 ## 相关文档
 
-- [CLI 版使用说明](../usage/CLI.md)
-- [GUI 使用说明](../usage/GUI.md)
+- [CLI 模式使用说明](../usage/CLI.md)
+- [GUI 模式使用说明](../usage/GUI.md)
 - [EXE 构建说明](BUILD.md)
 - [开发与提交规范](CONTRIBUTING.md)

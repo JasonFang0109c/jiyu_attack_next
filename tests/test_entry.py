@@ -62,8 +62,34 @@ class EntryTests(unittest.TestCase):
 
     def test_gui_package_entry_dispatches_to_gui(self):
         with patch("app.gui.app.main", return_value=7) as launch:
-            self.assertEqual(main(), 7)
+            self.assertEqual(main([]), 7)
         launch.assert_called_once_with()
+
+    def test_cli_arguments_dispatch_to_cli(self):
+        arguments = ["-ip", "10.49.151.29", "-msg", "Hello"]
+        with patch("app.__main__._show_cli_console") as show, \
+                patch("cli.main.main", return_value=3) as run_cli:
+            self.assertEqual(main(arguments), 3)
+        show.assert_called_once_with()
+        run_cli.assert_called_once_with(arguments)
+
+    def test_unified_entry_runs_cli_without_importing_qt(self):
+        project_root = Path(__file__).resolve().parents[1]
+        program = (
+            "import sys\n"
+            "from app.__main__ import main\n"
+            "assert not any(name.startswith('PySide6') for name in sys.modules)\n"
+            "try:\n"
+            "    main(['-h'])\n"
+            "except SystemExit as error:\n"
+            "    assert error.code == 0, error.code\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-X", "utf8", "-B", "-c", program],
+            cwd=project_root, capture_output=True, text=True, encoding="utf-8", timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("-msg", result.stdout)
+        self.assertIn("--msg-file", result.stdout)
 
 
 if __name__ == "__main__":

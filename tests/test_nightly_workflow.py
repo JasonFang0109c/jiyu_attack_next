@@ -42,13 +42,13 @@ class NightlyWorkflowTests(unittest.TestCase):
         self.assertIn("channel: nightly", self.workflow)
         self.assertNotIn("scripts\\build.ps1", self.workflow)
 
-    def test_shared_build_produces_gui_and_cli_assets(self):
+    def test_shared_build_produces_unified_exe(self):
         self.assertIn("runs-on: windows-latest", self.build)
         self.assertIn("scripts\\build.ps1 -Clean", self.build)
-        self.assertIn("cli\\main.py", self.build)
         self.assertIn("dist\\JiYuAttackNext.exe", self.build)
-        self.assertIn("dist\\JiYuAttackNext-cli.py", self.build)
         self.assertIn("name: JiYuAttackNext-build", self.build)
+        self.assertNotIn("cli\\main.py", self.build)
+        self.assertNotIn("JiYuAttackNext-cli", self.build)
 
     def test_shared_build_appends_nightly_suffix_from_date(self):
         self.assertIn("ToString('yyyyMMdd')", self.build)
@@ -82,12 +82,13 @@ class NightlyWorkflowTests(unittest.TestCase):
             self.workflow.index("## Message"),
         )
 
-    def test_workflow_publishes_gui_and_cli_assets(self):
+    def test_workflow_publishes_unified_exe(self):
         self.assertIn("files: |", self.workflow)
-        self.assertIn("GUI:", self.workflow)
+        self.assertIn("JiYuAttackNext.exe", self.workflow)
+        self.assertIn("EXE:", self.workflow)
         self.assertIn("${exe_sha256}", self.workflow)
-        self.assertIn("CLI:", self.workflow)
-        self.assertIn("${cli_sha256}", self.workflow)
+        self.assertNotIn("CLI:", self.workflow)
+        self.assertNotIn("cli_sha256", self.workflow)
 
     def test_workflow_replaces_prerelease_with_nightly_tag(self):
         self.assertIn("tag_name: nightly", self.workflow)
@@ -128,6 +129,12 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("git describe --tags --abbrev=0 --match 'v*'", self.workflow)
         self.assertIn("## Changes", self.workflow)
         self.assertIn("## SHA256", self.workflow)
+
+    def test_release_publishes_single_unified_exe(self):
+        self.assertIn("JiYuAttackNext-${{ needs.build.outputs.version }}.exe", self.workflow)
+        self.assertIn("EXE:", self.workflow)
+        self.assertNotIn("JiYuAttackNext-cli", self.workflow)
+        self.assertNotIn("cli_sha256", self.workflow)
 
 
 class WorkflowVersionSourceTests(unittest.TestCase):

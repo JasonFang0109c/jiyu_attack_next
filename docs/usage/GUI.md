@@ -1,11 +1,11 @@
 <div align="center">
-<h1>GUI 使用说明</h1>
+<h1>GUI 模式使用说明</h1>
 <p>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly"><img alt="Nightly Build" src="https://img.shields.io/badge/Nightly-Build-blue?style=for-the-badge&logo=githubactions&labelColor=212121"></a>
    <img alt="PySide6" src="https://img.shields.io/badge/GUI-PySide6-41CD52?style=for-the-badge&logo=qt&logoColor=white&labelColor=212121">
    <img alt="Platform" src="https://img.shields.io/badge/平台-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white&labelColor=212121">
 </p>
-<p><a href="../../README.md">← 返回项目首页</a> 丨 <a href="CLI.md">CLI 版使用说明</a></p>
+<p><a href="../../README.md">← 返回项目首页</a> 丨 <a href="CLI.md">CLI 模式使用说明</a></p>
 </div>
 
 ---
@@ -17,7 +17,7 @@
   <tr>
     <td width="33%" valign="top">
       <h3>📥 获取程序</h3>
-      <p>从 Nightly Build 下载 <code>JiYuAttackNext.exe</code>，或从源码运行 <code>python -m app.gui</code>。</p>
+      <p>从 Nightly Build 下载 <code>JiYuAttackNext.exe</code> 并双击打开 GUI，或从源码运行 <code>python -m app</code>。</p>
     </td>
     <td width="33%" valign="top">
       <h3>🎯 填写目标</h3>
@@ -31,17 +31,17 @@
 </table>
 </div>
 
-## 运行 Python 版本
+## 源码运行
 
 在项目根目录安装依赖并启动：
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python -m app.gui
+python -m app
 ```
 
-也可执行 `powershell -ExecutionPolicy Bypass -File .\scripts\run_gui.ps1`，由启动脚本自动使用项目虚拟环境。
+也可执行 `powershell -ExecutionPolicy Bypass -File .\scripts\run_gui.ps1`，由启动脚本自动使用项目虚拟环境。需要调试命令行模式时，运行 `python cli/main.py -h` 或 `python -m app -h`；打包后的 EXE 已包含两种模式，使用时无需 Python。
 
 界面使用 [PySide6-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets/tree/PySide6) 构建，采用 Fluent 侧边导航和统一圆角分区卡片。
 
@@ -102,7 +102,12 @@ python -m app.gui
 
 ## 运行打包后的 EXE
 
-已构建的文件位于 `output\JiYuAttackNext.exe`，直接双击即可运行，无需安装 Python 或 PySide6。EXE 为单文件窗口程序，首次启动会解压运行时资源，可能需要数秒。
+已构建的文件位于 `output\JiYuAttackNext.exe`，同一个 EXE 包含 GUI 与 CLI 两种模式，无需安装 Python 或 PySide6：
+
+- **GUI**：双击（无参数）打开图形界面，不显示控制台窗口。
+- **CLI**：在终端带参数运行，保留控制台窗口并显示输出，例如 `.\JiYuAttackNext.exe -ip 10.49.151.29 -msg "Hello"`。
+
+cmd 在 EXE 所在目录可直接写 `JiYuAttackNext.exe ...`；PowerShell 需要 `.\` 前缀，或使用绝对路径。CLI 参数与示例见 [CLI 模式使用说明](CLI.md)。EXE 为单文件程序，首次启动会解压运行时资源，可能需要数秒。
 
 程序首次写入备注或日志时，会在 EXE 所在目录创建 `JiYuAttackNextData` 子文件夹，其中 `settings.ini` 保存设备备注，`runtime.log` 保存运行日志。若 EXE 所在目录不可写，备注和日志会保存失败并在界面提示；请将 EXE 放到可写目录后运行。
 
@@ -123,7 +128,7 @@ python -m app.gui
 - 命令最多容纳 163 个 UTF-16 单元，界面实时显示使用量；超过容量会提示错误。
 - “本机信息”和“防火墙”只操作运行程序的电脑，不向目标发送报文。防火墙操作需要管理员权限。
 - 发送设备指令前会显示目标数量、端口和操作类型并要求二次确认。注销没有独立的极域报文，而是通过远程命令通道执行 `shutdown /l`，依赖目标允许执行远程命令。
-- 反向 Shell 功能保留在 CLI 的 `-e nc` 中，GUI 不提供对应入口。
+- 反向 Shell 功能保留在 CLI 模式的 `-e nc` 中，GUI 不提供对应入口。
 - 日志中的“发送完成”只表示本机发送调用完成，不代表目标已收到或执行成功。
 - “关于”页顶部的图片与项目名称区域不绘制圆角卡片背景，标题下方依次显示与 [README](../../README.md) 首页一致的三行说明文字（工具定位、技术栈与授权提示）；下方依次显示作者卡片，以及“仓库信息”“版本信息”“组件信息”三张独立卡片。仓库信息合并主仓库与上游仓库两个链接；版本信息合并版本与构建时间；组件信息列出 PySide6 与 Fluent Widgets 的版本。三张卡片的标题与首行之间留白大于行与行之间，行高以超链接按钮的自然高度为准，文字行与链接行等高且链接下划线完整显示。内容超出窗口高度时整页（含“关于”标题）可上下滚动，不会压缩卡片布局；滚动条贴住窗口右缘，轨道贯通整个页面高度。构建时间取自打包时写入的构建时间标记，源码运行时显示“源码运行”；版本号在 EXE 中取自打包时写入的版本，源码运行时显示 `app/__version__`。
 - 程序同一时间只允许运行一个实例（含托盘中的隐藏窗口）。再次启动 EXE 时不会打开第二个窗口，而是唤醒已运行的主窗口并置于前台。

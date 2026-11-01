@@ -1042,6 +1042,10 @@ def run_from_cmd(arguments):
     return 0
 
 
+def main(argv=None):
+    return run_from_cmd(parser.parse_args(argv))
+
+
 if __name__ == "__main__":
     freeze_support()
-    sys.exit(run_from_cmd(parser.parse_args()))
+    sys.exit(main())
