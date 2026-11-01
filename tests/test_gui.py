@@ -27,7 +27,15 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QSystemTrayIcon, QWidget
-from qfluentwidgets import BodyLabel, FluentWindow, Theme, ToolTip, qconfig
+from qfluentwidgets import (
+    BodyLabel,
+    CaptionLabel,
+    FluentWindow,
+    HyperlinkButton,
+    Theme,
+    ToolTip,
+    qconfig,
+)
 
 from app.gui import app as gui, pages as gui_pages
 from app.gui import components, models
@@ -134,19 +142,18 @@ class GuiTests(unittest.TestCase):
         about = self.window.pages["about"]
         self.assertEqual(about.objectName(), "about")
         links = [
-            button.getUrl().toString()
-            for button in about.findChildren(gui.HyperlinkButton)
+            button.getUrl().toString() for button in about.findChildren(HyperlinkButton)
         ]
         self.assertIn("https://github.com/JasonFang0109c", links)
         self.assertIn("https://github.com/JasonFang0109c/jiyu_attack_next", links)
         self.assertIn("https://github.com/ht0Ruial/Jiyu_udp_attack", links)
         self.assertNotIn(
             "https://github.com/JasonFang0109c",
-            [button.text() for button in about.findChildren(gui.HyperlinkButton)],
+            [button.text() for button in about.findChildren(HyperlinkButton)],
         )
         self.assertIn(
             "JasonFang0109c",
-            [button.text() for button in about.findChildren(gui.HyperlinkButton)],
+            [button.text() for button in about.findChildren(HyperlinkButton)],
         )
         self.assertEqual(about.author_card.objectName(), "aboutInfoCard")
         self.assertEqual(about.author_card.borderRadius, 12)
@@ -169,10 +176,9 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(about.build_time_value.text(), "源码运行")
         self.assertEqual(about.build_time_value.objectName(), "aboutBuildTime")
         self.assertEqual(
-            [
-                label.text()
-                for label in about.version_card.findChildren(gui.CaptionLabel)
-            ][::2],
+            [label.text() for label in about.version_card.findChildren(CaptionLabel)][
+                ::2
+            ],
             ["版本", "构建时间"],
         )
         self.assertEqual(about.component_card.heading.text(), "组件信息")
@@ -1190,7 +1196,7 @@ class GuiTests(unittest.TestCase):
         QTest.qWait(120)
         settings = self.window.pages["settings"]
         self.assertTrue(settings.log_level_box.isVisible())
-        hints = [label.text() for label in settings.findChildren(gui.CaptionLabel)]
+        hints = [label.text() for label in settings.findChildren(CaptionLabel)]
         self.assertNotIn(
             "选择本次运行写入的最低日志等级，低于该等级的记录不会出现在日志页和日志文件中。",
             hints,

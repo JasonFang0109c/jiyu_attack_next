@@ -12,7 +12,6 @@ from .constants import (
     LOGOFF_COMMAND,
     MESSAGE_MAX_BYTES,
     MESSAGE_OFFSET,
-    __version__,
     basicCMD,
 )
 

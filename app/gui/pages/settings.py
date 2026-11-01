@@ -1,7 +1,6 @@
 """页面实现。"""
 
 from .common import *
-from .common import ASSET_ROOT
 
 
 class SettingsPage(Page):

@@ -24,11 +24,9 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QFileDialog, QSystemTrayIcon
 from qfluentwidgets import (
     Action,
-    CaptionLabel,
     Dialog,
     FluentIcon as FIF,
     FluentTranslator,
-    HyperlinkButton,
     FluentWindow,
     InfoBar,
     InfoBarPosition,
@@ -45,10 +43,8 @@ from .models import (
     CLOSE_BEHAVIOR_QUIT,
     CLOSE_BEHAVIOR_SETTINGS_KEY,
     CLOSE_BEHAVIOR_TRAY,
-    DATA_DIRECTORY_NAME,
     DEFAULT_CLOSE_BEHAVIOR,
     FIRST_CLOSE_PROMPT_SETTINGS_KEY,
-    SETTINGS_FILE_NAME,
     ConnectionState,
     DeviceAliasStore,
     LogLevel,

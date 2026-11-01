@@ -9,29 +9,19 @@ from os import system
 from time import sleep
 
 from ..core import (
-    COMMAND_MAX_BYTES,
-    COMMAND_OFFSET,
     FIREWALL_HELPER_ARGUMENT,
     LOGOFF_COMMAND,
-    MESSAGE_MAX_BYTES,
-    MESSAGE_OFFSET,
-    SendOptions,
     __version__,
     basicCMD,
-    detect_local_ip,
-    execute_send,
     format_size,
-    get_ip,
     local_ip_and_ports,
     pkg_sendlist,
-    prepare_packets,
     read_message,
     request_firewall_rule,
     run_firewall_helper,
     send,
     split_message,
     transfer_file,
-    validate_options,
 )
 
 
