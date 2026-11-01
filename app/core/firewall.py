@@ -55,6 +55,26 @@ def _firewall_result(command, process, *, success=False, note=""):
     }
 
 
+def _firewall_rule_command(action):
+    """构造修改 StudentMain.exe 规则的 netsh 命令。"""
+    return [
+        "netsh",
+        "advfirewall",
+        "firewall",
+        "set",
+        "rule",
+        "name=StudentMain.exe",
+        "new",
+        "action=" + action,
+    ]
+
+
+def _service_already_running(process):
+    """判断 net start 的失败输出是否表示服务本来就在运行。"""
+    # 服务已运行时 net start 以 2182 退出，中文系统还会附带“已经启动”的提示。
+    return "2182" in process.stderr or "已经启动" in process.stderr
+
+
 def set_firewall_rule(action):
     """把 StudentMain.exe 的入站规则改为阻断或允许。
 
@@ -72,57 +92,42 @@ def set_firewall_rule(action):
     """
     if action not in {"block", "allow"}:
         raise ValueError("不支持的防火墙操作")
-    commands = []
-    if action == "block":
-        commands.extend(
-            [
-                ["net.exe", "start", "MpsSvc"],
-                ["netsh", "advfirewall", "set", "allprofiles", "state", "on"],
-            ]
-        )
-    commands.append(
-        [
-            "netsh",
-            "advfirewall",
-            "firewall",
-            "set",
-            "rule",
-            "name=StudentMain.exe",
-            "new",
-            "action=" + action,
-        ]
+    rule_note = "已将 StudentMain.exe 规则更新为%s。" % (
+        "阻断" if action == "block" else "允许"
     )
+    rule_failure = (
+        "无法更新 StudentMain.exe 规则，请确认该规则存在且程序已获得管理员权限。"
+    )
+    # 每步带成功与失败的说明；rescue_note 用于把“服务本来就在运行”算作成功。
+    steps = []
+    if action == "block":
+        steps.append(
+            (
+                ["net.exe", "start", "MpsSvc"],
+                "防火墙服务已启动。",
+                "无法启动防火墙服务，请确认程序已获得管理员权限。",
+                "防火墙服务原本已在运行。",
+            )
+        )
+        steps.append(
+            (
+                ["netsh", "advfirewall", "set", "allprofiles", "state", "on"],
+                "Windows 防火墙已启用，目标规则已更新为阻断。",
+                "无法启用 Windows 防火墙，请确认程序已获得管理员权限。",
+                None,
+            )
+        )
+    steps.append((_firewall_rule_command(action), rule_note, rule_failure, None))
     results = []
-    for index, command in enumerate(commands):
+    for command, success_note, failure_note, rescue_note in steps:
         process = run_windows_command(command)
-        command_text = " ".join(command)
         success = process.returncode == 0
-        note = ""
-        if action == "block" and index == 0:
-            if success:
-                note = "防火墙服务已启动。"
-            elif "2182" in process.stderr or "已经启动" in process.stderr:
-                success = True
-                note = "防火墙服务原本已在运行。"
-            else:
-                note = "无法启动防火墙服务，请确认程序已获得管理员权限。"
-        elif action == "block" and index == 1:
-            if success:
-                note = "Windows 防火墙已启用，目标规则已更新为阻断。"
-            else:
-                note = "无法启用 Windows 防火墙，请确认程序已获得管理员权限。"
-        elif action == "block" and index == 2:
-            if success:
-                note = "已将 StudentMain.exe 规则更新为阻断。"
-            else:
-                note = "无法更新 StudentMain.exe 规则，请确认该规则存在且程序已获得管理员权限。"
-        elif action == "allow":
-            if success:
-                note = "已将 StudentMain.exe 规则更新为允许。"
-            else:
-                note = "无法更新 StudentMain.exe 规则，请确认该规则存在且程序已获得管理员权限。"
+        note = success_note if success else failure_note
+        if not success and rescue_note and _service_already_running(process):
+            success = True
+            note = rescue_note
         results.append(
-            _firewall_result(command_text, process, success=success, note=note)
+            _firewall_result(" ".join(command), process, success=success, note=note)
         )
     return results
 
