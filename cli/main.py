@@ -43,6 +43,8 @@ MESSAGE_OFFSET = 56
 MESSAGE_MAX_BYTES = (len(basicCMD['-msg']) - MESSAGE_OFFSET - 2) // 2 * 2
 COMMAND_OFFSET = 578
 COMMAND_MAX_BYTES = (len(basicCMD['-c']) - COMMAND_OFFSET - 2) // 2 * 2
+# 极域没有公开的独立注销报文；沿用已验证的命令通道执行 Windows 注销。
+LOGOFF_COMMAND = "shutdown /l"
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -72,8 +74,8 @@ def build_parser():
         '--file-timeout', type=int, default=120, metavar="SECONDS",
         help="等待目标下载文件的秒数，默认 120")
     parser.add_argument(
-        '-e', type=str, choices=['r', 's', 'g', 'nc', 'break', 'continue'],
-        help="Extra Options加载额外的选项 eg：-e r")
+        '-e', type=str, choices=['r', 's', 'l', 'g', 'nc', 'break', 'continue'],
+        help="Extra Options加载额外的选项 eg：-e r；-e l 注销")
     return parser
 
 
@@ -791,8 +793,8 @@ def validate_options(options):
         raise ValueError("发送轮数必须大于 0")
     if options.interval < 0:
         raise ValueError("发送间隔不能小于 0")
-    if options.extra not in {"", "r", "s"}:
-        raise ValueError("网络发送仅支持 r 或 s 扩展操作")
+    if options.extra not in {"", "r", "s", "l"}:
+        raise ValueError("网络发送仅支持 r、s 或 l 扩展操作")
     if not options.message and not options.command and not options.extra:
         raise ValueError("至少填写消息、命令或选择设备操作")
 
@@ -811,6 +813,8 @@ def prepare_packets(options, report=None):
         packets.append(pkg_sendlist("-c", options.command))
     if options.extra in {"r", "s"}:
         packets.append(basicCMD["-" + options.extra].copy())
+    elif options.extra == "l":
+        packets.append(pkg_sendlist("-c", LOGOFF_COMMAND))
     return packets
 
 
@@ -842,6 +846,9 @@ def creat_send_object(arguments):
 
     if arguments.e == 's':
         send_list.append(basicCMD['-s'].copy())
+
+    if arguments.e == 'l':
+        send_list.append(pkg_sendlist('-c', LOGOFF_COMMAND))
 
     return send_list
 

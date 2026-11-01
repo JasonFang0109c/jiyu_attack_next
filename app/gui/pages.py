@@ -310,16 +310,20 @@ class DevicePage(NetworkPage):
         row.addWidget(BodyLabel("操作", self.content_card))
         self.reboot = RadioButton("重启", self)
         self.shutdown = RadioButton("关机", self)
+        self.logoff = RadioButton("注销", self)
         self.group = QButtonGroup(self)
         self.group.addButton(self.reboot)
         self.group.addButton(self.shutdown)
+        self.group.addButton(self.logoff)
         self.reboot.setChecked(True)
-        self.reboot.toggled.connect(self._update_action)
-        self.shutdown.toggled.connect(self._update_action)
+        for button in (self.reboot, self.shutdown, self.logoff):
+            button.toggled.connect(self._update_action)
         row.addSpacing(16)
         row.addWidget(self.reboot)
         row.addSpacing(12)
         row.addWidget(self.shutdown)
+        row.addSpacing(12)
+        row.addWidget(self.logoff)
         row.addStretch()
         self.body.addLayout(row)
         self.preview_title = BodyLabel("目标预览", self.content_card)
@@ -334,7 +338,8 @@ class DevicePage(NetworkPage):
         self.update_preview()
 
     def _update_action(self):
-        self.footer.send_button.setText("执行重启" if self.reboot.isChecked() else "执行关机")
+        labels = {"r": "执行重启", "s": "执行关机", "l": "执行注销"}
+        self.footer.send_button.setText(labels[self.action()])
 
     @Slot(str, object)
     def _on_target_changed(self, name, value):
@@ -357,12 +362,16 @@ class DevicePage(NetworkPage):
         self.preview_title.setText("目标预览（%d%s）" % (len(hosts), alias_text))
 
     def action(self):
-        return "r" if self.reboot.isChecked() else "s"
+        if self.shutdown.isChecked():
+            return "s"
+        if self.logoff.isChecked():
+            return "l"
+        return "r"
 
     def set_busy(self, busy, cancellable=False):
         super().set_busy(busy, cancellable)
-        self.reboot.setEnabled(not busy)
-        self.shutdown.setEnabled(not busy)
+        for button in (self.reboot, self.shutdown, self.logoff):
+            button.setEnabled(not busy)
 
 
 class FilePage(Page):

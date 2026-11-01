@@ -347,9 +347,10 @@ class MainWindow(FluentWindow):
         target_text = self.connection_state.format_target()
         target_input_text = self.connection_state.values["target"].strip()
         if kind == "device":
-            action = "重启" if options.extra == "r" else "关机"
-            content = "目标：%s\nUDP 端口：%d\n设备数量：%d\n操作：%s" % (
-                target_text, options.port, len(hosts), action)
+            action = {"r": "重启", "s": "关机", "l": "注销"}[options.extra]
+            method = "（远程命令 %s）" % core.LOGOFF_COMMAND if options.extra == "l" else ""
+            content = "目标：%s\nUDP 端口：%d\n设备数量：%d\n操作：%s%s" % (
+                target_text, options.port, len(hosts), action, method)
             if not self._confirm("确认%s" % action, content):
                 self.logs.info(CATEGORIES[kind], "用户取消了%s确认" % action,
                                "目标：%s；端口：%d；设备数量：%d" % (

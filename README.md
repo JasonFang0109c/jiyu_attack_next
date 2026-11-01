@@ -30,7 +30,7 @@
     <td width="33%" valign="middle">
       <h3>🎯 目标与操作</h3>
       <ul style="list-style-position: inside; padding-left: 0;">
-        <li><b>设备操作</b>：重启或关机前预览</li>
+        <li><b>设备操作</b>：重启、关机或注销前预览</li>
         <li><b>设备备注</b>：IPv4 映射易读名称</li>
         <li><b>目标地址</b>：IPv4、末段与 <code>/24</code></li>
       </ul>

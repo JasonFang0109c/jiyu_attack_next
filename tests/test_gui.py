@@ -466,6 +466,10 @@ class GuiTests(unittest.TestCase):
         self.assertEqual((command.message, command.command, command.extra), ("", "whoami", ""))
         self.assertEqual((device.message, device.command, device.extra), ("", "", "s"))
         self.assertFalse(self.device.reboot.isChecked())
+        self.device.logoff.setChecked(True)
+        self.assertEqual(self.device.action(), "l")
+        self.assertEqual(self.device.footer.send_button.text(), "执行注销")
+        self.assertEqual(self.window._options_for_page("device").extra, "l")
 
     def test_target_preview_is_local_parsing_only(self):
         with patch.object(gui.core, "get_ip", return_value=["模拟目标甲", "模拟目标乙"]):

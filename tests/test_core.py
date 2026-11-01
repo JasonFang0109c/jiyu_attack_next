@@ -94,6 +94,8 @@ class CoreTests(unittest.TestCase):
     def test_options_validation(self):
         good = self.core.SendOptions("192.168.1.10", message="通知")
         self.core.validate_options(good)
+        self.core.validate_options(
+            self.core.SendOptions("192.168.1.10", extra="l"))
         bad_cases = [
             self.core.SendOptions("", message="通知"),
             self.core.SendOptions("bad-address", message="通知"),
@@ -119,6 +121,11 @@ class CoreTests(unittest.TestCase):
         options.extra = "s"
         packets = self.core.prepare_packets(options)
         self.assertIsNot(packets[-1], self.core.basicCMD["-s"])
+
+        packets = self.core.prepare_packets(
+            self.core.SendOptions("192.168.1.10", extra="l"))
+        self.assertEqual(len(packets), 1)
+        self.assertEqual(self.command_text(packets[0]), self.core.LOGOFF_COMMAND)
 
     def test_invalid_reverse_range_is_rejected(self):
         for value in ["192.168.1.10-1", "192.168.1.0-10", "192.168.1.1-255"]:
@@ -582,6 +589,8 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(args.msg, "通知")
         self.assertEqual(args.l, 2)
         self.assertEqual(args.e, "r")
+        args = parser.parse_args(["-ip", "192.168.1.10", "-e", "l"])
+        self.assertEqual(args.e, "l")
 
 
 if __name__ == "__main__":
