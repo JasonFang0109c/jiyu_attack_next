@@ -407,7 +407,8 @@ class TargetControls(QWidget):
             self.target_input.setError(False)
             return
         try:
-            count = len(core.get_ip(self.state.resolve_target(text)))
+            # 输入过程中只关心数量，不需要把 /24 展开成 254 个地址对象。
+            count = core.count_targets(self.state.resolve_target(text))
         except ValueError:
             self.target_count.setText("地址未完成")
             self.target_input.setError(self.target_input.is_complete())

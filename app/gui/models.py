@@ -117,7 +117,8 @@ class DeviceAliasStore(QObject):
         if any(character in value for character in ("\x00", "\r", "\n")):
             raise ValueError("备注名不能包含换行或 NUL 字符")
         try:
-            core.get_ip(value)
+            # 备注名不能与地址混淆，这里只校验格式，不展开地址列表。
+            core.count_targets(value)
         except ValueError:
             return value
         raise ValueError("备注名不能使用 IP 地址格式")

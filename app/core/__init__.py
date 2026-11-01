@@ -26,6 +26,7 @@ from .local_info import (
 )
 from .protocol import (
     SendOptions,
+    count_targets,
     format_b4_send,
     get_ip,
     pkg_sendlist,
@@ -63,6 +64,7 @@ __all__ = [
     "local_info",
     "firewall",
     "SendOptions",
+    "count_targets",
     "format_b4_send",
     "get_ip",
     "pkg_sendlist",

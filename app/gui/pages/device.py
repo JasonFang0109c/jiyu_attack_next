@@ -46,8 +46,18 @@ class DevicePage(NetworkPage):
 
     @Slot(str, object)
     def _on_target_changed(self, name, value):
-        if name in {"target", "port"}:
+        if name == "target":
             self.update_preview()
+        elif name == "port":
+            self._update_preview_ports()
+
+    def _update_preview_ports(self):
+        """端口变化时只改端口列，避免重建整张预览表。"""
+        port = str(self.targets.state.values["port"])
+        for row in range(self.preview.rowCount()):
+            item = self.preview.item(row, 1)
+            if item is not None:
+                item.setText(port)
 
     def update_preview(self):
         """按当前目标重建预览表；地址非法时显示为空。"""

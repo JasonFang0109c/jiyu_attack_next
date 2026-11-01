@@ -95,6 +95,23 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(network[0], "192.168.1.1")
         self.assertEqual(network[-1], "192.168.1.254")
 
+    def test_target_count_matches_expansion(self):
+        for value in ["192.168.1.10", "192.168.1.1-3", "192.168.1.0/24", "10.0.0.5/24"]:
+            with self.subTest(value=value):
+                self.assertEqual(
+                    self.core.count_targets(value), len(self.core.get_ip(value))
+                )
+        for value in [
+            "",
+            "bad-address",
+            "192.168.1.10-1",
+            "192.168.1.1-255",
+            "10.0.0.0/16",
+        ]:
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    self.core.count_targets(value)
+
     def test_options_validation(self):
         good = self.core.SendOptions("192.168.1.10", message="通知")
         self.core.validate_options(good)

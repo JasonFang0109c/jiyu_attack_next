@@ -157,12 +157,10 @@ class FilePage(Page):
         """返回复选框选中的文件与整目录条目。"""
         entries = []
         for item in self._all_visible_items():
+            if item.checkState(0) != Qt.Checked:
+                continue
             kind, relative = item.data(0, Qt.UserRole)
-            if kind == "dir" and item.checkState(0) == Qt.Checked:
-                entries.append((kind, relative))
-        for item in self._file_items():
-            if item.checkState(0) == Qt.Checked:
-                entries.append(("file", item.data(0, Qt.UserRole)[1]))
+            entries.append((kind, relative))
         return entries
 
     def remove_selected(self):
@@ -407,8 +405,20 @@ class FilePage(Page):
         self._update_selection_controls()
 
     def _update_selection_controls(self):
-        file_items = self._file_items()
-        checked = [item for item in file_items if item.checkState(0) == Qt.Checked]
+        """按树的当前勾选状态刷新表头复选、按钮可用性与统计文本。"""
+        # 一次遍历同时统计文件行、勾选数量与是否存在选中项，避免重复走整棵树。
+        file_items = []
+        checked = []
+        any_selected = False
+        for item in self._all_visible_items():
+            selected = item.checkState(0) == Qt.Checked
+            if selected:
+                any_selected = True
+            if item.data(0, Qt.UserRole)[0] != "file":
+                continue
+            file_items.append(item)
+            if selected:
+                checked.append(item)
         selected_size = sum(item.data(0, Qt.UserRole + 1)[2] for item in checked)
         total_size = sum(size for _, _, size in self.items)
         if not file_items:
@@ -422,7 +432,7 @@ class FilePage(Page):
         with QSignalBlocker(self.select_all_checkbox):
             self.select_all_checkbox.setCheckState(header_state)
         self.select_all_checkbox.setEnabled(bool(file_items))
-        self.delete_button.setEnabled(bool(self.selected_entries()))
+        self.delete_button.setEnabled(any_selected)
         self.count_label.setText(
             "%d 个文件，共 %s | 已选 %d 个，%s"
             % (
