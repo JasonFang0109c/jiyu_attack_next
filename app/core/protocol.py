@@ -211,7 +211,7 @@ def validate_options(options):
     if not options.target.strip():
         raise ValueError("请填写目标地址")
     try:
-        get_ip(options.target.strip())
+        count_targets(options.target.strip())
     except ValueError as error:
         raise ValueError("目标地址格式无效") from error
     if not 1 <= options.port <= 65535:

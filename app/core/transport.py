@@ -10,7 +10,13 @@ from urllib.parse import urlsplit
 
 from .constants import COMMAND_MAX_BYTES
 from .local_info import detect_local_ip, validate_listen_ip
-from .protocol import get_ip, pkg_sendlist, prepare_packets, validate_options
+from .protocol import (
+    count_targets,
+    get_ip,
+    pkg_sendlist,
+    prepare_packets,
+    validate_options,
+)
 
 
 def send(
@@ -46,6 +52,9 @@ def send(
         raise ValueError("发送间隔不能小于 0")
 
     target_host = get_ip(target_ip)
+    # 同一批报文要发往多个目标并重复多轮，先统一转成 bytes 再循环，
+    # 避免每次发送都重新编码一遍。
+    payloads = [bytes(packet) for packet in send_list]
     sent_count = 0
     if cancel_event and cancel_event.is_set():
         raise RuntimeError("操作已取消")
@@ -53,10 +62,9 @@ def send(
         client.settimeout(1.0)
         for times in range(loops):
             for host in target_host:
-                for packet_bytes in send_list:
+                for payload in payloads:
                     if cancel_event and cancel_event.is_set():
                         raise RuntimeError("操作已取消")
-                    payload = bytes(packet_bytes)
                     client.sendto(payload, (host, port))
                     sent_count += 1
             if report:
@@ -85,15 +93,7 @@ def format_size(size):
 
 def validate_file_transfer(target, port, file_path):
     """校验单文件传送的目标与源文件，返回规范化后的源文件路径。"""
-    if not isinstance(target, str) or not target.strip():
-        raise ValueError("请填写目标地址")
-    get_ip(target.strip())
-    try:
-        port = int(port)
-    except (TypeError, ValueError) as error:
-        raise ValueError("端口必须是整数") from error
-    if not 1 <= port <= 65535:
-        raise ValueError("端口必须在 1 到 65535 之间")
+    _validate_transfer_request(target, port)
     if file_path is None or not str(file_path).strip():
         raise ValueError("请选择要传送的文件")
     source = Path(file_path).expanduser()
@@ -256,7 +256,7 @@ def collect_transfer_items(paths):
 def _validate_transfer_request(target, port):
     if not isinstance(target, str) or not target.strip():
         raise ValueError("请填写目标地址")
-    get_ip(target.strip())
+    count_targets(target.strip())
     try:
         port = int(port)
     except (TypeError, ValueError) as error:
