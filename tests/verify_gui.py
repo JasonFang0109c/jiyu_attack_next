@@ -75,7 +75,7 @@ def main():
         window.connection_state.set_value("target", "教室 A 讲台")
         sample_file = data_root / "维护通知.pdf"
         sample_file.write_bytes(b"preview")
-        window.pages["file"].set_file(sample_file, 8)
+        window.pages["file"].set_file(sample_file)
         window.pages["file"].set_progress(65)
         window.logs.add("应用", "本地界面预览已载入")
         window.logs.warning("远程命令", "模拟目标未响应，准备重试")

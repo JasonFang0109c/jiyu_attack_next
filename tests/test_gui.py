@@ -626,7 +626,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(page.targets.loop_input.isVisibleTo(page), False)
         source = self.temp_root / "报告.txt"
         source.write_text("测试文件", encoding="utf-8")
-        page.set_file(source, source.stat().st_size)
+        page.set_file(source)
         self.state.set_value("target", "192.168.1.10")
         self.assertEqual(page.selected_items(), [(str(source.resolve()), "报告.txt")])
 
@@ -669,7 +669,7 @@ class GuiTests(unittest.TestCase):
         page = self.window.pages["file"]
         source = self.temp_root / "确认测试.txt"
         source.write_text("确认测试", encoding="utf-8")
-        page.set_file(source, source.stat().st_size)
+        page.set_file(source)
         self.state.set_value("target", "192.168.1.10")
         dialogs = []
 
@@ -975,7 +975,7 @@ class GuiTests(unittest.TestCase):
         self.assertIn("请先选择要传送的文件", page.footer.status.text())
         source = self.temp_root / "报告.txt"
         source.write_text("测试文件", encoding="utf-8")
-        page.set_file(source, source.stat().st_size)
+        page.set_file(source)
         self.state.set_value("target", "192.168.1.1-2")
 
         requested = []

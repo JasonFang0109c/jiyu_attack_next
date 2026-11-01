@@ -155,8 +155,8 @@ class FilePage(Page):
         self.footer.set_status("已添加 %d 个文件" % len(added))
         return len(added), sum(size for _, _, size in added)
 
-    def set_file(self, path, size=None):
-        """兼容单文件调用，添加后默认勾选。"""
+    def set_file(self, path):
+        """添加单个文件，添加后默认勾选。"""
         return self.add_paths([path])
 
     def has_files(self):
