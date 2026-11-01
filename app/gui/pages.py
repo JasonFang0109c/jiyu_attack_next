@@ -210,9 +210,9 @@ class NetworkPage(Page):
         self.footer_card.body.addWidget(self.footer)
         self.vbox.addWidget(self.footer_card)
 
-    def set_busy(self, busy, cancellable=False):
+    def set_busy(self, busy, cancellable=False, queueable=False):
         self.targets.setEnabled(not busy)
-        self.footer.set_busy(busy, cancellable)
+        self.footer.set_busy(busy, cancellable, queueable)
 
 
 class MessagePage(NetworkPage):
@@ -262,8 +262,8 @@ class MessagePage(NetworkPage):
             self.statistics.setText("文本包含不可发送字符")
             self.statistics.setToolTip(str(error))
 
-    def set_busy(self, busy, cancellable=False):
-        super().set_busy(busy, cancellable)
+    def set_busy(self, busy, cancellable=False, queueable=False):
+        super().set_busy(busy, cancellable, queueable)
         self.editor.setReadOnly(busy)
         for button in [self.import_button, self.clear_button]:
             button.setEnabled(not busy)
@@ -297,8 +297,8 @@ class CommandPage(NetworkPage):
         self.statistics.setText("%d / %d 个 UTF-16 单元" % (units, limit))
         self.statistics.setStyleSheet("color: #c42b1c;" if units > limit else "")
 
-    def set_busy(self, busy, cancellable=False):
-        super().set_busy(busy, cancellable)
+    def set_busy(self, busy, cancellable=False, queueable=False):
+        super().set_busy(busy, cancellable, queueable)
         self.editor.setReadOnly(busy)
         self.clear_button.setEnabled(not busy)
 
@@ -368,8 +368,8 @@ class DevicePage(NetworkPage):
             return "l"
         return "r"
 
-    def set_busy(self, busy, cancellable=False):
-        super().set_busy(busy, cancellable)
+    def set_busy(self, busy, cancellable=False, queueable=False):
+        super().set_busy(busy, cancellable, queueable)
         for button in (self.reboot, self.shutdown, self.logoff):
             button.setEnabled(not busy)
 
@@ -771,13 +771,13 @@ class FilePage(Page):
         self.progress.hide()
         self.progress_text.hide()
 
-    def set_busy(self, busy, cancellable=False):
+    def set_busy(self, busy, cancellable=False, queueable=False):
         self._busy = bool(busy)
         self.targets.setEnabled(not busy)
         for button in (self.choose_files_button, self.choose_folder_button,
                        self.delete_button, self.tree):
             button.setEnabled(not busy)
-        self.footer.set_busy(busy, cancellable)
+        self.footer.set_busy(busy, cancellable, queueable)
         if not busy:
             self._update_selection_controls()
 

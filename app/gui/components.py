@@ -393,8 +393,8 @@ class TaskFooter(QWidget):
         layout.addWidget(self.cancel_button)
         layout.addWidget(self.send_button)
 
-    def set_busy(self, busy, cancellable=False):
-        self.send_button.setEnabled(not busy)
+    def set_busy(self, busy, cancellable=False, queueable=False):
+        self.send_button.setEnabled(not busy or queueable)
         self.cancel_button.setEnabled(busy and cancellable)
         self.ring.setVisible(busy)
         if busy:

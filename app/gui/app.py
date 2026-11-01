@@ -136,6 +136,7 @@ class MainWindow(FluentWindow):
             alias_store = DeviceAliasStore(settings=self.settings)
         self.thread = None
         self.worker = None
+        self._task_queue = []
         self.active_cancel = None
         self.active_kind = ""
         self.active_started_at = None
@@ -320,8 +321,6 @@ class MainWindow(FluentWindow):
         raise ValueError("不支持的发送功能")
 
     def start_send(self, kind):
-        if self.thread is not None:
-            return
         page = self.pages[kind]
         options = self._options_for_page(kind)
         try:
@@ -357,7 +356,6 @@ class MainWindow(FluentWindow):
                                    target_text, options.port, len(hosts)))
                 return
         options.cancel_event = Event()
-        self.active_cancel = options.cancel_event
         if target_input_text.casefold() != options.target.casefold():
             message = "开始发送：%s，解析为 %s，端口 %d，%d 轮" % (
                 target_input_text, options.target, options.port, options.loops)
@@ -428,8 +426,6 @@ class MainWindow(FluentWindow):
                        "条目：%s" % "；".join(relative for _, relative, _ in removed))
 
     def start_file_transfer(self):
-        if self.thread is not None:
-            return
         page = self.pages["file"]
         selected = page.selected_items()
         if not page.has_files():
@@ -465,8 +461,6 @@ class MainWindow(FluentWindow):
                            "目标：%s；文件：%s" % (target, file_label))
             return
         cancel_event = Event()
-        self.active_cancel = cancel_event
-        page.reset_progress()
         self.logs.info(CATEGORIES["file"], "开始传送：%s → %s（%d 个目标）" % (
             file_label, target, len(hosts)),
                        "文件：%s；文件数：%d；总字节数：%d；目标数：%d；端口：%d；"
@@ -534,10 +528,29 @@ class MainWindow(FluentWindow):
         self._begin_task("firewall", TaskWorker(apply_firewall, action), self._firewall_finished, self._local_failed)
 
     def _begin_task(self, kind, worker, finished, failed):
+        if self.thread is not None:
+            self._task_queue.append((kind, worker, finished, failed))
+            position = len(self._task_queue)
+            self.pages[kind].footer.set_status(
+                "已加入队列，前面还有 %d 个任务" % position)
+            options = getattr(worker, "options", None)
+            target = getattr(options, "target", None)
+            details = "待执行任务数：%d" % position
+            if target:
+                details += "；目标：%s" % target
+            self.logs.info(CATEGORIES[kind], "任务已加入队列", details)
+            return
         self.active_kind = kind
         self.active_started_at = time.monotonic()
         self.thread = worker
         self.worker = worker
+        options = getattr(worker, "options", None)
+        cancel_event = getattr(options, "cancel_event", None)
+        if cancel_event is None:
+            cancel_event = getattr(worker, "kwargs", {}).get("cancel_event")
+        self.active_cancel = cancel_event
+        if kind == "file":
+            self.pages["file"].reset_progress()
         worker.setParent(self)
         worker.progress.connect(self._task_progress, Qt.QueuedConnection)
         worker.completed.connect(finished, Qt.QueuedConnection)
@@ -549,8 +562,9 @@ class MainWindow(FluentWindow):
 
     def _set_busy(self, busy):
         for page in self.network_pages:
-            page.set_busy(busy, self.active_cancel is not None)
-        self.pages["file"].set_busy(busy, self.active_cancel is not None)
+            page.set_busy(busy, self.active_cancel is not None, queueable=True)
+        self.pages["file"].set_busy(busy, self.active_cancel is not None,
+                                    queueable=True)
         for key in ("local", "firewall"):
             self.pages[key].footer.set_busy(busy)
         self.pages["firewall"].action_box.setEnabled(not busy)
@@ -558,9 +572,10 @@ class MainWindow(FluentWindow):
         self.pages["logs"].cancel_button.setEnabled(busy and self.active_cancel is not None)
         for key, page in self.pages.items():
             if key in CATEGORIES and key != self.active_kind:
-                page.footer.set_status("其他任务正在执行" if busy else "")
+                page.footer.set_status(
+                    "其他任务正在执行，可继续加入队列" if busy else "")
         if busy:
-            self.pages[self.active_kind].footer.set_status("执行中")
+            self.pages[self.active_kind].footer.set_status("执行中，可继续加入队列")
         else:
             self.pages[self.active_kind].footer.finish_status()
 
@@ -643,6 +658,15 @@ class MainWindow(FluentWindow):
         self._notify("操作失败", message, "错误")
 
     def cancel_task(self):
+        if self._task_queue:
+            queued = len(self._task_queue)
+            self._task_queue.clear()
+            for key, page in self.pages.items():
+                if key in CATEGORIES and key != self.active_kind:
+                    page.footer.set_status("排队任务已取消")
+            self.logs.warning(CATEGORIES.get(self.active_kind, "任务"),
+                              "已取消全部排队任务",
+                              "排队任务数：%d" % queued)
         if self.active_cancel and not self.active_cancel.is_set():
             self.active_cancel.set()
             self.pages[self.active_kind].footer.set_status("正在取消")
@@ -661,10 +685,19 @@ class MainWindow(FluentWindow):
         self.active_cancel = None
         self.active_started_at = None
         if self.close_after_task:
+            self._task_queue.clear()
             QTimer.singleShot(0, self.close)
         else:
             self._set_busy(False)
         self.active_kind = ""
+        if self._task_queue and not self.close_after_task:
+            QTimer.singleShot(0, self._start_next_task)
+
+    def _start_next_task(self):
+        if self.thread is not None or not self._task_queue:
+            return
+        kind, worker, finished, failed = self._task_queue.pop(0)
+        self._begin_task(kind, worker, finished, failed)
 
     def import_message(self):
         filename, _ = QFileDialog.getOpenFileName(self, "导入消息", "", "文本文件 (*.txt *.md);;所有文件 (*)")

@@ -7,6 +7,7 @@ import sys
 import tempfile
 import time
 import unittest
+from threading import Event
 from pathlib import Path
 from unittest.mock import patch
 
@@ -855,7 +856,8 @@ class GuiTests(unittest.TestCase):
         with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
             with patch.object(gui.core, "execute_send", side_effect=fake_send) as runner:
                 self.message.footer.send_button.click()
-                self.assertFalse(self.command.footer.send_button.isEnabled())
+                self.assertTrue(self.command.footer.send_button.isEnabled())
+                self.assertIn("可继续加入队列", self.command.footer.status.text())
                 self.wait_for(lambda: self.window.thread is None)
                 runner.assert_called_once()
                 self.assertEqual(runner.call_args.args[0].command, "")
@@ -863,6 +865,61 @@ class GuiTests(unittest.TestCase):
         self.assertFalse(self.message.footer.cancel_button.isEnabled())
         self.assertIn("已发送 2 个报文", self.message.footer.status.text())
         self.assertEqual(self.window.logs.entries[-1].level, models.LogLevel.INFO)
+
+    def test_remote_requests_are_queued_while_task_runs(self):
+        self.state.set_value("target", "模拟目标")
+        self.message.editor.setPlainText("第一条")
+        started = Event()
+        release = Event()
+        calls = []
+
+        def fake_send(options, report):
+            calls.append(options.message)
+            if len(calls) == 1:
+                started.set()
+                release.wait(5)
+            return 1
+
+        with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
+            with patch.object(gui.core, "execute_send", side_effect=fake_send):
+                self.window.start_send("message")
+                self.assertTrue(started.wait(2))
+                self.message.editor.setPlainText("第二条")
+                self.assertTrue(self.message.footer.send_button.isEnabled())
+                self.window.start_send("message")
+                self.assertEqual(len(self.window._task_queue), 1)
+                self.assertIn("已加入队列", self.message.footer.status.text())
+                release.set()
+                self.wait_for(lambda: self.window.thread is None
+                              and not self.window._task_queue
+                              and len(calls) == 2)
+        self.assertEqual(calls, ["第一条", "第二条"])
+
+    def test_cancel_also_drops_queued_remote_requests(self):
+        self.state.set_value("target", "模拟目标")
+        self.message.editor.setPlainText("第一条")
+        started = Event()
+        release = Event()
+        calls = []
+
+        def fake_send(options, report):
+            calls.append(options.message)
+            started.set()
+            release.wait(5)
+            return 1
+
+        with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
+            with patch.object(gui.core, "execute_send", side_effect=fake_send):
+                self.window.start_send("message")
+                self.assertTrue(started.wait(2))
+                self.message.editor.setPlainText("第二条")
+                self.window.start_send("message")
+                self.assertEqual(len(self.window._task_queue), 1)
+                self.window.cancel_task()
+                self.assertEqual(self.window._task_queue, [])
+                release.set()
+                self.wait_for(lambda: self.window.thread is None)
+        self.assertEqual(calls, ["第一条"])
 
     def test_worker_failure_is_reported_and_logged(self):
         self.state.set_value("target", "模拟目标")
