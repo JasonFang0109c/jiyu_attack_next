@@ -1592,6 +1592,42 @@ class GuiTests(unittest.TestCase):
             window.deleteLater()
 
 
+class UsageNoticeTests(unittest.TestCase):
+    """校验启动时的使用须知：未同意不进入主界面。"""
+
+    def test_notice_follows_dialog_answer(self):
+        with patch.object(gui, "Dialog") as dialog_class:
+            dialog_class.return_value.exec.return_value = 0
+            self.assertFalse(gui.confirm_usage_notice())
+            dialog_class.return_value.exec.return_value = 1
+            self.assertTrue(gui.confirm_usage_notice())
+        self.assertIn("授权", gui.USAGE_NOTICE_TEXT)
+        self.assertIn("恶意使用", gui.USAGE_NOTICE_TEXT)
+
+    def test_startup_stops_when_notice_is_declined(self):
+        with (
+            patch.object(gui, "QApplication"),
+            patch.object(gui, "SingleInstance") as instance_class,
+            patch.object(gui, "confirm_usage_notice", return_value=False) as notice,
+            patch.object(gui, "MainWindow") as window_class,
+        ):
+            self.assertEqual(gui.main(), 0)
+        notice.assert_called_once_with()
+        window_class.assert_not_called()
+        instance_class.return_value.close.assert_called_once_with()
+
+    def test_startup_opens_window_after_agreement(self):
+        with (
+            patch.object(gui, "QApplication"),
+            patch.object(gui, "SingleInstance"),
+            patch.object(gui, "confirm_usage_notice", return_value=True),
+            patch.object(gui, "install_exception_logging"),
+            patch.object(gui, "MainWindow") as window_class,
+        ):
+            gui.main()
+        window_class.return_value.show.assert_called_once_with()
+
+
 class SingleInstanceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

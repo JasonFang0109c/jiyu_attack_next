@@ -73,6 +73,15 @@ from .workers import SendWorker, TaskWorker
 
 APP_NAME = "JiYu Attack Next"
 SINGLE_INSTANCE_KEY = "JiYuAttackNext-single-instance"
+USAGE_NOTICE_TITLE = "使用须知"
+USAGE_NOTICE_TEXT = (
+    "本工具仅面向已获授权的教学环境测试与安全研究，"
+    "不得用于任何未授权的目标，也不得用于干扰他人正常使用。\n\n"
+    "使用前请确认你已取得目标设备与网络的管理或测试授权；"
+    "因违规或恶意使用造成的一切后果由使用者自行承担，"
+    "作者与本项目不承担任何责任。\n\n"
+    "点击“同意并继续”表示你已阅读并接受上述声明。"
+)
 CATEGORIES = {
     "message": "文本消息",
     "command": "远程命令",
@@ -1287,6 +1296,26 @@ def apply_firewall(action, report=None):
     return core.request_firewall_rule(action)
 
 
+def confirm_usage_notice(parent=None):
+    """弹出使用须知，返回用户是否同意继续启动。
+
+    每次启动都会询问：本工具面向授权测试，不保存“已同意”状态，
+    避免与设备备注、界面设置混在一起，也让后来的使用者看到声明。
+
+    Args:
+        parent: 对话框父窗口；启动阶段主窗口尚未创建，通常为 None。
+
+    Returns:
+        bool: 选择“同意并继续”返回 True，选择退出或关闭对话框返回 False。
+    """
+    dialog = Dialog(USAGE_NOTICE_TITLE, USAGE_NOTICE_TEXT, parent)
+    dialog.setFixedSize(560, 300)
+    dialog.windowTitleLabel.hide()
+    dialog.yesButton.setText("同意并继续")
+    dialog.cancelButton.setText("不同意，退出")
+    return bool(dialog.exec())
+
+
 def main():
     """启动图形界面，返回进程退出码。"""
     QApplication.setApplicationName(APP_NAME)
@@ -1295,6 +1324,10 @@ def main():
     configure_application(application)
     instance = SingleInstance(parent=application)
     if not instance.acquire():
+        return 0
+    # 单实例判定之后再询问：已被唤醒的第二次启动不该再弹一次声明。
+    if not confirm_usage_notice():
+        instance.close()
         return 0
     window = MainWindow()
     window.single_instance = instance
