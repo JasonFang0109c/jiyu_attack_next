@@ -112,6 +112,7 @@ EXE 无需安装 Python；从源码运行 CLI 仍只依赖标准库。两者共�
 | 文档 | 内容 |
 | --- | --- |
 | [项目结构](docs/dev/STRUCTURE.md) | 目录布局与模块职责 |
+| [代码风格](docs/dev/STYLE.md) | Black 格式化、Google docstring 与中文注释规范 |
 | [EXE 构建](docs/dev/BUILD.md) | 环境准备、编译脚本、输出位置与验证步骤 |
 | [版本规范](docs/dev/VERSIONING.md) | 语义化版本号、nightly 与正式版通道、发布流程 |
 | [开发与提交规范](docs/dev/CONTRIBUTING.md) | 开发环境、离线测试及中文提交规范 |

@@ -20,6 +20,8 @@ jiyu_attack_next/
 |       `-- release.yml           # 正式版发布（仅手动触发）
 |-- README.md                     # 基础介绍与文档导航
 |-- requirements.txt              # GUI 与构建依赖
+|-- requirements-dev.txt          # 本地开发工具（Black）
+|-- pyproject.toml                # Black 格式化配置
 |-- app/             # 唯一运行时代码包
 |   |-- __init__.py               # 包入口，导出版本号
 |   |-- __main__.py               # 统一入口与 PyInstaller 打包入口
@@ -76,6 +78,7 @@ jiyu_attack_next/
 |   `-- dev/                      # 开发文档
 |       |-- STRUCTURE.md          # 项目结构与模块职责
 |       |-- BUILD.md              # 编译、输出与清理
+|       |-- STYLE.md              # 代码风格、docstring 与注释规范
 |       |-- VERSIONING.md         # 版本号、发布通道与正式版发布流程
 |       `-- CONTRIBUTING.md       # 开发与中文提交规范
 `-- assets/

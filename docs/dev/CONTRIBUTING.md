@@ -4,7 +4,7 @@
    <img alt="Python 3.13" src="https://img.shields.io/badge/Python-3.13-3776AB?style=for-the-badge&logo=python&logoColor=white&labelColor=212121">
    <img alt="Commit" src="https://img.shields.io/badge/提交信息-中文-2CA5E0?style=for-the-badge&labelColor=212121">
 </p>
-<p><a href="../../README.md">← 返回项目首页</a> 丨 <a href="STRUCTURE.md">项目结构</a> 丨 <a href="BUILD.md">EXE 构建</a> 丨 <a href="VERSIONING.md">版本规范</a></p>
+<p><a href="../../README.md">← 返回项目首页</a> 丨 <a href="STRUCTURE.md">项目结构</a> 丨 <a href="STYLE.md">代码风格</a> 丨 <a href="BUILD.md">EXE 构建</a> 丨 <a href="VERSIONING.md">版本规范</a></p>
 </div>
 
 ---
@@ -17,7 +17,10 @@ Python 3.13，虚拟环境目录为 `.venv`。命令行模式只依赖标准库�
 py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
 ```
+
+`requirements-dev.txt` 只放本地开发工具（目前是 Black），不需要打进 EXE。
 
 激活后可查看解释器版本或脚本帮助，也可直接使用虚拟环境解释器：
 
@@ -45,6 +48,16 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Clean
 - 新增功能升次版本号，修复升修订号，文档、测试、工作流等不影响产物的改动不递增。
 - nightly 与正式版共用同一版本号，nightly 由工作流追加 `-nightly.YYYYMMDD`，不需要手工维护。
 - 正式版通过 Actions 页面的 `Release` 工作流手动发布，不要在本地打标签后手工上传资产。
+
+## 代码风格
+
+排版交给 Black，注释与 docstring 手写，完整规则见[代码风格规范](STYLE.md)。**每写完一处代码就格式化一次**，不要攒到提交前统一处理。
+
+```powershell
+.\.venv\Scripts\python.exe -m black .
+```
+
+配置在根目录 `pyproject.toml`（行宽 88、目标版本 `py313`）。`app/core/constants.py` 的十六进制报文数组由 Black 排除，只能手工按现有换行维护，不要重排。提交前用 `black --check .` 确认没有待格式化内容；纯排版改动按 `Style` 类型单独提交，不与功能改动混在一起。
 
 ## 离线检查
 

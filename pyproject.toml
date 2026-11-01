@@ -1,0 +1,8 @@
+[tool.black]
+line-length = 88
+target-version = ["py313"]
+# 报文常量是逐字节对齐的十六进制数组，重排只会产生上千行无意义改动；
+# output/ 存放本地构建产物，不参与格式化。
+extend-exclude = 'app[\\/]core[\\/]constants\.py|output'
+# 显式传入文件路径时也跳过，避免误格式化报文数组。
+force-exclude = 'app[\\/]core[\\/]constants\.py'
