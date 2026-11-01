@@ -52,7 +52,6 @@ class FirewallPage(Page):
         labels = ["防火墙服务", "启用防火墙", "目标规则"]
         for row, result in enumerate(results):
             if isinstance(result, dict):
-                code = result["code"]
                 text = result["stdout"] or result["stderr"]
                 success = result["success"]
                 prefixes = [
@@ -72,7 +71,7 @@ class FirewallPage(Page):
                 _, code, stdout, stderr = result
                 text = stdout or stderr
                 success = code == 0
-                label = labels[row] if len(results) > 1 else labels[-1]
+                label = labels[min(row, len(labels) - 1)]
             for column, value in enumerate(
                 [label, "成功" if success else "失败", text]
             ):

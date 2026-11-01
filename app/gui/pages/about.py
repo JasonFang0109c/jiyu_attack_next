@@ -1,6 +1,6 @@
 """关于页：展示作者、仓库、版本与依赖组件信息。"""
 
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
@@ -38,8 +38,23 @@ class AboutInfoCard(SectionCard):
             detail.setMaximumWidth(detail.sizeHint().width())
             row.addWidget(detail)
         self.body.addLayout(row)
-        self.label = label
         self.detail = detail
+
+
+def package_version(package):
+    """读取已安装包的版本号，元数据缺失时返回占位文本。
+
+    Args:
+        package: 包名，例如 ``PySide6-Fluent-Widgets``。
+
+    Returns:
+        str: 版本号；读取失败时为 ``未知``。
+    """
+    try:
+        return version(package)
+    # 打包时漏掉元数据只应影响这一行，不能让整个关于页构造失败。
+    except PackageNotFoundError:
+        return "未知"
 
 
 class AboutDetailCard(SectionCard):
@@ -194,7 +209,7 @@ class AboutPage(Page):
             ("PySide6", "PySide6"),
             ("Fluent Widgets", "PySide6-Fluent-Widgets"),
         ]:
-            self.component_card.add_row(package, title_text, version(package))
+            self.component_card.add_row(package, title_text, package_version(package))
         content.addWidget(self.component_card)
         content.addStretch()
         scroll.setWidget(content_host)

@@ -35,8 +35,11 @@ class SettingsPage(Page):
         row.addStretch()
         self.theme_box = ComboBox(self)
         self.theme_box.addItems(["浅色", "深色", "跟随系统"])
+        themes = [Theme.LIGHT, Theme.DARK, Theme.AUTO]
+        # 配置被手改成未知值时退回“跟随系统”，避免设置页构造失败。
+        current = qconfig.themeMode.value
         self.theme_box.setCurrentIndex(
-            [Theme.LIGHT, Theme.DARK, Theme.AUTO].index(qconfig.themeMode.value)
+            themes.index(current) if current in themes else 2
         )
         self.theme_box.setMinimumWidth(180)
         self.theme_box.currentIndexChanged.connect(self._select_theme)
