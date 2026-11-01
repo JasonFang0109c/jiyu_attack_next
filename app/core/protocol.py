@@ -61,6 +61,17 @@ def split_message(content):
 
 
 def get_ip(ip):
+    """把目标地址展开为 IP 列表。
+
+    Args:
+        ip: 单个地址、``末段-末段`` 范围或 ``/24`` 网段。
+
+    Returns:
+        list[str]: 展开后的 IPv4 地址列表。
+
+    Raises:
+        ValueError: 地址为空或格式不受支持。
+    """
     if not isinstance(ip, str) or not ip.strip():
         raise ValueError("请填写目标地址")
     value = ip.strip()
@@ -92,6 +103,18 @@ def get_ip(ip):
 
 
 def pkg_sendlist(cmdtype, content):
+    """把内容填入报文模板，返回可直接发送的字节值列表。
+
+    Args:
+        cmdtype: ``"-msg"`` 表示文本消息，``"-c"`` 表示远程命令。
+        content: 待填充的文本。
+
+    Returns:
+        list[int]: 报文模板副本。
+
+    Raises:
+        ValueError: 内容含 NUL 字符或超过报文容量。
+    """
     arrs = format_b4_send(content)
     if cmdtype == "-msg":
         if "\x00" in content:
@@ -116,6 +139,19 @@ def pkg_sendlist(cmdtype, content):
 
 @dataclass
 class SendOptions:
+    """一次发送所需的全部参数。
+
+    Attributes:
+        target: 目标地址，支持单地址、末段范围与 /24 网段。
+        port: 目标 UDP 端口，默认 4705。
+        message: 文本消息，超长时自动分条。
+        command: 远程命令。
+        extra: 设备扩展操作，取 ``r``、``s``、``l`` 之一。
+        loops: 发送轮数。
+        interval: 相邻两轮的间隔秒数。
+        cancel_event: 取消信号，置位后尽快抛出取消异常。
+    """
+
     target: str
     port: int = 4705
     message: str = ""
@@ -127,6 +163,7 @@ class SendOptions:
 
 
 def validate_options(options):
+    """校验发送参数，不合法时抛出带中文提示的 ValueError。"""
     if not options.target.strip():
         raise ValueError("请填写目标地址")
     try:
@@ -146,6 +183,15 @@ def validate_options(options):
 
 
 def prepare_packets(options, report=None):
+    """按发送参数组装报文列表，消息超长时拆成多个报文。
+
+    Args:
+        options: 发送参数。
+        report: 进度回调，接收中文状态文本。
+
+    Returns:
+        list[list[int]]: 待发送报文。
+    """
     validate_options(options)
     packets = []
     if options.message:

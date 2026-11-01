@@ -9,6 +9,17 @@ from .protocol import get_ip
 
 
 def validate_listen_ip(value):
+    """校验用户填写的发送端 IP，空值表示自动检测。
+
+    Args:
+        value: 用户输入，可以为 None。
+
+    Returns:
+        str | None: 规范化后的 IPv4 地址，空输入返回 None。
+
+    Raises:
+        ValueError: 地址格式无效。
+    """
     if value is None or not str(value).strip():
         return None
     try:
@@ -34,6 +45,17 @@ def _is_usable_local_address(value, target=None):
 
 
 def detect_local_ip(target=None):
+    """检测目标电脑可以回连的本机 IPv4 地址。
+
+    先探测到目标的默认路由出口地址；TUN/VPN 让出口地址不可用时，再从主机名
+    解析结果里挑真实局域网地址，并优先选择与目标同 /16 网段的候选。
+
+    Args:
+        target: 目标地址，可以为 None 表示只做通用探测。
+
+    Returns:
+        str: 本机 IPv4 地址，全部探测失败时返回 ``127.0.0.1``。
+    """
     probes = []
     try:
         hosts = get_ip(target) if target else []
@@ -91,6 +113,14 @@ def detect_local_ip(target=None):
 
 
 def local_ip_and_ports():
+    """查询本机 IP 与学生端进程当前监听的 UDP 端口。
+
+    Returns:
+        tuple[str, list[str]]: 本机 IP 与按端口号升序排列的端口列表。
+
+    Raises:
+        ValueError: 进程或端口查询失败。
+    """
     hostname = socket.gethostname()
     ip = socket.gethostbyname(hostname)
     tasks = _windows_command(["tasklist", "/FO", "CSV", "/NH"])

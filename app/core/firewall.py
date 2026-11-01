@@ -9,18 +9,18 @@ from pathlib import Path
 
 
 def _decode_windows_output(output):
-    """Decode Windows CLI output, which may use UTF-8 or the ANSI code page."""
+    """解码 Windows 命令行输出，兼容 UTF-8 与系统 ANSI 代码页。"""
     if not output:
         return ""
-    candidates = []
-    for encoding in ("utf-8-sig", "mbcs"):
-        try:
-            candidates.append((encoding, output.decode(encoding)))
-        except UnicodeDecodeError:
-            pass
-    if not candidates:
+    # netsh 等系统工具在中文系统上输出 GBK，新版本也可能输出 UTF-8。
+    try:
+        return output.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        pass
+    try:
+        return output.decode("mbcs")
+    except (UnicodeDecodeError, LookupError):
         return output.decode("utf-8", errors="replace")
-    return candidates[0][1] if candidates[0][0] == "utf-8-sig" else candidates[-1][1]
 
 
 def _windows_command(command):

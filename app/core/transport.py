@@ -22,6 +22,20 @@ def send(
     report=None,
     cancel_event=None,
 ):
+    """用 UDP 把报文发送到目标地址。
+
+    Args:
+        send_list: 报文字节值列表的序列，每个元素是一条报文。
+        target_ip: 目标地址，支持单地址、末段范围与 /24 网段。
+        port: 目标 UDP 端口。
+        loops: 发送轮数。
+        interval: 相邻两轮的间隔秒数。
+        report: 进度回调，接收中文状态文本。
+        cancel_event: 取消信号，置位后尽快抛出取消异常。
+
+    Returns:
+        int: 实际发送的报文数量。
+    """
     if len(send_list) == 0:
         raise ValueError("没有可发送的报文")
     if not 1 <= port <= 65535:
@@ -57,6 +71,7 @@ def send(
 
 
 def format_size(size):
+    """把字节数格式化为带单位的中文界面文本。"""
     value = float(size)
     for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
         if value < 1024 or unit == "TiB":
@@ -69,6 +84,7 @@ def format_size(size):
 
 
 def validate_file_transfer(target, port, file_path):
+    """校验单文件传送的目标与源文件，返回规范化后的源文件路径。"""
     if not isinstance(target, str) or not target.strip():
         raise ValueError("请填写目标地址")
     get_ip(target.strip())
@@ -161,10 +177,16 @@ def build_items_bootstrap_script(items, urls, desktop_dir=None):
 
 
 def build_bootstrap_script(file_url, file_name, size, desktop_dir=None):
+    """生成单文件下载脚本，等价于只含一个条目的多文件脚本。"""
     return build_items_bootstrap_script([(file_name, size)], [file_url], desktop_dir)
 
 
 def build_transfer_command(bootstrap_url):
+    """生成让目标下载并执行传送脚本的一行 cmd 命令。
+
+    Raises:
+        ValueError: 命令超过报文容量。
+    """
     command = (
         'cmd /c curl -fsSL --noproxy * -o "%%TEMP%%\\jyt.cmd" "%s" '
         '&&call "%%TEMP%%\\jyt.cmd"&del /f /q "%%TEMP%%\\jyt.cmd"'
@@ -313,6 +335,18 @@ class _FileTransferRequestHandler(BaseHTTPRequestHandler):
 
 
 class FileTransferServer:
+    """临时 HTTP 文件服务：目标电脑通过它下载脚本与待传送文件。
+
+    Attributes:
+        items: (路径, 目标相对路径, 字节数) 列表。
+        total_size: 全部待传送文件的总字节数。
+        desktop_dir: 目标桌面目录，None 表示由脚本自行查询注册表。
+        requested: 目标首次访问服务时置位，用于判断命令是否送达。
+        downloaded: 传送结束（成功或失败）时置位。
+        error: 传送失败原因，空字符串表示成功。
+        progress: 进度回调，接收中文状态文本。
+    """
+
     def __init__(self, source, bind_host="0.0.0.0", port=0, items=None):
         self.token = secrets.token_urlsafe(12)
         self.items = [
@@ -370,12 +404,14 @@ class FileTransferServer:
         return self._offsets[index]
 
     def mark_requested(self, stage):
+        """记录目标已访问文件服务，并标记访问到哪个阶段。"""
         with self._lock:
             if stage == "file" or not self.request_stage:
                 self.request_stage = stage
         self.requested.set()
 
     def report_progress(self, sent, total=None):
+        """按 5% 粒度上报下载进度，重复进度直接丢弃。"""
         if self.progress is None:
             return
         total = self.total_size if total is None else total
@@ -394,6 +430,7 @@ class FileTransferServer:
             pass
 
     def complete_file(self, index=0):
+        """记录一个文件下载完成，全部完成后置位 downloaded。"""
         with self._lock:
             self._served.add(index)
             finished = len(self._served) >= len(self.items)
@@ -402,15 +439,18 @@ class FileTransferServer:
             self.downloaded.set()
 
     def complete(self):
+        """标记传送成功结束。"""
         self.downloaded.set()
 
     def fail(self, message):
+        """记录失败原因并结束等待，先到的原因保留。"""
         with self._lock:
             if not self.error:
                 self.error = message
         self.downloaded.set()
 
     def timeout_reason(self):
+        """按目标访问到的阶段给出针对性的超时提示。"""
         if self.request_stage == "file":
             return "目标已开始下载但未完成，请检查目标网络稳定性与磁盘空间后重试"
         if self.request_stage == "script":
@@ -425,6 +465,7 @@ class FileTransferServer:
         )
 
     def wait(self, timeout=120, cancel_event=None):
+        """等待目标完成下载，超时或取消时抛出带原因的异常。"""
         try:
             timeout = float(timeout)
         except (TypeError, ValueError) as error:
@@ -443,6 +484,7 @@ class FileTransferServer:
             raise RuntimeError(self.error)
 
     def bootstrap_script_for(self, host):
+        """生成指向本服务的下载脚本。"""
         urls = [
             self.file_url(host, index) if index else self.file_url(host)
             for index in range(len(self.items))
@@ -497,6 +539,32 @@ def transfer_file(
     paths=None,
     items=None,
 ):
+    """把文件传送到目标电脑桌面。
+
+    流程：启动临时 HTTP 服务，通过 UDP 下发一行 curl 命令，目标执行后下载
+    脚本与文件，最后等待目标回报完成。
+
+    Args:
+        target: 目标地址，支持单地址、末段范围与 /24 网段。
+        port: 目标 UDP 端口。
+        file_path: 单文件路径，``paths`` 与 ``items`` 未提供时使用。
+        listen_ip: 发送端 IP，None 表示自动检测。
+        timeout: 等待每个目标完成下载的秒数。
+        cancel_event: 取消信号。
+        report: 进度回调，接收中文状态文本。
+        desktop_dir: 目标桌面目录，None 表示由脚本自行查询注册表。
+        attempts: UDP 命令重试次数。
+        retry_delay: 两次重试之间的间隔秒数。
+        paths: 多个文件或文件夹路径。
+        items: 已规范化的 (绝对路径, 目标相对路径) 条目。
+
+    Returns:
+        dict: 传送结果，包含文件名、大小、目标列表、监听地址与端口等。
+
+    Raises:
+        ValueError: 参数不合法或没有可传送的文件。
+        RuntimeError: 有目标传送失败或操作被取消。
+    """
     emit = report or (lambda message: None)
     port = _validate_transfer_request(target, port)
     if items is not None:
@@ -607,6 +675,7 @@ def transfer_file(
 
 
 def execute_send(options, report=None):
+    """按发送参数组装并发送报文，返回发送的报文数量。"""
     validate_options(options)
     emit = report or (lambda message: None)
     packets = prepare_packets(options, emit)
