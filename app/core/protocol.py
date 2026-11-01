@@ -142,6 +142,17 @@ def count_targets(ip):
         raise ValueError("IP 格式错误，请使用单个地址、末段范围或 /24 网段") from error
 
 
+_SENDLIST_SPECS = {
+    "-msg": (MESSAGE_OFFSET, MESSAGE_MAX_BYTES, "消息", "单条消息超过报文容量"),
+    "-c": (
+        COMMAND_OFFSET,
+        COMMAND_MAX_BYTES,
+        "命令",
+        "命令超过报文容量（最多 %d 个 UTF-16 单元）" % (COMMAND_MAX_BYTES // 2),
+    ),
+}
+
+
 def pkg_sendlist(cmdtype, content):
     """把内容填入报文模板，返回可直接发送的字节值列表。
 
@@ -153,27 +164,20 @@ def pkg_sendlist(cmdtype, content):
         list[int]: 报文模板副本。
 
     Raises:
-        ValueError: 内容含 NUL 字符或超过报文容量。
+        ValueError: 报文类型未知、内容含 NUL 字符或超过报文容量。
     """
+    spec = _SENDLIST_SPECS.get(cmdtype)
+    if spec is None:
+        raise ValueError("未知的报文类型：%s" % cmdtype)
+    offset, capacity, label, overflow = spec
+    if "\x00" in content:
+        raise ValueError("%s不能包含 NUL 字符" % label)
     arrs = format_b4_send(content)
-    if cmdtype == "-msg":
-        if "\x00" in content:
-            raise ValueError("消息不能包含 NUL 字符")
-        if len(arrs) > MESSAGE_MAX_BYTES:
-            raise ValueError("单条消息超过报文容量")
-        result = basicCMD["-msg"].copy()
-        result[MESSAGE_OFFSET : MESSAGE_OFFSET + len(arrs)] = arrs
-        result[MESSAGE_OFFSET + len(arrs) : MESSAGE_OFFSET + len(arrs) + 2] = [0, 0]
-    elif cmdtype == "-c":
-        if "\x00" in content:
-            raise ValueError("命令不能包含 NUL 字符")
-        if len(arrs) > COMMAND_MAX_BYTES:
-            raise ValueError(
-                "命令超过报文容量（最多 %d 个 UTF-16 单元）" % (COMMAND_MAX_BYTES // 2)
-            )
-        result = basicCMD["-c"].copy()
-        result[COMMAND_OFFSET : COMMAND_OFFSET + len(arrs)] = arrs
-        result[COMMAND_OFFSET + len(arrs) : COMMAND_OFFSET + len(arrs) + 2] = [0, 0]
+    if len(arrs) > capacity:
+        raise ValueError(overflow)
+    result = basicCMD[cmdtype].copy()
+    result[offset : offset + len(arrs)] = arrs
+    result[offset + len(arrs) : offset + len(arrs) + 2] = [0, 0]
     return result
 
 
