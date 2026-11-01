@@ -19,7 +19,9 @@ class SettingsPage(Page):
         row.addStretch()
         self.theme_box = ComboBox(self)
         self.theme_box.addItems(["浅色", "深色", "跟随系统"])
-        self.theme_box.setCurrentIndex([Theme.LIGHT, Theme.DARK, Theme.AUTO].index(qconfig.themeMode.value))
+        self.theme_box.setCurrentIndex(
+            [Theme.LIGHT, Theme.DARK, Theme.AUTO].index(qconfig.themeMode.value)
+        )
         self.theme_box.setMinimumWidth(180)
         self.theme_box.currentIndexChanged.connect(self._select_theme)
         row.addWidget(self.theme_box)
@@ -32,7 +34,8 @@ class SettingsPage(Page):
         self.close_behavior_switch = SwitchButton(self)
         self.close_behavior_switch.setAccessibleName("关闭时最小化到系统托盘")
         self.close_behavior_switch.setToolTip(
-            "开启：关闭窗口后保留在系统托盘；关闭：直接退出应用")
+            "开启：关闭窗口后保留在系统托盘；关闭：直接退出应用"
+        )
         self.close_behavior_switch.setOnText("")
         self.close_behavior_switch.setOffText("")
         self.close_behavior_switch.setSpacing(0)
@@ -47,7 +50,9 @@ class SettingsPage(Page):
         log_row.addStretch()
         self.log_level_box = ComboBox(self)
         self.log_level_box.addItems([str(level) for level in LOG_LEVELS])
-        self.log_level_box.setCurrentIndex(LOG_LEVELS.index(self.log_store.minimum_level))
+        self.log_level_box.setCurrentIndex(
+            LOG_LEVELS.index(self.log_store.minimum_level)
+        )
         self.log_level_box.setMinimumWidth(160)
         self.log_level_box.currentIndexChanged.connect(self._select_log_level)
         log_row.addWidget(self.log_level_box)
@@ -72,7 +77,8 @@ class SettingsPage(Page):
         self.clear_data_button = PushButton("清除数据", data_card)
         self.clear_data_button.setIcon(FIF.DELETE)
         self.clear_data_button.clicked.connect(
-            lambda checked=False: self.clearDataRequested.emit())
+            lambda checked=False: self.clearDataRequested.emit()
+        )
         data_row.addWidget(self.clear_data_button, 0, Qt.AlignVCenter)
         data_card.body.addLayout(data_row)
         self.vbox.addWidget(data_card)

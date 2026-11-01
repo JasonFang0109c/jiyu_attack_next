@@ -2,7 +2,6 @@ from pathlib import Path
 import re
 import unittest
 
-
 WORKFLOW_DIR = Path(__file__).resolve().parents[1] / ".github" / "workflows"
 
 
@@ -52,8 +51,8 @@ class NightlyWorkflowTests(unittest.TestCase):
 
     def test_shared_build_appends_nightly_suffix_from_date(self):
         self.assertIn("ToString('yyyyMMdd')", self.build)
-        self.assertIn('-nightly.$stamp', self.build)
-        self.assertIn("$env:INPUT_CHANNEL -eq \"nightly\"", self.build)
+        self.assertIn("-nightly.$stamp", self.build)
+        self.assertIn('$env:INPUT_CHANNEL -eq "nightly"', self.build)
         self.assertIn("version=$version", self.build)
 
     def test_workflow_includes_latest_commit_changelog_last(self):
@@ -115,7 +114,9 @@ class ReleaseWorkflowTests(unittest.TestCase):
 
     def test_release_guards_against_version_mismatch_and_existing_tag(self):
         self.assertIn("grep -oP '__version__\\s*=\\s*\"\\K[^\"]+'", self.workflow)
-        self.assertIn('git rev-parse -q --verify "refs/tags/v${version}"', self.workflow)
+        self.assertIn(
+            'git rev-parse -q --verify "refs/tags/v${version}"', self.workflow
+        )
         self.assertIn("正式版版本号不能带预发布后缀", self.workflow)
 
     def test_release_creates_semver_tag_and_marks_latest(self):
@@ -131,7 +132,9 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn("## SHA256", self.workflow)
 
     def test_release_publishes_single_unified_exe(self):
-        self.assertIn("JiYuAttackNext-${{ needs.build.outputs.version }}.exe", self.workflow)
+        self.assertIn(
+            "JiYuAttackNext-${{ needs.build.outputs.version }}.exe", self.workflow
+        )
         self.assertIn("EXE:", self.workflow)
         self.assertNotIn("JiYuAttackNext-cli", self.workflow)
         self.assertNotIn("cli_sha256", self.workflow)

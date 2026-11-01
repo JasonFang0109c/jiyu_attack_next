@@ -20,18 +20,35 @@ class LogPage(Page):
         self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(self.apply_filter)
         self.category = ComboBox(self)
-        self.category.addItems(["全部功能", "应用", "文本消息", "远程命令", "设备操作",
-                                "文件传送", "本机信息", "防火墙", "运行日志"])
+        self.category.addItems(
+            [
+                "全部功能",
+                "应用",
+                "文本消息",
+                "远程命令",
+                "设备操作",
+                "文件传送",
+                "本机信息",
+                "防火墙",
+                "运行日志",
+            ]
+        )
         self.category.currentIndexChanged.connect(self.apply_filter)
         self.category.setMinimumWidth(130)
         self.level_filter = ComboBox(self)
         self.level_filter.addItems(["全部级别"] + [str(level) for level in LOG_LEVELS])
         self.level_filter.currentIndexChanged.connect(self.apply_filter)
         self.level_filter.setMinimumWidth(120)
-        self.cancel_button = tool_button(FIF.CANCEL, "取消当前发送", self, self.cancelRequested.emit)
+        self.cancel_button = tool_button(
+            FIF.CANCEL, "取消当前发送", self, self.cancelRequested.emit
+        )
         self.cancel_button.setEnabled(False)
-        self.export_button = tool_button(FIF.SAVE, "导出选中日志", self, self._export_selected)
-        self.delete_button = tool_button(FIF.DELETE, "删除选中日志", self, self._delete_selected)
+        self.export_button = tool_button(
+            FIF.SAVE, "导出选中日志", self, self._export_selected
+        )
+        self.delete_button = tool_button(
+            FIF.DELETE, "删除选中日志", self, self._delete_selected
+        )
         toolbar.addWidget(self.search, 1)
         toolbar.addWidget(self.category)
         toolbar.addWidget(self.level_filter)
@@ -40,21 +57,33 @@ class LogPage(Page):
 
         self.content_card = SectionCard(self, spacing=10)
         self.content_card.body.addLayout(toolbar)
-        self.table = table_widget(["", "时间", "级别", "功能", "内容", "线程", "输出位置"],
-                                  self.content_card, LogTableWidget)
+        self.table = table_widget(
+            ["", "时间", "级别", "功能", "内容", "线程", "输出位置"],
+            self.content_card,
+            LogTableWidget,
+        )
         self.table.setHorizontalHeader(LogHeaderView(Qt.Horizontal, self.table))
         header = self.table.horizontalHeader()
         self.select_all_checkbox = header.select_all_checkbox
         self.select_all_checkbox.toggled.connect(self._toggle_visible_rows)
         header.setStretchLastSection(False)
         header.setMinimumSectionSize(40)
-        for column, width in ((0, 42), (1, 190), (2, 112), (3, 96), (4, 220),
-                              (5, 145), (6, 165)):
+        for column, width in (
+            (0, 42),
+            (1, 190),
+            (2, 112),
+            (3, 96),
+            (4, 220),
+            (5, 145),
+            (6, 165),
+        ):
             header.setSectionResizeMode(column, QHeaderView.Fixed)
             self.table.setColumnWidth(column, width)
         self.table.itemChanged.connect(self._item_changed)
         self.table.itemClicked.connect(self._item_clicked)
-        self.table.horizontalScrollBar().valueChanged.connect(self._position_header_checkbox)
+        self.table.horizontalScrollBar().valueChanged.connect(
+            self._position_header_checkbox
+        )
         self.content_card.body.addWidget(self.table, 1)
         self.count_label = CaptionLabel("0 条记录", self.content_card)
         self.content_card.body.addWidget(self.count_label)
@@ -128,7 +157,11 @@ class LogPage(Page):
         return [entry.uid for entry in self.selected_entries()]
 
     def _visible_rows(self):
-        return [row for row in range(self.table.rowCount()) if not self.table.isRowHidden(row)]
+        return [
+            row
+            for row in range(self.table.rowCount())
+            if not self.table.isRowHidden(row)
+        ]
 
     def _update_selection_controls(self):
         selected_count = len(self.selected_uids())
@@ -142,9 +175,14 @@ class LogPage(Page):
         for button in (self.export_button, self.delete_button):
             button.setEnabled(selected_count > 0)
         self.count_label.setText(
-            "%d / %d 条记录 | 运行等级 %s | 已选 %d 条" % (
-                len(visible_rows), self.table.rowCount(),
-                str(self.store.minimum_level), selected_count))
+            "%d / %d 条记录 | 运行等级 %s | 已选 %d 条"
+            % (
+                len(visible_rows),
+                self.table.rowCount(),
+                str(self.store.minimum_level),
+                selected_count,
+            )
+        )
 
     @Slot(bool)
     def _toggle_visible_rows(self, checked):

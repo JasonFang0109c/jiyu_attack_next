@@ -4,7 +4,6 @@ from datetime import datetime
 from pathlib import Path
 import sys
 
-
 BUILD_TIME_FILE_NAME = "build_time.txt"
 VERSION_FILE_NAME = "version.txt"
 UNKNOWN_BUILD_TIME = "源码运行"
@@ -46,6 +45,7 @@ def version_text():
     if bundled:
         return bundled
     from .. import __version__
+
     return __version__
 
 

@@ -9,7 +9,6 @@ from app.gui import build_info
 from app import core
 from app.cli.main import parser
 
-
 SEMVER_PATTERN = re.compile(
     r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
     r"(?:-(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)"
@@ -36,8 +35,9 @@ class VersionTests(unittest.TestCase):
             self.assertEqual(build_info.version_text(), package_version)
 
     def test_version_text_prefers_bundled_version(self):
-        target = (Path("build") / "test-versioning" / "bundle"
-                  / build_info.VERSION_FILE_NAME)
+        target = (
+            Path("build") / "test-versioning" / "bundle" / build_info.VERSION_FILE_NAME
+        )
         build_info.write_version(target, "9.9.9")
         self.addCleanup(lambda: target.unlink(missing_ok=True))
         with patch.object(sys, "_MEIPASS", str(target.parent), create=True):
@@ -46,7 +46,8 @@ class VersionTests(unittest.TestCase):
     def test_build_does_not_force_admin_on_startup(self):
         project_root = Path(__file__).resolve().parents[1]
         spec = (project_root / "packaging" / "JiYuAttackNext.spec").read_text(
-            encoding="utf-8")
+            encoding="utf-8"
+        )
         self.assertIn("uac_admin=False", spec)
         self.assertNotIn("uac_admin=True", spec)
 

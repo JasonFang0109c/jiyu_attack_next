@@ -10,9 +10,15 @@ class MessagePage(NetworkPage):
         row = QHBoxLayout()
         row.addWidget(BodyLabel("消息正文", self.content_card))
         row.addStretch()
-        self.import_button = tool_button(FIF.FOLDER, "导入 UTF-8 文本", self.content_card, self._request_import)
-        self.save_button = tool_button(FIF.SAVE, "保存消息正文", self.content_card, self._request_save)
-        self.clear_button = tool_button(FIF.DELETE, "清空消息", self.content_card, lambda: self.editor.clear())
+        self.import_button = tool_button(
+            FIF.FOLDER, "导入 UTF-8 文本", self.content_card, self._request_import
+        )
+        self.save_button = tool_button(
+            FIF.SAVE, "保存消息正文", self.content_card, self._request_save
+        )
+        self.clear_button = tool_button(
+            FIF.DELETE, "清空消息", self.content_card, lambda: self.editor.clear()
+        )
         for button in [self.import_button, self.save_button, self.clear_button]:
             row.addWidget(button)
         self.body.addLayout(row)

@@ -17,8 +17,7 @@ class SendWorker(QThread):
 
     def run(self):
         try:
-            sent_count = self.runner(
-                self.options, report=self.progress.emit)
+            sent_count = self.runner(self.options, report=self.progress.emit)
         except RuntimeError as error:
             self.failed.emit(str(error), traceback.format_exc())
         except Exception as error:
@@ -40,8 +39,7 @@ class TaskWorker(QThread):
 
     def run(self):
         try:
-            result = self.function(
-                *self.args, report=self.progress.emit, **self.kwargs)
+            result = self.function(*self.args, report=self.progress.emit, **self.kwargs)
         except Exception as error:
             self.failed.emit(str(error), traceback.format_exc())
         else:

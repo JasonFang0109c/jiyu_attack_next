@@ -12,19 +12,31 @@ class EntryTests(unittest.TestCase):
         project_root = Path(__file__).resolve().parents[1]
         result = subprocess.run(
             [sys.executable, "-X", "utf8", "-B", "-m", "app", "-h"],
-            cwd=project_root, capture_output=True, text=True, encoding="utf-8", timeout=10)
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=10,
+        )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("-msg", result.stdout)
         self.assertIn("--msg-file", result.stdout)
 
     def test_cli_entry_does_not_import_qt(self):
         project_root = Path(__file__).resolve().parents[1]
-        program = ("import sys; from app.cli.main import parser; "
-                   "assert not any(name.startswith('PySide6') for name in sys.modules); "
-                   "parser.parse_args(['-h'])")
+        program = (
+            "import sys; from app.cli.main import parser; "
+            "assert not any(name.startswith('PySide6') for name in sys.modules); "
+            "parser.parse_args(['-h'])"
+        )
         result = subprocess.run(
             [sys.executable, "-X", "utf8", "-B", "-c", program],
-            cwd=project_root, capture_output=True, text=True, encoding="utf-8", timeout=10)
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=10,
+        )
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_gui_package_entry_dispatches_to_gui(self):
@@ -34,17 +46,20 @@ class EntryTests(unittest.TestCase):
 
     def test_cli_arguments_dispatch_to_cli(self):
         arguments = ["-ip", "10.49.151.29", "-msg", "Hello"]
-        with patch("app.__main__._show_cli_console") as show, \
-                patch("app.cli.main.main", return_value=3) as run_cli:
+        with (
+            patch("app.__main__._show_cli_console") as show,
+            patch("app.cli.main.main", return_value=3) as run_cli,
+        ):
             self.assertEqual(main(arguments), 3)
         show.assert_called_once_with()
         run_cli.assert_called_once_with(arguments)
 
     def test_firewall_helper_dispatch_skips_console(self):
-        arguments = ["--firewall-helper", "block",
-                     "--firewall-result", "result.json"]
-        with patch("app.__main__._show_cli_console") as show, \
-                patch("app.cli.main.main", return_value=0) as run_cli:
+        arguments = ["--firewall-helper", "block", "--firewall-result", "result.json"]
+        with (
+            patch("app.__main__._show_cli_console") as show,
+            patch("app.cli.main.main", return_value=0) as run_cli,
+        ):
             self.assertEqual(main(arguments), 0)
         show.assert_not_called()
         run_cli.assert_called_once_with(arguments)
@@ -57,7 +72,12 @@ runpy.run_path('app/__main__.py', run_name='__main__')
 """
         result = subprocess.run(
             [sys.executable, "-X", "utf8", "-B", "-c", program],
-            cwd=project_root, capture_output=True, text=True, encoding="utf-8", timeout=10)
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=10,
+        )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("0.1.0", result.stdout)
 
@@ -74,7 +94,12 @@ runpy.run_path('app/__main__.py', run_name='__main__')
         )
         result = subprocess.run(
             [sys.executable, "-X", "utf8", "-B", "-c", program],
-            cwd=project_root, capture_output=True, text=True, encoding="utf-8", timeout=10)
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=10,
+        )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("-msg", result.stdout)
         self.assertIn("--msg-file", result.stdout)

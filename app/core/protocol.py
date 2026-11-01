@@ -7,20 +7,26 @@ from threading import Event
 from typing import Optional
 
 from .constants import (
-    COMMAND_MAX_BYTES, COMMAND_OFFSET, LOGOFF_COMMAND, MESSAGE_MAX_BYTES,
-    MESSAGE_OFFSET, __version__, basicCMD,
+    COMMAND_MAX_BYTES,
+    COMMAND_OFFSET,
+    LOGOFF_COMMAND,
+    MESSAGE_MAX_BYTES,
+    MESSAGE_OFFSET,
+    __version__,
+    basicCMD,
 )
 
+
 def format_b4_send(content):
-    return list(content.encode('utf-16le'))
+    return list(content.encode("utf-16le"))
 
 
 def read_message(arguments):
     if arguments.msg_file is None:
         return arguments.msg
-    if arguments.msg_file == '-':
+    if arguments.msg_file == "-":
         return sys.stdin.read()
-    with open(arguments.msg_file, encoding='utf-8-sig', newline='') as message_file:
+    with open(arguments.msg_file, encoding="utf-8-sig", newline="") as message_file:
         return message_file.read()
 
 
@@ -28,17 +34,17 @@ def split_message(content):
     chunk = []
     byte_count = 0
     for character in content:
-        if character == '\x00':
+        if character == "\x00":
             raise ValueError("消息不能包含 NUL 字符")
-        character_bytes = len(character.encode('utf-16le'))
+        character_bytes = len(character.encode("utf-16le"))
         if byte_count + character_bytes > MESSAGE_MAX_BYTES:
-            yield ''.join(chunk)
+            yield "".join(chunk)
             chunk = []
             byte_count = 0
         chunk.append(character)
         byte_count += character_bytes
     if chunk:
-        yield ''.join(chunk)
+        yield "".join(chunk)
 
 
 def get_ip(ip):
@@ -46,23 +52,27 @@ def get_ip(ip):
         raise ValueError("请填写目标地址")
     value = ip.strip()
     try:
-        if '-' in value:
-            if value.count('-') != 1:
+        if "-" in value:
+            if value.count("-") != 1:
                 raise ValueError
-            start, end = value.split('-')
+            start, end = value.split("-")
             start_address = ipaddress.IPv4Address(start)
             if not end.isdigit():
                 raise ValueError
-            start_octet = int(str(start_address).split('.')[3])
+            start_octet = int(str(start_address).split(".")[3])
             end_octet = int(end)
             if not 1 <= start_octet <= end_octet <= 254:
                 raise ValueError
-            return [str(ipaddress.IPv4Address(int(start_address) + offset))
-                    for offset in range(end_octet - start_octet + 1)]
-        if '/' in value:
-            if not value.endswith('/24'):
+            return [
+                str(ipaddress.IPv4Address(int(start_address) + offset))
+                for offset in range(end_octet - start_octet + 1)
+            ]
+        if "/" in value:
+            if not value.endswith("/24"):
                 raise ValueError
-            return [str(host) for host in ipaddress.IPv4Network(value, strict=False).hosts()]
+            return [
+                str(host) for host in ipaddress.IPv4Network(value, strict=False).hosts()
+            ]
         return [str(ipaddress.IPv4Address(value))]
     except ValueError as error:
         raise ValueError("IP 格式错误，请使用单个地址、末段范围或 /24 网段") from error
@@ -70,22 +80,24 @@ def get_ip(ip):
 
 def pkg_sendlist(cmdtype, content):
     arrs = format_b4_send(content)
-    if cmdtype == '-msg':
-        if '\x00' in content:
+    if cmdtype == "-msg":
+        if "\x00" in content:
             raise ValueError("消息不能包含 NUL 字符")
         if len(arrs) > MESSAGE_MAX_BYTES:
             raise ValueError("单条消息超过报文容量")
-        result = basicCMD['-msg'].copy()
-        result[MESSAGE_OFFSET:MESSAGE_OFFSET + len(arrs)] = arrs
-        result[MESSAGE_OFFSET + len(arrs):MESSAGE_OFFSET + len(arrs) + 2] = [0, 0]
-    elif cmdtype == '-c':
-        if '\x00' in content:
+        result = basicCMD["-msg"].copy()
+        result[MESSAGE_OFFSET : MESSAGE_OFFSET + len(arrs)] = arrs
+        result[MESSAGE_OFFSET + len(arrs) : MESSAGE_OFFSET + len(arrs) + 2] = [0, 0]
+    elif cmdtype == "-c":
+        if "\x00" in content:
             raise ValueError("命令不能包含 NUL 字符")
         if len(arrs) > COMMAND_MAX_BYTES:
-            raise ValueError("命令超过报文容量（最多 %d 个 UTF-16 单元）" % (COMMAND_MAX_BYTES // 2))
-        result = basicCMD['-c'].copy()
-        result[COMMAND_OFFSET:COMMAND_OFFSET + len(arrs)] = arrs
-        result[COMMAND_OFFSET + len(arrs):COMMAND_OFFSET + len(arrs) + 2] = [0, 0]
+            raise ValueError(
+                "命令超过报文容量（最多 %d 个 UTF-16 单元）" % (COMMAND_MAX_BYTES // 2)
+            )
+        result = basicCMD["-c"].copy()
+        result[COMMAND_OFFSET : COMMAND_OFFSET + len(arrs)] = arrs
+        result[COMMAND_OFFSET + len(arrs) : COMMAND_OFFSET + len(arrs) + 2] = [0, 0]
     return result
 
 

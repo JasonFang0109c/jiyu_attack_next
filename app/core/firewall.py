@@ -7,6 +7,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+
 def _decode_windows_output(output):
     """Decode Windows CLI output, which may use UTF-8 or the ANSI code page."""
     if not output:
@@ -26,8 +27,11 @@ def _windows_command(command):
     if sys.platform != "win32":
         raise RuntimeError("此功能仅支持 Windows")
     process = subprocess.run(
-        command, capture_output=True,
-        creationflags=subprocess.CREATE_NO_WINDOW, timeout=15)
+        command,
+        capture_output=True,
+        creationflags=subprocess.CREATE_NO_WINDOW,
+        timeout=15,
+    )
     process.stdout = _decode_windows_output(process.stdout)
     process.stderr = _decode_windows_output(process.stderr)
     return process
@@ -55,12 +59,24 @@ def set_firewall_rule(action):
         raise ValueError("不支持的防火墙操作")
     commands = []
     if action == "block":
-        commands.extend([
-            ["net.exe", "start", "MpsSvc"],
-            ["netsh", "advfirewall", "set", "allprofiles", "state", "on"],
-        ])
-    commands.append(["netsh", "advfirewall", "firewall", "set", "rule",
-                     "name=StudentMain.exe", "new", "action=" + action])
+        commands.extend(
+            [
+                ["net.exe", "start", "MpsSvc"],
+                ["netsh", "advfirewall", "set", "allprofiles", "state", "on"],
+            ]
+        )
+    commands.append(
+        [
+            "netsh",
+            "advfirewall",
+            "firewall",
+            "set",
+            "rule",
+            "name=StudentMain.exe",
+            "new",
+            "action=" + action,
+        ]
+    )
     results = []
     for index, command in enumerate(commands):
         process = _windows_command(command)
@@ -90,7 +106,9 @@ def set_firewall_rule(action):
                 note = "已将 StudentMain.exe 规则更新为允许。"
             else:
                 note = "无法更新 StudentMain.exe 规则，请确认该规则存在且程序已获得管理员权限。"
-        results.append(_firewall_result(command_text, process, success=success, note=note))
+        results.append(
+            _firewall_result(command_text, process, success=success, note=note)
+        )
     return results
 
 
@@ -105,6 +123,7 @@ def _is_admin():
         return False
     try:
         import ctypes
+
         return bool(ctypes.windll.shell32.IsUserAnAdmin())
     except Exception:
         return False
@@ -141,7 +160,9 @@ def _run_elevated_process(executable, parameters):
     kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
     kernel32.WaitForSingleObject.restype = wintypes.DWORD
     kernel32.GetExitCodeProcess.argtypes = [
-        wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        wintypes.HANDLE,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
     kernel32.GetExitCodeProcess.restype = wintypes.BOOL
     kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
 
@@ -173,12 +194,17 @@ def _run_firewall_elevated(action):
     handle, result_path = tempfile.mkstemp(prefix="jiyu-firewall-", suffix=".json")
     os.close(handle)
     try:
-        arguments = [FIREWALL_HELPER_ARGUMENT, action,
-                     FIREWALL_RESULT_ARGUMENT, result_path]
+        arguments = [
+            FIREWALL_HELPER_ARGUMENT,
+            action,
+            FIREWALL_RESULT_ARGUMENT,
+            result_path,
+        ]
         if not getattr(sys, "frozen", False):
             arguments.insert(0, str(Path(__file__).resolve()))
         exit_code = _run_elevated_process(
-            sys.executable, subprocess.list2cmdline(arguments))
+            sys.executable, subprocess.list2cmdline(arguments)
+        )
         try:
             payload = json.loads(Path(result_path).read_text(encoding="utf-8"))
         except (OSError, ValueError) as error:
@@ -217,7 +243,8 @@ def run_firewall_helper(arguments):
         exit_code = 1
     try:
         Path(result_path).write_text(
-            json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+        )
     except OSError:
         return 1
     return exit_code

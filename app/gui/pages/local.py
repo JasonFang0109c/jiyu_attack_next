@@ -16,12 +16,16 @@ class LocalPage(Page):
         setFont(self.ip_label, 18)
         row.addWidget(self.ip_label)
         row.addStretch()
-        self.copy_button = tool_button(FIF.COPY, "复制本机 IP", self, self.copyRequested.emit)
+        self.copy_button = tool_button(
+            FIF.COPY, "复制本机 IP", self, self.copyRequested.emit
+        )
         self.copy_button.setEnabled(False)
         row.addWidget(self.copy_button)
         self.content_card = SectionCard(self)
         self.content_card.body.addLayout(row)
-        self.content_card.body.addWidget(BodyLabel("Student 监听端口", self.content_card))
+        self.content_card.body.addWidget(
+            BodyLabel("Student 监听端口", self.content_card)
+        )
         self.port_table = table_widget(["协议", "端口"], self.content_card)
         self.port_table.setColumnWidth(0, 140)
         self.content_card.body.addWidget(self.port_table, 1)

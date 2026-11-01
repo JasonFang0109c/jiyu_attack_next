@@ -8,10 +8,14 @@ from pathlib import Path
 import sys
 
 from PyInstaller.utils.win32.versioninfo import (
-    FixedFileInfo, StringFileInfo, StringStruct, StringTable,
-    VarFileInfo, VarStruct, VSVersionInfo,
+    FixedFileInfo,
+    StringFileInfo,
+    StringStruct,
+    StringTable,
+    VarFileInfo,
+    VarStruct,
+    VSVersionInfo,
 )
-
 
 PRODUCT_NAME = "JiYu Attack Next"
 INTERNAL_NAME = "JiYuAttackNext"
@@ -32,14 +36,21 @@ def build_version_info(version):
     return VSVersionInfo(
         ffi=FixedFileInfo(filevers=numbers, prodvers=numbers),
         kids=[
-            StringFileInfo([StringTable("080404b0", [
-                StringStruct("FileDescription", PRODUCT_NAME),
-                StringStruct("FileVersion", version),
-                StringStruct("InternalName", INTERNAL_NAME),
-                StringStruct("OriginalFilename", INTERNAL_NAME + ".exe"),
-                StringStruct("ProductName", PRODUCT_NAME),
-                StringStruct("ProductVersion", version),
-            ])]),
+            StringFileInfo(
+                [
+                    StringTable(
+                        "080404b0",
+                        [
+                            StringStruct("FileDescription", PRODUCT_NAME),
+                            StringStruct("FileVersion", version),
+                            StringStruct("InternalName", INTERNAL_NAME),
+                            StringStruct("OriginalFilename", INTERNAL_NAME + ".exe"),
+                            StringStruct("ProductName", PRODUCT_NAME),
+                            StringStruct("ProductVersion", version),
+                        ],
+                    )
+                ]
+            ),
             VarFileInfo([VarStruct("Translation", [0x0804, 1200])]),
         ],
     )
@@ -55,8 +66,10 @@ def write_version_info(path, version):
 
 def main(argv):
     if len(argv) != 3:
-        print("用法：python scripts/gen_version_info.py <版本号> <输出路径>",
-              file=sys.stderr)
+        print(
+            "用法：python scripts/gen_version_info.py <版本号> <输出路径>",
+            file=sys.stderr,
+        )
         return 2
     target = write_version_info(argv[2], argv[1])
     print("已生成版本资源：%s（版本 %s）" % (target, argv[1]))

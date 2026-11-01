@@ -7,6 +7,7 @@ import socket
 from .firewall import _windows_command
 from .protocol import get_ip
 
+
 def validate_listen_ip(value):
     if value is None or not str(value).strip():
         return None
@@ -67,16 +68,24 @@ def detect_local_ip(target=None):
     except OSError:
         pass
     target_host = hosts[0] if hosts else None
-    usable = [value for value in candidates
-              if _is_usable_local_address(value, target_host)]
+    usable = [
+        value for value in candidates if _is_usable_local_address(value, target_host)
+    ]
     if usable:
         if target_host and not ipaddress.IPv4Address(target_host).is_loopback:
             target_value = ipaddress.IPv4Address(target_host)
-            usable.sort(key=lambda value: (
-                0 if ipaddress.IPv4Address(value).packed[:2] == target_value.packed[:2] else 1,
-                0 if ipaddress.IPv4Address(value).is_private else 1,
-                value,
-            ))
+            usable.sort(
+                key=lambda value: (
+                    (
+                        0
+                        if ipaddress.IPv4Address(value).packed[:2]
+                        == target_value.packed[:2]
+                        else 1
+                    ),
+                    0 if ipaddress.IPv4Address(value).is_private else 1,
+                    value,
+                )
+            )
         return usable[0]
     if route_local:
         return route_local
@@ -86,21 +95,26 @@ def detect_local_ip(target=None):
 def local_ip_and_ports():
     hostname = socket.gethostname()
     ip = socket.gethostbyname(hostname)
-    tasks = _windows_command(['tasklist', '/FO', 'CSV', '/NH'])
+    tasks = _windows_command(["tasklist", "/FO", "CSV", "/NH"])
     if tasks.returncode:
-        raise RuntimeError(tasks.stderr.strip() or tasks.stdout.strip() or "进程查询失败")
-    pids = {row[1] for row in csv.reader(tasks.stdout.splitlines())
-            if len(row) >= 2 and 'student' in row[0].casefold()}
+        raise RuntimeError(
+            tasks.stderr.strip() or tasks.stdout.strip() or "进程查询失败"
+        )
+    pids = {
+        row[1]
+        for row in csv.reader(tasks.stdout.splitlines())
+        if len(row) >= 2 and "student" in row[0].casefold()
+    }
     if not pids:
         return ip, []
-    connections = _windows_command(['netstat', '-ano', '-p', 'UDP'])
+    connections = _windows_command(["netstat", "-ano", "-p", "UDP"])
     if connections.returncode:
         raise RuntimeError(connections.stderr.strip() or "监听端口查询失败")
     ports = set()
     for line in connections.stdout.splitlines():
         fields = line.split()
-        if len(fields) >= 4 and fields[0] == 'UDP' and fields[-1] in pids:
-            port = fields[1].rsplit(':', 1)[-1]
+        if len(fields) >= 4 and fields[0] == "UDP" and fields[-1] in pids:
+            port = fields[1].rsplit(":", 1)[-1]
             if port.isdigit():
                 ports.add(port)
     return ip, sorted(ports, key=int)

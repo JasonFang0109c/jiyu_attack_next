@@ -26,7 +26,9 @@ class FirewallPage(Page):
         self.result_table.setColumnWidth(1, 80)
         self.result_table.horizontalHeader().setStretchLastSection(True)
         self.result_table.setWordWrap(True)
-        self.result_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.result_table.verticalHeader().setSectionResizeMode(
+            QHeaderView.ResizeToContents
+        )
         self.content_card.body.addWidget(self.result_table, 1)
         self.vbox.addWidget(self.content_card, 1)
         self.footer_card = SectionCard(self, spacing=0, margins=(8, 8, 8, 8))
@@ -46,9 +48,17 @@ class FirewallPage(Page):
                 code = result["code"]
                 text = result["stdout"] or result["stderr"]
                 success = result["success"]
-                prefixes = ["net.exe", "netsh advfirewall set", "netsh advfirewall firewall"]
+                prefixes = [
+                    "net.exe",
+                    "netsh advfirewall set",
+                    "netsh advfirewall firewall",
+                ]
                 label = next(
-                    (item for item, prefix in zip(labels, prefixes) if result["command"].startswith(prefix)),
+                    (
+                        item
+                        for item, prefix in zip(labels, prefixes)
+                        if result["command"].startswith(prefix)
+                    ),
                     labels[-1],
                 )
             else:
@@ -56,9 +66,17 @@ class FirewallPage(Page):
                 text = stdout or stderr
                 success = code == 0
                 label = labels[row] if len(results) > 1 else labels[-1]
-            for column, value in enumerate([label, "成功" if success else "失败", text]):
-                item = QTableWidgetItem(value.replace("\r\n", "\n").replace("\r", "\n").strip())
+            for column, value in enumerate(
+                [label, "成功" if success else "失败", text]
+            ):
+                item = QTableWidgetItem(
+                    value.replace("\r\n", "\n").replace("\r", "\n").strip()
+                )
                 item.setToolTip(value)
                 self.result_table.setItem(row, column, item)
-            self.result_table.setRowHeight(row, max(38, self.result_table.sizeHintForRow(row)))
-            self.result_table.setRowHeight(row, max(38, self.result_table.rowHeight(row)))
+            self.result_table.setRowHeight(
+                row, max(38, self.result_table.sizeHintForRow(row))
+            )
+            self.result_table.setRowHeight(
+                row, max(38, self.result_table.rowHeight(row))
+            )

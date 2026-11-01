@@ -15,7 +15,6 @@ from PySide6.QtCore import QObject, QSettings, Signal
 
 from .. import core
 
-
 DATA_DIRECTORY_NAME = "JiYuAttackNextData"
 SETTINGS_FILE_NAME = "settings.ini"
 LOG_FILE_NAME = "runtime.log"
@@ -127,7 +126,9 @@ class DeviceAliasStore(QObject):
         try:
             hosts = core.get_ip(value)
         except ValueError as error:
-            raise ValueError("IP 地址格式错误，请填写单个 IPv4 地址、末段范围或 /24 网段") from error
+            raise ValueError(
+                "IP 地址格式错误，请填写单个 IPv4 地址、末段范围或 /24 网段"
+            ) from error
         return value if "-" in value or "/" in value else hosts[0]
 
     def names(self):
@@ -163,11 +164,15 @@ class DeviceAliasStore(QObject):
 
     def _save(self, aliases):
         if self.load_error:
-            raise OSError("%s；为避免覆盖原数据，请先修复或清除该配置项" % self.load_error)
+            raise OSError(
+                "%s；为避免覆盖原数据，请先修复或清除该配置项" % self.load_error
+            )
         try:
             settings_path = self._settings.fileName()
             if settings_path:
-                Path(settings_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
+                Path(settings_path).expanduser().parent.mkdir(
+                    parents=True, exist_ok=True
+                )
             self._settings.setValue(
                 self.SETTINGS_KEY,
                 json.dumps(aliases, ensure_ascii=False, separators=(",", ":")),
@@ -380,7 +385,9 @@ class LogEntry:
         )
         continuation = ["    " + line for line in lines[1:]]
         if self.details:
-            detail_lines = self.details.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+            detail_lines = (
+                self.details.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+            )
             continuation.extend("    " + line for line in detail_lines)
         if continuation:
             text += "\n" + "\n".join(continuation)
@@ -444,7 +451,9 @@ class LogStore(QObject):
     cleared = Signal()
     levelChanged = Signal(str)
 
-    def __init__(self, parent=None, limit=2000, log_path=None, minimum_level=DEFAULT_LOG_LEVEL):
+    def __init__(
+        self, parent=None, limit=2000, log_path=None, minimum_level=DEFAULT_LOG_LEVEL
+    ):
         super().__init__(parent)
         self.log_path = Path(log_path) if log_path is not None else None
         self.storage_error = ""
@@ -555,8 +564,16 @@ class LogStore(QObject):
             except OSError:
                 pass
 
-    def _emit(self, category, message, level, details="", logger_name=None,
-              line_number=None, skip=3):
+    def _emit(
+        self,
+        category,
+        message,
+        level,
+        details="",
+        logger_name=None,
+        line_number=None,
+        skip=3,
+    ):
         normalized = normalize_log_level(level)
         if normalized.rank < self._minimum_level.rank:
             return None
@@ -581,26 +598,31 @@ class LogStore(QObject):
         self.added.emit(entry)
         return entry
 
-    def add(self, category, message, level=DEFAULT_LOG_LEVEL, details="",
-            *, logger_name=None, line_number=None):
-        return self._emit(category, message, level, details, logger_name,
-                          line_number, skip=3)
+    def add(
+        self,
+        category,
+        message,
+        level=DEFAULT_LOG_LEVEL,
+        details="",
+        *,
+        logger_name=None,
+        line_number=None,
+    ):
+        return self._emit(
+            category, message, level, details, logger_name, line_number, skip=3
+        )
 
     def debug(self, category, message, details=""):
-        return self._emit(category, message, LogLevel.DEBUG, details,
-                          skip=3)
+        return self._emit(category, message, LogLevel.DEBUG, details, skip=3)
 
     def info(self, category, message, details=""):
-        return self._emit(category, message, LogLevel.INFO, details,
-                          skip=3)
+        return self._emit(category, message, LogLevel.INFO, details, skip=3)
 
     def warning(self, category, message, details=""):
-        return self._emit(category, message, LogLevel.WARNING, details,
-                          skip=3)
+        return self._emit(category, message, LogLevel.WARNING, details, skip=3)
 
     def error(self, category, message, details=""):
-        return self._emit(category, message, LogLevel.ERROR, details,
-                          skip=3)
+        return self._emit(category, message, LogLevel.ERROR, details, skip=3)
 
     def set_level(self, level):
         normalized = normalize_log_level(level)

@@ -3,10 +3,24 @@
 from PySide6.QtCore import QRegularExpression, QSignalBlocker, QSize, Qt, Signal, Slot
 from PySide6.QtGui import QIntValidator, QRegularExpressionValidator
 from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
-from qfluentwidgets import (BodyLabel, CaptionLabel, ComboBox, Dialog, DoubleSpinBox,
-                            FluentIcon, IndeterminateProgressRing, LineEdit,
-                            PrimaryPushButton, PushButton, SimpleCardWidget, SpinBox,
-                            SubtitleLabel, ToolButton, ToolTipFilter, ToolTipPosition)
+from qfluentwidgets import (
+    BodyLabel,
+    CaptionLabel,
+    ComboBox,
+    Dialog,
+    DoubleSpinBox,
+    FluentIcon,
+    IndeterminateProgressRing,
+    LineEdit,
+    PrimaryPushButton,
+    PushButton,
+    SimpleCardWidget,
+    SpinBox,
+    SubtitleLabel,
+    ToolButton,
+    ToolTipFilter,
+    ToolTipPosition,
+)
 
 from .. import core
 
@@ -16,7 +30,9 @@ def tool_button(icon, text, parent, callback):
     button.setToolTip(text)
     button.setAccessibleName(text)
     button.setFixedSize(34, 34)
-    button.installEventFilter(ToolTipFilter(button, showDelay=300, position=ToolTipPosition.TOP))
+    button.installEventFilter(
+        ToolTipFilter(button, showDelay=300, position=ToolTipPosition.TOP)
+    )
     button.clicked.connect(lambda checked=False: callback())
     return button
 
@@ -30,8 +46,9 @@ def info_button(text, parent):
     button.setToolTip(text)
     button.setFixedSize(28, 28)
     button.setIconSize(QSize(16, 16))
-    button.installEventFilter(ToolTipFilter(button, showDelay=300,
-                                            position=ToolTipPosition.TOP))
+    button.installEventFilter(
+        ToolTipFilter(button, showDelay=300, position=ToolTipPosition.TOP)
+    )
     return button
 
 
@@ -95,7 +112,9 @@ class Ipv4TargetInput(QWidget):
     SEGMENT_WIDTHS = (64, 64, 64, 148)
     PLACEHOLDERS = ("192", "168", "1", "20、1-10、0/24")
 
-    def __init__(self, parent=None, object_name="targetAddressInput", field_label="目标地址"):
+    def __init__(
+        self, parent=None, object_name="targetAddressInput", field_label="目标地址"
+    ):
         super().__init__(parent)
         self.setObjectName(object_name)
         self.segments = []
@@ -209,8 +228,12 @@ class TargetControls(QWidget):
         self.interval_input.setRange(0, 86400)
         self.interval_input.setDecimals(1)
         self.interval_input.setFixedWidth(160)
-        self.fields = {"target": self.target_input, "port": self.port_input,
-                       "loops": self.loop_input, "interval": self.interval_input}
+        self.fields = {
+            "target": self.target_input,
+            "port": self.port_input,
+            "loops": self.loop_input,
+            "interval": self.interval_input,
+        }
         self.port_input.setValue(state.values["port"])
         self.loop_input.setValue(state.values["loops"])
         self.interval_input.setValue(state.values["interval"])
@@ -233,7 +256,9 @@ class TargetControls(QWidget):
         options_row = QHBoxLayout()
         options_row.setSpacing(12)
         labels = {"port": "UDP 端口", "loops": "发送轮数", "interval": "间隔（秒）"}
-        option_names = ("port", "loops", "interval") if show_round_options else ("port",)
+        option_names = (
+            ("port", "loops", "interval") if show_round_options else ("port",)
+        )
         for name in option_names:
             field = self.fields[name]
             column = QVBoxLayout()
@@ -248,10 +273,18 @@ class TargetControls(QWidget):
         self.alias_hint.hide()
         layout.addWidget(self.alias_hint)
 
-        self.target_input.textChanged.connect(lambda value: state.set_value("target", value))
-        self.port_input.valueChanged.connect(lambda value: state.set_value("port", value))
-        self.loop_input.valueChanged.connect(lambda value: state.set_value("loops", value))
-        self.interval_input.valueChanged.connect(lambda value: state.set_value("interval", value))
+        self.target_input.textChanged.connect(
+            lambda value: state.set_value("target", value)
+        )
+        self.port_input.valueChanged.connect(
+            lambda value: state.set_value("port", value)
+        )
+        self.loop_input.valueChanged.connect(
+            lambda value: state.set_value("loops", value)
+        )
+        self.interval_input.valueChanged.connect(
+            lambda value: state.set_value("interval", value)
+        )
         self.target_input.nextFieldRequested.connect(self._focus_options)
         state.changed.connect(self._on_changed)
         state.aliases.changed.connect(self._aliases_changed)
@@ -375,7 +408,9 @@ class TaskFooter(QWidget):
         self.status.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self.status.setMinimumWidth(0)
         self.status.setWordWrap(True)
-        self.log_button = tool_button(FluentIcon.HISTORY, "查看运行日志", self, self.viewLogs.emit)
+        self.log_button = tool_button(
+            FluentIcon.HISTORY, "查看运行日志", self, self.viewLogs.emit
+        )
         self.log_button.setVisible(False)
         self.cancel_button = PushButton("取消", self)
         self.cancel_button.setIcon(FluentIcon.CANCEL)

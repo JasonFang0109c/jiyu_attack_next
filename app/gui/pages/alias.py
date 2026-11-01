@@ -17,9 +17,9 @@ class AliasPage(Page):
         heading_actions_layout.setSpacing(8)
         heading_actions_layout.addWidget(self.count_label)
         self.info_button = info_button(
-            "备注名可直接用作目标；支持 IPv4、末段范围和 /24，"
-            "修改后同步引用。",
-            heading_actions)
+            "备注名可直接用作目标；支持 IPv4、末段范围和 /24，" "修改后同步引用。",
+            heading_actions,
+        )
         heading_actions_layout.addWidget(self.info_button)
         page_heading(self.vbox, "设备备注", heading_actions)
         form_card = SectionCard(self, spacing=14)
@@ -36,7 +36,8 @@ class AliasPage(Page):
         address_column.setSpacing(6)
         address_column.addWidget(CaptionLabel("IP 地址", self))
         self.address_input = Ipv4TargetInput(
-            self, object_name="aliasAddressInput", field_label="备注 IP 地址")
+            self, object_name="aliasAddressInput", field_label="备注 IP 地址"
+        )
         self.address_input.setToolTip("支持单个 IPv4、末段范围和 /24 网段")
         address_column.addWidget(self.address_input)
         self.save_button = PrimaryPushButton("添加备注", self)
@@ -58,7 +59,9 @@ class AliasPage(Page):
         # 表格铺满卡片，圆角与卡片保持一致，避免出现两条错位弧线。
         self.table.setBorderRadius(12)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeToContents
+        )
         self.table_card.body.addWidget(self.table)
         self.vbox.addWidget(self.table_card, 1)
 
@@ -88,7 +91,9 @@ class AliasPage(Page):
         self.use_button.clicked.connect(lambda checked=False: self.use_selected())
         self.edit_button.clicked.connect(lambda checked=False: self.edit_selected())
         self.delete_button.clicked.connect(lambda checked=False: self.delete_selected())
-        self.name_input.returnPressed.connect(lambda: self.address_input.segments[0].setFocus())
+        self.name_input.returnPressed.connect(
+            lambda: self.address_input.segments[0].setFocus()
+        )
         self.address_input.nextFieldRequested.connect(self.save)
         self.table.itemSelectionChanged.connect(self._selection_changed)
         self.table.cellDoubleClicked.connect(lambda row, column: self.edit_selected())

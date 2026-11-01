@@ -10,7 +10,9 @@ class CommandPage(NetworkPage):
         row = QHBoxLayout()
         row.addWidget(BodyLabel("命令正文", self.content_card))
         row.addStretch()
-        self.clear_button = tool_button(FIF.DELETE, "清空命令", self.content_card, lambda: self.editor.clear())
+        self.clear_button = tool_button(
+            FIF.DELETE, "清空命令", self.content_card, lambda: self.editor.clear()
+        )
         row.addWidget(self.clear_button)
         self.body.addLayout(row)
         self.editor = PlainTextEdit(self)

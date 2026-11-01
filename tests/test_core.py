@@ -22,8 +22,8 @@ class CoreTests(unittest.TestCase):
         cls.core = core
         cls.real_socket = socket.socket
         cls.network_guard = patch.object(
-            socket, "socket",
-            side_effect=AssertionError("测试期间禁止创建网络套接字"))
+            socket, "socket", side_effect=AssertionError("测试期间禁止创建网络套接字")
+        )
         cls.network_guard.start()
 
     @classmethod
@@ -31,11 +31,11 @@ class CoreTests(unittest.TestCase):
         cls.network_guard.stop()
 
     def message_text(self, packet):
-        body = bytes(packet[self.core.MESSAGE_OFFSET:]).decode("utf-16le")
+        body = bytes(packet[self.core.MESSAGE_OFFSET :]).decode("utf-16le")
         return body.split("\x00", 1)[0]
 
     def command_text(self, packet):
-        body = bytes(packet[self.core.COMMAND_OFFSET:]).decode("utf-16le")
+        body = bytes(packet[self.core.COMMAND_OFFSET :]).decode("utf-16le")
         return body.split("\x00", 1)[0]
 
     def test_message_chunks(self):
@@ -86,8 +86,10 @@ class CoreTests(unittest.TestCase):
 
     def test_ip_formats(self):
         self.assertEqual(self.core.get_ip("192.168.1.10"), ["192.168.1.10"])
-        self.assertEqual(self.core.get_ip("192.168.1.1-3")[:3],
-                         ["192.168.1.1", "192.168.1.2", "192.168.1.3"])
+        self.assertEqual(
+            self.core.get_ip("192.168.1.1-3")[:3],
+            ["192.168.1.1", "192.168.1.2", "192.168.1.3"],
+        )
         network = self.core.get_ip("192.168.1.0/24")
         self.assertEqual(len(network), 254)
         self.assertEqual(network[0], "192.168.1.1")
@@ -96,8 +98,7 @@ class CoreTests(unittest.TestCase):
     def test_options_validation(self):
         good = self.core.SendOptions("192.168.1.10", message="通知")
         self.core.validate_options(good)
-        self.core.validate_options(
-            self.core.SendOptions("192.168.1.10", extra="l"))
+        self.core.validate_options(self.core.SendOptions("192.168.1.10", extra="l"))
         bad_cases = [
             self.core.SendOptions("", message="通知"),
             self.core.SendOptions("bad-address", message="通知"),
@@ -114,10 +115,13 @@ class CoreTests(unittest.TestCase):
 
     def test_packet_preparation(self):
         options = self.core.SendOptions(
-            "192.168.1.10", message="a" * 449, command="whoami")
+            "192.168.1.10", message="a" * 449, command="whoami"
+        )
         packets = self.core.prepare_packets(options)
         self.assertEqual(len(packets), 3)
-        self.assertEqual(self.message_text(packets[0]) + self.message_text(packets[1]), "a" * 449)
+        self.assertEqual(
+            self.message_text(packets[0]) + self.message_text(packets[1]), "a" * 449
+        )
         self.assertEqual(self.command_text(packets[2]), "whoami")
 
         options.extra = "s"
@@ -125,7 +129,8 @@ class CoreTests(unittest.TestCase):
         self.assertIsNot(packets[-1], self.core.basicCMD["-s"])
 
         packets = self.core.prepare_packets(
-            self.core.SendOptions("192.168.1.10", extra="l"))
+            self.core.SendOptions("192.168.1.10", extra="l")
+        )
         self.assertEqual(len(packets), 1)
         self.assertEqual(self.command_text(packets[0]), self.core.LOGOFF_COMMAND)
 
@@ -136,27 +141,39 @@ class CoreTests(unittest.TestCase):
                     self.core.get_ip(value)
 
     def test_gui_send_uses_bytes_and_shared_transport(self):
-        options = self.core.SendOptions("192.168.1.10", message="a" * 449,
-                                       command="whoami", loops=2, interval=0)
+        options = self.core.SendOptions(
+            "192.168.1.10", message="a" * 449, command="whoami", loops=2, interval=0
+        )
         fake_socket = MagicMock()
         fake_socket.__enter__.return_value = fake_socket
-        packets = [bytes(self.core.pkg_sendlist("-msg", chunk))
-                   for chunk in self.core.split_message(options.message)]
+        packets = [
+            bytes(self.core.pkg_sendlist("-msg", chunk))
+            for chunk in self.core.split_message(options.message)
+        ]
         packets.append(bytes(self.core.pkg_sendlist("-c", options.command)))
-        with patch.object(self.core.transport, "get_ip", return_value=["模拟目标甲", "模拟目标乙"]):
+        with patch.object(
+            self.core.transport, "get_ip", return_value=["模拟目标甲", "模拟目标乙"]
+        ):
             with patch.object(socket, "socket", return_value=fake_socket):
                 count = self.core.execute_send(options)
         self.assertEqual(count, 12)
-        self.assertEqual(fake_socket.sendto.call_args_list, [
-            call(packet, (host, 4705))
-            for _ in range(2) for host in ["模拟目标甲", "模拟目标乙"]
-            for packet in packets])
+        self.assertEqual(
+            fake_socket.sendto.call_args_list,
+            [
+                call(packet, (host, 4705))
+                for _ in range(2)
+                for host in ["模拟目标甲", "模拟目标乙"]
+                for packet in packets
+            ],
+        )
         fake_socket.__exit__.assert_called_once()
 
     def test_cancellation_before_send_opens_no_socket(self):
         stopped = Event()
         stopped.set()
-        options = self.core.SendOptions("192.168.1.10", message="通知", cancel_event=stopped)
+        options = self.core.SendOptions(
+            "192.168.1.10", message="通知", cancel_event=stopped
+        )
         with patch.object(self.core.transport, "get_ip", return_value=["模拟目标"]):
             with patch.object(socket, "socket") as factory:
                 with self.assertRaisesRegex(RuntimeError, "操作已取消"):
@@ -165,8 +182,9 @@ class CoreTests(unittest.TestCase):
 
     def test_cancellation_interrupts_long_interval(self):
         stopped = Event()
-        options = self.core.SendOptions("192.168.1.10", message="通知",
-                                       loops=2, interval=3600, cancel_event=stopped)
+        options = self.core.SendOptions(
+            "192.168.1.10", message="通知", loops=2, interval=3600, cancel_event=stopped
+        )
         fake_socket = MagicMock()
         fake_socket.__enter__.return_value = fake_socket
 
@@ -192,21 +210,34 @@ class CoreTests(unittest.TestCase):
         fake_socket.__exit__.assert_called_once()
 
     def test_local_ports_match_exact_pids_and_wildcard_addresses(self):
-        tasks = SimpleNamespace(returncode=0, stderr="", stdout=
-                                '"StudentMain.exe","123"\n"other.exe","5123"\n')
-        ports = SimpleNamespace(returncode=0, stderr="", stdout=
-                                "UDP 0.0.0.0:4705 *:* 123\n"
-                                "UDP [::]:4705 *:* 123\n"
-                                "UDP 0.0.0.0:9999 *:* 5123\n")
-        with patch.object(self.core.local_info, "_windows_command", side_effect=[tasks, ports]):
+        tasks = SimpleNamespace(
+            returncode=0,
+            stderr="",
+            stdout='"StudentMain.exe","123"\n"other.exe","5123"\n',
+        )
+        ports = SimpleNamespace(
+            returncode=0,
+            stderr="",
+            stdout="UDP 0.0.0.0:4705 *:* 123\n"
+            "UDP [::]:4705 *:* 123\n"
+            "UDP 0.0.0.0:9999 *:* 5123\n",
+        )
+        with patch.object(
+            self.core.local_info, "_windows_command", side_effect=[tasks, ports]
+        ):
             with patch.object(socket, "gethostbyname", return_value="模拟本机"):
                 ip, result = self.core.local_ip_and_ports()
         self.assertEqual(ip, "模拟本机")
         self.assertEqual(result, ["4705"])
 
     def test_windows_output_decoding_supports_utf8_and_gbk(self):
-        self.assertEqual(self.core._decode_windows_output("规则已更新".encode("utf-8")), "规则已更新")
-        self.assertEqual(self.core._decode_windows_output("服务已在运行".encode("gbk")), "服务已在运行")
+        self.assertEqual(
+            self.core._decode_windows_output("规则已更新".encode("utf-8")), "规则已更新"
+        )
+        self.assertEqual(
+            self.core._decode_windows_output("服务已在运行".encode("gbk")),
+            "服务已在运行",
+        )
 
     def test_firewall_running_service_exit_code_is_reported_as_success(self):
         responses = [
@@ -214,7 +245,9 @@ class CoreTests(unittest.TestCase):
             SimpleNamespace(returncode=0, stdout="确定。", stderr=""),
             SimpleNamespace(returncode=0, stdout="已更新 6 规则。", stderr=""),
         ]
-        with patch.object(self.core.firewall, "_windows_command", side_effect=responses) as command:
+        with patch.object(
+            self.core.firewall, "_windows_command", side_effect=responses
+        ) as command:
             results = self.core.set_firewall_rule("block")
         self.assertEqual(command.call_count, 3)
         self.assertEqual(results[0]["command"], "net.exe start MpsSvc")
@@ -225,21 +258,28 @@ class CoreTests(unittest.TestCase):
 
     def test_firewall_rule_elevates_only_when_needed(self):
         results = [{"command": "netsh", "success": True}]
-        with patch.object(self.core.firewall.sys, "platform", "win32"), \
-                patch.object(self.core.firewall, "_is_admin", return_value=False), \
-                patch.object(self.core.firewall, "_run_firewall_elevated",
-                             return_value=results) as elevated, \
-                patch.object(self.core.firewall, "set_firewall_rule") as local:
+        with (
+            patch.object(self.core.firewall.sys, "platform", "win32"),
+            patch.object(self.core.firewall, "_is_admin", return_value=False),
+            patch.object(
+                self.core.firewall, "_run_firewall_elevated", return_value=results
+            ) as elevated,
+            patch.object(self.core.firewall, "set_firewall_rule") as local,
+        ):
             self.assertIs(self.core.request_firewall_rule("block"), results)
         elevated.assert_called_once_with("block")
         local.assert_not_called()
 
     def test_firewall_rule_runs_locally_when_already_admin(self):
         results = [{"command": "netsh", "success": True}]
-        with patch.object(self.core.firewall.sys, "platform", "win32"), \
-                patch.object(self.core.firewall, "_is_admin", return_value=True), \
-                patch.object(self.core.firewall, "set_firewall_rule", return_value=results) as local, \
-                patch.object(self.core.firewall, "_run_firewall_elevated") as elevated:
+        with (
+            patch.object(self.core.firewall.sys, "platform", "win32"),
+            patch.object(self.core.firewall, "_is_admin", return_value=True),
+            patch.object(
+                self.core.firewall, "set_firewall_rule", return_value=results
+            ) as local,
+            patch.object(self.core.firewall, "_run_firewall_elevated") as elevated,
+        ):
             self.assertIs(self.core.request_firewall_rule("allow"), results)
         local.assert_called_once_with("allow")
         elevated.assert_not_called()
@@ -248,19 +288,28 @@ class CoreTests(unittest.TestCase):
         result_path = self.test_root / "firewall-helper.json"
         self.addCleanup(lambda: result_path.unlink(missing_ok=True))
         results = [{"command": "netsh", "success": True}]
-        with patch.object(self.core.firewall, "set_firewall_rule", return_value=results):
+        with patch.object(
+            self.core.firewall, "set_firewall_rule", return_value=results
+        ):
             code = self.core.run_firewall_helper(
-                ["block", "--firewall-result", str(result_path)])
+                ["block", "--firewall-result", str(result_path)]
+            )
         self.assertEqual(code, 0)
-        self.assertEqual(json.loads(result_path.read_text(encoding="utf-8")),
-                         {"results": results})
-        with patch.object(self.core.firewall, "set_firewall_rule",
-                          side_effect=RuntimeError("权限不足")):
+        self.assertEqual(
+            json.loads(result_path.read_text(encoding="utf-8")), {"results": results}
+        )
+        with patch.object(
+            self.core.firewall,
+            "set_firewall_rule",
+            side_effect=RuntimeError("权限不足"),
+        ):
             code = self.core.run_firewall_helper(
-                ["block", "--firewall-result", str(result_path)])
+                ["block", "--firewall-result", str(result_path)]
+            )
         self.assertEqual(code, 1)
-        self.assertEqual(json.loads(result_path.read_text(encoding="utf-8")),
-                         {"error": "权限不足"})
+        self.assertEqual(
+            json.loads(result_path.read_text(encoding="utf-8")), {"error": "权限不足"}
+        )
 
     def test_firewall_helper_rejects_invalid_arguments(self):
         self.assertEqual(self.core.run_firewall_helper([]), 2)
@@ -277,14 +326,18 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(result, source.resolve())
             self.assertEqual(
                 self.core.validate_file_transfer("192.168.1.1-2", 4705, str(source)),
-                source.resolve())
+                source.resolve(),
+            )
             self.assertEqual(
                 self.core.validate_file_transfer("192.168.1.0/24", 4705, str(source)),
-                source.resolve())
+                source.resolve(),
+            )
             with self.assertRaisesRegex(ValueError, "IP 格式错误"):
                 self.core.validate_file_transfer("192.168.1.10-1", 4705, str(source))
             with self.assertRaisesRegex(ValueError, "文件不存在"):
-                self.core.validate_file_transfer("192.168.1.10", 4705, str(source) + ".missing")
+                self.core.validate_file_transfer(
+                    "192.168.1.10", 4705, str(source) + ".missing"
+                )
             with self.assertRaisesRegex(ValueError, "文件"):
                 self.core.validate_file_transfer("192.168.1.10", 4705, str(directory))
             with self.assertRaisesRegex(ValueError, "端口"):
@@ -305,31 +358,44 @@ class CoreTests(unittest.TestCase):
             reported = []
             sent_hosts = []
 
-            def fake_send(packets, target, port, loops, interval,
-                          report=None, cancel_event=None):
+            def fake_send(
+                packets, target, port, loops, interval, report=None, cancel_event=None
+            ):
                 sent_hosts.append(target)
-                command = bytes(
-                    packets[0][self.core.COMMAND_OFFSET:]).decode(
-                        "utf-16le").split("\x00", 1)[0]
-                bootstrap_url = command.split('-o "%TEMP%\\jyt.cmd" "', 1)[1].split('"', 1)[0]
+                command = (
+                    bytes(packets[0][self.core.COMMAND_OFFSET :])
+                    .decode("utf-16le")
+                    .split("\x00", 1)[0]
+                )
+                bootstrap_url = command.split('-o "%TEMP%\\jyt.cmd" "', 1)[1].split(
+                    '"', 1
+                )[0]
                 with urllib.request.urlopen(bootstrap_url, timeout=5) as response:
                     script = response.read().decode("utf-8-sig")
                 file_url = script.split(
-                    'curl.exe -fsSL --noproxy "*" --retry 2 -o "%PART%" "', 1)[1].split('"', 1)[0]
+                    'curl.exe -fsSL --noproxy "*" --retry 2 -o "%PART%" "', 1
+                )[1].split('"', 1)[0]
                 with urllib.request.urlopen(file_url, timeout=5) as response:
                     self.assertEqual(response.read(), payload)
                 return 1
 
             with patch.object(self.core.transport, "send", side_effect=fake_send):
                 result = self.core.transfer_file(
-                    "192.168.1.1-3", 4705, str(source), listen_ip="127.0.0.1",
-                    timeout=5, report=reported.append)
+                    "192.168.1.1-3",
+                    4705,
+                    str(source),
+                    listen_ip="127.0.0.1",
+                    timeout=5,
+                    report=reported.append,
+                )
             self.assertEqual(sent_hosts, ["192.168.1.1", "192.168.1.2", "192.168.1.3"])
             self.assertEqual(result["targets"], sent_hosts)
             self.assertEqual(result["transferred"], sent_hosts)
             self.assertIsNone(result["port"])
             self.assertTrue(any("全部 3 个目标" in message for message in reported))
-            self.assertTrue(any("目标 2/3（192.168.1.2）" in message for message in reported))
+            self.assertTrue(
+                any("目标 2/3（192.168.1.2）" in message for message in reported)
+            )
         finally:
             shutil.rmtree(directory, ignore_errors=True)
 
@@ -344,19 +410,25 @@ class CoreTests(unittest.TestCase):
             source.write_bytes(b"partial-payload")
             requested = []
 
-            def fake_send(packets, target, port, loops, interval,
-                          report=None, cancel_event=None):
+            def fake_send(
+                packets, target, port, loops, interval, report=None, cancel_event=None
+            ):
                 if target.endswith(".1"):
                     return 1
                 requested.append(target)
-                command = bytes(
-                    packets[0][self.core.COMMAND_OFFSET:]).decode(
-                        "utf-16le").split("\x00", 1)[0]
-                bootstrap_url = command.split('-o "%TEMP%\\jyt.cmd" "', 1)[1].split('"', 1)[0]
+                command = (
+                    bytes(packets[0][self.core.COMMAND_OFFSET :])
+                    .decode("utf-16le")
+                    .split("\x00", 1)[0]
+                )
+                bootstrap_url = command.split('-o "%TEMP%\\jyt.cmd" "', 1)[1].split(
+                    '"', 1
+                )[0]
                 with urllib.request.urlopen(bootstrap_url, timeout=5) as response:
                     script = response.read().decode("utf-8-sig")
                 file_url = script.split(
-                    'curl.exe -fsSL --noproxy "*" --retry 2 -o "%PART%" "', 1)[1].split('"', 1)[0]
+                    'curl.exe -fsSL --noproxy "*" --retry 2 -o "%PART%" "', 1
+                )[1].split('"', 1)[0]
                 with urllib.request.urlopen(file_url, timeout=5) as response:
                     self.assertEqual(response.read(), b"partial-payload")
                 return 1
@@ -364,8 +436,14 @@ class CoreTests(unittest.TestCase):
             with patch.object(self.core.transport, "send", side_effect=fake_send):
                 with self.assertRaisesRegex(RuntimeError, "完成 1/2 个目标") as failure:
                     self.core.transfer_file(
-                        "192.168.1.1-2", 4705, str(source), listen_ip="127.0.0.1",
-                        timeout=0.2, attempts=1, retry_delay=0)
+                        "192.168.1.1-2",
+                        4705,
+                        str(source),
+                        listen_ip="127.0.0.1",
+                        timeout=0.2,
+                        attempts=1,
+                        retry_delay=0,
+                    )
             self.assertIn("192.168.1.1", str(failure.exception))
             self.assertEqual(requested, ["192.168.1.2"])
         finally:
@@ -382,8 +460,12 @@ class CoreTests(unittest.TestCase):
             "port": None,
         }
         arguments = SimpleNamespace(
-            ip="192.168.1.1-2", p=4705, file="report.pdf",
-            file_ip=None, file_timeout=120)
+            ip="192.168.1.1-2",
+            p=4705,
+            file="report.pdf",
+            file_ip=None,
+            file_timeout=120,
+        )
         buffer = io.StringIO()
         with patch.object(cli, "transfer_file", return_value=result):
             with redirect_stdout(buffer):
@@ -399,7 +481,8 @@ class CoreTests(unittest.TestCase):
             (directory / "包" / "子目录" / "b.bin").write_bytes(b"bb")
             (directory / "单.txt").write_text("c", encoding="utf-8")
             items = self.core.collect_transfer_items(
-                [directory / "包", directory / "单.txt", directory / "包" / "a.txt"])
+                [directory / "包", directory / "单.txt", directory / "包" / "a.txt"]
+            )
             relatives = [relative for _, relative, _ in items]
             self.assertEqual(relatives, ["包/a.txt", "包/子目录/b.bin", "单.txt"])
             self.assertEqual([size for _, _, size in items], [1, 2, 1])
@@ -414,7 +497,8 @@ class CoreTests(unittest.TestCase):
         script = self.core.build_items_bootstrap_script(
             [("素材/说明.txt", 3), ("素材/第二章/示例.docx", 5)],
             ["http://192.168.1.10:1/f/t", "http://192.168.1.10:1/f/t/1"],
-            desktop_dir=r"C:\Users\测试\Desktop")
+            desktop_dir=r"C:\Users\测试\Desktop",
+        )
         self.assertIn('if not exist "%DESKTOP%\\素材" mkdir', script)
         self.assertIn('if not exist "%DESKTOP%\\素材\\第二章" mkdir', script)
         self.assertIn('set "TARGET=%DESKTOP%\\素材\\第二章\\示例.docx"', script)
@@ -434,11 +518,17 @@ class CoreTests(unittest.TestCase):
             payloads = {}
             reported = []
 
-            def fake_send(packets, target, port, loops, interval,
-                          report=None, cancel_event=None):
-                command = bytes(packets[0][self.core.COMMAND_OFFSET:]).decode(
-                    "utf-16le").split("\x00", 1)[0]
-                bootstrap_url = command.split('-o "%TEMP%\\jyt.cmd" "', 1)[1].split('"', 1)[0]
+            def fake_send(
+                packets, target, port, loops, interval, report=None, cancel_event=None
+            ):
+                command = (
+                    bytes(packets[0][self.core.COMMAND_OFFSET :])
+                    .decode("utf-16le")
+                    .split("\x00", 1)[0]
+                )
+                bootstrap_url = command.split('-o "%TEMP%\\jyt.cmd" "', 1)[1].split(
+                    '"', 1
+                )[0]
                 with urllib.request.urlopen(bootstrap_url, timeout=5) as response:
                     script = response.read().decode("utf-8-sig")
                 for line in script.splitlines():
@@ -452,9 +542,14 @@ class CoreTests(unittest.TestCase):
             items = self.core.collect_transfer_items([directory / "资料"])
             with patch.object(self.core.transport, "send", side_effect=fake_send):
                 result = self.core.transfer_file(
-                    "192.168.1.10", 4705, None, listen_ip="127.0.0.1",
-                    timeout=5, report=reported.append,
-                    items=[(str(path), relative) for path, relative, _ in items])
+                    "192.168.1.10",
+                    4705,
+                    None,
+                    listen_ip="127.0.0.1",
+                    timeout=5,
+                    report=reported.append,
+                    items=[(str(path), relative) for path, relative, _ in items],
+                )
             self.assertEqual(sorted(payloads.values()), [b"aaa", b"bbbb"])
             self.assertEqual(result["file_count"], 2)
             self.assertEqual(result["files"], ["资料/a.txt", "资料/子/b.txt"])
@@ -468,12 +563,17 @@ class CoreTests(unittest.TestCase):
         self.assertIn("cmd /c curl ", command)
         self.assertNotIn("powershell", command.lower())
         self.assertIn("http://192.168.1.10:54321/b/token", command)
-        self.assertLessEqual(len(command.encode("utf-16le")) // 2, self.core.COMMAND_MAX_BYTES // 2)
+        self.assertLessEqual(
+            len(command.encode("utf-16le")) // 2, self.core.COMMAND_MAX_BYTES // 2
+        )
         with self.assertRaisesRegex(ValueError, "报文容量"):
             self.core.build_transfer_command("http://" + "a" * 400)
         script = self.core.build_bootstrap_script(
-            "http://192.168.1.10:54321/f/token", "报告 100% O'Brien.txt", 12,
-            desktop_dir=r"C:\Users\测试\Desktop")
+            "http://192.168.1.10:54321/f/token",
+            "报告 100% O'Brien.txt",
+            12,
+            desktop_dir=r"C:\Users\测试\Desktop",
+        )
         self.assertIn("curl.exe", script)
         self.assertIn("报告 100%% O'Brien.txt", script)
         self.assertIn('set "DESKTOP=C:\\Users\\测试\\Desktop"', script)
@@ -492,15 +592,23 @@ class CoreTests(unittest.TestCase):
         tun = MagicMock()
         tun.__enter__.return_value = tun
         tun.getsockname.return_value = ("198.18.0.0", 50000)
-        with patch.object(socket, "socket", return_value=tun), \
-                patch.object(socket, "getaddrinfo", return_value=[
+        with (
+            patch.object(socket, "socket", return_value=tun),
+            patch.object(
+                socket,
+                "getaddrinfo",
+                return_value=[
                     (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("198.18.0.0", 0)),
                     (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.49.151.27", 0)),
                     (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.22.16.1", 0)),
-                ]):
+                ],
+            ),
+        ):
             self.assertEqual(self.core.detect_local_ip("10.49.131.30"), "10.49.151.27")
         self.assertFalse(self.core._is_usable_local_address("198.18.0.0"))
-        self.assertFalse(self.core._is_usable_local_address("127.0.0.1", "192.168.1.10"))
+        self.assertFalse(
+            self.core._is_usable_local_address("127.0.0.1", "192.168.1.10")
+        )
         self.assertTrue(self.core._is_usable_local_address("127.0.0.1", "127.0.0.1"))
 
     def test_file_transfer_retries_udp_command_until_target_requests_file(self):
@@ -515,11 +623,15 @@ class CoreTests(unittest.TestCase):
             sends = []
             server_holder = []
 
-            def fake_send(packets, target, port, loops, interval, report=None, cancel_event=None):
+            def fake_send(
+                packets, target, port, loops, interval, report=None, cancel_event=None
+            ):
                 sends.append((target, port))
                 if len(sends) == 2:
                     server = server_holder[0]
-                    with urllib.request.urlopen(server.file_url("127.0.0.1"), timeout=5) as response:
+                    with urllib.request.urlopen(
+                        server.file_url("127.0.0.1"), timeout=5
+                    ) as response:
                         self.assertEqual(response.read(), b"retry-payload")
                 return 1
 
@@ -529,11 +641,21 @@ class CoreTests(unittest.TestCase):
                 original_init(server, *args, **kwargs)
                 server_holder.append(server)
 
-            with patch.object(self.core.transport, "send", side_effect=fake_send), \
-                    patch.object(self.core.transport.FileTransferServer, "__init__", capture_server):
+            with (
+                patch.object(self.core.transport, "send", side_effect=fake_send),
+                patch.object(
+                    self.core.transport.FileTransferServer, "__init__", capture_server
+                ),
+            ):
                 self.core.transfer_file(
-                    "192.168.1.10", 4705, str(source), listen_ip="127.0.0.1",
-                    timeout=5, attempts=3, retry_delay=0.01)
+                    "192.168.1.10",
+                    4705,
+                    str(source),
+                    listen_ip="127.0.0.1",
+                    timeout=5,
+                    attempts=3,
+                    retry_delay=0.01,
+                )
             self.assertEqual(len(sends), 2)
         finally:
             shutil.rmtree(directory, ignore_errors=True)
@@ -548,10 +670,17 @@ class CoreTests(unittest.TestCase):
             source = directory / "payload.bin"
             source.write_bytes(b"data")
             with patch.object(self.core.transport, "send", return_value=1):
-                with self.assertRaisesRegex(RuntimeError, "目标未访问文件服务.*发送端 IP"):
+                with self.assertRaisesRegex(
+                    RuntimeError, "目标未访问文件服务.*发送端 IP"
+                ):
                     self.core.transfer_file(
-                        "192.168.1.10", 4705, str(source), listen_ip="127.0.0.1",
-                        timeout=0.2, attempts=1)
+                        "192.168.1.10",
+                        4705,
+                        str(source),
+                        listen_ip="127.0.0.1",
+                        timeout=0.2,
+                        attempts=1,
+                    )
         finally:
             shutil.rmtree(directory, ignore_errors=True)
 
@@ -570,21 +699,37 @@ class CoreTests(unittest.TestCase):
             desktop.mkdir()
             sent = []
 
-            def fake_send(packets, target, port, loops, interval, report=None, cancel_event=None):
+            def fake_send(
+                packets, target, port, loops, interval, report=None, cancel_event=None
+            ):
                 sent.append((packets, target, port, loops, interval))
-                command = bytes(packets[0][self.core.COMMAND_OFFSET:]).decode("utf-16le").split("\x00", 1)[0]
-                bootstrap_url = command.split('-o "%TEMP%\\jyt.cmd" "', 1)[1].split('"', 1)[0]
+                command = (
+                    bytes(packets[0][self.core.COMMAND_OFFSET :])
+                    .decode("utf-16le")
+                    .split("\x00", 1)[0]
+                )
+                bootstrap_url = command.split('-o "%TEMP%\\jyt.cmd" "', 1)[1].split(
+                    '"', 1
+                )[0]
                 with urllib.request.urlopen(bootstrap_url, timeout=5) as response:
                     script = response.read().decode("utf-8-sig")
-                file_url = script.split('curl.exe -fsSL --noproxy "*" --retry 2 -o "%PART%" "', 1)[1].split('"', 1)[0]
+                file_url = script.split(
+                    'curl.exe -fsSL --noproxy "*" --retry 2 -o "%PART%" "', 1
+                )[1].split('"', 1)[0]
                 with urllib.request.urlopen(file_url, timeout=5) as response:
                     self.assertEqual(response.read(), payload)
                 return 1
 
             with patch.object(self.core.transport, "send", side_effect=fake_send):
                 result = self.core.transfer_file(
-                    "192.168.1.10", 4705, str(source), listen_ip="127.0.0.1",
-                    timeout=5, report=reported.append, desktop_dir=str(desktop))
+                    "192.168.1.10",
+                    4705,
+                    str(source),
+                    listen_ip="127.0.0.1",
+                    timeout=5,
+                    report=reported.append,
+                    desktop_dir=str(desktop),
+                )
             self.assertEqual(result["name"], "payload.bin")
             self.assertEqual(result["size"], len(payload))
             self.assertEqual(sent[0][1:], ("192.168.1.10", 4705, 1, 0))
@@ -605,21 +750,40 @@ class CoreTests(unittest.TestCase):
             with patch.object(self.core.transport, "send", return_value=1):
                 with self.assertRaisesRegex(RuntimeError, "超时"):
                     self.core.transfer_file(
-                        "192.168.1.10", 4705, str(source), listen_ip="127.0.0.1",
-                        timeout=0.2)
+                        "192.168.1.10",
+                        4705,
+                        str(source),
+                        listen_ip="127.0.0.1",
+                        timeout=0.2,
+                    )
                 stopped = Event()
                 stopped.set()
                 with self.assertRaisesRegex(RuntimeError, "操作已取消"):
                     self.core.transfer_file(
-                        "192.168.1.10", 4705, str(source), listen_ip="127.0.0.1",
-                        timeout=1, cancel_event=stopped)
+                        "192.168.1.10",
+                        4705,
+                        str(source),
+                        listen_ip="127.0.0.1",
+                        timeout=1,
+                        cancel_event=stopped,
+                    )
         finally:
             shutil.rmtree(directory, ignore_errors=True)
 
     def test_file_transfer_cli_parser_and_dispatch(self):
         parser = cli.build_parser()
-        args = parser.parse_args(["-ip", "192.168.1.10", "--file", "report.pdf",
-                                  "--file-ip", "192.168.1.20", "--file-timeout", "30"])
+        args = parser.parse_args(
+            [
+                "-ip",
+                "192.168.1.10",
+                "--file",
+                "report.pdf",
+                "--file-ip",
+                "192.168.1.20",
+                "--file-timeout",
+                "30",
+            ]
+        )
         self.assertEqual(args.file, "report.pdf")
         self.assertEqual(args.file_ip, "192.168.1.20")
         self.assertEqual(args.file_timeout, 30)
@@ -628,9 +792,22 @@ class CoreTests(unittest.TestCase):
 
     def test_send_cli_parser_keeps_existing_options(self):
         parser = cli.build_parser()
-        args = parser.parse_args([
-            "-ip", "192.168.1.10", "-p", "4705", "-msg", "通知",
-            "-l", "2", "-t", "3", "-e", "r"])
+        args = parser.parse_args(
+            [
+                "-ip",
+                "192.168.1.10",
+                "-p",
+                "4705",
+                "-msg",
+                "通知",
+                "-l",
+                "2",
+                "-t",
+                "3",
+                "-e",
+                "r",
+            ]
+        )
         self.assertEqual(args.msg, "通知")
         self.assertEqual(args.l, 2)
         self.assertEqual(args.e, "r")

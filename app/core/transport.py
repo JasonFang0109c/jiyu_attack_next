@@ -12,8 +12,16 @@ from .constants import COMMAND_MAX_BYTES
 from .local_info import detect_local_ip, validate_listen_ip
 from .protocol import get_ip, pkg_sendlist, prepare_packets, validate_options
 
-def send(send_list, target_ip, port=4705, loops=1, interval=22, report=None,
-         cancel_event=None):
+
+def send(
+    send_list,
+    target_ip,
+    port=4705,
+    loops=1,
+    interval=22,
+    report=None,
+    cancel_event=None,
+):
     if len(send_list) == 0:
         raise ValueError("没有可发送的报文")
     if not 1 <= port <= 65535:
@@ -52,7 +60,11 @@ def format_size(size):
     value = float(size)
     for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
         if value < 1024 or unit == "TiB":
-            return ("%d %s" % (value, unit)) if unit == "B" else ("%.1f %s" % (value, unit))
+            return (
+                ("%d %s" % (value, unit))
+                if unit == "B"
+                else ("%.1f %s" % (value, unit))
+            )
         value /= 1024
 
 
@@ -89,7 +101,7 @@ def _bootstrap_desktop_lines(desktop_dir=None):
             'if not defined DESKTOP set "DESKTOP=%USERPROFILE%\\Desktop"\r\n'
             'if not exist "%DESKTOP%" set "DESKTOP=%USERPROFILE%\\Desktop"\r\n'
         )
-    return 'set "DESKTOP=%s"\r\n' % str(desktop_dir).replace('%', '%%')
+    return 'set "DESKTOP=%s"\r\n' % str(desktop_dir).replace("%", "%%")
 
 
 def build_items_bootstrap_script(items, urls, desktop_dir=None):
@@ -114,19 +126,26 @@ def build_items_bootstrap_script(items, urls, desktop_dir=None):
         parent_line = ""
         if len(parts) > 1:
             parent = "\\".join(part.replace("%", "%%") for part in parts[:-1])
-            parent_line = ('if not exist "%DESKTOP%\\' + parent + '" '
-                           'mkdir "%DESKTOP%\\' + parent + '" >nul 2>nul\r\n')
+            parent_line = (
+                'if not exist "%DESKTOP%\\' + parent + '" '
+                'mkdir "%DESKTOP%\\' + parent + '" >nul 2>nul\r\n'
+            )
         blocks.append(
-            'set "TARGET=%DESKTOP%\\' + windows_path + '"\r\n'
+            'set "TARGET=%DESKTOP%\\'
+            + windows_path
+            + '"\r\n'
             + parent_line
             + 'set "PART=%TARGET%.part"\r\n'
             + 'del /f /q "%PART%" >nul 2>nul\r\n'
             + 'curl.exe -fsSL --noproxy "*" --retry 2 -o "%PART%" "'
-            + str(url).replace("%", "%%") + '"\r\n'
-            + 'if errorlevel 1 goto fail\r\n'
-            + 'for %%A in ("%PART%") do if not "%%~zA"=="' + str(int(size)) + '" goto fail\r\n'
+            + str(url).replace("%", "%%")
+            + '"\r\n'
+            + "if errorlevel 1 goto fail\r\n"
+            + 'for %%A in ("%PART%") do if not "%%~zA"=="'
+            + str(int(size))
+            + '" goto fail\r\n'
             + 'move /y "%PART%" "%TARGET%" >nul\r\n'
-            + 'if errorlevel 1 goto fail\r\n'
+            + "if errorlevel 1 goto fail\r\n"
         )
     return (
         "@echo off\r\n"
@@ -142,14 +161,15 @@ def build_items_bootstrap_script(items, urls, desktop_dir=None):
 
 
 def build_bootstrap_script(file_url, file_name, size, desktop_dir=None):
-    return build_items_bootstrap_script(
-        [(file_name, size)], [file_url], desktop_dir)
+    return build_items_bootstrap_script([(file_name, size)], [file_url], desktop_dir)
 
 
 def build_transfer_command(bootstrap_url):
-    command = ('cmd /c curl -fsSL --noproxy * -o "%%TEMP%%\\jyt.cmd" "%s" '
-               '&&call "%%TEMP%%\\jyt.cmd"&del /f /q "%%TEMP%%\\jyt.cmd"') % bootstrap_url
-    if len(command.encode('utf-16le')) // 2 > COMMAND_MAX_BYTES // 2:
+    command = (
+        'cmd /c curl -fsSL --noproxy * -o "%%TEMP%%\\jyt.cmd" "%s" '
+        '&&call "%%TEMP%%\\jyt.cmd"&del /f /q "%%TEMP%%\\jyt.cmd"'
+    ) % bootstrap_url
+    if len(command.encode("utf-16le")) // 2 > COMMAND_MAX_BYTES // 2:
         raise ValueError("文件传送命令超过报文容量")
     return command
 
@@ -186,7 +206,9 @@ def collect_transfer_items(paths):
             for child in children:
                 try:
                     if child.is_file():
-                        candidates.append((child, child.relative_to(path.parent).as_posix()))
+                        candidates.append(
+                            (child, child.relative_to(path.parent).as_posix())
+                        )
                 except OSError as error:
                     raise ValueError("无法读取文件夹：%s" % error) from error
             if not candidates:
@@ -298,8 +320,9 @@ class _FileTransferRequestHandler(BaseHTTPRequestHandler):
 class FileTransferServer:
     def __init__(self, source, bind_host="0.0.0.0", port=0, items=None):
         self.token = secrets.token_urlsafe(12)
-        self.items = [(Path(path), relative, int(size))
-                      for path, relative, size in (items or [])]
+        self.items = [
+            (Path(path), relative, int(size)) for path, relative, size in (items or [])
+        ]
         if not self.items:
             self.items = [(Path(source), Path(source).name, 0)]
         self.source = self.items[0][0]
@@ -385,13 +408,17 @@ class FileTransferServer:
 
     def timeout_reason(self):
         if self.request_stage == "file":
-            return ("目标已开始下载但未完成，请检查目标网络稳定性与磁盘空间后重试")
+            return "目标已开始下载但未完成，请检查目标网络稳定性与磁盘空间后重试"
         if self.request_stage == "script":
-            return ("目标已获取传送脚本但未下载文件，请确认目标系统 curl 可用，"
-                    "且目标能访问 %s:%d" % (self.advertised_host or "发送端 IP", self.port))
-        return ("目标未访问文件服务，请确认目标能访问发送端 IP %s 和临时端口 %d，"
-                "本机防火墙已放行，且目标允许执行远程命令"
-                % (self.advertised_host or "自动检测地址", self.port))
+            return (
+                "目标已获取传送脚本但未下载文件，请确认目标系统 curl 可用，"
+                "且目标能访问 %s:%d" % (self.advertised_host or "发送端 IP", self.port)
+            )
+        return (
+            "目标未访问文件服务，请确认目标能访问发送端 IP %s 和临时端口 %d，"
+            "本机防火墙已放行，且目标允许执行远程命令"
+            % (self.advertised_host or "自动检测地址", self.port)
+        )
 
     def wait(self, timeout=120, cancel_event=None):
         try:
@@ -412,11 +439,15 @@ class FileTransferServer:
             raise RuntimeError(self.error)
 
     def bootstrap_script_for(self, host):
-        urls = [self.file_url(host, index) if index else self.file_url(host)
-                for index in range(len(self.items))]
+        urls = [
+            self.file_url(host, index) if index else self.file_url(host)
+            for index in range(len(self.items))
+        ]
         return build_items_bootstrap_script(
-            [(relative, size) for _, relative, size in self.items], urls,
-            getattr(self, "desktop_dir", None))
+            [(relative, size) for _, relative, size in self.items],
+            urls,
+            getattr(self, "desktop_dir", None),
+        )
 
 
 def normalize_transfer_items(items):
@@ -448,9 +479,20 @@ def normalize_transfer_items(items):
     return normalized
 
 
-def transfer_file(target, port, file_path, listen_ip=None, timeout=120,
-                  cancel_event=None, report=None, desktop_dir=None,
-                  attempts=3, retry_delay=1.5, paths=None, items=None):
+def transfer_file(
+    target,
+    port,
+    file_path,
+    listen_ip=None,
+    timeout=120,
+    cancel_event=None,
+    report=None,
+    desktop_dir=None,
+    attempts=3,
+    retry_delay=1.5,
+    paths=None,
+    items=None,
+):
     emit = report or (lambda message: None)
     port = _validate_transfer_request(target, port)
     if items is not None:
@@ -468,7 +510,9 @@ def transfer_file(target, port, file_path, listen_ip=None, timeout=120,
     advertised_ip = validate_listen_ip(listen_ip) or detect_local_ip(target)
     bind_host = "127.0.0.1" if advertised_ip.startswith("127.") else "0.0.0.0"
     total_size = sum(size for _, _, size in entries)
-    label = Path(entries[0][0]).name if len(entries) == 1 else "%d 个文件" % len(entries)
+    label = (
+        Path(entries[0][0]).name if len(entries) == 1 else "%d 个文件" % len(entries)
+    )
     transferred = []
     failures = []
     last_port = None
@@ -476,8 +520,10 @@ def transfer_file(target, port, file_path, listen_ip=None, timeout=120,
         if cancel_event and cancel_event.is_set():
             raise RuntimeError("操作已取消")
         transfer = FileTransferServer(
-            entries[0][0], bind_host=bind_host, items=[
-                (path, relative, size) for path, relative, size in entries])
+            entries[0][0],
+            bind_host=bind_host,
+            items=[(path, relative, size) for path, relative, size in entries],
+        )
         transfer.desktop_dir = desktop_dir
         try:
             transfer.start()
@@ -493,37 +539,53 @@ def transfer_file(target, port, file_path, listen_ip=None, timeout=120,
             transfer.progress = report_target
             command = build_transfer_command(transfer.bootstrap_url(advertised_ip))
             packet = pkg_sendlist("-c", command)
-            emit("目标 %d/%d（%s）文件传送服务已启动：%s:%d，文件：%s（%s）" % (
-                index, len(targets), host, advertised_ip, transfer.port,
-                label, format_size(total_size)))
+            emit(
+                "目标 %d/%d（%s）文件传送服务已启动：%s:%d，文件：%s（%s）"
+                % (
+                    index,
+                    len(targets),
+                    host,
+                    advertised_ip,
+                    transfer.port,
+                    label,
+                    format_size(total_size),
+                )
+            )
             # UDP 不保证可靠，单次下发可能丢包导致目标始终不下载。
             for attempt in range(1, attempts + 1):
                 if cancel_event and cancel_event.is_set():
                     raise RuntimeError("操作已取消")
-                emit("正在向目标 %d/%d（%s）发送文件传送命令（第 %d/%d 次）" % (
-                    index, len(targets), host, attempt, attempts))
+                emit(
+                    "正在向目标 %d/%d（%s）发送文件传送命令（第 %d/%d 次）"
+                    % (index, len(targets), host, attempt, attempts)
+                )
                 send([packet], host, port, 1, 0, emit, cancel_event)
                 if transfer.requested.wait(0 if attempt == attempts else retry_delay):
                     break
             emit("等待目标 %d/%d（%s）下载到桌面" % (index, len(targets), host))
             transfer.wait(timeout, cancel_event)
             transferred.append(host)
-            emit("目标 %d/%d（%s）已下载文件：%s（%s）" % (
-                index, len(targets), host, label, format_size(total_size)))
+            emit(
+                "目标 %d/%d（%s）已下载文件：%s（%s）"
+                % (index, len(targets), host, label, format_size(total_size))
+            )
         except Exception as error:
             if cancel_event and cancel_event.is_set():
                 raise RuntimeError("操作已取消") from error
             failures.append((host, str(error)))
-            emit("目标 %d/%d（%s）传送失败：%s" % (
-                index, len(targets), host, error))
+            emit("目标 %d/%d（%s）传送失败：%s" % (index, len(targets), host, error))
         finally:
             transfer.stop()
     if failures:
         summary = "；".join("%s（%s）" % (host, reason) for host, reason in failures)
-        raise RuntimeError("文件传送完成 %d/%d 个目标，失败目标：%s" % (
-            len(transferred), len(targets), summary))
-    emit("全部 %d 个目标已下载文件：%s（%s）" % (
-        len(targets), label, format_size(total_size)))
+        raise RuntimeError(
+            "文件传送完成 %d/%d 个目标，失败目标：%s"
+            % (len(transferred), len(targets), summary)
+        )
+    emit(
+        "全部 %d 个目标已下载文件：%s（%s）"
+        % (len(targets), label, format_size(total_size))
+    )
     result = {
         "name": label,
         "size": total_size,
@@ -546,7 +608,14 @@ def execute_send(options, report=None):
     packets = prepare_packets(options, emit)
     target_hosts = get_ip(options.target.strip())
     emit("目标数量：%d，报文数量：%d" % (len(target_hosts), len(packets)))
-    sent_count = send(packets, options.target, options.port, options.loops,
-                      options.interval, emit, options.cancel_event)
+    sent_count = send(
+        packets,
+        options.target,
+        options.port,
+        options.loops,
+        options.interval,
+        emit,
+        options.cancel_event,
+    )
     emit("本机发送完成，共 %d 个报文" % sent_count)
     return sent_count

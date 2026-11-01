@@ -51,13 +51,17 @@ class DevicePage(NetworkPage):
         target = self.targets.state.values["target"].strip()
         matched = self.targets.state.aliases.match(target)
         try:
-            hosts = core.get_ip(self.targets.state.resolve_target(target)) if target else []
+            hosts = (
+                core.get_ip(self.targets.state.resolve_target(target)) if target else []
+            )
         except ValueError:
             hosts = []
         self.preview.setRowCount(len(hosts))
         for row, host in enumerate(hosts):
             self.preview.setItem(row, 0, QTableWidgetItem(host))
-            self.preview.setItem(row, 1, QTableWidgetItem(str(self.targets.state.values["port"])))
+            self.preview.setItem(
+                row, 1, QTableWidgetItem(str(self.targets.state.values["port"]))
+            )
             self.preview.setRowHeight(row, 36)
         alias_text = "，备注：%s" % matched[0] if matched else ""
         self.preview_title.setText("目标预览（%d%s）" % (len(hosts), alias_text))

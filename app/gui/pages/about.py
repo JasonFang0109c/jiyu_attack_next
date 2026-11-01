@@ -119,44 +119,64 @@ class AboutPage(Page):
         title.setAlignment(Qt.AlignCenter)
         hero_body.addWidget(title)
         # 与 README 首页说明保持一致。
-        for line in ("极域学生端 UDP 控制报文测试工具，图形界面与命令行合并为同一个 Windows EXE",
-                     "基于 PySide6-Fluent-Widgets 构建，打包后无需安装 Python 即可使用 GUI 与 CLI",
-                     "仅供已获授权的教学环境测试使用"):
+        for line in (
+            "极域学生端 UDP 控制报文测试工具，图形界面与命令行合并为同一个 Windows EXE",
+            "基于 PySide6-Fluent-Widgets 构建，打包后无需安装 Python 即可使用 GUI 与 CLI",
+            "仅供已获授权的教学环境测试使用",
+        ):
             subtitle = BodyLabel(line, hero)
             subtitle.setAlignment(Qt.AlignCenter)
             hero_body.addWidget(subtitle)
         content.addWidget(hero)
 
         self.author_card = AboutInfoCard(
-            "作者", "JasonFang0109c", content_host,
-            url="https://github.com/JasonFang0109c", icon=FIF.GITHUB)
+            "作者",
+            "JasonFang0109c",
+            content_host,
+            url="https://github.com/JasonFang0109c",
+            icon=FIF.GITHUB,
+        )
         content.addWidget(self.author_card)
 
         self.repository_card = AboutDetailCard("仓库信息", content_host)
         self.repository_card.add_row(
-            "repository", "主仓库",
+            "repository",
+            "主仓库",
             "https://github.com/JasonFang0109c/jiyu_attack_next",
-            url="https://github.com/JasonFang0109c/jiyu_attack_next", icon=FIF.GITHUB)
+            url="https://github.com/JasonFang0109c/jiyu_attack_next",
+            icon=FIF.GITHUB,
+        )
         self.repository_card.add_row(
-            "upstream", "上游仓库",
+            "upstream",
+            "上游仓库",
             "https://github.com/ht0Ruial/Jiyu_udp_attack",
-            url="https://github.com/ht0Ruial/Jiyu_udp_attack", icon=FIF.LINK)
+            url="https://github.com/ht0Ruial/Jiyu_udp_attack",
+            icon=FIF.LINK,
+        )
         content.addWidget(self.repository_card)
 
         self.version_card = AboutDetailCard("版本信息", content_host)
         self.version_value = self.version_card.add_row(
-            "version", "版本", version_text(),
-            tooltip="版本号遵循语义化版本，nightly 构建可能带预发布后缀")
+            "version",
+            "版本",
+            version_text(),
+            tooltip="版本号遵循语义化版本，nightly 构建可能带预发布后缀",
+        )
         self.version_value.setObjectName("aboutVersion")
         self.build_time_value = self.version_card.add_row(
-            "build_time", "构建时间", build_time_text(),
-            tooltip="打包 EXE 的时间；源码运行时不会生成构建时间")
+            "build_time",
+            "构建时间",
+            build_time_text(),
+            tooltip="打包 EXE 的时间；源码运行时不会生成构建时间",
+        )
         self.build_time_value.setObjectName("aboutBuildTime")
         content.addWidget(self.version_card)
 
         self.component_card = AboutDetailCard("组件信息", content_host)
-        for title_text, package in [("PySide6", "PySide6"),
-                                    ("Fluent Widgets", "PySide6-Fluent-Widgets")]:
+        for title_text, package in [
+            ("PySide6", "PySide6"),
+            ("Fluent Widgets", "PySide6-Fluent-Widgets"),
+        ]:
             self.component_card.add_row(package, title_text, version(package))
         content.addWidget(self.component_card)
         content.addStretch()

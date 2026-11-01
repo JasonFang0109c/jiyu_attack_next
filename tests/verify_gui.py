@@ -17,7 +17,22 @@ from app.gui import app as gui
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--screenshot", required=True)
-    parser.add_argument("--page", choices=["message", "command", "device", "file", "aliases", "local", "firewall", "logs", "settings", "about"], default="message")
+    parser.add_argument(
+        "--page",
+        choices=[
+            "message",
+            "command",
+            "device",
+            "file",
+            "aliases",
+            "local",
+            "firewall",
+            "logs",
+            "settings",
+            "about",
+        ],
+        default="message",
+    )
     parser.add_argument("--theme", choices=["light", "dark"], default="light")
     parser.add_argument("--sample", action="store_true")
     parser.add_argument("--select-all", action="store_true")
@@ -26,7 +41,9 @@ def main():
     args = parser.parse_args()
     Path(args.screenshot).parent.mkdir(parents=True, exist_ok=True)
 
-    os.environ.setdefault("QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen")
+    os.environ.setdefault(
+        "QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen"
+    )
     app = QApplication(sys.argv)
     gui.configure_application(app)
     if args.theme == "dark":
@@ -34,14 +51,18 @@ def main():
     with contextlib.nullcontext(Path("build") / "verify-gui-data") as data_root:
         data_dir = data_root / gui.DATA_DIRECTORY_NAME
         data_dir.mkdir(parents=True, exist_ok=True)
-        settings = QSettings(str(data_dir / gui.SETTINGS_FILE_NAME), QSettings.IniFormat)
+        settings = QSettings(
+            str(data_dir / gui.SETTINGS_FILE_NAME), QSettings.IniFormat
+        )
         settings.setValue(gui.FIRST_CLOSE_PROMPT_SETTINGS_KEY, True)
         alias_store = gui.DeviceAliasStore(settings=settings)
         window = gui.MainWindow(alias_store=alias_store, data_dir=data_dir)
         window.resize(args.width, args.height)
         if args.sample:
             window.logs.clear()
-            window.pages["message"].editor.setPlainText("维护通知\n\n请保存当前工作，准备进行例行维护。\n维护结束后将另行通知。")
+            window.pages["message"].editor.setPlainText(
+                "维护通知\n\n请保存当前工作，准备进行例行维护。\n维护结束后将另行通知。"
+            )
             window.pages["command"].editor.setPlainText("cmd.exe /c ipconfig")
             if window.alias_store.match("教室 A 讲台") is None:
                 window.alias_store.add("教室 A 讲台", "192.168.1.10")
@@ -63,8 +84,15 @@ def main():
         def capture():
             image = window.grab()
             ok = image.save(args.screenshot, "PNG")
-            print("截图保存%s：%s (%dx%d)" % (
-                "成功" if ok else "失败", args.screenshot, image.width(), image.height()))
+            print(
+                "截图保存%s：%s (%dx%d)"
+                % (
+                    "成功" if ok else "失败",
+                    args.screenshot,
+                    image.width(),
+                    image.height(),
+                )
+            )
             app.exit(0 if ok else 1)
 
         QTimer.singleShot(450, capture)

@@ -29,7 +29,8 @@ class LocalReceiver:
         except OSError as error:
             self.socket.close()
             raise TestFailure(
-                "无法在 %s:%d 监听：%s" % (target, port, error)) from error
+                "无法在 %s:%d 监听：%s" % (target, port, error)
+            ) from error
         self.target, self.port = self.socket.getsockname()[:2]
 
     def collect(self, count, timeout):
@@ -69,7 +70,8 @@ def check_packets(label, packets, expected, kwargs, timeout):
     if len(packets) != expected:
         raise TestFailure(
             "%s：预期收到 %d 个报文，实际收到 %d 个（等待 %.1f 秒）"
-            % (label, expected, len(packets), timeout))
+            % (label, expected, len(packets), timeout)
+        )
     for packet in packets:
         if packet[:4] != b"DMOC":
             raise TestFailure("%s：报文缺少 DMOC 标识" % label)
@@ -121,8 +123,11 @@ def run(target, port, timeout, repeat):
             print("通过：%s（%d 个报文）" % (label, expected))
 
         burst = {"message": "本机连续发送测试"}
-        per_send = len(core.prepare_packets(
-            core.SendOptions(target=receiver.target, port=receiver.port, **burst)))
+        per_send = len(
+            core.prepare_packets(
+                core.SendOptions(target=receiver.target, port=receiver.port, **burst)
+            )
+        )
         for _ in range(repeat):
             send_once(receiver.target, receiver.port, **burst)
         expected = per_send * repeat
@@ -139,18 +144,18 @@ def run(target, port, timeout, repeat):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="向本机 IPv4 地址发送报文并校验回环接收，无需第二台测试设备。")
+        description="向本机 IPv4 地址发送报文并校验回环接收，无需第二台测试设备。"
+    )
+    parser.add_argument("--target", help="本机 IPv4 地址；默认自动检测当前局域网地址")
     parser.add_argument(
-        "--target", help="本机 IPv4 地址；默认自动检测当前局域网地址")
+        "--port", type=int, default=0, help="本机接收端口；默认使用系统分配的空闲端口"
+    )
     parser.add_argument(
-        "--port", type=int, default=0,
-        help="本机接收端口；默认使用系统分配的空闲端口")
+        "--timeout", type=float, default=3.0, help="等待报文到达的秒数，默认 3"
+    )
     parser.add_argument(
-        "--timeout", type=float, default=3.0,
-        help="等待报文到达的秒数，默认 3")
-    parser.add_argument(
-        "--repeat", type=int, default=3,
-        help="连续发送检查的次数，默认 3")
+        "--repeat", type=int, default=3, help="连续发送检查的次数，默认 3"
+    )
     args = parser.parse_args(argv)
 
     if not 0 <= args.port <= 65535:

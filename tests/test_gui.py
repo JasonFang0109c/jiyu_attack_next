@@ -11,10 +11,19 @@ from threading import Event
 from pathlib import Path
 from unittest.mock import patch
 
-os.environ.setdefault("QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen")
+os.environ.setdefault(
+    "QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen"
+)
 
-from PySide6.QtCore import (QCoreApplication, QEvent, QPoint, QPointF, QSettings, Qt,
-                            QTimer)
+from PySide6.QtCore import (
+    QCoreApplication,
+    QEvent,
+    QPoint,
+    QPointF,
+    QSettings,
+    Qt,
+    QTimer,
+)
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QSystemTrayIcon, QWidget
@@ -32,22 +41,28 @@ class GuiTests(unittest.TestCase):
 
     def setUp(self):
         gui.setTheme(Theme.LIGHT)
-        guard = patch.object(socket, "socket", side_effect=AssertionError("禁止真实网络通信"))
+        guard = patch.object(
+            socket, "socket", side_effect=AssertionError("禁止真实网络通信")
+        )
         guard.start()
         self.addCleanup(guard.stop)
         # 用测试名而不是 id(self) 命名：CPython 会复用对象地址，id 命名会让
         # 不同测试共用同一临时目录，残留的 runtime.log 干扰后续断言。
-        self.temp_root = (Path("build") / "jiyu-gui-test"
-                          / self._testMethodName.replace("/", "_"))
+        self.temp_root = (
+            Path("build") / "jiyu-gui-test" / self._testMethodName.replace("/", "_")
+        )
         shutil.rmtree(self.temp_root, ignore_errors=True)
         self.temp_root.mkdir(parents=True, exist_ok=True)
         self.addCleanup(lambda: shutil.rmtree(self.temp_root, ignore_errors=True))
         self.data_dir = self.temp_root / "JiYuAttackNextData"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.settings_path = str(self.data_dir / "settings.ini")
-        self.alias_store = gui.DeviceAliasStore(settings=QSettings(self.settings_path, QSettings.IniFormat))
+        self.alias_store = gui.DeviceAliasStore(
+            settings=QSettings(self.settings_path, QSettings.IniFormat)
+        )
         self.window = gui.MainWindow(
-            alias_store=self.alias_store, data_dir=self.data_dir, enable_tray=False)
+            alias_store=self.alias_store, data_dir=self.data_dir, enable_tray=False
+        )
         self.message = self.window.pages["message"]
         self.command = self.window.pages["command"]
         self.device = self.window.pages["device"]
@@ -76,10 +91,14 @@ class GuiTests(unittest.TestCase):
         """
         self.leave(widget)
         QApplication.sendEvent(widget, QEvent(QEvent.Type.Enter))
-        event = QMouseEvent(QEvent.Type.MouseMove, QPointF(position),
-                            widget.mapToGlobal(QPointF(position)),
-                            Qt.MouseButton.NoButton, Qt.MouseButton.NoButton,
-                            Qt.KeyboardModifier.NoModifier)
+        event = QMouseEvent(
+            QEvent.Type.MouseMove,
+            QPointF(position),
+            widget.mapToGlobal(QPointF(position)),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
         QApplication.sendEvent(widget, event)
         QTest.qWait(30)
 
@@ -91,7 +110,9 @@ class GuiTests(unittest.TestCase):
     def dispose_window(self):
         self.window.close()
         if self.window.thread is not None:
-            self.wait_for(lambda: self.window.thread is None and not self.window.isVisible())
+            self.wait_for(
+                lambda: self.window.thread is None and not self.window.isVisible()
+            )
         self.window.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
         self.application.processEvents()
@@ -112,16 +133,21 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.message.footer.status.text(), "")
         about = self.window.pages["about"]
         self.assertEqual(about.objectName(), "about")
-        links = [button.getUrl().toString() for button in about.findChildren(gui.HyperlinkButton)]
+        links = [
+            button.getUrl().toString()
+            for button in about.findChildren(gui.HyperlinkButton)
+        ]
         self.assertIn("https://github.com/JasonFang0109c", links)
         self.assertIn("https://github.com/JasonFang0109c/jiyu_attack_next", links)
         self.assertIn("https://github.com/ht0Ruial/Jiyu_udp_attack", links)
-        self.assertNotIn("https://github.com/JasonFang0109c", [
-            button.text() for button in about.findChildren(gui.HyperlinkButton)
-        ])
-        self.assertIn("JasonFang0109c", [
-            button.text() for button in about.findChildren(gui.HyperlinkButton)
-        ])
+        self.assertNotIn(
+            "https://github.com/JasonFang0109c",
+            [button.text() for button in about.findChildren(gui.HyperlinkButton)],
+        )
+        self.assertIn(
+            "JasonFang0109c",
+            [button.text() for button in about.findChildren(gui.HyperlinkButton)],
+        )
         self.assertEqual(about.author_card.objectName(), "aboutInfoCard")
         self.assertEqual(about.author_card.borderRadius, 12)
         self.assertEqual(about.author_card.detail.text(), "JasonFang0109c")
@@ -132,6 +158,7 @@ class GuiTests(unittest.TestCase):
 
     def test_about_page_groups_version_and_repository_info(self):
         from app.gui import build_info
+
         about = self.window.pages["about"]
         # 版本与构建时间合并到“版本信息”，组件版本改名为“组件信息”。
         self.assertEqual(about.version_card.heading.text(), "版本信息")
@@ -142,14 +169,19 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(about.build_time_value.text(), "源码运行")
         self.assertEqual(about.build_time_value.objectName(), "aboutBuildTime")
         self.assertEqual(
-            [label.text() for label in about.version_card.findChildren(gui.CaptionLabel)][::2],
-            ["版本", "构建时间"])
+            [
+                label.text()
+                for label in about.version_card.findChildren(gui.CaptionLabel)
+            ][::2],
+            ["版本", "构建时间"],
+        )
         self.assertEqual(about.component_card.heading.text(), "组件信息")
         self.assertEqual(about.component_card.objectName(), "aboutDetailCard")
         self.assertIn("PySide6", about.component_card.rows)
         self.assertIn("PySide6-Fluent-Widgets", about.component_card.rows)
-        self.assertNotIn("组件版本", [
-            label.text() for label in about.findChildren(BodyLabel)])
+        self.assertNotIn(
+            "组件版本", [label.text() for label in about.findChildren(BodyLabel)]
+        )
 
     def show_about_page(self):
         """关于页放在 stacked 容器中，未切换过去时几何信息无效。"""
@@ -175,8 +207,11 @@ class GuiTests(unittest.TestCase):
         for card in (about.repository_card, about.version_card, about.component_card):
             for widget in card.rows.values():
                 # 下划线位于按钮下缘，高度小于 sizeHint 就会被裁掉。
-                self.assertGreaterEqual(widget.height(), widget.sizeHint().height(),
-                                        widget.text() if hasattr(widget, "text") else "")
+                self.assertGreaterEqual(
+                    widget.height(),
+                    widget.sizeHint().height(),
+                    widget.text() if hasattr(widget, "text") else "",
+                )
 
     def test_about_heading_sits_further_from_rows_than_rows_do(self):
         about = self.show_about_page()
@@ -207,7 +242,9 @@ class GuiTests(unittest.TestCase):
             "仅供已获授权的教学环境测试使用",
         ):
             self.assertIn(line, texts)
-        readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+        readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+            encoding="utf-8"
+        )
         for line in texts:
             self.assertIn(line, readme)
 
@@ -215,31 +252,38 @@ class GuiTests(unittest.TestCase):
         about = self.window.pages["about"]
         self.assertEqual(about.repository_card.heading.text(), "仓库信息")
         self.assertEqual(about.repository_card.objectName(), "aboutDetailCard")
-        self.assertEqual(
-            sorted(about.repository_card.rows),
-            ["repository", "upstream"])
+        self.assertEqual(sorted(about.repository_card.rows), ["repository", "upstream"])
         self.assertEqual(
             about.repository_card.rows["repository"].getUrl().toString(),
-            "https://github.com/JasonFang0109c/jiyu_attack_next")
+            "https://github.com/JasonFang0109c/jiyu_attack_next",
+        )
         self.assertEqual(
             about.repository_card.rows["upstream"].getUrl().toString(),
-            "https://github.com/ht0Ruial/Jiyu_udp_attack")
-        self.assertNotIn("GitHub 仓库", [
-            label.text() for label in about.findChildren(BodyLabel)])
+            "https://github.com/ht0Ruial/Jiyu_udp_attack",
+        )
+        self.assertNotIn(
+            "GitHub 仓库", [label.text() for label in about.findChildren(BodyLabel)]
+        )
 
     def test_build_time_comes_from_bundle_asset(self):
         from app.gui import build_info
+
         self.assertEqual(build_info.build_time_text(), "源码运行")
         time_file = self.temp_root / "bundle" / build_info.BUILD_TIME_FILE_NAME
         build_info.write_build_time(time_file)
         with patch.object(gui.sys, "_MEIPASS", str(time_file.parent), create=True):
-            self.assertRegex(build_info.build_time_text(), r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
-        with patch.object(gui.sys, "_MEIPASS", str(self.temp_root / "missing"), create=True):
+            self.assertRegex(
+                build_info.build_time_text(), r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$"
+            )
+        with patch.object(
+            gui.sys, "_MEIPASS", str(self.temp_root / "missing"), create=True
+        ):
             self.assertEqual(build_info.build_time_text(), "源码运行")
 
     def test_version_comes_from_bundle_asset(self):
         from app.gui import build_info
         from app import __version__
+
         self.assertEqual(build_info.version_text(), __version__)
         version_file = self.temp_root / "bundle" / build_info.VERSION_FILE_NAME
         build_info.write_version(version_file, "9.9.9")
@@ -264,7 +308,10 @@ class GuiTests(unittest.TestCase):
         menu_center = menu.mapTo(self.window, menu.rect().center()).y()
         icon_center = icon.mapTo(self.window, icon.rect().center()).y()
         self.assertLessEqual(abs(menu_center - icon_center), 1)
-        gap = icon.mapTo(self.window, icon.rect().topLeft()).x() - menu.mapTo(self.window, menu.rect().topRight()).x()
+        gap = (
+            icon.mapTo(self.window, icon.rect().topLeft()).x()
+            - menu.mapTo(self.window, menu.rect().topRight()).x()
+        )
         self.assertGreaterEqual(gap, 5)
 
     def test_sidebar_routes_preserve_drafts(self):
@@ -278,9 +325,10 @@ class GuiTests(unittest.TestCase):
 
     def test_device_alias_can_be_added_edited_used_and_removed(self):
         page = self.window.pages["aliases"]
-        self.assertEqual(page.info_button.toolTip(),
-                         "备注名可直接用作目标；支持 IPv4、末段范围和 /24，"
-                         "修改后同步引用。")
+        self.assertEqual(
+            page.info_button.toolTip(),
+            "备注名可直接用作目标；支持 IPv4、末段范围和 /24，" "修改后同步引用。",
+        )
         self.assertEqual(page.info_button.size().width(), 28)
         page.name_input.setText("教室 A")
         for edit, text in zip(page.address_input.segments, ("192", "168", "1", "10")):
@@ -301,10 +349,14 @@ class GuiTests(unittest.TestCase):
             edit.setText(text)
         page.save_button.click()
         self.assertEqual(self.state.values["target"], "一号机房")
-        self.assertEqual(self.alias_store.match("一号机房"), ("一号机房", "192.168.1.11"))
+        self.assertEqual(
+            self.alias_store.match("一号机房"), ("一号机房", "192.168.1.11")
+        )
         self.assertEqual(self.message.targets.target_input.text(), "192.168.1.11")
-        self.assertEqual([edit.text() for edit in self.message.targets.target_input.segments],
-                         ["192", "168", "1", "11"])
+        self.assertEqual(
+            [edit.text() for edit in self.message.targets.target_input.segments],
+            ["192", "168", "1", "11"],
+        )
 
         page.table.setCurrentCell(0, 0)
         with patch.object(gui.Dialog, "exec", return_value=1):
@@ -318,10 +370,14 @@ class GuiTests(unittest.TestCase):
         for edit, text in zip(page.address_input.segments, ("10", "0", "0", "1-10")):
             edit.setText(text)
         page.save_button.click()
-        self.assertEqual(self.alias_store.match("机房范围"), ("机房范围", "10.0.0.1-10"))
+        self.assertEqual(
+            self.alias_store.match("机房范围"), ("机房范围", "10.0.0.1-10")
+        )
         self.assertEqual(page.table.item(0, 1).text(), "10.0.0.1-10")
 
-        reloaded = gui.DeviceAliasStore(settings=QSettings(self.settings_path, QSettings.IniFormat))
+        reloaded = gui.DeviceAliasStore(
+            settings=QSettings(self.settings_path, QSettings.IniFormat)
+        )
         self.assertEqual(reloaded.match("机房范围"), ("机房范围", "10.0.0.1-10"))
         self.state.set_value("target", "机房范围")
         options = self.window._options_for_page("message")
@@ -351,9 +407,17 @@ class GuiTests(unittest.TestCase):
     def test_portable_paths_are_based_on_executable_directory(self):
         executable = Path(self.temp_root) / "portable" / "JiYuAttackNext.exe"
         data_dir = models.portable_data_dir(executable)
-        self.assertEqual(data_dir, executable.parent.resolve() / models.DATA_DIRECTORY_NAME)
-        self.assertEqual(models.portable_log_path(data_dir), data_dir / models.LOG_FILE_NAME)
-        self.assertTrue(models.portable_settings(data_dir).fileName().endswith(models.SETTINGS_FILE_NAME))
+        self.assertEqual(
+            data_dir, executable.parent.resolve() / models.DATA_DIRECTORY_NAME
+        )
+        self.assertEqual(
+            models.portable_log_path(data_dir), data_dir / models.LOG_FILE_NAME
+        )
+        self.assertTrue(
+            models.portable_settings(data_dir)
+            .fileName()
+            .endswith(models.SETTINGS_FILE_NAME)
+        )
 
     def test_runtime_logs_are_persisted_and_loaded(self):
         self.window.logs.clear()
@@ -418,8 +482,10 @@ class GuiTests(unittest.TestCase):
             dialog.deleteLater()
         targets.state.set_value("target", "一号机房")
         self.assertEqual(targets.target_input.text(), "192.168.1.11")
-        self.assertEqual([edit.text() for edit in targets.target_input.segments],
-                         ["192", "168", "1", "11"])
+        self.assertEqual(
+            [edit.text() for edit in targets.target_input.segments],
+            ["192", "168", "1", "11"],
+        )
         self.assertIn("192.168.1.11", targets.alias_hint.text())
 
     def test_device_picker_handles_no_aliases(self):
@@ -436,8 +502,10 @@ class GuiTests(unittest.TestCase):
         self.command.targets.interval_input.setValue(0.5)
         for page in self.window.network_pages:
             self.assertEqual(page.targets.target_input.text(), "10.0.0.8")
-            self.assertEqual([edit.text() for edit in page.targets.target_input.segments],
-                             ["10", "0", "0", "8"])
+            self.assertEqual(
+                [edit.text() for edit in page.targets.target_input.segments],
+                ["10", "0", "0", "8"],
+            )
             self.assertEqual(page.targets.port_input.value(), 8800)
             self.assertEqual(page.targets.loop_input.value(), 3)
             self.assertEqual(page.targets.interval_input.value(), 0.5)
@@ -463,8 +531,12 @@ class GuiTests(unittest.TestCase):
         message = self.window._options_for_page("message")
         command = self.window._options_for_page("command")
         device = self.window._options_for_page("device")
-        self.assertEqual((message.message, message.command, message.extra), ("通知", "", ""))
-        self.assertEqual((command.message, command.command, command.extra), ("", "whoami", ""))
+        self.assertEqual(
+            (message.message, message.command, message.extra), ("通知", "", "")
+        )
+        self.assertEqual(
+            (command.message, command.command, command.extra), ("", "whoami", "")
+        )
         self.assertEqual((device.message, device.command, device.extra), ("", "", "s"))
         self.assertFalse(self.device.reboot.isChecked())
         self.device.logoff.setChecked(True)
@@ -473,7 +545,9 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.window._options_for_page("device").extra, "l")
 
     def test_target_preview_is_local_parsing_only(self):
-        with patch.object(gui.core, "get_ip", return_value=["模拟目标甲", "模拟目标乙"]):
+        with patch.object(
+            gui.core, "get_ip", return_value=["模拟目标甲", "模拟目标乙"]
+        ):
             self.state.set_value("target", "模拟范围")
         self.assertEqual(self.device.preview.rowCount(), 2)
         self.assertEqual(self.device.preview.item(1, 0).text(), "模拟目标乙")
@@ -493,8 +567,11 @@ class GuiTests(unittest.TestCase):
                 self.assertTrue(self.window.rect().contains(point))
         self.window.show_page("message")
         self.application.processEvents()
-        for spin in [self.message.targets.port_input, self.message.targets.loop_input,
-                     self.message.targets.interval_input]:
+        for spin in [
+            self.message.targets.port_input,
+            self.message.targets.loop_input,
+            self.message.targets.interval_input,
+        ]:
             self.assertGreater(spin.lineEdit().width(), 30)
         self.message.targets.port_input.setValue(65535)
         self.message.targets.loop_input.setValue(10000)
@@ -540,20 +617,36 @@ class GuiTests(unittest.TestCase):
         self.state.set_value("target", "192.168.1.10")
         self.assertEqual(page.selected_items(), [(str(source.resolve()), "报告.txt")])
 
-        def fake_transfer(target, port, path, listen_ip, timeout, cancel_event=None,
-                          report=None, items=None):
+        def fake_transfer(
+            target,
+            port,
+            path,
+            listen_ip,
+            timeout,
+            cancel_event=None,
+            report=None,
+            items=None,
+        ):
             report("目标正在下载文件：50%")
             report("目标正在下载文件：100%")
-            return {"name": "报告.txt", "size": 8, "target": target,
-                    "listen_ip": listen_ip, "file_count": 1}
+            return {
+                "name": "报告.txt",
+                "size": 8,
+                "target": target,
+                "listen_ip": listen_ip,
+                "file_count": 1,
+            }
 
         with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
-            with patch.object(gui.core, "transfer_file", side_effect=fake_transfer) as transfer:
+            with patch.object(
+                gui.core, "transfer_file", side_effect=fake_transfer
+            ) as transfer:
                 self.window.start_file_transfer()
                 self.wait_for(lambda: self.window.thread is None)
         transfer.assert_called_once()
-        self.assertEqual(transfer.call_args.kwargs["items"],
-                         [(str(source.resolve()), "报告.txt")])
+        self.assertEqual(
+            transfer.call_args.kwargs["items"], [(str(source.resolve()), "报告.txt")]
+        )
         self.assertEqual(page.progress.value(), 100)
         self.assertIn("文件已传送到目标桌面", page.footer.status.text())
         self.assertEqual(self.window.logs.entries[-1].category, "文件传送")
@@ -570,7 +663,11 @@ class GuiTests(unittest.TestCase):
         def click_dialog(button_name):
             modal = QApplication.activeModalWidget()
             dialog = modal or next(
-                (widget for widget in self.window.findChildren(QDialog) if widget.isVisible()),
+                (
+                    widget
+                    for widget in self.window.findChildren(QDialog)
+                    if widget.isVisible()
+                ),
                 None,
             )
             dialogs.append((dialog, modal is dialog))
@@ -584,10 +681,17 @@ class GuiTests(unittest.TestCase):
         self.confirm_patcher.stop()
         try:
             with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
-                with patch.object(gui.core, "transfer_file", return_value={
-                        "name": source.name, "size": source.stat().st_size,
-                        "target": "模拟目标", "listen_ip": "127.0.0.1",
-                        "file_count": 1}) as transfer:
+                with patch.object(
+                    gui.core,
+                    "transfer_file",
+                    return_value={
+                        "name": source.name,
+                        "size": source.stat().st_size,
+                        "target": "模拟目标",
+                        "listen_ip": "127.0.0.1",
+                        "file_count": 1,
+                    },
+                ) as transfer:
                     QTimer.singleShot(150, lambda: click_dialog("yesButton"))
                     self.window.start_file_transfer()
                     self.wait_for(lambda: self.window.thread is None)
@@ -619,11 +723,17 @@ class GuiTests(unittest.TestCase):
         page.add_paths([folder, single])
         self.assertEqual(len(page.items), 3)
         self.assertEqual(page.tree.topLevelItemCount(), 2)
-        self.assertEqual(page.selected_items(), [
-            (str((folder / "第二章" / "示例.docx").resolve()), "课件/第二章/示例.docx"),
-            (str((folder / "说明.txt").resolve()), "课件/说明.txt"),
-            (str(single.resolve()), "通知.txt"),
-        ])
+        self.assertEqual(
+            page.selected_items(),
+            [
+                (
+                    str((folder / "第二章" / "示例.docx").resolve()),
+                    "课件/第二章/示例.docx",
+                ),
+                (str((folder / "说明.txt").resolve()), "课件/说明.txt"),
+                (str(single.resolve()), "通知.txt"),
+            ],
+        )
         self.assertEqual(page.select_all_checkbox.checkState(), Qt.Checked)
         self.assertTrue(page.footer.send_button.isEnabled())
         self.assertTrue(page.delete_button.isEnabled())
@@ -635,17 +745,23 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(page.tree.headerItem().text(0), "名称")
         self.assertEqual(page.select_all_checkbox.size().width(), 16)
         self.assertEqual(page.select_all_checkbox.size().height(), 16)
-        self.assertEqual(page.select_all_checkbox.objectName(),
-                         "fileTreeSelectAllCheckbox")
+        self.assertEqual(
+            page.select_all_checkbox.objectName(), "fileTreeSelectAllCheckbox"
+        )
         self.assertIs(page.info_button.parent(), page)
-        self.assertEqual(page.info_button.toolTip(),
-                         "勾选项发送到目标桌面并保留文件夹结构；"
-                         "目标需支持远程命令和 curl。")
+        self.assertEqual(
+            page.info_button.toolTip(),
+            "勾选项发送到目标桌面并保留文件夹结构；" "目标需支持远程命令和 curl。",
+        )
         self.assertEqual(page.info_button.size().width(), 28)
         self.assertEqual(page.info_button.size().height(), 28)
-        self.assertTrue(all(Qt.CheckState(item.data(0, Qt.CheckStateRole)) == Qt.Checked
-                            and item.icon(0).isNull()
-                            for item in page._file_items()))
+        self.assertTrue(
+            all(
+                Qt.CheckState(item.data(0, Qt.CheckStateRole)) == Qt.Checked
+                and item.icon(0).isNull()
+                for item in page._file_items()
+            )
+        )
 
         page.select_all_checkbox.click()
         self.assertEqual(page.selected_items(), [])
@@ -675,9 +791,14 @@ class GuiTests(unittest.TestCase):
             button = self.window.pages[key].info_button
             self.hover(button, button.rect().center())
             QTest.qWait(400)
-            visible_tips = [widget for widget in QApplication.topLevelWidgets()
-                            if isinstance(widget, ToolTip) and widget.isVisible()]
-            self.assertTrue(any(tip.text() == button.toolTip() for tip in visible_tips), key)
+            visible_tips = [
+                widget
+                for widget in QApplication.topLevelWidgets()
+                if isinstance(widget, ToolTip) and widget.isVisible()
+            ]
+            self.assertTrue(
+                any(tip.text() == button.toolTip() for tip in visible_tips), key
+            )
             self.leave(button)
 
     def test_file_tree_toggles_icon_and_checkbox_on_hover(self):
@@ -688,14 +809,20 @@ class GuiTests(unittest.TestCase):
         folder.mkdir()
         (folder / "nested.txt").write_text("nested", encoding="utf-8")
         page.add_paths([path, folder])
-        item = next(item for item in page._file_items()
-                    if item.data(0, Qt.UserRole)[1] == "hover.txt")
+        item = next(
+            item
+            for item in page._file_items()
+            if item.data(0, Qt.UserRole)[1] == "hover.txt"
+        )
         item.setCheckState(0, Qt.Unchecked)
         self.assertIsNone(item.data(0, Qt.CheckStateRole))
         self.assertFalse(item.icon(0).isNull())
 
-        folder_item = next(item for item in page._all_visible_items()
-                           if item.data(0, Qt.UserRole) == ("dir", "hover-folder"))
+        folder_item = next(
+            item
+            for item in page._all_visible_items()
+            if item.data(0, Qt.UserRole) == ("dir", "hover-folder")
+        )
         folder_item.setCheckState(0, Qt.Unchecked)
         self.assertIsNone(folder_item.data(0, Qt.CheckStateRole))
         self.assertFalse(folder_item.icon(0).isNull())
@@ -755,8 +882,9 @@ class GuiTests(unittest.TestCase):
                 item.setCheckState(0, Qt.Checked)
         removed = page.remove_selected()
         self.assertEqual([relative for _, relative, _ in removed], ["保留.txt"])
-        self.assertEqual([relative for _, relative, _ in page.items],
-                         ["素材/a.bin", "素材/b.bin"])
+        self.assertEqual(
+            [relative for _, relative, _ in page.items], ["素材/a.bin", "素材/b.bin"]
+        )
         self.assertTrue((single).exists())
         self.assertTrue(page.has_files())
 
@@ -777,23 +905,41 @@ class GuiTests(unittest.TestCase):
         folder_item = page.tree.topLevelItem(0)
         for index in range(folder_item.childCount()):
             child = folder_item.child(index)
-            child.setCheckState(0, Qt.Checked if child.text(0) == "b.txt" else Qt.Unchecked)
+            child.setCheckState(
+                0, Qt.Checked if child.text(0) == "b.txt" else Qt.Unchecked
+            )
         self.state.set_value("target", "192.168.1.10")
         captured = {}
 
-        def fake_transfer(target, port, path, listen_ip, timeout, cancel_event=None,
-                          report=None, items=None):
+        def fake_transfer(
+            target,
+            port,
+            path,
+            listen_ip,
+            timeout,
+            cancel_event=None,
+            report=None,
+            items=None,
+        ):
             captured["items"] = items
-            return {"name": "1 个文件", "size": 2, "target": target,
-                    "listen_ip": listen_ip, "file_count": 1}
+            return {
+                "name": "1 个文件",
+                "size": 2,
+                "target": target,
+                "listen_ip": listen_ip,
+                "file_count": 1,
+            }
 
         with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
-            with patch.object(gui.core, "transfer_file", side_effect=fake_transfer) as transfer:
+            with patch.object(
+                gui.core, "transfer_file", side_effect=fake_transfer
+            ) as transfer:
                 self.window.start_file_transfer()
                 self.wait_for(lambda: self.window.thread is None)
         transfer.assert_called_once()
-        self.assertEqual(captured["items"],
-                         [(str((folder / "b.txt").resolve()), "选中测试/b.txt")])
+        self.assertEqual(
+            captured["items"], [(str((folder / "b.txt").resolve()), "选中测试/b.txt")]
+        )
         self.assertIn("1 个文件", page.footer.status.text())
 
     def test_file_transfer_requires_checked_tree_items(self):
@@ -821,8 +967,16 @@ class GuiTests(unittest.TestCase):
 
         requested = []
 
-        def fake_transfer(target, port, path, listen_ip, timeout, cancel_event=None,
-                          report=None, items=None):
+        def fake_transfer(
+            target,
+            port,
+            path,
+            listen_ip,
+            timeout,
+            cancel_event=None,
+            report=None,
+            items=None,
+        ):
             requested.append(target)
             report("目标 1/2（192.168.1.1）正在下载文件：100%")
             return {
@@ -836,7 +990,9 @@ class GuiTests(unittest.TestCase):
                 "file_count": 1,
             }
 
-        with patch.object(gui.core, "transfer_file", side_effect=fake_transfer) as transfer:
+        with patch.object(
+            gui.core, "transfer_file", side_effect=fake_transfer
+        ) as transfer:
             self.window.start_file_transfer()
             self.wait_for(lambda: self.window.thread is None)
         transfer.assert_called_once()
@@ -854,7 +1010,9 @@ class GuiTests(unittest.TestCase):
             return 2
 
         with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
-            with patch.object(gui.core, "execute_send", side_effect=fake_send) as runner:
+            with patch.object(
+                gui.core, "execute_send", side_effect=fake_send
+            ) as runner:
                 self.message.footer.send_button.click()
                 self.assertTrue(self.command.footer.send_button.isEnabled())
                 self.assertIn("可继续加入队列", self.command.footer.status.text())
@@ -890,9 +1048,11 @@ class GuiTests(unittest.TestCase):
                 self.assertEqual(len(self.window._task_queue), 1)
                 self.assertIn("已加入队列", self.message.footer.status.text())
                 release.set()
-                self.wait_for(lambda: self.window.thread is None
-                              and not self.window._task_queue
-                              and len(calls) == 2)
+                self.wait_for(
+                    lambda: self.window.thread is None
+                    and not self.window._task_queue
+                    and len(calls) == 2
+                )
         self.assertEqual(calls, ["第一条", "第二条"])
 
     def test_cancel_also_drops_queued_remote_requests(self):
@@ -925,7 +1085,9 @@ class GuiTests(unittest.TestCase):
         self.state.set_value("target", "192.168.1.10")
         self.command.editor.setPlainText("whoami")
         with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
-            with patch.object(gui.core, "execute_send", side_effect=OSError("模拟错误")):
+            with patch.object(
+                gui.core, "execute_send", side_effect=OSError("模拟错误")
+            ):
                 self.window.start_send("command")
                 self.wait_for(lambda: self.window.thread is None)
         self.assertIn("模拟错误", self.command.footer.status.text())
@@ -943,7 +1105,9 @@ class GuiTests(unittest.TestCase):
         self.confirm.assert_called_once()
 
     def test_local_query_uses_background_task(self):
-        with patch.object(gui, "probe_local", return_value=("模拟本机", ["4705"])) as probe:
+        with patch.object(
+            gui, "probe_local", return_value=("模拟本机", ["4705"])
+        ) as probe:
             self.window.start_local_probe()
             self.wait_for(lambda: self.window.thread is None)
         probe.assert_called_once()
@@ -951,7 +1115,9 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.window.pages["local"].port_table.rowCount(), 1)
 
     def test_apply_firewall_uses_on_demand_elevation(self):
-        with patch.object(gui.core, "request_firewall_rule", return_value=[]) as request:
+        with patch.object(
+            gui.core, "request_firewall_rule", return_value=[]
+        ) as request:
             self.assertEqual(gui.apply_firewall("block"), [])
         request.assert_called_once_with("block")
 
@@ -967,16 +1133,18 @@ class GuiTests(unittest.TestCase):
 
     def test_firewall_result_keeps_multiline_utf8_output_readable(self):
         page = self.window.pages["firewall"]
-        page.set_result([
-            {
-                "command": "netsh advfirewall firewall set rule name=StudentMain.exe new action=block",
-                "code": 0,
-                "stdout": "已更新 6 规则。\n确定。",
-                "stderr": "",
-                "success": True,
-                "detail": "",
-            }
-        ])
+        page.set_result(
+            [
+                {
+                    "command": "netsh advfirewall firewall set rule name=StudentMain.exe new action=block",
+                    "code": 0,
+                    "stdout": "已更新 6 规则。\n确定。",
+                    "stderr": "",
+                    "success": True,
+                    "detail": "",
+                }
+            ]
+        )
         self.assertEqual(page.result_table.item(0, 0).text(), "目标规则")
         self.assertEqual(page.result_table.item(0, 1).text(), "成功")
         self.assertEqual(page.result_table.item(0, 2).text(), "已更新 6 规则。\n确定。")
@@ -1003,11 +1171,17 @@ class GuiTests(unittest.TestCase):
         page = self.window.pages["logs"]
         self.window.show_page("logs")
         QTest.qWait(120)
-        for button in (page.select_all_checkbox, page.export_button,
-                       page.delete_button, page.level_filter):
+        for button in (
+            page.select_all_checkbox,
+            page.export_button,
+            page.delete_button,
+            page.level_filter,
+        ):
             self.assertTrue(button.isVisible(), button.objectName() or button.text())
-        self.assertIs(page.select_all_checkbox.parentWidget(),
-                      page.table.horizontalHeader().viewport())
+        self.assertIs(
+            page.select_all_checkbox.parentWidget(),
+            page.table.horizontalHeader().viewport(),
+        )
         self.assertFalse(hasattr(page, "select_all_button"))
         self.assertFalse(hasattr(page, "runtime_level"))
         self.assertGreaterEqual(page.table.columnWidth(1), 180)
@@ -1017,7 +1191,10 @@ class GuiTests(unittest.TestCase):
         settings = self.window.pages["settings"]
         self.assertTrue(settings.log_level_box.isVisible())
         hints = [label.text() for label in settings.findChildren(gui.CaptionLabel)]
-        self.assertNotIn("选择本次运行写入的最低日志等级，低于该等级的记录不会出现在日志页和日志文件中。", hints)
+        self.assertNotIn(
+            "选择本次运行写入的最低日志等级，低于该等级的记录不会出现在日志页和日志文件中。",
+            hints,
+        )
 
     def test_uncaught_exception_is_written_to_runtime_log(self):
         previous_stderr = sys.stderr
@@ -1136,7 +1313,9 @@ class GuiTests(unittest.TestCase):
             "level": "警告",
             "message": "旧格式记录",
         }
-        log_path.write_text(json.dumps(legacy, ensure_ascii=False) + "\n", encoding="utf-8")
+        log_path.write_text(
+            json.dumps(legacy, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
         store = models.LogStore(log_path=log_path)
         self.assertEqual(store.entries[0].level, models.LogLevel.WARNING)
         store.info("应用", "新格式记录")
@@ -1144,8 +1323,9 @@ class GuiTests(unittest.TestCase):
         self.assertIn("WARNING", text)
         self.assertIn("INFO", text)
         self.assertIn("旧格式记录", text)
-        self.assertEqual(models.LogStore(log_path=log_path).entries[0].level,
-                         models.LogLevel.WARNING)
+        self.assertEqual(
+            models.LogStore(log_path=log_path).entries[0].level, models.LogLevel.WARNING
+        )
 
     def test_settings_show_close_behavior_above_log_level(self):
         settings_page = self.window.pages["settings"]
@@ -1168,7 +1348,8 @@ class GuiTests(unittest.TestCase):
     def test_close_behavior_switch_persists_and_defaults_to_tray(self):
         window = gui.MainWindow(
             alias_store=gui.DeviceAliasStore(
-                settings=QSettings(self.settings_path, QSettings.IniFormat)),
+                settings=QSettings(self.settings_path, QSettings.IniFormat)
+            ),
             data_dir=self.data_dir,
         )
         try:
@@ -1183,18 +1364,22 @@ class GuiTests(unittest.TestCase):
             window.deleteLater()
         self.assertEqual(
             QSettings(self.settings_path, QSettings.IniFormat).value(
-                models.CLOSE_BEHAVIOR_SETTINGS_KEY),
+                models.CLOSE_BEHAVIOR_SETTINGS_KEY
+            ),
             models.CLOSE_BEHAVIOR_QUIT,
         )
         reloaded = gui.MainWindow(
             alias_store=gui.DeviceAliasStore(
-                settings=QSettings(self.settings_path, QSettings.IniFormat)),
+                settings=QSettings(self.settings_path, QSettings.IniFormat)
+            ),
             data_dir=self.data_dir,
             enable_tray=False,
         )
         try:
             self.assertEqual(reloaded.close_behavior, models.CLOSE_BEHAVIOR_QUIT)
-            self.assertFalse(reloaded.pages["settings"].close_behavior_switch.isChecked())
+            self.assertFalse(
+                reloaded.pages["settings"].close_behavior_switch.isChecked()
+            )
         finally:
             reloaded._quit_requested = True
             reloaded.close()
@@ -1239,16 +1424,20 @@ class GuiTests(unittest.TestCase):
             with patch.object(gui.core, "execute_send", side_effect=cancellable_send):
                 self.window.start_send("message")
                 self.window.close()
-                self.wait_for(lambda: self.window.thread is None and not self.window.isVisible())
+                self.wait_for(
+                    lambda: self.window.thread is None and not self.window.isVisible()
+                )
         self.assertTrue(self.window.close_after_task)
-        self.assertTrue(any(entry.message == "操作已取消"
-                            for entry in self.window.logs.entries))
+        self.assertTrue(
+            any(entry.message == "操作已取消" for entry in self.window.logs.entries)
+        )
         self.assertEqual(self.window.logs.entries[-1].message, "应用退出")
 
     def test_close_hides_to_tray_when_tray_mode_is_enabled(self):
         window = gui.MainWindow(
             alias_store=gui.DeviceAliasStore(
-                settings=QSettings(self.settings_path, QSettings.IniFormat)),
+                settings=QSettings(self.settings_path, QSettings.IniFormat)
+            ),
             data_dir=self.data_dir,
             enable_tray=False,
         )
@@ -1270,7 +1459,8 @@ class GuiTests(unittest.TestCase):
     def test_first_close_can_minimize_to_tray_and_prompts_only_once(self):
         window = gui.MainWindow(
             alias_store=gui.DeviceAliasStore(
-                settings=QSettings(self.settings_path, QSettings.IniFormat)),
+                settings=QSettings(self.settings_path, QSettings.IniFormat)
+            ),
             data_dir=self.data_dir,
             enable_tray=False,
         )
@@ -1285,8 +1475,11 @@ class GuiTests(unittest.TestCase):
             self.assertFalse(window.isVisible())
             self.assertEqual(window.close_behavior, models.CLOSE_BEHAVIOR_TRAY)
             self.assertTrue(window.first_close_prompt_shown)
-            self.assertTrue(QSettings(self.settings_path, QSettings.IniFormat).value(
-                models.FIRST_CLOSE_PROMPT_SETTINGS_KEY, False, type=bool))
+            self.assertTrue(
+                QSettings(self.settings_path, QSettings.IniFormat).value(
+                    models.FIRST_CLOSE_PROMPT_SETTINGS_KEY, False, type=bool
+                )
+            )
 
             window.show()
             with patch.object(gui.Dialog, "exec") as second_prompt:
@@ -1295,7 +1488,8 @@ class GuiTests(unittest.TestCase):
             self.assertFalse(window.isVisible())
             reloaded = gui.MainWindow(
                 alias_store=gui.DeviceAliasStore(
-                    settings=QSettings(self.settings_path, QSettings.IniFormat)),
+                    settings=QSettings(self.settings_path, QSettings.IniFormat)
+                ),
                 data_dir=self.data_dir,
                 enable_tray=False,
             )
@@ -1313,7 +1507,8 @@ class GuiTests(unittest.TestCase):
     def test_first_close_can_choose_direct_exit(self):
         window = gui.MainWindow(
             alias_store=gui.DeviceAliasStore(
-                settings=QSettings(self.settings_path, QSettings.IniFormat)),
+                settings=QSettings(self.settings_path, QSettings.IniFormat)
+            ),
             data_dir=self.data_dir,
             enable_tray=False,
         )
@@ -1329,8 +1524,11 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(window.close_behavior, models.CLOSE_BEHAVIOR_QUIT)
             self.assertTrue(window.first_close_prompt_shown)
             self.assertIsNone(window.tray_icon)
-            self.assertTrue(QSettings(self.settings_path, QSettings.IniFormat).value(
-                models.FIRST_CLOSE_PROMPT_SETTINGS_KEY, False, type=bool))
+            self.assertTrue(
+                QSettings(self.settings_path, QSettings.IniFormat).value(
+                    models.FIRST_CLOSE_PROMPT_SETTINGS_KEY, False, type=bool
+                )
+            )
         finally:
             window._quit_requested = True
             window.close()
@@ -1339,7 +1537,8 @@ class GuiTests(unittest.TestCase):
     def test_close_quit_mode_exits_and_stops_tray(self):
         window = gui.MainWindow(
             alias_store=gui.DeviceAliasStore(
-                settings=QSettings(self.settings_path, QSettings.IniFormat)),
+                settings=QSettings(self.settings_path, QSettings.IniFormat)
+            ),
             data_dir=self.data_dir,
             enable_tray=False,
         )
@@ -1361,7 +1560,8 @@ class GuiTests(unittest.TestCase):
     def test_tray_menu_shows_window_and_quits(self):
         window = gui.MainWindow(
             alias_store=gui.DeviceAliasStore(
-                settings=QSettings(self.settings_path, QSettings.IniFormat)),
+                settings=QSettings(self.settings_path, QSettings.IniFormat)
+            ),
             data_dir=self.data_dir,
             enable_tray=False,
         )
@@ -1384,7 +1584,9 @@ class GuiTests(unittest.TestCase):
 class SingleInstanceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        os.environ.setdefault("QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen")
+        os.environ.setdefault(
+            "QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen"
+        )
         cls.application = QApplication.instance() or QApplication([])
 
     def test_second_instance_notifies_primary(self):

@@ -15,9 +15,8 @@ class FilePage(Page):
         self._syncing = False
         self._busy = False
         self.info_button = info_button(
-            "勾选项发送到目标桌面并保留文件夹结构；"
-            "目标需支持远程命令和 curl。",
-            self)
+            "勾选项发送到目标桌面并保留文件夹结构；" "目标需支持远程命令和 curl。", self
+        )
         page_heading(self.vbox, "文件传送", self.info_button)
         self.target_card = SectionCard(self)
         self.targets = TargetControls(state, self.target_card, show_round_options=False)
@@ -32,20 +31,24 @@ class FilePage(Page):
         row.addWidget(self.count_label)
         row.addStretch()
         self.delete_button = tool_button(
-            FIF.DELETE, "删除选中文件", self.content_card, self.deleteRequested.emit)
+            FIF.DELETE, "删除选中文件", self.content_card, self.deleteRequested.emit
+        )
         self.delete_button.setEnabled(False)
         row.addWidget(self.delete_button)
         self.choose_files_button = tool_button(
-            FIF.DOCUMENT, "添加文件", self.content_card, self.chooseFilesRequested.emit)
+            FIF.DOCUMENT, "添加文件", self.content_card, self.chooseFilesRequested.emit
+        )
         row.addWidget(self.choose_files_button)
         self.choose_folder_button = tool_button(
-            FIF.FOLDER, "添加文件夹", self.content_card, self.chooseFolderRequested.emit)
+            FIF.FOLDER, "添加文件夹", self.content_card, self.chooseFolderRequested.emit
+        )
         row.addWidget(self.choose_folder_button)
         self.content_card.body.addLayout(row)
 
         self.empty_label = CaptionLabel(
             "尚未选择文件。可一次添加多个文件或整个文件夹，勾选后点击“传送文件”。",
-            self.content_card)
+            self.content_card,
+        )
         self.empty_label.setWordWrap(True)
         self.content_card.body.addWidget(self.empty_label)
 
@@ -57,8 +60,11 @@ class FilePage(Page):
         self.tree.setBorderVisible(True)
         self.tree.setBorderRadius(6)
         header = FileTreeHeader(
-            Qt.Horizontal, self.tree, tooltip="全选待传送文件",
-            accessible_name="全选待传送文件")
+            Qt.Horizontal,
+            self.tree,
+            tooltip="全选待传送文件",
+            accessible_name="全选待传送文件",
+        )
         self.tree.setHeader(header)
         self.tree.setItemDelegate(CompactTreeItemDelegate(self.tree))
         self.tree.setHeaderLabels(["名称", "大小", "路径"])
@@ -168,8 +174,10 @@ class FilePage(Page):
         def matched(relative):
             if relative in files:
                 return True
-            return any(relative == directory or relative.startswith(directory + "/")
-                       for directory in directories)
+            return any(
+                relative == directory or relative.startswith(directory + "/")
+                for directory in directories
+            )
 
         removed = [entry for entry in self.items if matched(entry[1])]
         if not removed:
@@ -186,9 +194,11 @@ class FilePage(Page):
         return removed
 
     def _check_states(self):
-        return {relative.casefold(): item.checkState(0) == Qt.Checked
-                for item in self._file_items()
-                for relative in [item.data(0, Qt.UserRole)[1]]}
+        return {
+            relative.casefold(): item.checkState(0) == Qt.Checked
+            for item in self._file_items()
+            for relative in [item.data(0, Qt.UserRole)[1]]
+        }
 
     def _all_visible_items(self):
         def walk(parent):
@@ -196,15 +206,22 @@ class FilePage(Page):
                 item = parent.child(index)
                 yield item
                 yield from walk(item)
+
         yield from walk(self.tree.invisibleRootItem())
 
     def _file_items(self):
-        return [item for item in self._all_visible_items()
-                if item.data(0, Qt.UserRole)[0] == "file"]
+        return [
+            item
+            for item in self._all_visible_items()
+            if item.data(0, Qt.UserRole)[0] == "file"
+        ]
 
     def _rebuild_tree(self, states=None, expand=True):
-        expanded = {item.data(0, Qt.UserRole)[1] for item in self._all_visible_items()
-                    if item.isExpanded()}
+        expanded = {
+            item.data(0, Qt.UserRole)[1]
+            for item in self._all_visible_items()
+            if item.isExpanded()
+        }
         self._syncing = True
         self.tree.blockSignals(True)
         try:
@@ -216,29 +233,37 @@ class FilePage(Page):
                 parts = relative.split("/")
                 parent = self.tree.invisibleRootItem()
                 for depth, name in enumerate(parts[:-1]):
-                    key = "/".join(parts[:depth + 1])
+                    key = "/".join(parts[: depth + 1])
                     folder = folders.get(key)
                     if folder is None:
                         folder = QTreeWidgetItem(parent, [name, "", key])
                         self._set_item_icon(folder, FIF.FOLDER.icon())
-                        folder.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable
-                                        | Qt.ItemIsUserCheckable)
+                        folder.setFlags(
+                            Qt.ItemIsEnabled
+                            | Qt.ItemIsSelectable
+                            | Qt.ItemIsUserCheckable
+                        )
                         folder.setData(0, Qt.UserRole, ("dir", key))
                         folder.setToolTip(0, "全选文件夹：%s" % key)
                         self._set_item_state_role(folder, Qt.Unchecked, hovered=False)
                         folders[key] = folder
                     parent = folder
                 file_item = QTreeWidgetItem(
-                    parent, [parts[-1], core.format_size(size), relative])
+                    parent, [parts[-1], core.format_size(size), relative]
+                )
                 self._set_item_icon(file_item, FIF.DOCUMENT.icon())
-                file_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable
-                                   | Qt.ItemIsUserCheckable)
+                file_item.setFlags(
+                    Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsUserCheckable
+                )
                 file_item.setData(0, Qt.UserRole, ("file", relative))
                 file_item.setData(0, Qt.UserRole + 1, (path, relative, size))
                 file_item.setToolTip(0, str(path))
-                checked = True if states is None else states.get(relative.casefold(), True)
+                checked = (
+                    True if states is None else states.get(relative.casefold(), True)
+                )
                 self._set_item_state_role(
-                    file_item, Qt.Checked if checked else Qt.Unchecked, hovered=False)
+                    file_item, Qt.Checked if checked else Qt.Unchecked, hovered=False
+                )
             # 树形展示按“文件夹在前、同类型按名称”排序，更接近资源管理器。
             self._sort_item(self.tree.invisibleRootItem())
             # 先同步最深层文件夹，再向上汇总，避免父文件夹状态过期。
@@ -262,9 +287,12 @@ class FilePage(Page):
 
     def _sort_item(self, parent):
         children = [parent.takeChild(0) for _ in range(parent.childCount())]
-        children.sort(key=lambda item: (
-            0 if item.data(0, Qt.UserRole)[0] == "dir" else 1,
-            item.text(0).casefold()))
+        children.sort(
+            key=lambda item: (
+                0 if item.data(0, Qt.UserRole)[0] == "dir" else 1,
+                item.text(0).casefold(),
+            )
+        )
         parent.addChildren(children)
         for child in children:
             if child.childCount():
@@ -359,7 +387,8 @@ class FilePage(Page):
             for index in range(self.tree.topLevelItemCount()):
                 self._set_item_state(
                     self.tree.topLevelItem(index),
-                    Qt.Checked if checked else Qt.Unchecked)
+                    Qt.Checked if checked else Qt.Unchecked,
+                )
         finally:
             self.tree.blockSignals(False)
             self._syncing = False
@@ -383,9 +412,14 @@ class FilePage(Page):
         self.select_all_checkbox.setEnabled(bool(file_items))
         self.delete_button.setEnabled(bool(self.selected_entries()))
         self.count_label.setText(
-            "%d 个文件，共 %s | 已选 %d 个，%s" % (
-                len(self.items), core.format_size(total_size),
-                len(checked), core.format_size(selected_size)))
+            "%d 个文件，共 %s | 已选 %d 个，%s"
+            % (
+                len(self.items),
+                core.format_size(total_size),
+                len(checked),
+                core.format_size(selected_size),
+            )
+        )
         if not self._busy:
             self.footer.send_button.setEnabled(bool(checked))
         self.tree.header().position_checkbox()
@@ -394,7 +428,9 @@ class FilePage(Page):
         self.progress.show()
         self.progress_text.show()
         self.progress.setValue(max(0, min(100, int(percent))))
-        self.progress_text.setText("当前目标下载进度：%d%%" % max(0, min(100, int(percent))))
+        self.progress_text.setText(
+            "当前目标下载进度：%d%%" % max(0, min(100, int(percent)))
+        )
 
     def reset_progress(self):
         self.progress.setValue(0)
@@ -404,8 +440,12 @@ class FilePage(Page):
     def set_busy(self, busy, cancellable=False, queueable=False):
         self._busy = bool(busy)
         self.targets.setEnabled(not busy)
-        for button in (self.choose_files_button, self.choose_folder_button,
-                       self.delete_button, self.tree):
+        for button in (
+            self.choose_files_button,
+            self.choose_folder_button,
+            self.delete_button,
+            self.tree,
+        ):
             button.setEnabled(not busy)
         self.footer.set_busy(busy, cancellable, queueable)
         if not busy:

