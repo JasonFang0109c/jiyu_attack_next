@@ -1,9 +1,11 @@
-"""页面实现。"""
+"""设备备注页：给常用目标起中文名字，后续直接按名字发送。"""
 
 from .common import *
 
 
 class AliasPage(Page):
+    """维护“备注名 → 地址”映射，修改后同步刷新引用该备注的页面。"""
+
     def __init__(self, state, parent=None):
         super().__init__("aliases", parent)
         self.state = state

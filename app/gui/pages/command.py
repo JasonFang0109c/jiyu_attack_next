@@ -1,9 +1,11 @@
-"""页面实现。"""
+"""远程命令页：编辑命令正文并实时统计报文占用。"""
 
 from .common import *
 
 
 class CommandPage(NetworkPage):
+    """编辑远程命令，超出报文容量时提示并阻止发送。"""
+
     def __init__(self, state, parent=None):
         super().__init__("command", "远程命令", state, "发送命令", parent)
         row = QHBoxLayout()
@@ -24,6 +26,7 @@ class CommandPage(NetworkPage):
         self.update_statistics()
 
     def update_statistics(self):
+        """刷新已用容量提示，超出上限时文字转红。"""
         try:
             units = len(self.editor.toPlainText().encode("utf-16le")) // 2
         except UnicodeError:

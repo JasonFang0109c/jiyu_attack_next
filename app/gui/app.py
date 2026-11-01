@@ -1,3 +1,5 @@
+"""图形界面主窗口：单实例控制、任务队列、托盘与各页面的信号接线。"""
+
 import getpass
 import hashlib
 import shutil
@@ -103,6 +105,7 @@ class SingleInstance(QObject):
         self.primary = False
 
     def acquire(self):
+        """尝试成为主实例，成功返回 True；已有实例时唤醒它并返回 False。"""
         if self.notify_existing():
             return False
         server = QLocalServer(self)
@@ -130,6 +133,7 @@ class SingleInstance(QObject):
         return True
 
     def _handle_connection(self):
+        """接受新连接并发出唤醒信号，让已运行的窗口显示出来。"""
         while self.server is not None and self.server.hasPendingConnections():
             connection = self.server.nextPendingConnection()
             if connection is None:
@@ -149,6 +153,7 @@ class SingleInstance(QObject):
             return
 
     def close(self):
+        """关闭本地服务端并移除同名服务，避免下次启动被残留占用。"""
         if self.server is not None:
             self.server.close()
             QLocalServer.removeServer(self.key)
@@ -158,6 +163,7 @@ class SingleInstance(QObject):
 
 
 def configure_application(application):
+    """设置全局字体、中文区域与默认主题色。"""
     application.setFont(QFont("Microsoft YaHei UI", 10))
     locale = QLocale(QLocale.Chinese, QLocale.China)
     QLocale.setDefault(locale)
@@ -168,11 +174,22 @@ def configure_application(application):
 
 
 def app_icon():
+    """返回窗口图标；打包后从 EXE 解压目录读取资源。"""
     resource_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
     return QIcon(str(resource_root / "assets" / "app.svg"))
 
 
 class MainWindow(FluentWindow):
+    """主窗口：持有连接状态、日志与全部页面，并串行调度后台任务。
+
+    Attributes:
+        connection_state: 目标、端口、轮数与设备备注等共享状态。
+        logs: 运行日志存储，同时写入界面与日志文件。
+        pages: 页面名到页面实例的映射，键与 ``CATEGORIES`` 保持一致。
+        thread: 正在运行的后台线程，空闲时为 None。
+        _task_queue: 排队等待执行的任务，元素为 (kind, worker, finished, failed)。
+    """
+
     def __init__(self, alias_store=None, data_dir=None, enable_tray=True):
         super().__init__()
         self.data_dir = (
@@ -252,6 +269,7 @@ class MainWindow(FluentWindow):
             self.logs.warning("设置", self._settings_error)
 
     def _load_close_behavior(self):
+        """读取关闭行为配置，配置损坏时回落默认值并记录原因。"""
         self._close_behavior_error = ""
         raw = self.settings.value(CLOSE_BEHAVIOR_SETTINGS_KEY, DEFAULT_CLOSE_BEHAVIOR)
         try:
@@ -272,6 +290,7 @@ class MainWindow(FluentWindow):
         self.settings.sync()
 
     def _setup_tray(self):
+        """创建系统托盘图标与菜单；托盘不可用时关闭窗口即退出。"""
         if not self.enable_tray:
             return
         if not QSystemTrayIcon.isSystemTrayAvailable():
@@ -307,6 +326,7 @@ class MainWindow(FluentWindow):
         )
 
     def _build_navigation(self):
+        """按功能分组装配左侧导航，底部放日志、设置与关于。"""
         self.navigationInterface.setExpandWidth(200)
         self.navigationInterface.setMinimumExpandWidth(1050)
         self.navigationInterface.setReturnButtonVisible(False)
@@ -332,6 +352,7 @@ class MainWindow(FluentWindow):
         self.navigationInterface.expand(useAni=False)
 
     def _connect_actions(self):
+        """把各页面的按钮与信号接到主窗口的处理方法。"""
         for kind in ("message", "command", "device"):
             self.pages[kind].footer.requested.connect(
                 lambda key=kind: self.start_send(key)
@@ -358,12 +379,15 @@ class MainWindow(FluentWindow):
         self.pages["settings"].clearDataRequested.connect(self.clear_data)
 
     def show_page(self, key):
+        """切换到指定页面。"""
         self.switchTo(self.pages[key])
 
     def current_page(self):
+        """返回当前页面名。"""
         return self.stackedWidget.currentWidget().objectName()
 
     def _notify(self, title, message, level="信息"):
+        """显示提示：窗口隐藏时走托盘气泡，否则用右上角 InfoBar。"""
         if self.close_after_task:
             return
         if not self.isVisible() and self.tray_icon is not None:
@@ -387,6 +411,7 @@ class MainWindow(FluentWindow):
         )
 
     def _confirm(self, title, content, confirm_text="确认执行"):
+        """弹出确认对话框，返回用户是否点击了确认按钮。"""
         dialog = Dialog(title, content, self)
         dialog.setFixedSize(520, 280)
         dialog.yesButton.setText(confirm_text)
@@ -394,6 +419,7 @@ class MainWindow(FluentWindow):
         return bool(dialog.exec())
 
     def _options_for_page(self, kind):
+        """按页面类型组装发送参数。"""
         if kind == "message":
             return self.connection_state.options(
                 message=self.pages[kind].editor.toPlainText()
@@ -407,6 +433,7 @@ class MainWindow(FluentWindow):
         raise ValueError("不支持的发送功能")
 
     def start_send(self, kind):
+        """校验参数、确认设备操作后把发送任务加入队列。"""
         page = self.pages[kind]
         options = self._options_for_page(kind)
         try:
@@ -491,6 +518,7 @@ class MainWindow(FluentWindow):
         )
 
     def _validation_error(self, kind, message, details=""):
+        """参数不合法时统一写日志、更新页脚并弹出提示。"""
         self.pages[kind].footer.set_status(message)
         self.logs.warning(
             CATEGORIES[kind],
@@ -500,6 +528,7 @@ class MainWindow(FluentWindow):
         self._notify("请检查参数", message, "警告")
 
     def choose_transfer_files(self):
+        """选择单个或多个文件加入待传送列表。"""
         filenames, _ = QFileDialog.getOpenFileNames(
             self, "选择要传送的文件", "", "所有文件 (*)"
         )
@@ -508,12 +537,14 @@ class MainWindow(FluentWindow):
         self._add_transfer_paths(filenames)
 
     def choose_transfer_folder(self):
+        """选择文件夹，整个目录会按原结构传送到目标桌面。"""
         directory = QFileDialog.getExistingDirectory(self, "选择要传送的文件夹")
         if not directory:
             return
         self._add_transfer_paths([directory])
 
     def _add_transfer_paths(self, paths):
+        """把路径展开成文件条目并加入列表，重复项会被忽略。"""
         page = self.pages["file"]
         try:
             count, size = page.add_paths(paths)
@@ -543,6 +574,7 @@ class MainWindow(FluentWindow):
         )
 
     def delete_transfer_files(self):
+        """从待传送列表移除选中项，不删除源文件。"""
         page = self.pages["file"]
         selected = page.selected_entries()
         if not selected:
@@ -567,6 +599,7 @@ class MainWindow(FluentWindow):
         )
 
     def start_file_transfer(self):
+        """校验待传送条目与目标后，把传送任务加入队列。"""
         page = self.pages["file"]
         selected = page.selected_items()
         if not page.has_files():
@@ -687,6 +720,7 @@ class MainWindow(FluentWindow):
         )
 
     def start_local_probe(self):
+        """查询本机 IP 与 Student 端监听端口。"""
         if self.thread is not None:
             return
         self.logs.info("本机信息", "开始查询本机 IP 与监听端口")
@@ -695,6 +729,7 @@ class MainWindow(FluentWindow):
         )
 
     def start_firewall(self):
+        """确认后修改 StudentMain.exe 的防火墙规则。"""
         if self.thread is not None:
             return
         action = self.pages["firewall"].action()
@@ -713,6 +748,7 @@ class MainWindow(FluentWindow):
         )
 
     def _begin_task(self, kind, worker, finished, failed):
+        """启动后台任务；已有任务在跑时改为排队，保证同一时间只跑一个。"""
         if self.thread is not None:
             self._task_queue.append((kind, worker, finished, failed))
             position = len(self._task_queue)
@@ -747,6 +783,7 @@ class MainWindow(FluentWindow):
         worker.start()
 
     def _set_busy(self, busy):
+        """按忙碌状态统一开关各页面的按钮与输入控件。"""
         for page in self.network_pages:
             page.set_busy(busy, self.active_cancel is not None, queueable=True)
         self.pages["file"].set_busy(
@@ -862,6 +899,7 @@ class MainWindow(FluentWindow):
         self._notify("操作失败", message, "错误")
 
     def cancel_task(self):
+        """清空排队任务，并给正在运行的任务置位取消信号。"""
         if self._task_queue:
             queued = len(self._task_queue)
             self._task_queue.clear()
@@ -891,6 +929,7 @@ class MainWindow(FluentWindow):
 
     @Slot()
     def _thread_finished(self):
+        """线程结束后清理状态，必要时关闭窗口或启动下一个排队任务。"""
         self.thread = None
         self.worker = None
         self.active_cancel = None
@@ -905,12 +944,14 @@ class MainWindow(FluentWindow):
             QTimer.singleShot(0, self._start_next_task)
 
     def _start_next_task(self):
+        """取出队首任务继续执行。"""
         if self.thread is not None or not self._task_queue:
             return
         kind, worker, finished, failed = self._task_queue.pop(0)
         self._begin_task(kind, worker, finished, failed)
 
     def import_message(self):
+        """从 UTF-8 文本文件导入消息正文。"""
         filename, _ = QFileDialog.getOpenFileName(
             self, "导入消息", "", "文本文件 (*.txt *.md);;所有文件 (*)"
         )
@@ -937,6 +978,7 @@ class MainWindow(FluentWindow):
             self._notify("导入失败", str(error), "错误")
 
     def save_message(self):
+        """把当前消息正文另存为 UTF-8 文本。"""
         filename, _ = QFileDialog.getSaveFileName(
             self, "保存消息", "消息.txt", "文本文件 (*.txt)"
         )
@@ -945,6 +987,7 @@ class MainWindow(FluentWindow):
 
     @Slot(object)
     def export_selected_logs(self, entries):
+        """把选中的日志记录导出为文本文件。"""
         filename, _ = QFileDialog.getSaveFileName(
             self, "导出选中日志", "运行日志-选中.txt", "文本文件 (*.txt)"
         )
@@ -953,6 +996,7 @@ class MainWindow(FluentWindow):
 
     @Slot(object)
     def delete_selected_logs(self, uids):
+        """确认后删除选中日志，并同步重写日志文件。"""
         if not uids:
             return
         if not self._confirm(
@@ -968,6 +1012,7 @@ class MainWindow(FluentWindow):
 
     @Slot(str)
     def set_log_level(self, level):
+        """切换运行日志等级，低于该等级的记录不再写入。"""
         previous = self.logs.minimum_level
         normalized = normalize_log_level(level)
         self.logs.set_level(normalized)
@@ -978,6 +1023,7 @@ class MainWindow(FluentWindow):
         )
 
     def _save_text(self, filename, text):
+        """写出 UTF-8（带 BOM）文本，失败时提示并记录日志。"""
         try:
             Path(filename).write_text(text, encoding="utf-8-sig")
         except OSError as error:
@@ -992,6 +1038,7 @@ class MainWindow(FluentWindow):
             self._notify("已保存", Path(filename).name, "成功")
 
     def copy_local_ip(self):
+        """把本机 IP 复制到剪贴板。"""
         ip = self.pages["local"].ip_label.text()
         QApplication.clipboard().setText(ip)
         self.logs.info("本机信息", "本机 IP 已复制", "IP：%s" % ip)
@@ -1033,6 +1080,7 @@ class MainWindow(FluentWindow):
         )
 
     def _tray_activated(self, reason):
+        """单击或双击托盘图标时恢复主窗口。"""
         if reason in (
             QSystemTrayIcon.ActivationReason.Trigger,
             QSystemTrayIcon.ActivationReason.DoubleClick,
@@ -1040,6 +1088,7 @@ class MainWindow(FluentWindow):
             self.show_from_tray()
 
     def show_from_tray(self):
+        """从托盘恢复窗口并置顶激活。"""
         self.show()
         self.setWindowState(self.windowState() & ~Qt.WindowState.WindowMinimized)
         self.raise_()
@@ -1047,6 +1096,7 @@ class MainWindow(FluentWindow):
         self.logs.info("系统托盘", "从系统托盘恢复主窗口")
 
     def quit_from_tray(self):
+        """托盘菜单退出：有任务在跑时等任务结束再退出。"""
         self._first_close_dialog_open = False
         if self.tray_icon is not None:
             self.tray_icon.hide()
@@ -1167,11 +1217,13 @@ class MainWindow(FluentWindow):
         )
 
     def _aliases_changed(self):
+        """设备备注变化后记录数量，页面通过信号自行刷新。"""
         self.logs.info(
             "应用", "设备备注已更新", "当前备注数：%d" % len(self.alias_store.items())
         )
 
     def closeEvent(self, event):
+        """按关闭行为决定隐藏到托盘还是退出；有任务时先取消再退出。"""
         selected_behavior = None
         if (
             not self._quit_requested
@@ -1206,18 +1258,21 @@ class MainWindow(FluentWindow):
 
 
 def probe_local(report=None):
+    """查询本机 IP 与 Student 监听端口，供后台线程调用。"""
     if report:
         report("正在读取本机 IP 与 Student 监听端口")
     return core.local_ip_and_ports()
 
 
 def apply_firewall(action, report=None):
+    """按需提权修改防火墙规则，供后台线程调用。"""
     if report:
         report("正在修改 StudentMain.exe 防火墙规则")
     return core.request_firewall_rule(action)
 
 
 def main():
+    """启动图形界面，返回进程退出码。"""
     QApplication.setApplicationName(APP_NAME)
     QApplication.setOrganizationName("JiYuAttackNext")
     application = QApplication(sys.argv)

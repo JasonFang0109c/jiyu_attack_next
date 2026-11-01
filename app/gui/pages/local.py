@@ -1,9 +1,11 @@
-"""页面实现。"""
+"""本机信息页：显示本机 IP 与 Student 端监听的 UDP 端口。"""
 
 from .common import *
 
 
 class LocalPage(Page):
+    """展示查询结果，并允许一键复制本机 IP。"""
+
     copyRequested = Signal()
 
     def __init__(self, parent=None):
@@ -36,6 +38,7 @@ class LocalPage(Page):
         self.vbox.addWidget(self.footer_card)
 
     def set_result(self, ip, ports):
+        """填入查询到的本机 IP 与监听端口。"""
         self.ip_label.setText(ip or "未获取")
         self.copy_button.setEnabled(bool(ip))
         self.port_table.setRowCount(len(ports))

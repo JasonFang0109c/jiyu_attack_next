@@ -1,9 +1,11 @@
-"""页面实现。"""
+"""设备操作页：重启、关机、注销目标电脑。"""
 
 from .common import *
 
 
 class DevicePage(NetworkPage):
+    """选择设备操作，并预览当前目标会展开成哪些 IP。"""
+
     def __init__(self, state, parent=None):
         super().__init__("device", "设备操作", state, "执行重启", parent)
         row = QHBoxLayout()
@@ -38,6 +40,7 @@ class DevicePage(NetworkPage):
         self.update_preview()
 
     def _update_action(self):
+        """单选切换后同步发送按钮文案。"""
         labels = {"r": "执行重启", "s": "执行关机", "l": "执行注销"}
         self.footer.send_button.setText(labels[self.action()])
 
@@ -47,6 +50,7 @@ class DevicePage(NetworkPage):
             self.update_preview()
 
     def update_preview(self):
+        """按当前目标重建预览表；地址非法时显示为空。"""
         target = self.targets.state.values["target"].strip()
         matched = self.targets.state.aliases.match(target)
         try:
@@ -66,6 +70,7 @@ class DevicePage(NetworkPage):
         self.preview_title.setText("目标预览（%d%s）" % (len(hosts), alias_text))
 
     def action(self):
+        """返回当前选中的设备操作代码（r/s/l）。"""
         if self.shutdown.isChecked():
             return "s"
         if self.logoff.isChecked():

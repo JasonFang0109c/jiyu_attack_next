@@ -1,9 +1,11 @@
-"""页面实现。"""
+"""文本消息页：编辑消息正文并统计会被拆成几条报文。"""
 
 from .common import *
 
 
 class MessagePage(NetworkPage):
+    """编辑消息正文，支持导入与保存 UTF-8 文本。"""
+
     def __init__(self, state, parent=None):
         super().__init__("message", "文本消息", state, "发送消息", parent)
         row = QHBoxLayout()
@@ -47,6 +49,7 @@ class MessagePage(NetworkPage):
         self.saveRequested.emit()
 
     def update_statistics(self):
+        """按实际分片结果刷新字符数与报文条数。"""
         text = self.editor.toPlainText()
         try:
             count = sum(1 for _ in core.split_message(text))

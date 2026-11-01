@@ -1,9 +1,11 @@
-"""页面实现。"""
+"""设置页：界面主题、关闭行为、运行日志等级与数据清理。"""
 
 from .common import *
 
 
 class SettingsPage(Page):
+    """集中放置全局开关，所有改动通过信号交给主窗口处理。"""
+
     themeRequested = Signal(object)
     closeBehaviorRequested = Signal(str)
     logLevelRequested = Signal(str)

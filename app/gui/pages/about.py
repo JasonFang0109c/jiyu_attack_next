@@ -1,4 +1,4 @@
-"""页面实现。"""
+"""关于页：展示作者、仓库、版本与依赖组件信息。"""
 
 from .common import *
 from .common import ASSET_ROOT
@@ -79,6 +79,8 @@ class AboutDetailCard(SectionCard):
 
 
 class AboutPage(Page):
+    """整页滚动布局的关于页，内容与 README 首页保持一致。"""
+
     def __init__(self, parent=None):
         super().__init__("about", parent)
         # 滚动区域铺满整页：滚动条因此贴住窗口右缘并从页面顶部贯通到底部。

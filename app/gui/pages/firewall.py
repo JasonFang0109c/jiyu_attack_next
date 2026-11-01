@@ -1,9 +1,11 @@
-"""页面实现。"""
+"""防火墙页：阻断或恢复 StudentMain.exe 的联网规则。"""
 
 from .common import *
 
 
 class FirewallPage(Page):
+    """选择阻断或恢复，并逐条展示 netsh 的执行结果。"""
+
     def __init__(self, parent=None):
         super().__init__("firewall", parent)
         page_heading(self.vbox, "防火墙")
@@ -37,9 +39,11 @@ class FirewallPage(Page):
         self.vbox.addWidget(self.footer_card)
 
     def action(self):
+        """返回下拉框对应的防火墙动作（block/allow）。"""
         return "block" if self.action_box.currentIndex() == 0 else "allow"
 
     def set_result(self, results):
+        """把助手进程返回的执行结果填进结果表。"""
         self.result_table.setRowCount(len(results))
         labels = ["防火墙服务", "启用防火墙", "目标规则"]
         for row, result in enumerate(results):

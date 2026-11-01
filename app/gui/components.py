@@ -26,6 +26,7 @@ from .. import core
 
 
 def tool_button(icon, text, parent, callback):
+    """创建统一的 34×34 图标按钮，悬停时显示 Fluent 提示。"""
     button = ToolButton(icon, parent)
     button.setToolTip(text)
     button.setAccessibleName(text)
@@ -53,6 +54,7 @@ def info_button(text, parent):
 
 
 def page_heading(layout, title, action=None):
+    """在页面顶部插入“标题 + 右侧操作区”的一行。"""
     row = QHBoxLayout()
     row.setSpacing(12)
     row.addWidget(SubtitleLabel(title))
@@ -74,8 +76,14 @@ class SectionCard(SimpleCardWidget):
 
 
 class _SpinEditorGeometry:
-    # 当前 Qt 版本会将 Fluent 步进框的编辑区域压缩为 1px。
+    """修复 Fluent 步进框的编辑区域被压缩的问题。
+
+    当前 Qt 版本下编辑区会被压成 1px 宽，输入内容不可见，这里在尺寸变化、
+    显示与主题切换后重新摆正编辑区。
+    """
+
     def _restore_editor(self):
+        """编辑区宽度异常时按控件宽度重新布局。"""
         if not hasattr(self, "upButton"):
             return
         editor = self.lineEdit()
@@ -96,11 +104,11 @@ class _SpinEditorGeometry:
 
 
 class ReadableSpinBox(_SpinEditorGeometry, SpinBox):
-    pass
+    """整数步进框，编辑区不会被压成 1px。"""
 
 
 class ReadableDoubleSpinBox(_SpinEditorGeometry, DoubleSpinBox):
-    pass
+    """浮点步进框，编辑区不会被压成 1px。"""
 
 
 class Ipv4TargetInput(QWidget):
@@ -151,9 +159,11 @@ class Ipv4TargetInput(QWidget):
         self.setMinimumWidth(sum(self.SEGMENT_WIDTHS) + 42)
 
     def text(self):
+        """返回四段拼起来的地址文本。"""
         return ".".join(edit.text() for edit in self.segments)
 
     def setText(self, value):
+        """按输入格式拆成四段填入；单段写法支持范围与 /24 后缀。"""
         value = str(value or "").strip()
         if not value:
             parts = ("", "", "", "")
@@ -176,12 +186,15 @@ class Ipv4TargetInput(QWidget):
             self.textChanged.emit(self.text())
 
     def clear(self):
+        """清空四段输入。"""
         self.setText("")
 
     def is_complete(self):
+        """四段都填了内容时返回 True。"""
         return all(edit.text().strip() for edit in self.segments)
 
     def setError(self, is_error):
+        """统一设置四段的错误边框状态。"""
         for edit in self.segments:
             edit.setError(bool(is_error))
 
@@ -190,6 +203,7 @@ class Ipv4TargetInput(QWidget):
         self.textChanged.emit(self.text())
 
     def _advance(self, index):
+        """回车后跳到下一段，最后一段则请求聚焦到下一个控件。"""
         if index < len(self.segments) - 1:
             target = self.segments[index + 1]
             target.setFocus()
@@ -199,6 +213,12 @@ class Ipv4TargetInput(QWidget):
 
 
 class TargetControls(QWidget):
+    """目标地址、端口、轮数与间隔的组合输入区。
+
+    输入值直接写回共享的 ``ConnectionState``，其它页面通过它的 changed
+    信号保持同步；地址未填完整时右侧会显示“地址未完成”。
+    """
+
     def __init__(self, state, parent=None, show_round_options=True):
         super().__init__(parent)
         self.state = state
@@ -293,6 +313,7 @@ class TargetControls(QWidget):
         self.interval_input.setEnabled(state.values["loops"] > 1)
 
     def _set_tab_order(self):
+        """让 Tab 依次经过四段地址、选择设备、端口、轮数与间隔。"""
         segments = self.target_input.segments
         for current, following in zip(segments, segments[1:]):
             QWidget.setTabOrder(current, following)
@@ -302,11 +323,13 @@ class TargetControls(QWidget):
         QWidget.setTabOrder(self.loop_input, self.interval_input)
 
     def _focus_options(self):
+        """地址填完后把焦点交给端口输入框。"""
         self.port_input.setFocus()
         self.port_input.selectAll()
 
     @Slot()
     def _aliases_changed(self):
+        """备注被改名或改地址后，同步刷新输入框里的显示值。"""
         matched = self.state.aliases.match(self.state.values["target"])
         if matched is not None:
             with QSignalBlocker(self.target_input):
@@ -315,6 +338,7 @@ class TargetControls(QWidget):
         self._update_count()
 
     def choose_device(self):
+        """从设备备注里挑一个作为目标；没有备注时给出引导。"""
         if not self.state.aliases.items():
             self._show_empty_alias_dialog()
             return
@@ -350,6 +374,7 @@ class TargetControls(QWidget):
 
     @Slot(str, object)
     def _on_changed(self, name, value):
+        """共享状态变化时回写控件，期间屏蔽信号避免循环触发。"""
         field = self.fields[name]
         if name == "target":
             display = self.state.resolve_target(value) if str(value).strip() else ""
@@ -365,6 +390,7 @@ class TargetControls(QWidget):
         self.interval_input.setEnabled(self.state.values["loops"] > 1)
 
     def _update_alias_hint(self, text):
+        """命中设备备注时在输入框下方提示对应地址。"""
         matched = self.state.aliases.match(text)
         if matched:
             self.alias_hint.setText("备注「%s」→ %s" % matched)
@@ -373,6 +399,7 @@ class TargetControls(QWidget):
             self.alias_hint.hide()
 
     def _update_count(self):
+        """按当前地址重新计算目标数量并提示地址是否可用。"""
         text = self.state.values["target"].strip()
         self._update_alias_hint(text)
         if not text:
@@ -390,6 +417,13 @@ class TargetControls(QWidget):
 
 
 class TaskFooter(QWidget):
+    """页面底部的任务栏：状态文字、进度环与发送、取消按钮。
+
+    Attributes:
+        ring: 不确定进度环，任务运行时显示。
+        log_button: 任务结束后出现的“查看运行日志”按钮。
+    """
+
     requested = Signal()
     cancelled = Signal()
     viewLogs = Signal()
@@ -429,6 +463,7 @@ class TaskFooter(QWidget):
         layout.addWidget(self.send_button)
 
     def set_busy(self, busy, cancellable=False, queueable=False):
+        """按忙碌状态切换按钮可用性与进度环。"""
         self.send_button.setEnabled(not busy or queueable)
         self.cancel_button.setEnabled(busy and cancellable)
         self.ring.setVisible(busy)
@@ -438,8 +473,10 @@ class TaskFooter(QWidget):
             self.ring.stop()
 
     def set_status(self, text=""):
+        """显示状态文字，空文本时隐藏该行。"""
         self.status.setText(text)
         self.status.setVisible(bool(text))
 
     def finish_status(self):
+        """任务结束后清空状态文字。"""
         self.status.hide()

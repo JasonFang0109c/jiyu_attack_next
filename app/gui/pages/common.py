@@ -94,6 +94,7 @@ class SelectAllHeaderView(QHeaderView):
         return CheckBox(parent)
 
     def position_checkbox(self):
+        """把全选框居中放到表头首列。"""
         if not self.isVisible():
             return
         x = (
@@ -104,6 +105,7 @@ class SelectAllHeaderView(QHeaderView):
         self.select_all_checkbox.move(x, y)
 
     def resizeEvent(self, event):
+        """尺寸变化后重新定位表头全选框。"""
         super().resizeEvent(event)
         self.position_checkbox()
 
@@ -130,6 +132,7 @@ class FileTreeHeader(SelectAllHeaderView):
         return checkbox
 
     def position_checkbox(self):
+        """把全选框居中放到表头首列。"""
         if not self.isVisible():
             return
         tree = self.parent()
@@ -153,6 +156,7 @@ class CompactHeaderCheckBox(CheckBox):
     INDICATOR_SIZE = 16
 
     def paintEvent(self, event):
+        """按文件树行复选框的尺寸绘制表头复选框。"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         size = self.INDICATOR_SIZE
@@ -199,6 +203,7 @@ class FileTreeWidget(TreeWidget):
         self.viewport().setMouseTracking(True)
 
     def viewportEvent(self, event):
+        """只在名称列跟踪悬停项，避免路径列触发复选框切换。"""
         if event.type() == QEvent.Type.MouseMove:
             position = event.position().toPoint()
             item = self.itemAt(position) if self.columnAt(position.x()) == 0 else None
@@ -214,6 +219,7 @@ class FileTreeWidget(TreeWidget):
         self.hoverItemChanged.emit(item)
 
     def reset_hover_item(self):
+        """清除悬停项，重建树时避免旧条目继续显示悬停状态。"""
         self._hover_item = None
 
 
@@ -224,6 +230,7 @@ class LogTableWidget(TableWidget):
     MIN_CONTENT_WIDTH = 120
 
     def resizeEvent(self, event):
+        """窗口宽度变化时重新计算日志内容列宽。"""
         super().resizeEvent(event)
         reserved = sum(self.columnWidth(column) for column in self.FIXED_COLUMNS)
         self.setColumnWidth(
@@ -232,6 +239,7 @@ class LogTableWidget(TableWidget):
 
 
 def table_widget(headers, parent, table_class=TableWidget):
+    """创建统一的只读、按行选择的表格控件。"""
     table = table_class(parent)
     table.setColumnCount(len(headers))
     table.setHorizontalHeaderLabels(headers)
@@ -246,6 +254,8 @@ def table_widget(headers, parent, table_class=TableWidget):
 
 
 class Page(QWidget):
+    """所有工作页面的基础布局，统一提供内容边距与垂直布局。"""
+
     def __init__(self, name, parent=None):
         super().__init__(parent)
         self.setObjectName(name)
@@ -255,6 +265,8 @@ class Page(QWidget):
 
 
 class NetworkPage(Page):
+    """带目标输入区、内容区和任务底栏的网络操作页面。"""
+
     def __init__(self, name, title, state, button_text, parent=None):
         super().__init__(name, parent)
         page_heading(self.vbox, title)
@@ -271,5 +283,6 @@ class NetworkPage(Page):
         self.vbox.addWidget(self.footer_card)
 
     def set_busy(self, busy, cancellable=False, queueable=False):
+        """同步目标输入区与底栏的任务忙碌状态。"""
         self.targets.setEnabled(not busy)
         self.footer.set_busy(busy, cancellable, queueable)

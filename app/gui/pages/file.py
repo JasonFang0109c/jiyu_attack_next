@@ -1,9 +1,11 @@
-"""页面实现。"""
+"""文件传送页：选择文件或文件夹，预览目录结构并发起传送。"""
 
 from .common import *
 
 
 class FilePage(Page):
+    """以树形结构管理待传送条目，支持按目录勾选与进度展示。"""
+
     chooseFilesRequested = Signal()
     chooseFolderRequested = Signal()
     deleteRequested = Signal()

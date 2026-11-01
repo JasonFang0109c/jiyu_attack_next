@@ -57,11 +57,13 @@ def portable_data_dir(executable=None):
 
 
 def portable_settings(data_dir=None):
+    """返回便携设置对象，配置文件位于数据目录下的 settings.ini。"""
     root = Path(data_dir).resolve() if data_dir is not None else portable_data_dir()
     return QSettings(str(root / SETTINGS_FILE_NAME), QSettings.IniFormat)
 
 
 def portable_log_path(data_dir=None):
+    """返回运行日志文件的完整路径。"""
     root = Path(data_dir).resolve() if data_dir is not None else portable_data_dir()
     return root / LOG_FILE_NAME
 
@@ -83,6 +85,7 @@ class DeviceAliasStore(QObject):
         self._load()
 
     def _load(self):
+        """从设置文件读取备注；数据损坏时记录原因并保留空表。"""
         raw = self._settings.value(self.SETTINGS_KEY, "{}")
         try:
             if isinstance(raw, str):
@@ -103,6 +106,7 @@ class DeviceAliasStore(QObject):
 
     @classmethod
     def _normalize_name(cls, name):
+        """校验备注名：非空、不超长、不含换行或 NUL，且不能是 IP 地址。"""
         if name is None:
             raise ValueError("请填写备注名")
         value = str(name).strip()
@@ -120,6 +124,7 @@ class DeviceAliasStore(QObject):
 
     @staticmethod
     def _normalize_address(address):
+        """校验地址；单地址规范化为点分形式，范围与 /24 保留原写法。"""
         value = str(address).strip()
         if not value:
             raise ValueError("请填写 IP 地址")
@@ -132,12 +137,15 @@ class DeviceAliasStore(QObject):
         return value if "-" in value or "/" in value else hosts[0]
 
     def names(self):
+        """返回全部备注名，顺序与添加顺序一致。"""
         return list(self._aliases)
 
     def items(self):
+        """返回 (备注名, 地址) 列表，供下拉框与表格使用。"""
         return list(self._aliases.items())
 
     def _find_name(self, name):
+        """按不区分大小写的方式查找已存在的备注名。"""
         key = str(name).strip().casefold()
         for existing in self._aliases:
             if existing.casefold() == key:
@@ -145,6 +153,7 @@ class DeviceAliasStore(QObject):
         return None
 
     def match(self, target):
+        """备注名命中时返回 (备注名, 地址)，否则返回 None。"""
         value = str(target).strip()
         key = value.casefold()
         for name, address in self._aliases.items():
@@ -153,16 +162,19 @@ class DeviceAliasStore(QObject):
         return None
 
     def resolve(self, target):
+        """把备注名换成地址，未命中时原样返回输入。"""
         matched = self.match(target)
         return matched[1] if matched else str(target).strip()
 
     def format_target(self, target):
+        """返回“备注名（地址）”的展示文本，未命中时原样返回。"""
         matched = self.match(target)
         if matched:
             return "%s（%s）" % matched
         return str(target).strip()
 
     def _save(self, aliases):
+        """写入设置文件；读取阶段出错时拒绝写入，避免覆盖原数据。"""
         if self.load_error:
             raise OSError(
                 "%s；为避免覆盖原数据，请先修复或清除该配置项" % self.load_error
@@ -185,6 +197,7 @@ class DeviceAliasStore(QObject):
         self._aliases = aliases
 
     def add(self, name, address):
+        """新增一条备注，重名或地址非法时抛出 ValueError。"""
         normalized_name = self._normalize_name(name)
         normalized_address = self._normalize_address(address)
         if self._find_name(normalized_name) is not None:
@@ -195,6 +208,7 @@ class DeviceAliasStore(QObject):
         self.changed.emit()
 
     def update(self, original_name, name, address):
+        """修改备注；改名时额外发出 renamed 信号，供页面同步引用。"""
         existing_name = self._find_name(original_name)
         if existing_name is None:
             raise ValueError("要修改的备注不存在")
@@ -215,6 +229,7 @@ class DeviceAliasStore(QObject):
         self.changed.emit()
 
     def remove(self, name):
+        """删除一条备注，不存在时抛出 ValueError。"""
         existing_name = self._find_name(name)
         if existing_name is None:
             raise ValueError("要删除的备注不存在")
@@ -247,6 +262,13 @@ class DeviceAliasStore(QObject):
 
 
 class ConnectionState(QObject):
+    """页面共享的目标地址、端口、轮数与间隔。
+
+    Attributes:
+        aliases: 设备备注存储，改备注时会自动同步 target。
+        values: 当前输入值，键与 ``DEFAULTS`` 一致。
+    """
+
     changed = Signal(str, object)
     DEFAULTS = {"target": "", "port": 4705, "loops": 1, "interval": 22.0}
 
@@ -266,6 +288,7 @@ class ConnectionState(QObject):
             self.set_value("target", "")
 
     def set_value(self, name, value):
+        """写入一个会话参数；值未变化时不发信号。"""
         if name not in self.DEFAULTS:
             raise KeyError(name)
         if self.values[name] != value:
@@ -273,26 +296,32 @@ class ConnectionState(QObject):
             self.changed.emit(name, value)
 
     def reset(self):
+        """把所有会话参数恢复默认值。"""
         for name, value in self.DEFAULTS.items():
             self.set_value(name, value)
 
     def snapshot(self):
+        """返回会话参数的浅拷贝。"""
         return self.values.copy()
 
     def resolve_target(self, target=None):
+        """把设备备注名换成真实地址，未命中时原样返回。"""
         value = self.values["target"] if target is None else target
         return self.aliases.resolve(value)
 
     def format_target(self, target=None):
+        """返回带备注名的展示文本，例如“教室 A（192.168.1.20）”。"""
         value = self.values["target"] if target is None else target
         return self.aliases.format_target(value)
 
     def restore(self, values):
+        """从快照恢复会话参数，未知键会被忽略。"""
         for name, value in values.items():
             if name in self.DEFAULTS:
                 self.set_value(name, value)
 
     def options(self, **payload):
+        """组装发送参数，自动把备注名解析成地址。"""
         values = self.values.copy()
         values["target"] = self.resolve_target(values["target"])
         values.update(payload)
@@ -300,6 +329,11 @@ class ConnectionState(QObject):
 
 
 class LogLevel(StrEnum):
+    """运行日志等级，数值越大越严重。
+
+    等级是写入阈值：低于阈值的记录既不进列表也不写文件。
+    """
+
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"
@@ -307,6 +341,7 @@ class LogLevel(StrEnum):
 
     @property
     def rank(self):
+        """返回等级序号，用于比较严重程度。"""
         return LOG_LEVEL_RANK[self]
 
 
@@ -360,6 +395,8 @@ def normalize_log_time(value):
 
 @dataclass(frozen=True)
 class LogEntry:
+    """一条运行日志记录。"""
+
     time: str
     category: str
     level: LogLevel
@@ -372,6 +409,7 @@ class LogEntry:
     uid: int = 0
 
     def as_text(self):
+        """按日志文件格式输出单条记录，多行内容缩进续行。"""
         lines = self.message.replace("\r\n", "\n").replace("\r", "\n").split("\n")
         text = "%s [%d] [%s] %-7s %s:%d - [%s] %s" % (
             self.time,
@@ -394,6 +432,7 @@ class LogEntry:
         return text
 
     def as_record(self):
+        """导出为可序列化的字典，不含运行时生成的 uid。"""
         return {
             "time": self.time,
             "category": self.category,
@@ -408,6 +447,7 @@ class LogEntry:
 
     @classmethod
     def from_record(cls, record):
+        """从旧版 JSONL 记录还原；字段缺失时用默认值补齐。"""
         if not isinstance(record, dict):
             raise ValueError("日志记录格式无效")
         return cls(
@@ -424,6 +464,7 @@ class LogEntry:
 
     @classmethod
     def from_text(cls, block):
+        """按规范文本格式解析一段记录，续行按四空格缩进还原。"""
         lines = block.splitlines()
         if not lines:
             raise ValueError("日志记录为空")
@@ -446,6 +487,12 @@ class LogEntry:
 
 
 class LogStore(QObject):
+    """运行日志的内存队列与文件同步。
+
+    列表最多保留 ``limit`` 条，超出后丢弃最早记录；文件按时间顺序追加，
+    删除或清空时整体重写，保证界面与文件内容一致。
+    """
+
     added = Signal(object)
     removed = Signal(object)
     cleared = Signal()
@@ -464,9 +511,11 @@ class LogStore(QObject):
 
     @property
     def minimum_level(self):
+        """返回当前写入阈值。"""
         return self._minimum_level
 
     def _load(self):
+        """读取历史日志；旧版 JSONL 记录会被转换成规范文本。"""
         if self.log_path is None or not self.log_path.exists():
             return
         try:
@@ -480,6 +529,7 @@ class LogStore(QObject):
         migrated = False
 
         def flush_pending():
+            """把暂存的规范文本行解析成一条记录。"""
             nonlocal invalid
             if not pending:
                 return
@@ -520,6 +570,7 @@ class LogStore(QObject):
 
     @staticmethod
     def _caller_location(skip):
+        """沿调用栈上溯，返回“模块.类名”与行号，便于从日志定位代码。"""
         frame = inspect.currentframe()
         try:
             for _ in range(skip):
@@ -539,6 +590,7 @@ class LogStore(QObject):
             del frame
 
     def _append_to_file(self, entry):
+        """按时间顺序追加一行；写失败只记录状态，不打断任务。"""
         if self.log_path is None:
             return
         try:
@@ -549,6 +601,7 @@ class LogStore(QObject):
             self.storage_error = "运行日志保存失败：%s" % error
 
     def _rewrite_file(self):
+        """用当前记录整体覆盖日志文件；先写临时文件再替换，避免写坏原文件。"""
         if self.log_path is None:
             return
         temp_path = Path(str(self.log_path) + ".tmp")
@@ -608,23 +661,29 @@ class LogStore(QObject):
         logger_name=None,
         line_number=None,
     ):
+        """写入一条指定等级的记录。"""
         return self._emit(
             category, message, level, details, logger_name, line_number, skip=3
         )
 
     def debug(self, category, message, details=""):
+        """写入调试记录，用于参数快照与进度细节。"""
         return self._emit(category, message, LogLevel.DEBUG, details, skip=3)
 
     def info(self, category, message, details=""):
+        """写入信息记录，用于启动、关键操作与任务完成。"""
         return self._emit(category, message, LogLevel.INFO, details, skip=3)
 
     def warning(self, category, message, details=""):
+        """写入警告记录，用于可恢复异常与用户取消。"""
         return self._emit(category, message, LogLevel.WARNING, details, skip=3)
 
     def error(self, category, message, details=""):
+        """写入错误记录，用于任务失败与异常。"""
         return self._emit(category, message, LogLevel.ERROR, details, skip=3)
 
     def set_level(self, level):
+        """修改写入阈值；等级未变化时不发信号。"""
         normalized = normalize_log_level(level)
         if normalized == self._minimum_level:
             return
@@ -632,6 +691,7 @@ class LogStore(QObject):
         self.levelChanged.emit(str(normalized))
 
     def remove_entries(self, uids):
+        """按 uid 删除记录并重写文件，返回实际删除的条目。"""
         selected = {int(uid) for uid in uids}
         removed = [entry for entry in self.entries if entry.uid in selected]
         if not removed:
@@ -645,10 +705,12 @@ class LogStore(QObject):
         return removed
 
     def export_text(self, entries=None):
+        """导出为文本；不传参数时导出全部记录。"""
         source = self.entries if entries is None else entries
         return "\n".join(entry.as_text() for entry in source)
 
     def clear(self, persist=True):
+        """清空全部记录，``persist`` 为真时同步清空日志文件。"""
         self.entries.clear()
         self.storage_error = ""
         if persist:
