@@ -2,9 +2,11 @@
 
 import argparse
 import random
+import socket
 import sys
 from multiprocessing import Pool, freeze_support
 from os import system
+from time import sleep
 
 from ..core import (
     COMMAND_MAX_BYTES,

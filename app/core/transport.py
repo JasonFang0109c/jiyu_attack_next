@@ -5,7 +5,7 @@ import socket
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Event, Lock, Thread
-from time import monotonic
+from time import monotonic, sleep
 from urllib.parse import urlsplit
 
 from .constants import COMMAND_MAX_BYTES
