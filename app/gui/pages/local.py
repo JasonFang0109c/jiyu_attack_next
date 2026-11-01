@@ -1,6 +1,11 @@
 """本机信息页：显示本机 IP 与 Student 端监听的 UDP 端口。"""
 
-from .common import *
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import QHBoxLayout, QTableWidgetItem
+from qfluentwidgets import BodyLabel, FluentIcon as FIF, setFont
+
+from ..components import SectionCard, TaskFooter, page_heading, tool_button
+from .common import Page, table_widget
 
 
 class LocalPage(Page):

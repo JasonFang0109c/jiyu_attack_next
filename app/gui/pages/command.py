@@ -1,6 +1,12 @@
 """远程命令页：编辑命令正文并实时统计报文占用。"""
 
-from .common import *
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import QHBoxLayout
+from qfluentwidgets import BodyLabel, CaptionLabel, FluentIcon as FIF, PlainTextEdit
+
+from ... import core
+from ..components import tool_button
+from .common import NetworkPage
 
 
 class CommandPage(NetworkPage):

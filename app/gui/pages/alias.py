@@ -1,6 +1,25 @@
 """设备备注页：给常用目标起中文名字，后续直接按名字发送。"""
 
-from .common import *
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QHeaderView,
+    QSizePolicy,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+from qfluentwidgets import (
+    CaptionLabel,
+    Dialog,
+    FluentIcon as FIF,
+    LineEdit,
+    PrimaryPushButton,
+    PushButton,
+)
+
+from ..components import Ipv4TargetInput, SectionCard, info_button, page_heading
+from .common import Page, table_widget
 
 
 class AliasPage(Page):

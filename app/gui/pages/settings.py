@@ -1,6 +1,21 @@
 """设置页：界面主题、关闭行为、运行日志等级与数据清理。"""
 
-from .common import *
+from PySide6.QtCore import QSignalBlocker, Qt, Signal, Slot
+from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout
+from qfluentwidgets import (
+    BodyLabel,
+    CaptionLabel,
+    ComboBox,
+    FluentIcon as FIF,
+    PushButton,
+    SwitchButton,
+    Theme,
+    qconfig,
+)
+
+from ..components import SectionCard, page_heading
+from ..models import LOG_LEVELS, normalize_log_level
+from .common import Page
 
 
 class SettingsPage(Page):

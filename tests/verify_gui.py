@@ -2,7 +2,6 @@ import argparse
 import contextlib
 import os
 import sys
-import tempfile
 from pathlib import Path
 
 if hasattr(sys.stdout, "reconfigure"):

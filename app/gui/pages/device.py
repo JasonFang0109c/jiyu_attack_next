@@ -1,6 +1,17 @@
 """设备操作页：重启、关机、注销目标电脑。"""
 
-from .common import *
+from PySide6.QtCore import Slot
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QButtonGroup,
+    QHBoxLayout,
+    QHeaderView,
+    QTableWidgetItem,
+)
+from qfluentwidgets import BodyLabel, RadioButton
+
+from ... import core
+from .common import NetworkPage, table_widget
 
 
 class DevicePage(NetworkPage):

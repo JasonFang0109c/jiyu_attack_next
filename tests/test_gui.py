@@ -4,7 +4,6 @@ import io
 import shutil
 import socket
 import sys
-import tempfile
 import time
 import unittest
 from threading import Event
@@ -32,13 +31,19 @@ from qfluentwidgets import (
     CaptionLabel,
     FluentWindow,
     HyperlinkButton,
+    SmoothScrollArea,
     Theme,
     ToolTip,
     qconfig,
 )
 
-from app.gui import app as gui, pages as gui_pages
+from app.gui import app as gui
 from app.gui import components, models
+from app.gui.pages.common import (
+    CompactHeaderCheckBox,
+    CompactTreeItemDelegate,
+    FileTreeHeader,
+)
 
 
 class GuiTests(unittest.TestCase):
@@ -232,7 +237,7 @@ class GuiTests(unittest.TestCase):
 
     def test_about_page_scrolls_when_window_is_short(self):
         about = self.show_about_page()
-        scroll = about.findChild(gui_pages.SmoothScrollArea)
+        scroll = about.findChild(SmoothScrollArea)
         self.assertIsNotNone(scroll)
         self.assertTrue(scroll.widgetResizable())
         # 内容高于视口时可通过滚动查看，而不是压缩布局。
@@ -745,9 +750,9 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(page.delete_button.isEnabled())
         self.assertIn("3 个文件", page.count_label.text())
         self.assertEqual(page.tree.columnCount(), 3)
-        self.assertEqual(gui_pages.FileTreeHeader.CHECKBOX_SIZE, 16)
-        self.assertEqual(gui_pages.CompactHeaderCheckBox.INDICATOR_SIZE, 16)
-        self.assertEqual(gui_pages.CompactTreeItemDelegate.CHECKBOX_SIZE, 16)
+        self.assertEqual(FileTreeHeader.CHECKBOX_SIZE, 16)
+        self.assertEqual(CompactHeaderCheckBox.INDICATOR_SIZE, 16)
+        self.assertEqual(CompactTreeItemDelegate.CHECKBOX_SIZE, 16)
         self.assertEqual(page.tree.headerItem().text(0), "名称")
         self.assertEqual(page.select_all_checkbox.size().width(), 16)
         self.assertEqual(page.select_all_checkbox.size().height(), 16)

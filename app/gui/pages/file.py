@@ -1,6 +1,25 @@
 """文件传送页：选择文件或文件夹，预览目录结构并发起传送。"""
 
-from .common import *
+from PySide6.QtCore import QSignalBlocker, QSize, QTimer, Qt, Signal
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QHBoxLayout,
+    QHeaderView,
+    QTreeWidgetItem,
+)
+from qfluentwidgets import BodyLabel, CaptionLabel, FluentIcon as FIF, ProgressBar
+
+from ... import core
+from ..components import (
+    SectionCard,
+    TargetControls,
+    TaskFooter,
+    info_button,
+    page_heading,
+    tool_button,
+)
+from .common import CompactTreeItemDelegate, FileTreeHeader, FileTreeWidget, Page
 
 
 class FilePage(Page):

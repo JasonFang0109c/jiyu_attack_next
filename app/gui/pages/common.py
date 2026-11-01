@@ -1,72 +1,14 @@
 """按功能组织的 Fluent 工作页面。"""
 
-from importlib.metadata import version
 from pathlib import Path
 
-from PySide6.QtCore import (
-    QEvent,
-    QSignalBlocker,
-    QRectF,
-    QSize,
-    Qt,
-    QTimer,
-    Signal,
-    Slot,
-)
-from PySide6.QtGui import QFont, QIcon, QPainter
-from PySide6.QtWidgets import (
-    QAbstractItemView,
-    QButtonGroup,
-    QFrame,
-    QHeaderView,
-    QHBoxLayout,
-    QLabel,
-    QSizePolicy,
-    QTableWidgetItem,
-    QTreeWidgetItem,
-    QVBoxLayout,
-    QWidget,
-)
-from qfluentwidgets import (
-    BodyLabel,
-    CaptionLabel,
-    CheckBox,
-    ComboBox,
-    Dialog,
-    FluentIcon as FIF,
-    HyperlinkButton,
-    LineEdit,
-    PlainTextEdit,
-    PrimaryPushButton,
-    ProgressBar,
-    PushButton,
-    RadioButton,
-    SearchLineEdit,
-    SmoothScrollArea,
-    StrongBodyLabel,
-    SwitchButton,
-    TableWidget,
-    Theme,
-    TitleLabel,
-    TreeItemDelegate,
-    TreeWidget,
-    qconfig,
-    setFont,
-)
+from PySide6.QtCore import QEvent, QRectF, Qt, Signal
+from PySide6.QtGui import QPainter
+from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QVBoxLayout, QWidget
+from qfluentwidgets import CheckBox, TableWidget, TreeItemDelegate, TreeWidget
 from qfluentwidgets.components.widgets.check_box import CheckBoxIcon
 
-from ... import core
-from ..build_info import build_time_text, version_text
-from ..models import LOG_LEVELS, normalize_log_level
-from ..components import (
-    Ipv4TargetInput,
-    SectionCard,
-    TargetControls,
-    TaskFooter,
-    info_button,
-    page_heading,
-    tool_button,
-)
+from ..components import SectionCard, TargetControls, TaskFooter, page_heading
 
 ASSET_ROOT = Path(__file__).resolve().parents[3] / "assets"
 

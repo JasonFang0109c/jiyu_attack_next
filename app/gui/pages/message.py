@@ -1,6 +1,12 @@
 """文本消息页：编辑消息正文并统计会被拆成几条报文。"""
 
-from .common import *
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import QHBoxLayout, QSizePolicy
+from qfluentwidgets import BodyLabel, CaptionLabel, FluentIcon as FIF, PlainTextEdit
+
+from ... import core
+from ..components import tool_button
+from .common import NetworkPage
 
 
 class MessagePage(NetworkPage):

@@ -1,7 +1,22 @@
 """关于页：展示作者、仓库、版本与依赖组件信息。"""
 
-from .common import *
-from .common import ASSET_ROOT
+from importlib.metadata import version
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from qfluentwidgets import (
+    BodyLabel,
+    CaptionLabel,
+    FluentIcon as FIF,
+    HyperlinkButton,
+    SmoothScrollArea,
+    TitleLabel,
+)
+
+from ..build_info import build_time_text, version_text
+from ..components import SectionCard, page_heading
+from .common import ASSET_ROOT, Page
 
 
 class AboutInfoCard(SectionCard):
