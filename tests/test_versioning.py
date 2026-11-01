@@ -1,3 +1,5 @@
+"""校验版本号在包、命令行与打包配置之间保持一致。"""
+
 from pathlib import Path
 import re
 import sys

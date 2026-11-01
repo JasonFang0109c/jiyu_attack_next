@@ -1,3 +1,5 @@
+"""渲染图形界面并保存截图，供人工核对布局。"""
+
 import argparse
 import os
 import sys
@@ -14,6 +16,11 @@ from app.gui.models import DATA_DIRECTORY_NAME, SETTINGS_FILE_NAME
 
 
 def main():
+    """打开主窗口并按命令行参数截图，返回进程退出码。
+
+    ``--page`` 选择页面，``--theme`` 选择主题，``--sample`` 预填示例
+    数据，``--select-all`` 勾选全部日志，截图保存到 ``--screenshot``。
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--screenshot", required=True)
     parser.add_argument(

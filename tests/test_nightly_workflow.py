@@ -1,3 +1,5 @@
+"""校验 nightly 与发布工作流的触发条件、产物与版本号来源。"""
+
 from pathlib import Path
 import re
 import unittest

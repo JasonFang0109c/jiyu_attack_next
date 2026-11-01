@@ -1,3 +1,5 @@
+"""图形界面的离线测试：窗口装配、页面交互、日志与单实例行为。"""
+
 import os
 import json
 import io

@@ -1,3 +1,5 @@
+"""核心模块的离线测试：报文构造、地址解析、本地信息与文件传送。"""
+
 import io
 import json
 import shutil

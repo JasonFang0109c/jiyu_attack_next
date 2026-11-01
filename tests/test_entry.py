@@ -1,3 +1,5 @@
+"""命令行入口的测试：帮助输出、参数分发与打包后的入口行为。"""
+
 from pathlib import Path
 import subprocess
 import sys
