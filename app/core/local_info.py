@@ -4,7 +4,7 @@ import csv
 import ipaddress
 import socket
 
-from .firewall import _windows_command
+from .firewall import run_windows_command
 from .protocol import get_ip
 
 
@@ -123,7 +123,7 @@ def local_ip_and_ports():
     """
     hostname = socket.gethostname()
     ip = socket.gethostbyname(hostname)
-    tasks = _windows_command(["tasklist", "/FO", "CSV", "/NH"])
+    tasks = run_windows_command(["tasklist", "/FO", "CSV", "/NH"])
     if tasks.returncode:
         raise RuntimeError(
             tasks.stderr.strip() or tasks.stdout.strip() or "进程查询失败"
@@ -135,7 +135,7 @@ def local_ip_and_ports():
     }
     if not pids:
         return ip, []
-    connections = _windows_command(["netstat", "-ano", "-p", "UDP"])
+    connections = run_windows_command(["netstat", "-ano", "-p", "UDP"])
     if connections.returncode:
         raise RuntimeError(connections.stderr.strip() or "监听端口查询失败")
     ports = set()

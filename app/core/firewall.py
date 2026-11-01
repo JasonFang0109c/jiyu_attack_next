@@ -23,7 +23,8 @@ def _decode_windows_output(output):
         return output.decode("utf-8", errors="replace")
 
 
-def _windows_command(command):
+def run_windows_command(command):
+    """执行无窗口 Windows 命令并解码标准输出。"""
     if sys.platform != "win32":
         raise RuntimeError("此功能仅支持 Windows")
     process = subprocess.run(
@@ -79,7 +80,7 @@ def set_firewall_rule(action):
     )
     results = []
     for index, command in enumerate(commands):
-        process = _windows_command(command)
+        process = run_windows_command(command)
         command_text = " ".join(command)
         success = process.returncode == 0
         note = ""

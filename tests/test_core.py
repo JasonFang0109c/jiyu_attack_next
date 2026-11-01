@@ -223,7 +223,7 @@ class CoreTests(unittest.TestCase):
             "UDP 0.0.0.0:9999 *:* 5123\n",
         )
         with patch.object(
-            self.core.local_info, "_windows_command", side_effect=[tasks, ports]
+            self.core.local_info, "run_windows_command", side_effect=[tasks, ports]
         ):
             with patch.object(socket, "gethostbyname", return_value="模拟本机"):
                 ip, result = self.core.local_ip_and_ports()
@@ -246,7 +246,7 @@ class CoreTests(unittest.TestCase):
             SimpleNamespace(returncode=0, stdout="已更新 6 规则。", stderr=""),
         ]
         with patch.object(
-            self.core.firewall, "_windows_command", side_effect=responses
+            self.core.firewall, "run_windows_command", side_effect=responses
         ) as command:
             results = self.core.set_firewall_rule("block")
         self.assertEqual(command.call_count, 3)
@@ -813,6 +813,8 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(args.e, "r")
         args = parser.parse_args(["-ip", "192.168.1.10", "-e", "l"])
         self.assertEqual(args.e, "l")
+        with self.assertRaises(SystemExit):
+            parser.parse_args(["-ip", "192.168.1.10", "-e", "nc"])
 
 
 if __name__ == "__main__":
