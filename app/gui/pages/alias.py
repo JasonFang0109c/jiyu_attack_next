@@ -151,10 +151,12 @@ class AliasPage(Page):
         self.cancel_button.hide()
 
     def cancel_edit(self):
+        """退出编辑状态，清空表单与提示。"""
         self._reset_form()
         self._set_status("")
 
     def save(self):
+        """添加新备注或保存编辑中的备注，失败时在对应输入框标错。"""
         name = self.name_input.text().strip()
         address = self.address_input.text().strip()
         try:
@@ -176,6 +178,7 @@ class AliasPage(Page):
         self._set_status(action)
 
     def edit_selected(self):
+        """把选中的备注填入表单并进入编辑状态。"""
         name = self._selected_name()
         if not name:
             return
@@ -194,6 +197,7 @@ class AliasPage(Page):
         self.name_input.selectAll()
 
     def use_selected(self):
+        """把选中备注的地址设为当前发送目标。"""
         name = self._selected_name()
         matched = self.store.match(name) if name else None
         if matched is None:
@@ -202,6 +206,7 @@ class AliasPage(Page):
         self._set_status("已将「%s」（%s）设为当前目标" % matched)
 
     def delete_selected(self):
+        """确认后删除选中的备注。"""
         name = self._selected_name()
         matched = self.store.match(name) if name else None
         if matched is None:

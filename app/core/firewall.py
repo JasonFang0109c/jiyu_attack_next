@@ -56,6 +56,20 @@ def _firewall_result(command, process, *, success=False, note=""):
 
 
 def set_firewall_rule(action):
+    """把 StudentMain.exe 的入站规则改为阻断或允许。
+
+    阻断前会先启动防火墙服务并打开所有配置文件的防火墙，避免只改规则
+    却因为服务停止而仍然放行。
+
+    Args:
+        action: 操作类型，"block" 或 "allow"。
+
+    Returns:
+        list[dict]: 每条 netsh 命令的执行结果，含命令文本、退出码与中文说明。
+
+    Raises:
+        ValueError: action 不是 "block" 或 "allow"。
+    """
     if action not in {"block", "allow"}:
         raise ValueError("不支持的防火墙操作")
     commands = []
@@ -233,6 +247,14 @@ def request_firewall_rule(action):
 
 
 def run_firewall_helper(arguments):
+    """在提权后的助手进程里执行规则修改，并把结果写成 JSON 回传给主进程。
+
+    Args:
+        arguments: 形如 ``[动作, FIREWALL_RESULT_ARGUMENT, 结果文件路径]``。
+
+    Returns:
+        int: 0 表示规则修改成功，1 表示执行或写结果失败，2 表示参数不合法。
+    """
     if len(arguments) != 3 or arguments[1] != FIREWALL_RESULT_ARGUMENT:
         return 2
     action, result_path = arguments[0], arguments[2]

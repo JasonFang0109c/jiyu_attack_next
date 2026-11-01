@@ -37,6 +37,7 @@ class CommandPage(NetworkPage):
         self.statistics.setStyleSheet("color: #c42b1c;" if units > limit else "")
 
     def set_busy(self, busy, cancellable=False, queueable=False):
+        """在基类忙碌状态之外锁定编辑框与清空按钮，避免任务中改内容。"""
         super().set_busy(busy, cancellable, queueable)
         self.editor.setReadOnly(busy)
         self.clear_button.setEnabled(not busy)

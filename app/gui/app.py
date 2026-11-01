@@ -388,6 +388,7 @@ class MainWindow(FluentWindow):
 
     def _notify(self, title, message, level="信息"):
         """显示提示：窗口隐藏时走托盘气泡，否则用右上角 InfoBar。"""
+        # 退出流程中窗口即将销毁，此时再弹 InfoBar 会在关闭动画期间闪现。
         if self.close_after_task:
             return
         if not self.isVisible() and self.tray_icon is not None:
@@ -1046,11 +1047,21 @@ class MainWindow(FluentWindow):
 
     @Slot(object)
     def set_theme(self, theme):
+        """切换界面主题；主题不写入配置文件，下次启动仍用浅色。
+
+        Args:
+            theme: ``Theme`` 枚举值，来自设置页的下拉框。
+        """
         setTheme(theme, save=False)
         self.logs.info("应用", "界面主题已切换", "主题：%s" % theme)
 
     @Slot(str)
     def set_close_behavior(self, behavior):
+        """保存关闭窗口行为，写盘失败时回滚到原行为。
+
+        Args:
+            behavior: 待保存的行为值，非法值会被拒绝并提示用户。
+        """
         try:
             normalized = normalize_close_behavior(behavior)
         except ValueError as error:
@@ -1158,6 +1169,11 @@ class MainWindow(FluentWindow):
 
     @Slot()
     def clear_data(self):
+        """确认后删除数据目录并恢复默认设置。
+
+        有任务运行时直接拒绝，避免正在写入的日志与备注文件被删除一半；
+        删除失败时还原托盘与日志路径，让本次运行继续可用。
+        """
         if self.thread is not None:
             self._notify("无法清除数据", "请等待当前任务结束后再试", "警告")
             return

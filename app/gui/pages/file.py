@@ -141,6 +141,7 @@ class FilePage(Page):
         return self.add_paths([path])
 
     def has_files(self):
+        """返回待传送列表是否非空。"""
         return bool(self.items)
 
     def selected_items(self):
@@ -436,6 +437,11 @@ class FilePage(Page):
         self.tree.header().position_checkbox()
 
     def set_progress(self, percent):
+        """显示并更新当前目标的下载进度条。
+
+        Args:
+            percent: 进度百分比，超出 0~100 时按边界截断。
+        """
         self.progress.show()
         self.progress_text.show()
         self.progress.setValue(max(0, min(100, int(percent))))
@@ -444,11 +450,13 @@ class FilePage(Page):
         )
 
     def reset_progress(self):
+        """清空并隐藏进度条，任务结束后恢复初始状态。"""
         self.progress.setValue(0)
         self.progress.hide()
         self.progress_text.hide()
 
     def set_busy(self, busy, cancellable=False, queueable=False):
+        """切换忙碌状态：锁定目标输入与文件操作，结束时刷新按钮可用性。"""
         self._busy = bool(busy)
         self.targets.setEnabled(not busy)
         for button in (

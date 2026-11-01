@@ -93,6 +93,11 @@ class SettingsPage(Page):
         self.closeBehaviorRequested.emit("tray" if checked else "quit")
 
     def set_close_behavior(self, behavior):
+        """按当前配置同步关闭行为开关，期间屏蔽开关自身的信号。
+
+        Args:
+            behavior: ``tray`` 表示最小化到托盘，其他值表示直接退出。
+        """
         with QSignalBlocker(self.close_behavior_switch):
             self.close_behavior_switch.setChecked(behavior == "tray")
 

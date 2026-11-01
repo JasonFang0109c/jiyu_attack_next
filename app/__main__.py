@@ -19,6 +19,14 @@ def _show_cli_console():
 
 
 def main(argv=None):
+    """按是否带参数分发到命令行或图形界面入口。
+
+    Args:
+        argv: 参数列表，None 表示从 ``sys.argv`` 读取。
+
+    Returns:
+        int: 对应入口返回的退出码。
+    """
     arguments = list(sys.argv[1:] if argv is None else argv)
     if arguments:
         if arguments[0] != "--firewall-helper":

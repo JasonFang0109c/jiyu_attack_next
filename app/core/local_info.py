@@ -119,7 +119,7 @@ def local_ip_and_ports():
         tuple[str, list[str]]: 本机 IP 与按端口号升序排列的端口列表。
 
     Raises:
-        ValueError: 进程或端口查询失败。
+        RuntimeError: 进程或端口查询失败。
     """
     hostname = socket.gethostname()
     ip = socket.gethostbyname(hostname)

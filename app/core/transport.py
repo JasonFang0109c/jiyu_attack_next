@@ -376,21 +376,41 @@ class FileTransferServer:
 
     @property
     def port(self):
+        """临时 HTTP 服务实际监听的端口，端口 0 构造时由系统分配。"""
         return self.httpd.server_address[1]
 
     def start(self):
+        """启动 HTTP 服务线程，调用前已完成端口绑定。"""
         self.thread.start()
 
     def stop(self):
+        """停止 HTTP 服务并释放端口，可重复调用。"""
         if self.thread.is_alive():
             self.httpd.shutdown()
             self.thread.join(timeout=2)
         self.httpd.server_close()
 
     def bootstrap_url(self, host):
+        """返回目标下载引导脚本的地址。
+
+        Args:
+            host: 目标电脑访问发送端时使用的 IP。
+
+        Returns:
+            str: 引导脚本的 HTTP 地址。
+        """
         return "http://%s:%d/b/%s" % (host, self.port, self.token)
 
     def file_url(self, host, index=0):
+        """返回第 index 个待传送文件的下载地址。
+
+        Args:
+            host: 目标电脑访问发送端时使用的 IP。
+            index: 文件序号，0 表示第一个文件。
+
+        Returns:
+            str: 文件的 HTTP 地址。
+        """
         if index:
             return "http://%s:%d/f/%s/%d" % (host, self.port, self.token, index)
         return "http://%s:%d/f/%s" % (host, self.port, self.token)

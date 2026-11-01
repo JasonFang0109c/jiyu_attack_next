@@ -78,6 +78,7 @@ class DevicePage(NetworkPage):
         return "r"
 
     def set_busy(self, busy, cancellable=False, queueable=False):
+        """在基类忙碌状态之外锁定三个设备操作按钮。"""
         super().set_busy(busy, cancellable, queueable)
         for button in (self.reboot, self.shutdown, self.logoff):
             button.setEnabled(not busy)

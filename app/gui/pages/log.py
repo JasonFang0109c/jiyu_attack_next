@@ -231,11 +231,13 @@ class LogPage(Page):
         return uid in self._checked_uids
 
     def selected_entries(self):
+        """按日志顺序返回勾选的记录。"""
         return [
             entry for entry in self.store.entries if entry.uid in self._checked_uids
         ]
 
     def selected_uids(self):
+        """按日志顺序返回勾选记录的 uid。"""
         return [
             entry.uid for entry in self.store.entries if entry.uid in self._checked_uids
         ]
@@ -359,5 +361,13 @@ class LogPage(Page):
         self._update_selection_controls()
 
     def export_text(self, entries=None):
+        """把指定记录转成导出文本，None 表示导出全部记录。
+
+        Args:
+            entries: 待导出的日志记录列表。
+
+        Returns:
+            str: 可直接写入文件的文本。
+        """
         source = self.store.entries if entries is None else entries
         return self.store.export_text(source)
