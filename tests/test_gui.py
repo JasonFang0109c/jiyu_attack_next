@@ -1688,6 +1688,34 @@ class GuiTests(unittest.TestCase):
             window.close()
             window.deleteLater()
 
+    def test_tray_quit_requests_event_loop_exit_when_hidden(self):
+        window = gui.MainWindow(
+            alias_store=gui.DeviceAliasStore(
+                settings=QSettings(self.settings_path, QSettings.IniFormat)
+            ),
+            data_dir=self.data_dir,
+            enable_tray=False,
+        )
+        try:
+            requests = []
+            window.quitRequested.connect(lambda: requests.append(True))
+            window.show()
+            window.tray_icon = TestTrayIcon(window)
+            window.tray_menu = gui.SystemTrayMenu(parent=window)
+            window.hide()
+            window.quit_from_tray()
+            # 隐藏窗口上调用 close() 不会让 Qt 结束事件循环，退出必须由信号驱动。
+            self.assertEqual(requests, [True])
+            self.assertTrue(window._quit_finished)
+            self.assertEqual(window.logs.entries[-1].message, "应用退出")
+            # main() 在事件循环结束后还会再调一次，重复清理不应再写日志。
+            window.quit_application()
+            self.assertEqual(window.logs.entries[-1].message, "应用退出")
+        finally:
+            window._quit_requested = True
+            window.close()
+            window.deleteLater()
+
 
 class UsageNoticeTests(unittest.TestCase):
     """校验启动时的使用须知：未同意不进入主界面。"""

@@ -219,6 +219,10 @@ class MainWindow(FluentWindow):
         _task_queue: 排队等待执行的任务，元素为 (kind, worker, finished, failed)。
     """
 
+    # 退出清理完成后显式请求结束事件循环：从托盘退出时窗口已隐藏，
+    # Qt 的“最后一个窗口关闭”不会触发，只靠关闭窗口会让进程一直空转。
+    quitRequested = Signal()
+
     def __init__(self, alias_store=None, data_dir=None, enable_tray=True):
         super().__init__()
         self.data_dir = (
@@ -241,6 +245,7 @@ class MainWindow(FluentWindow):
         self._settings_error = getattr(self, "_close_behavior_error", "")
         self.first_close_prompt_shown = self._load_first_close_prompt_shown()
         self._quit_requested = False
+        self._quit_finished = False
         self._first_close_dialog_open = False
         self.tray_icon = None
         self.tray_menu = None
@@ -1262,12 +1267,20 @@ class MainWindow(FluentWindow):
 
     def quit_application(self):
         """请求退出应用，不触发关闭到托盘的首次询问。"""
+        # 退出清理是一次性的：main() 在事件循环结束后还会再调用一次，
+        # 此时重跑清理会重复移除托盘并重复写「应用退出」。
+        if self._quit_finished:
+            return
         self._quit_requested = True
         self.logs.debug(
             "应用",
             "收到退出请求",
-            "任务：%s；排队任务数：%d"
-            % (self.active_kind or "无", len(self._task_queue)),
+            "任务：%s；排队任务数：%d；窗口可见：%s"
+            % (
+                self.active_kind or "无",
+                len(self._task_queue),
+                "是" if self.isVisible() else "否",
+            ),
         )
         self.close()
 
@@ -1407,6 +1420,12 @@ class MainWindow(FluentWindow):
         if instance is not None:
             instance.close()
         super().closeEvent(event)
+        if not event.isAccepted():
+            return
+        self._quit_finished = True
+        # 窗口从托盘隐藏状态下关闭时 Qt 不认为“最后一个窗口已关闭”，
+        # 事件循环会继续空转、进程留在后台，这里显式通知 main() 退出。
+        self.quitRequested.emit()
 
 
 def probe_local(report=None):
@@ -1461,6 +1480,9 @@ def main():
     # 单实例服务在主窗口之前创建，这里补上日志通道，唤醒记录才会进入运行日志。
     instance.logs = window.logs
     instance.activationRequested.connect(window.show_from_tray)
+    # 关闭清理完成后再退出事件循环：从托盘退出时窗口是隐藏的，
+    # 仅靠 Qt 的“最后一个窗口关闭”规则不足以让 exec() 返回。
+    window.quitRequested.connect(application.quit)
     install_exception_logging(window.logs)
     window.show()
     window.logs.info(
