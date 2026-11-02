@@ -32,6 +32,8 @@ class FilePage(Page):
     def __init__(self, state, parent=None):
         super().__init__("file", parent)
         self.items = []
+        # 总字节数随添加与移除增量维护，刷新统计时不必每次重算整个列表。
+        self._total_size = 0
         self._syncing = False
         self._busy = False
         self.info_button = info_button(
@@ -147,6 +149,7 @@ class FilePage(Page):
         if not added:
             return 0, 0
         self.items = current
+        self._total_size += sum(size for _, _, size in added)
         for _, relative, _ in added:
             states[relative.casefold()] = True
         self._rebuild_tree(states)
@@ -212,6 +215,7 @@ class FilePage(Page):
         if not removed:
             return []
         self.items = remaining
+        self._total_size -= sum(size for _, _, size in removed)
         states = self._check_states()
         for _, relative, _ in removed:
             states.pop(relative.casefold(), None)
@@ -315,7 +319,8 @@ class FilePage(Page):
         self._update_selection_controls()
 
     def _sort_item(self, parent):
-        children = [parent.takeChild(0) for _ in range(parent.childCount())]
+        # 一次性取出全部子项再排序回挂：逐个 takeChild(0) 每次都要搬移剩余子项。
+        children = parent.takeChildren()
         children.sort(
             key=lambda item: (
                 0 if item.data(0, Qt.UserRole)[0] == "dir" else 1,
@@ -439,7 +444,7 @@ class FilePage(Page):
             if selected:
                 checked.append(item)
         selected_size = sum(item.data(0, Qt.UserRole + 1)[2] for item in checked)
-        total_size = sum(size for _, _, size in self.items)
+        total_size = self._total_size
         if not file_items:
             header_state = Qt.Unchecked
         elif len(checked) == len(file_items):
