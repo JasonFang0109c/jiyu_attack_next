@@ -20,6 +20,7 @@ from .protocol import (
     prepare_packets,
     validate_options,
 )
+from .reachability import ping_hosts
 
 
 def send(
@@ -96,6 +97,7 @@ class DeliveryState(StrEnum):
     DELIVERED = "delivered"
     REJECTED = "rejected"
     UNREACHABLE = "unreachable"
+    NO_RESPONSE = "no_response"
 
     @property
     def text(self):
@@ -104,6 +106,7 @@ class DeliveryState(StrEnum):
             DeliveryState.DELIVERED: "已送达",
             DeliveryState.REJECTED: "失败：目标端口未响应",
             DeliveryState.UNREACHABLE: "失败：目标不可达",
+            DeliveryState.NO_RESPONSE: "失败：目标未响应",
         }[self]
 
 
@@ -223,6 +226,7 @@ def send_tracked(
                 else:
                     sleep(interval)
         _collect_icmp_errors(sockets, states)
+        _probe_silent_hosts(hosts, states)
     finally:
         for client in sockets.values():
             client.close()
@@ -263,6 +267,26 @@ def _collect_icmp_errors(sockets, states, timeout=0.4):
                 states[host] = (DeliveryState.REJECTED, "")
             except OSError as error:
                 states[host] = (DeliveryState.UNREACHABLE, str(error))
+
+
+def _probe_silent_hosts(hosts, states):
+    """对没有收到 ICMP 错误的目标再做一次回显探测。
+
+    地址不存在时 ARP 解析失败不会产生任何 ICMP 报文，只看发送反馈会把
+    “根本不存在的主机”误判成已送达，所以这里用回显与 ARP 缓存确认主机是否在线。
+    """
+    pending = [host for host in hosts if host not in states]
+    if not pending:
+        return
+    alive = ping_hosts(pending)
+    for host in pending:
+        if alive.get(host):
+            states[host] = (DeliveryState.DELIVERED, "")
+        else:
+            states[host] = (
+                DeliveryState.NO_RESPONSE,
+                "主机可能不存在，或屏蔽了 ICMP 回显",
+            )
 
 
 def format_size(size):

@@ -174,7 +174,12 @@ class CoreTests(unittest.TestCase):
             self.core.transport, "get_ip", return_value=["模拟目标甲", "模拟目标乙"]
         ):
             with patch.object(socket, "socket", side_effect=[first, second]):
-                outcome = self.core.execute_send_report(options)
+                with patch.object(
+                    self.core.transport,
+                    "ping_hosts",
+                    return_value={"模拟目标甲": True, "模拟目标乙": True},
+                ):
+                    outcome = self.core.execute_send_report(options)
         self.assertEqual(outcome.sent, 12)
         # 每个目标各自建连接，轮询两轮后各发一遍完整报文序列。
         for client, host in ((first, "模拟目标甲"), (second, "模拟目标乙")):
@@ -243,14 +248,35 @@ class CoreTests(unittest.TestCase):
         )
         self.assertEqual(outcome.failed, outcome.deliveries)
 
-    def test_send_tracked_treats_silence_as_delivered(self):
+    def test_send_tracked_confirms_silent_targets_with_echo(self):
         client = MagicMock()
-        with patch.object(self.core.transport, "get_ip", return_value=["甲"]):
+        with patch.object(self.core.transport, "get_ip", return_value=["10.0.0.5"]):
             with patch.object(socket, "socket", return_value=client):
-                outcome = self.core.send_tracked([[1], [2]], "模拟目标", interval=0)
+                with patch.object(
+                    self.core.transport, "ping_hosts", return_value={"10.0.0.5": True}
+                ):
+                    outcome = self.core.send_tracked([[1], [2]], "模拟目标", interval=0)
         self.assertEqual(outcome.sent, 2)
         self.assertTrue(outcome.deliveries[0].ok)
         self.assertEqual(outcome.failed, ())
+
+    def test_reachability_ignores_addresses_it_cannot_probe(self):
+        self.assertEqual(self.core.reachability.ping_hosts([]), {})
+        self.assertEqual(self.core.reachability.ping_hosts(["not-an-address"]), {})
+
+    def test_send_tracked_reports_targets_that_never_answer(self):
+        client = MagicMock()
+        with patch.object(self.core.transport, "get_ip", return_value=["10.0.0.6"]):
+            with patch.object(socket, "socket", return_value=client):
+                with patch.object(
+                    self.core.transport, "ping_hosts", return_value={"10.0.0.6": False}
+                ):
+                    outcome = self.core.send_tracked([[1]], "模拟目标", interval=0)
+        self.assertEqual(
+            [item.state for item in outcome.deliveries],
+            [self.core.DeliveryState.NO_RESPONSE],
+        )
+        self.assertEqual(outcome.deliveries[0].state.text, "失败：目标未响应")
 
     def test_local_ports_match_exact_pids_and_wildcard_addresses(self):
         tasks = SimpleNamespace(
