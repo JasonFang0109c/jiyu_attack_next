@@ -182,21 +182,6 @@ class LogPage(Page):
             ]
         ).casefold()
 
-    def _rebuild_row_map(self):
-        """按当前表格顺序重建 uid 与行号的映射。"""
-        self._uid_by_row = []
-        self._row_by_uid = {}
-        for row in range(self.table.rowCount()):
-            item = self.table.item(row, 0)
-            if item is None:
-                continue
-            uid = int(item.data(Qt.UserRole))
-            self._uid_by_row.append(uid)
-            self._row_by_uid[uid] = row
-        known = set(self._uid_by_row)
-        self._checked_uids &= known
-        self._visible_uids &= known
-
     def _drop_row(self, row):
         """删除一行并同步行号映射，避免整表重建。"""
         uid = self._uid_by_row[row]
@@ -330,8 +315,9 @@ class LogPage(Page):
             self._meta_by_uid.pop(uid, None)
             self._checked_uids.discard(uid)
             self._visible_uids.discard(uid)
-        self._rebuild_row_map()
-        self.apply_filter()
+        # 从后往前删除时，保留行自己的行号没有变化、隐藏状态也随之搬移，
+        # 因此不必重建映射或重跑整表筛选。
+        self._update_selection_controls()
 
     def _clear_entries(self):
         self.table.setRowCount(0)
