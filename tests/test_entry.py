@@ -66,6 +66,11 @@ class EntryTests(unittest.TestCase):
             _show_cli_console()
         rebind.assert_not_called()
 
+    def test_console_helper_never_allocates_a_window(self):
+        source = Path(__file__).resolve().parents[1] / "app" / "__main__.py"
+        # 窗口化子系统里 AllocConsole 一定会弹出新窗口，入口不得再使用它。
+        self.assertNotIn("AllocConsole", source.read_text(encoding="utf-8"))
+
     def test_firewall_helper_dispatch_skips_console(self):
         arguments = ["--firewall-helper", "block", "--firewall-result", "result.json"]
         with (

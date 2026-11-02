@@ -65,7 +65,7 @@ JiYuAttackNext.exe -ip <目标地址> [-p <目标端口>] <功能参数>
 JiYuAttackNext.exe -ip 10.49.151.29 -msg "Hello"
 ```
 
-EXE 是窗口化程序，双击无参数启动只打开 GUI，不会创建控制台窗口。从终端带参数启动时，程序把输出接回当前控制台；由于它不占用控制台，提示符会立即返回，需要等命令执行完再继续时用 `start /wait`：
+EXE 是窗口化程序，双击无参数启动只打开 GUI，不会创建控制台窗口。从终端带参数启动时，程序把输出写回当前终端，不会另开控制台窗口；由于它不占用控制台，提示符会立即返回，需要等命令执行完再继续时用 `start /wait`：
 
 ```bat
 start /wait JiYuAttackNext.exe -ip 10.49.151.29 -msg "Hello"
