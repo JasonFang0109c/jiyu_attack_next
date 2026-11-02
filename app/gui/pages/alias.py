@@ -25,10 +25,12 @@ from .common import Page, table_widget
 class AliasPage(Page):
     """维护“备注名 → 地址”映射，修改后同步刷新引用该备注的页面。"""
 
-    def __init__(self, state, parent=None):
+    def __init__(self, state, parent=None, logs=None):
         super().__init__("aliases", parent)
         self.state = state
         self.store = state.aliases
+        # 页面可能先于日志存储被单独创建（例如测试），没有存储时日志调用自动跳过。
+        self.logs = logs
         self._editing_name = None
         self.count_label = CaptionLabel("0 条备注", self)
         heading_actions = QWidget(self)
@@ -121,6 +123,12 @@ class AliasPage(Page):
         self._refresh_table()
         if self.store.load_error:
             self._set_status(self.store.load_error, error=True)
+            self._log(
+                "warning",
+                "设备备注读取失败，已按空列表启动",
+                "备注数：%d；异常：%s"
+                % (len(self.store.items()), self.store.load_error),
+            )
         else:
             self._set_status("备注保存在程序数据目录，重启后仍然可用。")
 
@@ -174,6 +182,12 @@ class AliasPage(Page):
         self._reset_form()
         self._set_status("")
 
+    def _log(self, level, message, details=""):
+        """写设备备注相关日志；没有日志存储时直接跳过。"""
+        if self.logs is None:
+            return
+        getattr(self.logs, level)("设备操作", message, details)
+
     def save(self):
         """添加新备注或保存编辑中的备注，失败时在对应输入框标错。"""
         name = self.name_input.text().strip()
@@ -191,7 +205,18 @@ class AliasPage(Page):
             self.name_input.setError("备注名" in message)
             self.address_input.setError("IP" in message or "地址" in message)
             self._set_status(message, error=True)
+            self._log(
+                "warning",
+                "设备备注保存失败",
+                "备注名：%s；地址：%s；异常：%s" % (name or "（空）", address, error),
+            )
             return
+        self._log(
+            "info",
+            action,
+            "备注名：%s；地址：%s；当前备注数：%d"
+            % (name, address, len(self.store.items())),
+        )
         self._reset_form()
         self._select_name(name)
         self._set_status(action)
@@ -200,9 +225,11 @@ class AliasPage(Page):
         """把选中的备注填入表单并进入编辑状态。"""
         name = self._selected_name()
         if not name:
+            self._log("warning", "未选中设备备注，无法修改")
             return
         matched = self.store.match(name)
         if matched is None:
+            self._log("warning", "要修改的设备备注不存在", "备注名：%s" % name)
             return
         self._editing_name = matched[0]
         self.name_input.setText(matched[0])
@@ -214,14 +241,17 @@ class AliasPage(Page):
         self.cancel_button.show()
         self.name_input.setFocus()
         self.name_input.selectAll()
+        self._log("debug", "进入设备备注编辑状态", "备注名：%s；地址：%s" % matched)
 
     def use_selected(self):
         """把选中备注的地址设为当前发送目标。"""
         name = self._selected_name()
         matched = self.store.match(name) if name else None
         if matched is None:
+            self._log("warning", "未选中设备备注，无法设为当前目标")
             return
         self.state.set_value("target", matched[0])
+        self._log("info", "设备备注已设为当前目标", "备注名：%s；地址：%s" % matched)
         self._set_status("已将「%s」（%s）设为当前目标" % matched)
 
     def delete_selected(self):
@@ -229,6 +259,7 @@ class AliasPage(Page):
         name = self._selected_name()
         matched = self.store.match(name) if name else None
         if matched is None:
+            self._log("warning", "未选中设备备注，无法删除")
             return
         dialog = Dialog(
             "删除设备备注",
@@ -239,12 +270,23 @@ class AliasPage(Page):
         dialog.yesButton.setText("删除")
         dialog.cancelButton.setText("取消")
         if not dialog.exec():
+            self._log("info", "用户取消了设备备注删除", "备注名：%s" % matched[0])
             return
         try:
             self.store.remove(matched[0])
         except (OSError, ValueError) as error:
             self._set_status(str(error), error=True)
+            self._log(
+                "error",
+                "设备备注删除失败",
+                "备注名：%s；地址：%s；异常：%s" % (matched[0], matched[1], error),
+            )
             return
         if self._editing_name == matched[0]:
             self._reset_form()
+        self._log(
+            "info",
+            "已删除备注「%s」" % matched[0],
+            "地址：%s；当前备注数：%d" % (matched[1], len(self.store.items())),
+        )
         self._set_status("已删除备注「%s」" % matched[0])

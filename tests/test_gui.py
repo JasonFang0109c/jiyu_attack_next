@@ -1341,6 +1341,59 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(settings_page.log_level_box.currentText(), "DEBUG")
         self.window.logs.set_level(models.LogLevel.INFO)
 
+    def test_cancelled_file_selection_is_logged(self):
+        store = self.window.logs
+        store.clear()
+        with patch.object(gui.QFileDialog, "getOpenFileNames", return_value=("", "")):
+            self.window.choose_transfer_files()
+        self.assertEqual(store.entries[-1].category, "文件传送")
+        self.assertEqual(store.entries[-1].level, models.LogLevel.INFO)
+        self.assertEqual(store.entries[-1].message, "用户取消了文件选择")
+
+    def test_busy_window_rejects_local_probe_with_warning(self):
+        store = self.window.logs
+        store.clear()
+        # 直接占用线程句柄模拟正在执行的任务，避免真的启动后台线程。
+        self.window.thread = object()
+        try:
+            self.window.start_local_probe()
+        finally:
+            self.window.thread = None
+        self.assertEqual(store.entries[-1].level, models.LogLevel.WARNING)
+        self.assertEqual(store.entries[-1].message, "已有任务在运行，本机查询未开始")
+
+    def test_background_worker_records_debug_trace(self):
+        store = self.window.logs
+        store.clear()
+        store.set_level(models.LogLevel.DEBUG)
+        try:
+            worker = gui.TaskWorker(
+                lambda report=None: 42, logs=store, category="本机信息"
+            )
+            worker.run()
+        finally:
+            store.set_level(models.LogLevel.INFO)
+        messages = [entry.message for entry in store.entries]
+        self.assertIn("后台任务开始执行", messages)
+        self.assertIn("后台任务执行完成", messages)
+        self.assertTrue(all(entry.category == "本机信息" for entry in store.entries))
+
+    def test_device_alias_actions_are_logged(self):
+        store = self.window.logs
+        page = self.window.pages["aliases"]
+        store.clear()
+        page.name_input.setText("日志备注")
+        for index, segment in enumerate(("192", "168", "1", "20")):
+            page.address_input.segments[index].setText(segment)
+        page.save_button.click()
+        self.assertEqual(store.entries[-1].level, models.LogLevel.INFO)
+        self.assertEqual(store.entries[-1].message, "已添加备注「日志备注」")
+        page.table.setCurrentCell(0, 0)
+        with patch.object(gui.Dialog, "exec", return_value=1):
+            page.delete_button.click()
+        self.assertEqual(store.entries[-1].level, models.LogLevel.INFO)
+        self.assertEqual(store.entries[-1].message, "已删除备注「日志备注」")
+
     def test_delete_selected_logs_removes_rows_and_rewrites_file(self):
         store = self.window.logs
         store.clear()

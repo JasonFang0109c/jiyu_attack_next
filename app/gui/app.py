@@ -114,10 +114,23 @@ class SingleInstance(QObject):
         self.key = key or single_instance_key()
         self.server = None
         self.primary = False
+        # 日志存储由主窗口创建后回填；第二次启动拿不到主窗口，此时保持为空。
+        self.logs = None
+
+    def _log(self, level, message, details=""):
+        """写入单实例相关日志，日志存储尚未就绪时静默跳过。"""
+        if self.logs is None:
+            return
+        getattr(self.logs, level)("应用", message, details)
 
     def acquire(self):
         """尝试成为主实例，成功返回 True；已有实例时唤醒它并返回 False。"""
         if self.notify_existing():
+            self._log(
+                "info",
+                "已有实例在运行，已请求其恢复主窗口",
+                "单实例标识：%s" % self.key,
+            )
             return False
         server = QLocalServer(self)
         server.setSocketOptions(QLocalServer.SocketOption.UserAccessOption)
@@ -125,10 +138,12 @@ class SingleInstance(QObject):
             # 上次异常退出可能遗留同名服务端，清理后重试一次。
             QLocalServer.removeServer(self.key)
             if not server.listen(self.key):
+                self._log("error", "单实例服务启动失败", "单实例标识：%s" % self.key)
                 return False
         server.newConnection.connect(self._handle_connection)
         self.server = server
         self.primary = True
+        self._log("debug", "单实例服务已启动", "单实例标识：%s" % self.key)
         return True
 
     def notify_existing(self):
@@ -155,12 +170,14 @@ class SingleInstance(QObject):
             connection.disconnected.connect(connection.deleteLater)
             if connection.bytesAvailable():
                 self._read_activation(connection)
+        self._log("debug", "收到第二次启动的唤醒请求")
         self.activationRequested.emit()
 
     def _read_activation(self, connection):
         try:
             connection.readAll()
         except RuntimeError:
+            self._log("warning", "读取唤醒请求失败，连接可能已关闭")
             return
 
     def close(self):
@@ -170,6 +187,7 @@ class SingleInstance(QObject):
             QLocalServer.removeServer(self.key)
             self.server.deleteLater()
             self.server = None
+            self._log("debug", "单实例服务已关闭", "单实例标识：%s" % self.key)
         self.primary = False
 
 
@@ -245,7 +263,7 @@ class MainWindow(FluentWindow):
             "command": CommandPage(self.connection_state, self),
             "device": DevicePage(self.connection_state, self),
             "file": FilePage(self.connection_state, self),
-            "aliases": AliasPage(self.connection_state, self),
+            "aliases": AliasPage(self.connection_state, self, logs=self.logs),
             "local": LocalPage(self),
             "firewall": FirewallPage(self),
             "logs": LogPage(self.logs, self),
@@ -299,10 +317,18 @@ class MainWindow(FluentWindow):
         self.first_close_prompt_shown = True
         self.settings.setValue(FIRST_CLOSE_PROMPT_SETTINGS_KEY, True)
         self.settings.sync()
+        if self.settings.status() != QSettings.NoError:
+            self.logs.warning(
+                "设置",
+                "首次关闭提示状态保存失败",
+                "设置文件：%s；状态：%s"
+                % (self.settings.fileName(), self.settings.status()),
+            )
 
     def _setup_tray(self):
         """创建系统托盘图标与菜单；托盘不可用时关闭窗口即退出。"""
         if not self.enable_tray:
+            self.logs.debug("系统托盘", "关闭行为为直接退出，未创建托盘图标")
             return
         if not QSystemTrayIcon.isSystemTrayAvailable():
             self.logs.warning("系统托盘", "系统托盘不可用，关闭窗口将直接退出")
@@ -320,6 +346,11 @@ class MainWindow(FluentWindow):
         self.tray_icon.setContextMenu(self.tray_menu)
         self.tray_icon.activated.connect(self._tray_activated)
         self.tray_icon.show()
+        self.logs.info(
+            "系统托盘",
+            "系统托盘图标已创建",
+            "提示文本：%s；菜单项数：2" % APP_NAME,
+        )
 
     def _configure_file_logging(self):
         """启动时写入本次运行环境，便于从日志复现问题。"""
@@ -442,6 +473,7 @@ class MainWindow(FluentWindow):
             )
         if kind == "device":
             return self.connection_state.options(extra=self.pages[kind].action())
+        self.logs.warning("应用", "不支持的发送功能", "功能代码：%s" % kind)
         raise ValueError("不支持的发送功能")
 
     def start_send(self, kind):
@@ -545,6 +577,7 @@ class MainWindow(FluentWindow):
             self, "选择要传送的文件", "", "所有文件 (*)"
         )
         if not filenames:
+            self.logs.info(CATEGORIES["file"], "用户取消了文件选择")
             return
         self._add_transfer_paths(filenames)
 
@@ -552,6 +585,7 @@ class MainWindow(FluentWindow):
         """选择文件夹，整个目录会按原结构传送到目标桌面。"""
         directory = QFileDialog.getExistingDirectory(self, "选择要传送的文件夹")
         if not directory:
+            self.logs.info(CATEGORIES["file"], "用户取消了文件夹选择")
             return
         self._add_transfer_paths([directory])
 
@@ -590,6 +624,7 @@ class MainWindow(FluentWindow):
         page = self.pages["file"]
         selected = page.selected_entries()
         if not selected:
+            self.logs.warning(CATEGORIES["file"], "未勾选待传送条目，无法删除")
             return
         if not self._confirm(
             "删除待传送文件",
@@ -734,6 +769,11 @@ class MainWindow(FluentWindow):
     def start_local_probe(self):
         """查询本机 IP 与 Student 端监听端口。"""
         if self.thread is not None:
+            self.logs.warning(
+                "本机信息",
+                "已有任务在运行，本机查询未开始",
+                "当前任务：%s" % (self.active_kind or "无"),
+            )
             return
         self.logs.info("本机信息", "开始查询本机 IP 与监听端口")
         self._begin_task(
@@ -743,6 +783,11 @@ class MainWindow(FluentWindow):
     def start_firewall(self):
         """确认后修改 StudentMain.exe 的防火墙规则。"""
         if self.thread is not None:
+            self.logs.warning(
+                "防火墙",
+                "已有任务在运行，防火墙操作未开始",
+                "当前任务：%s" % (self.active_kind or "无"),
+            )
             return
         action = self.pages["firewall"].action()
         action_name = "阻断连接" if action == "block" else "恢复允许"
@@ -785,6 +830,9 @@ class MainWindow(FluentWindow):
         self.active_cancel = cancel_event
         if kind == "file":
             self.pages["file"].reset_progress()
+        # 线程内日志在此注入：线程对象由各页面创建，统一在启动时补上分类与存储。
+        worker.logs = self.logs
+        worker.category = CATEGORIES.get(kind, "应用")
         worker.setParent(self)
         worker.progress.connect(self._task_progress, Qt.QueuedConnection)
         worker.completed.connect(finished, Qt.QueuedConnection)
@@ -793,6 +841,12 @@ class MainWindow(FluentWindow):
         worker.finished.connect(worker.deleteLater)
         self._set_busy(True)
         worker.start()
+        self.logs.debug(
+            CATEGORIES[kind],
+            "后台任务已启动",
+            "线程类：%s；排队任务数：%d"
+            % (type(worker).__name__, len(self._task_queue)),
+        )
 
     def _set_busy(self, busy):
         """按忙碌状态统一开关各页面的按钮与输入控件。"""
@@ -961,6 +1015,7 @@ class MainWindow(FluentWindow):
     @Slot()
     def _thread_finished(self):
         """线程结束后清理状态，必要时关闭窗口或启动下一个排队任务。"""
+        finished_kind = self.active_kind
         self.thread = None
         self.worker = None
         self.active_cancel = None
@@ -971,6 +1026,17 @@ class MainWindow(FluentWindow):
         else:
             self._set_busy(False)
         self.active_kind = ""
+        if finished_kind:
+            self.logs.debug(
+                CATEGORIES.get(finished_kind, "应用"),
+                "后台线程已结束",
+                "任务：%s；排队任务数：%d；关闭延后：%s"
+                % (
+                    finished_kind,
+                    len(self._task_queue),
+                    "是" if self.close_after_task else "否",
+                ),
+            )
         if self._task_queue and not self.close_after_task:
             QTimer.singleShot(0, self._start_next_task)
 
@@ -979,6 +1045,11 @@ class MainWindow(FluentWindow):
         if self.thread is not None or not self._task_queue:
             return
         kind, worker, finished, failed = self._task_queue.pop(0)
+        self.logs.debug(
+            CATEGORIES[kind],
+            "开始执行排队任务",
+            "剩余排队任务数：%d" % len(self._task_queue),
+        )
         self._begin_task(kind, worker, finished, failed)
 
     def import_message(self):
@@ -987,6 +1058,7 @@ class MainWindow(FluentWindow):
             self, "导入消息", "", "文本文件 (*.txt *.md);;所有文件 (*)"
         )
         if not filename:
+            self.logs.info("应用", "用户取消了消息导入")
             return
         try:
             with open(filename, encoding="utf-8-sig", newline="") as source:
@@ -1015,6 +1087,8 @@ class MainWindow(FluentWindow):
         )
         if filename:
             self._save_text(filename, self.pages["message"].editor.toPlainText())
+        else:
+            self.logs.info("应用", "用户取消了消息保存")
 
     @Slot(object)
     def export_selected_logs(self, entries):
@@ -1024,11 +1098,16 @@ class MainWindow(FluentWindow):
         )
         if filename:
             self._save_text(filename, self.pages["logs"].export_text(entries))
+        else:
+            self.logs.info(
+                "运行日志", "用户取消了日志导出", "待导出记录数：%d" % len(entries)
+            )
 
     @Slot(object)
     def delete_selected_logs(self, uids):
         """确认后删除选中日志，并同步重写日志文件。"""
         if not uids:
+            self.logs.warning("运行日志", "未勾选日志记录，无法删除")
             return
         if not self._confirm(
             "删除选中日志",
@@ -1184,6 +1263,12 @@ class MainWindow(FluentWindow):
     def quit_application(self):
         """请求退出应用，不触发关闭到托盘的首次询问。"""
         self._quit_requested = True
+        self.logs.debug(
+            "应用",
+            "收到退出请求",
+            "任务：%s；排队任务数：%d"
+            % (self.active_kind or "无", len(self._task_queue)),
+        )
         self.close()
 
     def _remove_tray(self, destroy=True):
@@ -1192,6 +1277,11 @@ class MainWindow(FluentWindow):
             if destroy:
                 self.tray_icon.deleteLater()
             self.tray_icon = None
+            self.logs.debug(
+                "系统托盘",
+                "托盘图标已移除",
+                "销毁对象：%s" % ("是" if destroy else "否"),
+            )
         if self.tray_menu is not None:
             if destroy:
                 self.tray_menu.deleteLater()
@@ -1205,6 +1295,11 @@ class MainWindow(FluentWindow):
         删除失败时还原托盘与日志路径，让本次运行继续可用。
         """
         if self.thread is not None:
+            self.logs.warning(
+                "关于",
+                "有任务正在执行，清除本地数据被拒绝",
+                "当前任务：%s" % (self.active_kind or "无"),
+            )
             self._notify("无法清除数据", "请等待当前任务结束后再试", "警告")
             return
         confirmed = self._confirm(
@@ -1290,6 +1385,17 @@ class MainWindow(FluentWindow):
 
         if self.thread is not None and self.thread.isRunning():
             self.close_after_task = True
+            # 任务可能在设置开始时间之前就被关闭，取不到时按 0 秒记录。
+            elapsed = (
+                time.monotonic() - self.active_started_at
+                if self.active_started_at is not None
+                else 0.0
+            )
+            self.logs.warning(
+                "应用",
+                "任务运行中，已取消任务并延后退出",
+                "任务：%s；已运行：%.3f 秒" % (self.active_kind or "无", elapsed),
+            )
             self.cancel_task()
             event.ignore()
             return
@@ -1352,10 +1458,18 @@ def main():
         return 0
     window = MainWindow()
     window.single_instance = instance
+    # 单实例服务在主窗口之前创建，这里补上日志通道，唤醒记录才会进入运行日志。
+    instance.logs = window.logs
     instance.activationRequested.connect(window.show_from_tray)
     install_exception_logging(window.logs)
     window.show()
+    window.logs.info(
+        "应用",
+        "主窗口已显示，进入事件循环",
+        "单实例标识：%s；Python：%s" % (instance.key, sys.version.split()[0]),
+    )
     result = application.exec()
+    window.logs.info("应用", "事件循环已结束", "退出码：%s" % result)
     window.quit_application()
     if window.isVisible():
         window.hide()
