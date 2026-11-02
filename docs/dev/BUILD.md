@@ -121,4 +121,4 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 
 .\.venv\Scripts\python.exe -B .\scripts\test_local_ip.py
 ```
 
-生成的 EXE 无参数时打开图形界面，带参数时运行命令行模式；两种模式都无需安装 Python。双击启动会隐藏控制台，从终端带参数启动会保留控制台以显示 CLI 输出。EXE 不强制请求管理员权限；防火墙操作在需要时单独弹出 UAC，并由隐藏助手执行。
+生成的 EXE 无参数时打开图形界面，带参数时运行命令行模式；两种模式都无需安装 Python。EXE 打包为窗口化子系统（`console=False`），双击启动不会出现控制台窗口；带参数运行时由 `app/__main__.py` 的 `_show_cli_console()` 把标准流接回调用方的控制台，输出被重定向时沿用文件或管道句柄，没有父控制台时新建一个。因此从终端启动不会阻塞提示符，需要等待命令结束时用 `start /wait`。EXE 不强制请求管理员权限；防火墙操作在需要时单独弹出 UAC，并由隐藏助手执行。

@@ -1,12 +1,13 @@
 """命令行入口的测试：帮助输出、参数分发与打包后的入口行为。"""
 
 from pathlib import Path
+import io
 import subprocess
 import sys
 import unittest
 from unittest.mock import patch
 
-from app.__main__ import main
+from app.__main__ import _show_cli_console, main
 
 
 class EntryTests(unittest.TestCase):
@@ -55,6 +56,15 @@ class EntryTests(unittest.TestCase):
             self.assertEqual(main(arguments), 3)
         show.assert_called_once_with()
         run_cli.assert_called_once_with(arguments)
+
+    def test_cli_console_keeps_streams_that_already_exist(self):
+        with (
+            patch("app.__main__.sys.stdout", new=io.StringIO()),
+            patch("app.__main__.sys.stderr", new=io.StringIO()),
+            patch("app.__main__._rebind_inherited_streams") as rebind,
+        ):
+            _show_cli_console()
+        rebind.assert_not_called()
 
     def test_firewall_helper_dispatch_skips_console(self):
         arguments = ["--firewall-helper", "block", "--firewall-result", "result.json"]

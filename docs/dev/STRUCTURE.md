@@ -87,7 +87,7 @@ jiyu_attack_next/
 
 ## 模块关系
 
-- `app/__main__.py` 是唯一入口：无参数时启动 GUI，带参数时调用 `app/cli/main.py`；`--firewall-helper` 由隐藏提权助手直接执行，不显示控制台。PyInstaller 也从此文件打包。
+- `app/__main__.py` 是唯一入口：无参数时启动 GUI，带参数时调用 `app/cli/main.py`；`--firewall-helper` 由隐藏提权助手直接执行，不显示控制台。打包产物是窗口化子系统，`_show_cli_console()` 负责在 CLI 模式下把标准流接回调用方的控制台或重定向目标。PyInstaller 也从此文件打包。
 - `app/core/` 只依赖标准库，提供报文常量、协议构造、UDP 与文件传送、防火墙规则和本机信息探测。CLI 与 GUI 都通过 `from .. import core` 使用这些接口。
 - `app/cli/main.py` 负责 argparse、参数校验、单条命令、文件传送、防火墙命令与终端输出；不再作为可单独复制的单文件脚本维护。
 - `app/gui/app.py` 基于 `FluentWindow` 实现侧边导航、任务调度、单实例运行与页面联动。
