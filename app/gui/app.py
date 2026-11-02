@@ -524,7 +524,7 @@ class MainWindow(FluentWindow):
         self.logs.debug(CATEGORIES[kind], "发送参数快照", details)
         self._begin_task(
             kind,
-            SendWorker(options, core.execute_send),
+            SendWorker(options, core.execute_send_report),
             self._send_finished,
             self._send_failed,
         )
@@ -831,17 +831,36 @@ class MainWindow(FluentWindow):
                 return
             self.pages["file"].set_progress(percent)
 
-    @Slot(int)
-    def _send_finished(self, count):
-        message = "本机已发送 %d 个报文" % count
+    @Slot(object)
+    def _send_finished(self, outcome):
+        failed = outcome.failed
+        total = len(outcome.deliveries)
+        if failed:
+            message = "已发送 %d 个报文：成功 %d 台，失败 %d 台" % (
+                outcome.sent,
+                total - len(failed),
+                len(failed),
+            )
+            details = "失败目标：%s" % "；".join(
+                "%s（%s）" % (item.host, item.state.text) for item in failed
+            )
+        else:
+            message = "已发送 %d 个报文：%d 台均未发现异常" % (outcome.sent, total)
+            details = "成功率按网络反馈判定：没有收到 ICMP 不可达即视为送达。"
         self.pages[self.active_kind].footer.set_status(message)
-        self.logs.info(
-            CATEGORIES[self.active_kind],
-            message,
-            "已发送报文数：%d；耗时：%.3f 秒"
-            % (count, time.monotonic() - self.active_started_at),
+        details = "%s；耗时：%.3f 秒" % (
+            details,
+            time.monotonic() - self.active_started_at,
         )
-        self._notify("发送完成", message, "成功")
+        if failed:
+            self.logs.warning(CATEGORIES[self.active_kind], message, details)
+        else:
+            self.logs.info(CATEGORIES[self.active_kind], message, details)
+        self._notify(
+            "发送完成" if not failed else "部分目标失败",
+            message,
+            "成功" if not failed else "错误",
+        )
 
     @Slot(str, str)
     def _send_failed(self, message, details=""):

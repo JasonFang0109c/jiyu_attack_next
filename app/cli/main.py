@@ -17,7 +17,7 @@ from ..core import (
     read_message,
     request_firewall_rule,
     run_firewall_helper,
-    send,
+    send_tracked,
     split_message,
     transfer_file,
 )
@@ -157,6 +157,29 @@ def run_file_transfer(arguments):
     return 0
 
 
+def print_delivery(outcome):
+    """逐个目标输出送达判定，并给出成功与失败的数量。
+
+    判定依据只有网络反馈：收到 ICMP 不可达说明报文没有被接收端收到，
+    没有反馈只能说“未发现异常”，无法证明对方执行了命令。
+    """
+    for item in outcome.deliveries:
+        if item.ok:
+            print(
+                "[成功] %s：%s（%d 个报文）" % (item.host, item.state.text, item.sent)
+            )
+        elif item.detail:
+            print("[-] [失败] %s：%s（%s）" % (item.host, item.state.text, item.detail))
+        else:
+            print("[-] [失败] %s：%s" % (item.host, item.state.text))
+    total = len(outcome.deliveries)
+    failed = len(outcome.failed)
+    if failed:
+        print("共 %d 个目标：成功 %d，失败 %d" % (total, total - failed, failed))
+    else:
+        print("共 %d 个目标：全部未发现异常" % total)
+
+
 def run_from_cmd(arguments):
     """校验参数并分发 CLI 请求。"""
     try:
@@ -170,7 +193,7 @@ def run_from_cmd(arguments):
         if arguments.file_ip or arguments.file_timeout != 120:
             raise ValueError("--file-ip 和 --file-timeout 仅用于文件传送")
         send_list = create_send_packets(arguments)
-        send(
+        outcome = send_tracked(
             send_list,
             arguments.ip,
             arguments.p,
@@ -178,6 +201,7 @@ def run_from_cmd(arguments):
             arguments.t,
             report=print,
         )
+        print_delivery(outcome)
     except Exception as e:
         print("[-] %s" % e)
         return 1

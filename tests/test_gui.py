@@ -1020,11 +1020,16 @@ class GuiTests(unittest.TestCase):
 
         def fake_send(options, report):
             report("模拟发送完成")
-            return 2
+            return gui.core.SendOutcome(
+                sent=2,
+                deliveries=(
+                    gui.core.Delivery("模拟目标", 2, gui.core.DeliveryState.DELIVERED),
+                ),
+            )
 
         with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
             with patch.object(
-                gui.core, "execute_send", side_effect=fake_send
+                gui.core, "execute_send_report", side_effect=fake_send
             ) as runner:
                 self.message.footer.send_button.click()
                 self.assertTrue(self.command.footer.send_button.isEnabled())
@@ -1036,6 +1041,31 @@ class GuiTests(unittest.TestCase):
         self.assertFalse(self.message.footer.cancel_button.isEnabled())
         self.assertIn("已发送 2 个报文", self.message.footer.status.text())
         self.assertEqual(self.window.logs.entries[-1].level, models.LogLevel.INFO)
+
+    def test_worker_reports_failed_targets(self):
+        self.state.set_value("target", "192.168.1.10")
+        self.message.editor.setPlainText("测试通知")
+
+        def fake_send(options, report):
+            return gui.core.SendOutcome(
+                sent=1,
+                deliveries=(
+                    gui.core.Delivery(
+                        "192.168.1.10",
+                        1,
+                        gui.core.DeliveryState.REJECTED,
+                        "端口未响应",
+                    ),
+                ),
+            )
+
+        with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
+            with patch.object(gui.core, "execute_send_report", side_effect=fake_send):
+                self.message.footer.send_button.click()
+                self.wait_for(lambda: self.window.thread is None)
+        self.assertIn("失败 1 台", self.message.footer.status.text())
+        self.assertEqual(self.window.logs.entries[-1].level, models.LogLevel.WARNING)
+        self.assertEqual(self.notify.call_args.args[0], "部分目标失败")
 
     def test_remote_requests_are_queued_while_task_runs(self):
         self.state.set_value("target", "192.168.1.10")
@@ -1049,10 +1079,15 @@ class GuiTests(unittest.TestCase):
             if len(calls) == 1:
                 started.set()
                 release.wait(5)
-            return 1
+            return gui.core.SendOutcome(
+                sent=1,
+                deliveries=(
+                    gui.core.Delivery("模拟目标", 1, gui.core.DeliveryState.DELIVERED),
+                ),
+            )
 
         with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
-            with patch.object(gui.core, "execute_send", side_effect=fake_send):
+            with patch.object(gui.core, "execute_send_report", side_effect=fake_send):
                 self.window.start_send("message")
                 self.assertTrue(started.wait(2))
                 self.message.editor.setPlainText("第二条")
@@ -1079,10 +1114,15 @@ class GuiTests(unittest.TestCase):
             calls.append(options.message)
             started.set()
             release.wait(5)
-            return 1
+            return gui.core.SendOutcome(
+                sent=1,
+                deliveries=(
+                    gui.core.Delivery("模拟目标", 1, gui.core.DeliveryState.DELIVERED),
+                ),
+            )
 
         with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
-            with patch.object(gui.core, "execute_send", side_effect=fake_send):
+            with patch.object(gui.core, "execute_send_report", side_effect=fake_send):
                 self.window.start_send("message")
                 self.assertTrue(started.wait(2))
                 self.message.editor.setPlainText("第二条")
@@ -1099,7 +1139,7 @@ class GuiTests(unittest.TestCase):
         self.command.editor.setPlainText("whoami")
         with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
             with patch.object(
-                gui.core, "execute_send", side_effect=OSError("模拟错误")
+                gui.core, "execute_send_report", side_effect=OSError("模拟错误")
             ):
                 self.window.start_send("command")
                 self.wait_for(lambda: self.window.thread is None)
@@ -1434,7 +1474,9 @@ class GuiTests(unittest.TestCase):
             raise RuntimeError("操作已取消")
 
         with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
-            with patch.object(gui.core, "execute_send", side_effect=cancellable_send):
+            with patch.object(
+                gui.core, "execute_send_report", side_effect=cancellable_send
+            ):
                 self.window.start_send("message")
                 self.window.close()
                 self.wait_for(

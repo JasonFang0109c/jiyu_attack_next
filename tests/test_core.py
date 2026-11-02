@@ -163,8 +163,8 @@ class CoreTests(unittest.TestCase):
         options = self.core.SendOptions(
             "192.168.1.10", message="a" * 449, command="whoami", loops=2, interval=0
         )
-        fake_socket = MagicMock()
-        fake_socket.__enter__.return_value = fake_socket
+        first = MagicMock()
+        second = MagicMock()
         packets = [
             bytes(self.core.pkg_sendlist("-msg", chunk))
             for chunk in self.core.split_message(options.message)
@@ -173,19 +173,19 @@ class CoreTests(unittest.TestCase):
         with patch.object(
             self.core.transport, "get_ip", return_value=["模拟目标甲", "模拟目标乙"]
         ):
-            with patch.object(socket, "socket", return_value=fake_socket):
-                count = self.core.execute_send(options)
-        self.assertEqual(count, 12)
-        self.assertEqual(
-            fake_socket.sendto.call_args_list,
-            [
-                call(packet, (host, 4705))
-                for _ in range(2)
-                for host in ["模拟目标甲", "模拟目标乙"]
-                for packet in packets
-            ],
-        )
-        fake_socket.__exit__.assert_called_once()
+            with patch.object(socket, "socket", side_effect=[first, second]):
+                outcome = self.core.execute_send_report(options)
+        self.assertEqual(outcome.sent, 12)
+        # 每个目标各自建连接，轮询两轮后各发一遍完整报文序列。
+        for client, host in ((first, "模拟目标甲"), (second, "模拟目标乙")):
+            self.assertEqual(client.connect.call_args, call((host, 4705)))
+            self.assertEqual(
+                client.send.call_args_list,
+                [call(packet) for _ in range(2) for packet in packets],
+            )
+            client.close.assert_called_once()
+        self.assertEqual(len(outcome.deliveries), 2)
+        self.assertTrue(all(item.ok for item in outcome.deliveries))
 
     def test_cancellation_before_send_opens_no_socket(self):
         stopped = Event()
@@ -215,8 +215,8 @@ class CoreTests(unittest.TestCase):
             with patch.object(socket, "socket", return_value=fake_socket):
                 with self.assertRaisesRegex(RuntimeError, "操作已取消"):
                     self.core.execute_send(options, report)
-        fake_socket.sendto.assert_called_once()
-        fake_socket.__exit__.assert_called_once()
+        fake_socket.send.assert_called_once()
+        fake_socket.close.assert_called_once()
 
     def test_send_error_closes_socket(self):
         fake_socket = MagicMock()
@@ -227,6 +227,30 @@ class CoreTests(unittest.TestCase):
                 with self.assertRaisesRegex(OSError, "模拟发送失败"):
                     self.core.send([[1, 2, 3]], "模拟目标")
         fake_socket.__exit__.assert_called_once()
+
+    def test_send_tracked_marks_rejected_and_unreachable_targets(self):
+        rejected = MagicMock()
+        rejected.send.side_effect = ConnectionResetError("端口不可达")
+        unreachable = MagicMock()
+        unreachable.connect.side_effect = OSError("网络不可达")
+        with patch.object(self.core.transport, "get_ip", return_value=["甲", "乙"]):
+            with patch.object(socket, "socket", side_effect=[rejected, unreachable]):
+                outcome = self.core.send_tracked([[1, 2, 3]], "模拟目标", interval=0)
+        self.assertEqual(outcome.sent, 0)
+        self.assertEqual(
+            [item.state for item in outcome.deliveries],
+            [self.core.DeliveryState.REJECTED, self.core.DeliveryState.UNREACHABLE],
+        )
+        self.assertEqual(outcome.failed, outcome.deliveries)
+
+    def test_send_tracked_treats_silence_as_delivered(self):
+        client = MagicMock()
+        with patch.object(self.core.transport, "get_ip", return_value=["甲"]):
+            with patch.object(socket, "socket", return_value=client):
+                outcome = self.core.send_tracked([[1], [2]], "模拟目标", interval=0)
+        self.assertEqual(outcome.sent, 2)
+        self.assertTrue(outcome.deliveries[0].ok)
+        self.assertEqual(outcome.failed, ())
 
     def test_local_ports_match_exact_pids_and_wildcard_addresses(self):
         tasks = SimpleNamespace(

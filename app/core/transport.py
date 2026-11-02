@@ -1,9 +1,12 @@
 """UDP 发送、文件传送与传输结果。"""
 
-import secrets
-import socket
+from dataclasses import dataclass
+from enum import StrEnum
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import secrets
+import select
+import socket
 from threading import Event, Lock, Thread
 from time import monotonic, sleep
 from urllib.parse import urlsplit
@@ -42,14 +45,7 @@ def send(
     Returns:
         int: 实际发送的报文数量。
     """
-    if len(send_list) == 0:
-        raise ValueError("没有可发送的报文")
-    if not 1 <= port <= 65535:
-        raise ValueError("端口必须在 1 到 65535 之间")
-    if loops < 1:
-        raise ValueError("发送轮数必须大于 0")
-    if interval < 0:
-        raise ValueError("发送间隔不能小于 0")
+    _check_send_arguments(send_list, port, loops, interval)
 
     target_host = get_ip(target_ip)
     # 同一批报文要发往多个目标并重复多轮，先统一转成 bytes 再循环，
@@ -76,6 +72,197 @@ def send(
                 else:
                     sleep(interval)
     return sent_count
+
+
+def _check_send_arguments(send_list, port, loops, interval):
+    """校验发送参数，供两种发送方式共用。"""
+    if len(send_list) == 0:
+        raise ValueError("没有可发送的报文")
+    if not 1 <= port <= 65535:
+        raise ValueError("端口必须在 1 到 65535 之间")
+    if loops < 1:
+        raise ValueError("发送轮数必须大于 0")
+    if interval < 0:
+        raise ValueError("发送间隔不能小于 0")
+
+
+class DeliveryState(StrEnum):
+    """单个目标的送达判定。
+
+    只能判断报文有没有被网络拒绝。接收端是否执行了报文由对方决定，
+    本工具拿不到回执，因此“已送达”表示没收到不可达反馈，而不是执行成功。
+    """
+
+    DELIVERED = "delivered"
+    REJECTED = "rejected"
+    UNREACHABLE = "unreachable"
+
+    @property
+    def text(self):
+        """返回界面与命令行展示用的中文说明。"""
+        return {
+            DeliveryState.DELIVERED: "已送达",
+            DeliveryState.REJECTED: "失败：目标端口未响应",
+            DeliveryState.UNREACHABLE: "失败：目标不可达",
+        }[self]
+
+
+@dataclass(frozen=True)
+class Delivery:
+    """一个目标地址的发送结果。
+
+    Attributes:
+        host: 目标地址。
+        sent: 发往该地址的报文数量。
+        state: 送达判定。
+        detail: 判定依据或异常文本。
+    """
+
+    host: str
+    sent: int
+    state: DeliveryState
+    detail: str = ""
+
+    @property
+    def ok(self):
+        """该目标是否没有发现异常。"""
+        return self.state is DeliveryState.DELIVERED
+
+
+@dataclass(frozen=True)
+class SendOutcome:
+    """一次发送的整体结果。
+
+    Attributes:
+        sent: 实际发出的报文总数。
+        deliveries: 每个目标地址的送达判定，顺序与目标展开顺序一致。
+    """
+
+    sent: int
+    deliveries: tuple
+
+    @property
+    def failed(self):
+        """返回判定为失败的目标。"""
+        return tuple(item for item in self.deliveries if not item.ok)
+
+
+def send_tracked(
+    send_list,
+    target_ip,
+    port=4705,
+    loops=1,
+    interval=22,
+    report=None,
+    cancel_event=None,
+):
+    """发送报文并判定每个目标是否送达。
+
+    每条报文的发送方式与 :func:`send` 相同，区别是给每个目标建立已连接的
+    UDP 套接字：目标主机或端口不可达时 Windows 会把 ICMP 反馈转换成套接字
+    错误，据此可以分辨“对方没在接收”和“没有异常”。接收端是否执行了报文
+    无法从这里确认——协议是单向的，对方不回执。
+
+    Args:
+        send_list: 报文字节值列表的序列，每个元素是一条报文。
+        target_ip: 目标地址，支持单地址、末段范围与 /24 网段。
+        port: 目标 UDP 端口。
+        loops: 发送轮数。
+        interval: 相邻两轮的间隔秒数。
+        report: 进度回调，接收中文状态文本。
+        cancel_event: 取消信号，置位后尽快抛出取消异常。
+
+    Returns:
+        SendOutcome: 发送总数与每个目标的送达判定。
+
+    Raises:
+        ValueError: 参数不合法。
+        RuntimeError: 操作被取消。
+    """
+    _check_send_arguments(send_list, port, loops, interval)
+    hosts = get_ip(target_ip)
+    payloads = [bytes(packet) for packet in send_list]
+    if cancel_event and cancel_event.is_set():
+        raise RuntimeError("操作已取消")
+    sockets = {}
+    sent = {host: 0 for host in hosts}
+    states = {}
+    try:
+        for host in hosts:
+            client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            client.settimeout(1.0)
+            try:
+                client.connect((host, port))
+            except OSError as error:
+                client.close()
+                states[host] = (DeliveryState.UNREACHABLE, str(error))
+                continue
+            sockets[host] = client
+        for times in range(loops):
+            for host in hosts:
+                client = sockets.get(host)
+                if client is None:
+                    continue
+                for payload in payloads:
+                    if cancel_event and cancel_event.is_set():
+                        raise RuntimeError("操作已取消")
+                    try:
+                        client.send(payload)
+                        sent[host] += 1
+                    except ConnectionResetError:
+                        # 10054 是目标端口回送的 ICMP 端口不可达，说明没人接收。
+                        states.setdefault(host, (DeliveryState.REJECTED, ""))
+                    except OSError as error:
+                        states.setdefault(host, (DeliveryState.UNREACHABLE, str(error)))
+            if report:
+                report("第 %d/%d 轮已发送" % (times + 1, loops))
+            if times != loops - 1 and interval:
+                if cancel_event:
+                    if cancel_event.wait(interval):
+                        raise RuntimeError("操作已取消")
+                else:
+                    sleep(interval)
+        _collect_icmp_errors(sockets, states)
+    finally:
+        for client in sockets.values():
+            client.close()
+    deliveries = []
+    for host in hosts:
+        state, detail = states.get(host, (DeliveryState.DELIVERED, ""))
+        deliveries.append(
+            Delivery(host=host, sent=sent[host], state=state, detail=detail)
+        )
+    return SendOutcome(sent=sum(sent.values()), deliveries=tuple(deliveries))
+
+
+def _collect_icmp_errors(sockets, states, timeout=0.4):
+    """短暂等待 ICMP 反馈，把套接字错误归到对应目标。
+
+    Windows 的 ``select`` 一次最多处理 64 个句柄，目标较多时分批等待。
+    """
+    pending = [host for host in sockets if host not in states]
+    if not pending:
+        return
+    deadline = monotonic() + timeout
+    while pending and monotonic() < deadline:
+        batch = pending[:60]
+        try:
+            readable, _, _ = select.select(
+                [sockets[host] for host in batch], [], [], 0.05
+            )
+        except (OSError, TypeError, ValueError):
+            return
+        for host in batch:
+            client = sockets[host]
+            if client not in readable:
+                continue
+            pending.remove(host)
+            try:
+                client.recv(1)
+            except ConnectionResetError:
+                states[host] = (DeliveryState.REJECTED, "")
+            except OSError as error:
+                states[host] = (DeliveryState.UNREACHABLE, str(error))
 
 
 def format_size(size):
@@ -682,14 +869,22 @@ def transfer_file(
     return result
 
 
-def execute_send(options, report=None):
-    """按发送参数组装并发送报文，返回发送的报文数量。"""
+def execute_send_report(options, report=None):
+    """按发送参数发送报文，并汇总每个目标的送达判定。
+
+    Args:
+        options: 发送参数。
+        report: 进度回调，接收中文状态文本。
+
+    Returns:
+        SendOutcome: 发送总数与每个目标的送达判定。
+    """
     validate_options(options)
     emit = report or (lambda message: None)
     packets = prepare_packets(options, emit)
     target_hosts = get_ip(options.target.strip())
     emit("目标数量：%d，报文数量：%d" % (len(target_hosts), len(packets)))
-    sent_count = send(
+    outcome = send_tracked(
         packets,
         options.target,
         options.port,
@@ -698,5 +893,25 @@ def execute_send(options, report=None):
         emit,
         options.cancel_event,
     )
-    emit("本机发送完成，共 %d 个报文" % sent_count)
-    return sent_count
+    failed = outcome.failed
+    if failed:
+        emit(
+            "本机发送完成，共 %d 个报文；%d/%d 个目标失败：%s"
+            % (
+                outcome.sent,
+                len(failed),
+                len(outcome.deliveries),
+                "；".join("%s %s" % (item.host, item.state.text) for item in failed),
+            )
+        )
+    else:
+        emit(
+            "本机发送完成，共 %d 个报文；%d 个目标均未发现异常"
+            % (outcome.sent, len(outcome.deliveries))
+        )
+    return outcome
+
+
+def execute_send(options, report=None):
+    """按发送参数组装并发送报文，返回发送的报文数量。"""
+    return execute_send_report(options, report).sent

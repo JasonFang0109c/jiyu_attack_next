@@ -1,13 +1,16 @@
 """命令行入口的测试：帮助输出、参数分发与打包后的入口行为。"""
 
 from pathlib import Path
+import contextlib
 import io
 import subprocess
 import sys
 import unittest
 from unittest.mock import patch
 
+from app import core
 from app.__main__ import _show_cli_console, main
+from app.cli.main import print_delivery
 
 
 class EntryTests(unittest.TestCase):
@@ -120,6 +123,28 @@ runpy.run_path('app/__main__.py', run_name='__main__')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("-msg", result.stdout)
         self.assertIn("--msg-file", result.stdout)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class DeliveryReportTests(unittest.TestCase):
+    def test_delivery_report_marks_status_per_target(self):
+        outcome = core.SendOutcome(
+            sent=3,
+            deliveries=(
+                core.Delivery("10.0.0.1", 2, core.DeliveryState.DELIVERED),
+                core.Delivery("10.0.0.2", 1, core.DeliveryState.REJECTED, "端口未响应"),
+            ),
+        )
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            print_delivery(outcome)
+        output = buffer.getvalue()
+        self.assertIn("[成功] 10.0.0.1：已送达（2 个报文）", output)
+        self.assertIn("[-] [失败] 10.0.0.2：失败：目标端口未响应", output)
+        self.assertIn("共 2 个目标：成功 1，失败 1", output)
 
 
 if __name__ == "__main__":

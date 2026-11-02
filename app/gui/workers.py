@@ -10,11 +10,11 @@ class SendWorker(QThread):
 
     Attributes:
         options: 发送参数，取消时由主窗口置位其中的 cancel_event。
-        runner: 实际执行发送的函数，默认是 ``core.execute_send``。
+        runner: 实际执行发送的函数，默认是 ``core.execute_send_report``。
     """
 
     progress = Signal(str)
-    completed = Signal(int)
+    completed = Signal(object)
     failed = Signal(str, str)
 
     def __init__(self, options, runner):
@@ -25,13 +25,13 @@ class SendWorker(QThread):
     def run(self):
         """执行发送；失败时把消息与堆栈一起交给界面。"""
         try:
-            sent_count = self.runner(self.options, report=self.progress.emit)
+            outcome = self.runner(self.options, report=self.progress.emit)
         except RuntimeError as error:
             self.failed.emit(str(error), traceback.format_exc())
         except Exception as error:
             self.failed.emit("发送失败：%s" % error, traceback.format_exc())
         else:
-            self.completed.emit(sent_count)
+            self.completed.emit(outcome)
 
 
 class TaskWorker(QThread):
