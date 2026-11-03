@@ -41,6 +41,7 @@ from qfluentwidgets import (
 
 from .. import core
 from .build_info import version_text
+from .components import center_dialog
 from .models import (
     CLOSE_BEHAVIOR_QUIT,
     CLOSE_BEHAVIOR_SETTINGS_KEY,
@@ -379,9 +380,9 @@ class MainWindow(FluentWindow):
         self.navigationInterface.setReturnButtonVisible(False)
         self.navigationInterface.addItemHeader("远程操作")
         self.addSubInterface(self.pages["message"], FIF.MESSAGE, "文本消息")
-        self.addSubInterface(self.pages["command"], FIF.COMMAND_PROMPT, "远程命令")
-        self.addSubInterface(self.pages["device"], FIF.POWER_BUTTON, "设备操作")
         self.addSubInterface(self.pages["file"], FIF.SEND, "文件传送")
+        self.addSubInterface(self.pages["device"], FIF.POWER_BUTTON, "设备操作")
+        self.addSubInterface(self.pages["command"], FIF.COMMAND_PROMPT, "远程命令")
         self.addSubInterface(self.pages["aliases"], FIF.QUICK_NOTE, "设备备注")
         self.navigationInterface.addSeparator()
         self.navigationInterface.addItemHeader("本机工具")
@@ -464,6 +465,7 @@ class MainWindow(FluentWindow):
         dialog.setFixedSize(520, 280)
         dialog.yesButton.setText(confirm_text)
         dialog.cancelButton.setText("取消")
+        center_dialog(dialog)
         return bool(dialog.exec())
 
     def _options_for_page(self, kind):
@@ -1254,6 +1256,7 @@ class MainWindow(FluentWindow):
         dialog.windowTitleLabel.hide()
         dialog.yesButton.setText("最小化到托盘")
         dialog.cancelButton.setText("直接退出")
+        center_dialog(dialog)
         try:
             minimize_to_tray = bool(dialog.exec())
         finally:
@@ -1459,6 +1462,7 @@ def confirm_usage_notice(parent=None):
     dialog.windowTitleLabel.hide()
     dialog.yesButton.setText("同意并继续")
     dialog.cancelButton.setText("不同意，退出")
+    center_dialog(dialog)
     return bool(dialog.exec())
 
 

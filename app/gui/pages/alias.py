@@ -18,7 +18,13 @@ from qfluentwidgets import (
     PushButton,
 )
 
-from ..components import Ipv4TargetInput, SectionCard, info_button, page_heading
+from ..components import (
+    Ipv4TargetInput,
+    SectionCard,
+    center_dialog,
+    info_button,
+    page_heading,
+)
 from .common import Page, table_widget
 
 
@@ -269,6 +275,7 @@ class AliasPage(Page):
         dialog.setFixedSize(520, 280)
         dialog.yesButton.setText("删除")
         dialog.cancelButton.setText("取消")
+        center_dialog(dialog)
         if not dialog.exec():
             self._log("info", "用户取消了设备备注删除", "备注名：%s" % matched[0])
             return

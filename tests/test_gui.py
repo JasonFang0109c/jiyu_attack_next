@@ -31,6 +31,7 @@ from PySide6.QtWidgets import QApplication, QDialog, QSystemTrayIcon, QWidget
 from qfluentwidgets import (
     BodyLabel,
     CaptionLabel,
+    Dialog,
     FluentWindow,
     HyperlinkButton,
     SmoothScrollArea,
@@ -335,6 +336,41 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(self.window.current_page(), key)
         self.assertEqual(self.message.editor.toPlainText(), "测试通知")
         self.assertEqual(self.command.editor.toPlainText(), "whoami")
+
+    def test_navigation_lists_remote_pages_in_send_and_control_order(self):
+        # 远程操作按使用频率排列，文件传送紧跟文本消息，设备备注收尾。
+        order = [
+            item.widget.text()
+            for item in self.window.navigationInterface.panel.items.values()
+            if item.widget is not None
+        ]
+        remote = order[:5]
+        self.assertEqual(
+            remote, ["文本消息", "文件传送", "设备操作", "远程命令", "设备备注"]
+        )
+
+    def test_dialog_centers_on_parent_and_falls_back_to_screen(self):
+        parent = QWidget()
+        parent.resize(1180, 780)
+        parent.move(400, 200)
+        parent.show()
+        self.addCleanup(parent.deleteLater)
+        QTest.qWait(10)
+        dialog = Dialog("标题", "内容", parent)
+        dialog.setFixedSize(520, 280)
+        components.center_dialog(dialog)
+        self.addCleanup(dialog.deleteLater)
+        frame = parent.frameGeometry()
+        expected = frame.center() - dialog.rect().center()
+        self.assertEqual(dialog.pos(), expected)
+
+        # 启动阶段没有主窗口，退回屏幕可用区域居中。
+        screen = dialog.screen().availableGeometry()
+        loose = Dialog("标题", "内容")
+        loose.setFixedSize(560, 300)
+        components.center_dialog(loose)
+        self.addCleanup(loose.deleteLater)
+        self.assertEqual(loose.pos(), screen.center() - loose.rect().center())
 
     def test_device_alias_can_be_added_edited_used_and_removed(self):
         page = self.window.pages["aliases"]

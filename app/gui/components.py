@@ -61,6 +61,22 @@ def info_button(text, parent):
     return button
 
 
+def center_dialog(dialog):
+    """把对话框对齐到父窗口中心，没有父窗口时退回屏幕中心。
+
+    ``Dialog`` 是独立的顶层窗口，Qt 只会按屏幕摆放，主窗口移动后弹窗
+    就偏离父窗口中心；这里在 ``exec()`` 前按父窗口外框（含标题栏）修正。
+    """
+    parent = dialog.parentWidget()
+    area = parent.frameGeometry() if parent is not None else None
+    if area is None or not area.isValid():
+        screen = dialog.screen()
+        if screen is None:
+            return
+        area = screen.availableGeometry()
+    dialog.move(area.center() - dialog.rect().center())
+
+
 def page_heading(layout, title, action=None):
     """在页面顶部插入“标题 + 右侧操作区”的一行。"""
     row = QHBoxLayout()
@@ -373,6 +389,7 @@ class TargetControls(QWidget):
         dialog.cancelButton.hide()
         dialog.yesButton.setText("知道了")
         dialog.setFixedSize(360, 196)
+        center_dialog(dialog)
         dialog.exec()
 
     def _create_device_dialog(self):
@@ -390,6 +407,7 @@ class TargetControls(QWidget):
         dialog.textLayout.addWidget(selector)
         dialog.yesButton.setText("选择")
         dialog.cancelButton.setText("取消")
+        center_dialog(dialog)
         return dialog, selector
 
     @Slot(str, object)
