@@ -92,8 +92,8 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 
 - 构建成功后更新标签为 `nightly`、标题为 `Nightly Build <版本>` 的预发布版本，资产只有 `JiYuAttackNext.exe`（GUI 与 CLI 共用）。
 - 发布说明包含版本号、构建时间、工作流运行记录、该资产的 SHA256，`Commits` 章节列出本次推送范围内的全部提交，末尾的英文 `Message` 章节列出最新提交的完整提交信息。
 - 路径过滤按整个推送的 `before..head` 判定，因此把文档提交与代码提交一起推送时仍会构建；`Commits` 章节据此说明本次构建实际包含哪些改动。
-- 复用 `nightly` 标签并通过 `overwrite_files` 覆盖旧资产与说明，下载地址固定为 `https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly`。
-- `overwrite_files` 只覆盖同名文件，不会删除历史上发布过的其他资产；发布前按白名单清理，只保留 `JiYuAttackNext.exe`，其余遗留资产全部删除。
+- 每次发布前先删除旧的 `nightly` 预发布并清理 `nightly` 标签，再重新创建，下载地址固定为 `https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly`。
+- 删除重建保证历史资产与旧说明不会残留，不依赖 `overwrite_files` 只覆盖同名文件的行为；同一运行内重建后资产只有 `JiYuAttackNext.exe`。
 - 使用 `nightly-build` 并发组，新的运行会取消尚未完成的旧运行。
 
 ### Release

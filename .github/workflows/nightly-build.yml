@@ -101,38 +101,20 @@ jobs:
           \`\`\`
           EOF
 
-      # 旧版曾把命令行脚本单独作为资产发布；overwrite_files 只覆盖同名文件，
-      # 不会删除遗留资产，这里按白名单清理，保证 nightly 只保留统一 EXE。
-      - name: Remove stale release assets
+      # 每次先删除旧的 nightly 预发布与标签再重新发布，历史资产与旧说明都不会残留，
+      # 也不必依赖对同名文件逐个覆盖的行为。
+      - name: Remove previous nightly release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          keep_assets=("JiYuAttackNext.exe")
           if ! gh release view nightly >/dev/null 2>&1; then
-            echo "nightly 预发布尚不存在，无需清理遗留资产"
+            echo "nightly 预发布尚不存在，无需清理"
             exit 0
           fi
-          assets=$(gh release view nightly --json assets \
-            --jq '.assets[].name')
-          while IFS= read -r name; do
-            if [ -z "${name}" ]; then
-              continue
-            fi
-            keep=""
-            for allowed in "${keep_assets[@]}"; do
-              if [ "${name}" = "${allowed}" ]; then
-                keep="1"
-              fi
-            done
-            if [ -n "${keep}" ]; then
-              echo "保留资产 ${name}"
-              continue
-            fi
-            gh release delete-asset nightly "${name}" --yes
-            echo "已删除遗留资产 ${name}"
-          done <<< "${assets}"
+          gh release delete nightly --yes --cleanup-tag
+          echo "已删除旧的 nightly 预发布与标签"
 
       - name: Publish Nightly Build pre-release
         uses: softprops/action-gh-release@v3
@@ -143,7 +125,6 @@ jobs:
           draft: false
           prerelease: true
           target_commitish: ${{ github.sha }}
-          overwrite_files: true
           fail_on_unmatched_files: true
           make_latest: false
           files: |
