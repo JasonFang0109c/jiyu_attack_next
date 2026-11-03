@@ -91,6 +91,17 @@ class NightlyWorkflowTests(unittest.TestCase):
         self.assertNotIn("CLI:", self.workflow)
         self.assertNotIn("cli_sha256", self.workflow)
 
+    def test_workflow_removes_stale_cli_asset_before_publish(self):
+        # overwrite_files 只覆盖同名文件，遗留的命令行脚本需按名字显式删除，
+        # 否则 nightly 会一直挂着已停止发布的资产。
+        self.assertIn("JiYuAttackNext-cli.py", self.workflow)
+        self.assertIn('gh release delete-asset nightly "${name}" --yes', self.workflow)
+        self.assertIn("--json assets --jq", self.workflow)
+        self.assertLess(
+            self.workflow.index("Remove stale release assets"),
+            self.workflow.index("Publish Nightly Build pre-release"),
+        )
+
     def test_workflow_replaces_prerelease_with_nightly_tag(self):
         self.assertIn("tag_name: nightly", self.workflow)
         self.assertIn("prerelease: true", self.workflow)

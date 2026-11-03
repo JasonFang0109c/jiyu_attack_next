@@ -101,6 +101,29 @@ jobs:
           \`\`\`
           EOF
 
+      # 旧版曾把命令行脚本单独作为资产发布；overwrite_files 只覆盖同名文件，
+      # 不会删除遗留资产，这里按名字显式清理，保证 nightly 只保留统一 EXE。
+      - name: Remove stale release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          stale_assets=("JiYuAttackNext-cli.py")
+          if ! gh release view nightly >/dev/null 2>&1; then
+            echo "nightly 预发布尚不存在，无需清理遗留资产"
+            exit 0
+          fi
+          for name in "${stale_assets[@]}"; do
+            if ! gh release view nightly --json assets --jq '.assets[].name' \
+              | grep -Fxq "${name}"; then
+              echo "未找到遗留资产 ${name}，跳过"
+              continue
+            fi
+            gh release delete-asset nightly "${name}" --yes
+            echo "已删除遗留资产 ${name}"
+          done
+
       - name: Publish Nightly Build pre-release
         uses: softprops/action-gh-release@v3
         with:
