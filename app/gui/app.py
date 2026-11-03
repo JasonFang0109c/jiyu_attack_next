@@ -202,6 +202,8 @@ class SingleInstance(QObject):
 def configure_application(application):
     """设置全局字体、中文区域与默认主题色。"""
     application.setFont(QFont("Microsoft YaHei UI", 10))
+    # 应用级图标会让使用须知等在主窗口之前出现的对话框也用同一个任务栏图标。
+    application.setWindowIcon(app_icon())
     locale = QLocale(QLocale.Chinese, QLocale.China)
     QLocale.setDefault(locale)
     application.fluent_translator = FluentTranslator(locale)

@@ -10,12 +10,24 @@ from qfluentwidgets import (
     PushButton,
     SwitchButton,
     Theme,
+    getFont,
     qconfig,
 )
 
 from ..components import SectionCard, page_heading
 from ..models import LOG_LEVELS, mica_available, normalize_log_level
 from .common import Page
+
+# 设置项标签用 13 像素：比卡片标题（BodyLabel 默认 14）小一档，
+# 又比关于页的 CaptionLabel（12）大一点，保证中文小字仍清晰。
+SETTING_LABEL_PIXELS = 13
+
+
+def setting_label(text, parent):
+    """返回设置行左侧的标签，字号小于卡片标题。"""
+    label = BodyLabel(text, parent)
+    label.setFont(getFont(SETTING_LABEL_PIXELS))
+    return label
 
 
 class ThemeCard(SectionCard):
@@ -27,7 +39,8 @@ class ThemeCard(SectionCard):
     HEADING_GAP = 6
 
     def __init__(self, parent=None):
-        super().__init__(parent, spacing=8, margins=(18, 12, 18, 12))
+        # 行间距比普通卡片大一些，把颜色模式与云母开关分成两组。
+        super().__init__(parent, spacing=16, margins=(18, 12, 18, 12))
         self.setObjectName("settingsThemeCard")
         self.heading = BodyLabel("界面主题", self)
         self.body.addWidget(self.heading)
@@ -51,7 +64,7 @@ class SettingsPage(Page):
         self.theme_card = ThemeCard(self)
         theme_card = self.theme_card
         theme_row = QHBoxLayout()
-        theme_row.addWidget(BodyLabel("颜色模式", self))
+        theme_row.addWidget(setting_label("颜色模式", self))
         theme_row.addStretch()
         self.theme_box = ComboBox(self)
         self.theme_box.addItems(["浅色", "深色", "跟随系统"])
@@ -67,7 +80,7 @@ class SettingsPage(Page):
         theme_card.body.addLayout(theme_row)
 
         mica_row = QHBoxLayout()
-        mica_row.addWidget(BodyLabel("云母效果", self))
+        mica_row.addWidget(setting_label("云母效果", self))
         mica_row.addStretch()
         self.mica_switch = SwitchButton(self)
         self.mica_switch.setAccessibleName("云母效果")
@@ -89,10 +102,10 @@ class SettingsPage(Page):
         theme_card.body.addLayout(mica_row)
         self.vbox.addWidget(theme_card)
 
-        settings_card = SectionCard(self, spacing=18)
+        settings_card = SectionCard(self, spacing=16)
         settings_card.setObjectName("settingsBehaviorCard")
         close_row = QHBoxLayout()
-        close_row.addWidget(BodyLabel("关闭时最小化到托盘", self))
+        close_row.addWidget(setting_label("关闭时最小化到托盘", self))
         close_row.addStretch()
         self.close_behavior_switch = SwitchButton(self)
         self.close_behavior_switch.setAccessibleName("关闭时最小化到系统托盘")
@@ -109,7 +122,7 @@ class SettingsPage(Page):
         settings_card.body.addLayout(close_row)
 
         log_row = QHBoxLayout()
-        log_row.addWidget(BodyLabel("运行日志等级", self))
+        log_row.addWidget(setting_label("运行日志等级", self))
         log_row.addStretch()
         self.log_level_box = ComboBox(self)
         self.log_level_box.addItems([str(level) for level in LOG_LEVELS])

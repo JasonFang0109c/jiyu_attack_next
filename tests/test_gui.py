@@ -501,6 +501,18 @@ class GuiTests(unittest.TestCase):
             {"手写注释": "10.0.0.8"},
         )
 
+    def test_dialogs_use_application_icon(self):
+        self.assertFalse(self.application.windowIcon().isNull())
+        dialog = Dialog("标题", "内容")
+        try:
+            self.assertFalse(dialog.windowIcon().isNull())
+            self.assertEqual(
+                dialog.windowIcon().pixmap(16, 16).toImage(),
+                self.application.windowIcon().pixmap(16, 16).toImage(),
+            )
+        finally:
+            dialog.deleteLater()
+
     def test_runtime_logs_are_persisted_and_loaded(self):
         self.window.logs.clear()
         self.window.logs.add("应用", "第一行\n第二行", "成功")
