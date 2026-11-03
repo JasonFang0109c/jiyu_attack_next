@@ -17,7 +17,7 @@ from PyInstaller.utils.win32.versioninfo import (
     VSVersionInfo,
 )
 
-PRODUCT_NAME = "JiYu Attack Next"
+PRODUCT_NAME = "Class management by Mythware Student Side Program"
 INTERNAL_NAME = "JiYuAttackNext"
 
 
@@ -44,7 +44,8 @@ def build_version_info(version):
                             StringStruct("FileDescription", PRODUCT_NAME),
                             StringStruct("FileVersion", version),
                             StringStruct("InternalName", INTERNAL_NAME),
-                            StringStruct("OriginalFilename", INTERNAL_NAME + ".exe"),
+                            StringStruct("OriginalFilename",
+                                         INTERNAL_NAME + ".exe"),
                             StringStruct("ProductName", PRODUCT_NAME),
                             StringStruct("ProductVersion", version),
                         ],
