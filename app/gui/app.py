@@ -11,6 +11,7 @@ from pathlib import Path
 from threading import Event
 
 from PySide6.QtCore import (
+    QByteArray,
     QCoreApplication,
     QEvent,
     QLocale,
@@ -47,13 +48,18 @@ from .models import (
     CLOSE_BEHAVIOR_SETTINGS_KEY,
     CLOSE_BEHAVIOR_TRAY,
     DEFAULT_CLOSE_BEHAVIOR,
+    DEFAULT_MICA_ENABLED,
     FIRST_CLOSE_PROMPT_SETTINGS_KEY,
+    MICA_SETTINGS_KEY,
+    WINDOW_GEOMETRY_SETTINGS_KEY,
     ConnectionState,
     DeviceAliasStore,
     LogLevel,
     LogStore,
+    mica_available,
     normalize_close_behavior,
     normalize_log_level,
+    normalize_switch,
     portable_data_dir,
     portable_log_path,
     portable_settings,
@@ -259,10 +265,12 @@ class MainWindow(FluentWindow):
         self.titleBar.hBoxLayout.setContentsMargins(6, 0, 0, 0)
         self.setWindowIcon(app_icon())
         self._setup_tray()
-        self.setMicaEffectEnabled(False)
+        self.mica_enabled = self._load_mica_enabled()
+        self.apply_mica(self.mica_enabled)
         self.setCustomBackgroundColor("#f5f6f8", "#202020")
         self.setMinimumSize(960, 640)
         self.resize(1180, 780)
+        self._restore_window_geometry()
         self.stackedWidget.setAnimationEnabled(False)
         self.pages = {
             "message": MessagePage(self.connection_state, self),
@@ -273,7 +281,9 @@ class MainWindow(FluentWindow):
             "local": LocalPage(self),
             "firewall": FirewallPage(self),
             "logs": LogPage(self.logs, self),
-            "settings": SettingsPage(self.logs, self.close_behavior, self),
+            "settings": SettingsPage(
+                self.logs, self.close_behavior, self.mica_enabled, self
+            ),
             "about": AboutPage(self),
         }
         self.network_pages = [
@@ -318,6 +328,75 @@ class MainWindow(FluentWindow):
         if isinstance(value, str):
             return value.strip().casefold() in ("1", "true", "yes", "on")
         return bool(value)
+
+    def _load_mica_enabled(self):
+        """读取云母开关，配置缺失或无法识别时使用默认值。"""
+        raw = self.settings.value(MICA_SETTINGS_KEY, None)
+        return normalize_switch(raw, DEFAULT_MICA_ENABLED)
+
+    def apply_mica(self, enabled):
+        """按开关状态启用或关闭云母背景。
+
+        Args:
+            enabled: ``True`` 表示希望启用云母背景。
+        """
+        # 库在非 Windows 11 上会静默忽略，这里先判断一次，避免把状态当成已生效。
+        self.setMicaEffectEnabled(bool(enabled) and mica_available())
+
+    def _restore_window_geometry(self):
+        """恢复上次退出时的窗口位置与大小，越界时夹回当前屏幕。"""
+        raw = self.settings.value(WINDOW_GEOMETRY_SETTINGS_KEY, None)
+        if not isinstance(raw, QByteArray) or raw.isEmpty():
+            self.logs.debug("应用", "没有可恢复的窗口位置，使用默认大小")
+            return
+        if not self.restoreGeometry(raw):
+            self.logs.warning("设置", "窗口位置恢复失败，使用默认大小")
+            return
+        self._clamp_to_screen()
+        self.logs.debug(
+            "应用",
+            "已恢复窗口位置",
+            "位置：%s；大小：%sx%s"
+            % (self.pos().toTuple(), self.width(), self.height()),
+        )
+
+    def _clamp_to_screen(self):
+        """把窗口夹回当前屏幕可用区域，避免显示器变化后窗口跑到屏幕外。"""
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen is None:
+            return
+        bounds = screen.availableGeometry()
+        frame = self.frameGeometry()
+        left = max(bounds.left(), min(frame.left(), bounds.right() - frame.width() + 1))
+        top = max(bounds.top(), min(frame.top(), bounds.bottom() - frame.height() + 1))
+        if (left, top) != (frame.left(), frame.top()):
+            self.move(left, top)
+
+    def _center_on_screen(self):
+        """把窗口放到当前屏幕中央，用于恢复默认布局。"""
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen is None:
+            return
+        bounds = screen.availableGeometry()
+        self.move(
+            bounds.center().x() - self.width() // 2,
+            bounds.center().y() - self.height() // 2,
+        )
+
+    def _save_window_geometry(self):
+        """把当前窗口位置与大小写入设置文件。"""
+        # 最小化状态下的几何是任务栏图标位置，写进去会让下次启动出现在角落。
+        if self.isMinimized():
+            return
+        self.settings.setValue(WINDOW_GEOMETRY_SETTINGS_KEY, self.saveGeometry())
+        self.settings.sync()
+        if self.settings.status() != QSettings.NoError:
+            self.logs.warning(
+                "设置",
+                "窗口位置保存失败",
+                "设置文件：%s；状态：%s"
+                % (self.settings.fileName(), self.settings.status()),
+            )
 
     def _save_first_close_prompt_shown(self):
         self.first_close_prompt_shown = True
@@ -422,6 +501,7 @@ class MainWindow(FluentWindow):
         self.pages["logs"].deleteSelectedRequested.connect(self.delete_selected_logs)
         self.pages["logs"].cancelRequested.connect(self.cancel_task)
         self.pages["settings"].themeRequested.connect(self.set_theme)
+        self.pages["settings"].micaRequested.connect(self.set_mica_enabled)
         self.pages["settings"].closeBehaviorRequested.connect(self.set_close_behavior)
         self.pages["settings"].logLevelRequested.connect(self.set_log_level)
         self.pages["settings"].clearDataRequested.connect(self.clear_data)
@@ -1171,6 +1251,40 @@ class MainWindow(FluentWindow):
         setTheme(theme, save=False)
         self.logs.info("应用", "界面主题已切换", "主题：%s" % theme)
 
+    @Slot(bool)
+    def set_mica_enabled(self, enabled):
+        """保存云母开关并立即生效，写盘失败时回滚到原状态。
+
+        Args:
+            enabled: 设置页开关的目标状态。
+        """
+        if not mica_available():
+            self.logs.warning("设置", "当前系统不支持云母效果，已忽略开关改动")
+            self.pages["settings"].set_mica_enabled(False)
+            return
+        previous = self.mica_enabled
+        self.mica_enabled = bool(enabled)
+        self.apply_mica(self.mica_enabled)
+        self.settings.setValue(MICA_SETTINGS_KEY, self.mica_enabled)
+        self.settings.sync()
+        if self.settings.status() != QSettings.NoError:
+            self.logs.error(
+                "设置",
+                "云母效果保存失败",
+                "设置文件：%s；状态：%s"
+                % (self.settings.fileName(), self.settings.status()),
+            )
+            self.mica_enabled = previous
+            self.apply_mica(previous)
+            self.pages["settings"].set_mica_enabled(previous)
+            self._notify("设置保存失败", "无法写入设置文件", "错误")
+            return
+        self.logs.info(
+            "设置",
+            "云母效果已更新",
+            "开关状态：%s" % ("开启" if self.mica_enabled else "关闭"),
+        )
+
     @Slot(str)
     def set_close_behavior(self, behavior):
         """保存关闭窗口行为，写盘失败时回滚到原行为。
@@ -1360,6 +1474,12 @@ class MainWindow(FluentWindow):
         self.settings = portable_settings(self.data_dir)
         self.close_behavior = DEFAULT_CLOSE_BEHAVIOR
         self.first_close_prompt_shown = False
+        # 设置文件已删除，云母与窗口位置一并回到默认状态。
+        self.mica_enabled = DEFAULT_MICA_ENABLED
+        self.apply_mica(self.mica_enabled)
+        self.pages["settings"].set_mica_enabled(self.mica_enabled)
+        self.resize(1180, 780)
+        self._center_on_screen()
         self.pages["settings"].set_close_behavior(DEFAULT_CLOSE_BEHAVIOR)
         if self.enable_tray and QSystemTrayIcon.isSystemTrayAvailable():
             self._setup_tray()
@@ -1381,6 +1501,8 @@ class MainWindow(FluentWindow):
 
     def closeEvent(self, event):
         """按关闭行为决定隐藏到托盘还是退出；有任务时先取消再退出。"""
+        # 隐藏到托盘的分支会提前 return，所以几何必须在函数开头就写盘。
+        self._save_window_geometry()
         selected_behavior = None
         if (
             not self._quit_requested

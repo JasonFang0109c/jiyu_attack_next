@@ -64,7 +64,7 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python "C:\Pytho
 
 ## 运行数据
 
-EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 保存设备备注与关闭窗口行为，`runtime.log` 保存规范文本运行日志。该目录由 `.gitignore` 排除，源码运行时位于项目根目录。
+EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.ini` 保存设备备注、关闭窗口行为、云母开关与主窗口位置，`runtime.log` 保存规范文本运行日志。该目录由 `.gitignore` 排除，源码运行时位于项目根目录。
 
 - 日志包含毫秒时间、规范级别、线程、输出位置、功能分类、消息与异常详情，便于从用户环境回传排查。
 - 只移动 EXE 而不移动该文件夹时，新位置按默认配置启动。

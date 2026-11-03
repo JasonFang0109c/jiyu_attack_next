@@ -22,6 +22,7 @@ from PySide6.QtCore import (
     QPoint,
     QPointF,
     QSettings,
+    QSize,
     Qt,
     QTimer,
 )
@@ -1493,20 +1494,80 @@ class GuiTests(unittest.TestCase):
     def test_settings_show_close_behavior_above_log_level(self):
         settings_page = self.window.pages["settings"]
         self.assertFalse(hasattr(settings_page, "reset_button"))
-        layout = settings_page.findChild(components.SectionCard).body
-        rows = [layout.itemAt(index).layout() for index in range(layout.count())]
+        theme_layout = settings_page.theme_card.body
+        self.assertEqual(theme_layout.itemAt(0).widget().text(), "界面主题")
         labels = []
-        for row in rows:
+        for index in range(1, theme_layout.count()):
+            row = theme_layout.itemAt(index).layout()
             if row is not None:
                 label = row.itemAt(0).widget()
                 if isinstance(label, BodyLabel):
                     labels.append(label.text())
-        self.assertEqual(labels, ["界面主题", "关闭时最小化到托盘", "运行日志等级"])
+        self.assertEqual(labels, ["颜色模式", "云母效果"])
+        behavior_layout = settings_page.findChild(
+            components.SectionCard, "settingsBehaviorCard"
+        ).body
+        labels = []
+        for index in range(behavior_layout.count()):
+            row = behavior_layout.itemAt(index).layout()
+            if row is not None:
+                label = row.itemAt(0).widget()
+                if isinstance(label, BodyLabel):
+                    labels.append(label.text())
+        self.assertEqual(labels, ["关闭时最小化到托盘", "运行日志等级"])
         self.assertTrue(settings_page.close_behavior_switch.label.isHidden())
         self.assertEqual(settings_page.close_behavior_switch.label.text(), "")
         self.assertEqual(settings_page.data_card.objectName(), "settingsDataCard")
         self.assertTrue(settings_page.clear_data_button.isVisibleTo(settings_page))
         self.assertFalse(hasattr(self.window.pages["about"], "clear_data_button"))
+
+    def test_mica_switch_reflects_support_and_persists(self):
+        settings_page = self.window.pages["settings"]
+        self.assertEqual(settings_page.theme_card.objectName(), "settingsThemeCard")
+        self.assertEqual(settings_page.theme_card.borderRadius, 12)
+        supported = models.mica_available()
+        self.assertEqual(settings_page.mica_supported, supported)
+        self.assertEqual(settings_page.mica_switch.isEnabled(), supported)
+        self.assertEqual(self.window.mica_enabled, models.DEFAULT_MICA_ENABLED)
+        self.assertEqual(
+            self.window.isMicaEffectEnabled(),
+            supported and models.DEFAULT_MICA_ENABLED,
+        )
+        if supported:
+            settings_page.mica_switch.setChecked(False)
+            self.assertFalse(self.window.mica_enabled)
+            self.assertFalse(self.window.isMicaEffectEnabled())
+            reloaded = QSettings(self.settings_path, QSettings.IniFormat)
+            self.assertEqual(
+                models.normalize_switch(reloaded.value(models.MICA_SETTINGS_KEY), True),
+                False,
+            )
+            settings_page.mica_switch.setChecked(True)
+            self.assertTrue(self.window.mica_enabled)
+
+    def test_window_geometry_is_remembered_across_restarts(self):
+        self.window.resize(1000, 700)
+        self.window.move(120, 90)
+        self.window._quit_requested = True
+        self.window.close()
+        stored = QSettings(self.settings_path, QSettings.IniFormat).value(
+            models.WINDOW_GEOMETRY_SETTINGS_KEY
+        )
+        self.assertIsNotNone(stored)
+        window = gui.MainWindow(
+            alias_store=gui.DeviceAliasStore(
+                settings=QSettings(self.settings_path, QSettings.IniFormat)
+            ),
+            data_dir=self.data_dir,
+            enable_tray=False,
+        )
+        try:
+            self.assertEqual(window.size(), QSize(1000, 700))
+            self.assertEqual(window.pos(), QPoint(120, 90))
+        finally:
+            window._quit_requested = True
+            window.close()
+            window.deleteLater()
 
     def test_close_behavior_switch_persists_and_defaults_to_tray(self):
         window = gui.MainWindow(

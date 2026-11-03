@@ -2,6 +2,7 @@
 
 from PySide6.QtCore import (
     QEvent,
+    QRect,
     QRegularExpression,
     QSignalBlocker,
     QSize,
@@ -9,7 +10,7 @@ from PySide6.QtCore import (
     Signal,
     Slot,
 )
-from PySide6.QtGui import QIntValidator, QRegularExpressionValidator
+from PySide6.QtGui import QIntValidator, QRegularExpressionValidator, QScreen
 from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import (
     BodyLabel,
@@ -62,19 +63,43 @@ def info_button(text, parent):
 
 
 def center_dialog(dialog):
-    """把对话框对齐到父窗口中心，没有父窗口时退回屏幕中心。
+    """把对话框对齐到主窗口中心，并保证完整落在屏幕上。
 
     ``Dialog`` 是独立的顶层窗口，Qt 只会按屏幕摆放，主窗口移动后弹窗
-    就偏离父窗口中心；这里在 ``exec()`` 前按父窗口外框（含标题栏）修正。
+    就偏离父窗口中心；这里在 ``exec()`` 前按主窗口外框（含标题栏）修正，
+    再把结果夹回屏幕可用区域，避免主窗口贴边时弹窗一半跑到屏幕外。
+    弹窗的父对象往往是页面里的子控件，``frameGeometry()`` 此时是父控件
+    坐标系下的值，所以统一上溯到主窗口再取全局坐标。
     """
     parent = dialog.parentWidget()
-    area = parent.frameGeometry() if parent is not None else None
-    if area is None or not area.isValid():
-        screen = dialog.screen()
+    window = parent.window() if parent is not None else None
+    area = window.frameGeometry() if isinstance(window, QWidget) else None
+    screen = (window.screen() if isinstance(window, QWidget) else None) or (
+        dialog.screen()
+    )
+    # 测试会用替身对象整体替换 Dialog，此时屏幕与窗口几何都不是真实对象。
+    if not isinstance(screen, QScreen):
+        screen = None
+    if not isinstance(area, QRect) or not area.isValid():
         if screen is None:
             return
         area = screen.availableGeometry()
-    dialog.move(area.center() - dialog.rect().center())
+    bounds = screen.availableGeometry() if screen is not None else None
+    target = area.center() - dialog.rect().center()
+    if bounds is not None:
+        target.setX(
+            min(
+                max(target.x(), bounds.left()),
+                bounds.right() - dialog.width() + 1,
+            )
+        )
+        target.setY(
+            min(
+                max(target.y(), bounds.top()),
+                bounds.bottom() - dialog.height() + 1,
+            )
+        )
+    dialog.move(target)
 
 
 def page_heading(layout, title, action=None):

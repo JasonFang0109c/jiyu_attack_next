@@ -14,25 +14,45 @@ from qfluentwidgets import (
 )
 
 from ..components import SectionCard, page_heading
-from ..models import LOG_LEVELS, normalize_log_level
+from ..models import LOG_LEVELS, mica_available, normalize_log_level
 from .common import Page
+
+
+class ThemeCard(SectionCard):
+    """界面主题卡片：标题行加颜色模式、云母两项设置。
+
+    样式对齐关于页的仓库信息卡片，标题与设置行之间留出固定间距。
+    """
+
+    HEADING_GAP = 6
+
+    def __init__(self, parent=None):
+        super().__init__(parent, spacing=8, margins=(18, 12, 18, 12))
+        self.setObjectName("settingsThemeCard")
+        self.heading = BodyLabel("界面主题", self)
+        self.body.addWidget(self.heading)
+        self.body.addSpacing(self.HEADING_GAP)
 
 
 class SettingsPage(Page):
     """集中放置全局开关，所有改动通过信号交给主窗口处理。"""
 
     themeRequested = Signal(object)
+    micaRequested = Signal(bool)
     closeBehaviorRequested = Signal(str)
     logLevelRequested = Signal(str)
     clearDataRequested = Signal()
 
-    def __init__(self, log_store, close_behavior, parent=None):
+    def __init__(self, log_store, close_behavior, mica_enabled, parent=None):
         super().__init__("settings", parent)
         self.log_store = log_store
         page_heading(self.vbox, "设置")
-        row = QHBoxLayout()
-        row.addWidget(BodyLabel("界面主题", self))
-        row.addStretch()
+
+        self.theme_card = ThemeCard(self)
+        theme_card = self.theme_card
+        theme_row = QHBoxLayout()
+        theme_row.addWidget(BodyLabel("颜色模式", self))
+        theme_row.addStretch()
         self.theme_box = ComboBox(self)
         self.theme_box.addItems(["浅色", "深色", "跟随系统"])
         themes = [Theme.LIGHT, Theme.DARK, Theme.AUTO]
@@ -43,10 +63,34 @@ class SettingsPage(Page):
         )
         self.theme_box.setMinimumWidth(180)
         self.theme_box.currentIndexChanged.connect(self._select_theme)
-        row.addWidget(self.theme_box)
-        settings_card = SectionCard(self, spacing=18)
-        settings_card.body.addLayout(row)
+        theme_row.addWidget(self.theme_box)
+        theme_card.body.addLayout(theme_row)
 
+        mica_row = QHBoxLayout()
+        mica_row.addWidget(BodyLabel("云母效果", self))
+        mica_row.addStretch()
+        self.mica_switch = SwitchButton(self)
+        self.mica_switch.setAccessibleName("云母效果")
+        self.mica_switch.setOnText("")
+        self.mica_switch.setOffText("")
+        self.mica_switch.setSpacing(0)
+        self.mica_switch.label.hide()
+        self.mica_switch.setChecked(mica_enabled)
+        # 库只在 Windows 11 上真正绘制云母，其余系统禁用开关并说明原因。
+        self.mica_supported = mica_available()
+        self.mica_switch.setEnabled(self.mica_supported)
+        self.mica_switch.setToolTip(
+            "开启后窗口使用 Windows 11 云母背景，需 Windows 11（内部版本 22000 及以上）"
+            if self.mica_supported
+            else "当前系统不支持云母效果，需要 Windows 11（内部版本 22000 及以上）"
+        )
+        self.mica_switch.checkedChanged.connect(self._select_mica)
+        mica_row.addWidget(self.mica_switch)
+        theme_card.body.addLayout(mica_row)
+        self.vbox.addWidget(theme_card)
+
+        settings_card = SectionCard(self, spacing=18)
+        settings_card.setObjectName("settingsBehaviorCard")
         close_row = QHBoxLayout()
         close_row.addWidget(BodyLabel("关闭时最小化到托盘", self))
         close_row.addStretch()
@@ -106,6 +150,18 @@ class SettingsPage(Page):
 
     def _select_theme(self, index):
         self.themeRequested.emit([Theme.LIGHT, Theme.DARK, Theme.AUTO][index])
+
+    def _select_mica(self, checked):
+        self.micaRequested.emit(bool(checked))
+
+    def set_mica_enabled(self, enabled):
+        """按当前配置同步云母开关，期间屏蔽开关自身的信号。
+
+        Args:
+            enabled: ``True`` 表示启用云母背景。
+        """
+        with QSignalBlocker(self.mica_switch):
+            self.mica_switch.setChecked(bool(enabled))
 
     def _select_close_behavior(self, checked):
         self.closeBehaviorRequested.emit("tray" if checked else "quit")

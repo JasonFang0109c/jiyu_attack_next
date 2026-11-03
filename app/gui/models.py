@@ -20,6 +20,11 @@ SETTINGS_FILE_NAME = "settings.ini"
 LOG_FILE_NAME = "runtime.log"
 CLOSE_BEHAVIOR_SETTINGS_KEY = "window/close_behavior"
 FIRST_CLOSE_PROMPT_SETTINGS_KEY = "window/first_close_prompt_shown"
+WINDOW_GEOMETRY_SETTINGS_KEY = "window/geometry"
+MICA_SETTINGS_KEY = "window/mica_enabled"
+DEFAULT_MICA_ENABLED = True
+SWITCH_TRUE_VALUES = ("true", "1", "yes", "on")
+SWITCH_FALSE_VALUES = ("false", "0", "no", "off")
 CLOSE_BEHAVIOR_TRAY = "tray"
 CLOSE_BEHAVIOR_QUIT = "quit"
 DEFAULT_CLOSE_BEHAVIOR = CLOSE_BEHAVIOR_TRAY
@@ -43,6 +48,46 @@ def normalize_close_behavior(value):
         return aliases[text.casefold()]
     except KeyError as error:
         raise ValueError("关闭窗口行为无效：%s" % text) from error
+
+
+def normalize_switch(value, default):
+    """把设置里的开关值转换为布尔值，无法识别时退回默认值。
+
+    Args:
+        value: 从 ``QSettings`` 读出的原始值，可能是布尔、字符串或 ``None``。
+        default: 配置缺失或格式非法时使用的默认状态。
+
+    Returns:
+        bool: 归一化后的开关状态。
+    """
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    text = str(value).strip().casefold()
+    if text in SWITCH_TRUE_VALUES:
+        return True
+    if text in SWITCH_FALSE_VALUES:
+        return False
+    return default
+
+
+def mica_available():
+    """判断当前系统能否绘制云母（Mica）背景。
+
+    Fluent Widgets 的 ``setMicaEffectEnabled`` 只在 Windows 11（build
+    22000 及以上）生效，其余系统会静默返回；这里提前判断，让设置页能
+    明确告诉用户该开关是否可用。
+
+    Returns:
+        bool: 系统支持云母效果时为 ``True``。
+    """
+    if sys.platform != "win32":
+        return False
+    try:
+        return sys.getwindowsversion().build >= 22000
+    except (AttributeError, ValueError):
+        return False
 
 
 def portable_data_dir(executable=None):
