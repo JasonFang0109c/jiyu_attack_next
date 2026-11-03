@@ -1,6 +1,6 @@
-"""协议、传输、防火墙与本机信息核心。"""
+"""协议、传输、防火墙、本机信息与配置解析核心。"""
 
-from . import constants, firewall, local_info, protocol, transport
+from . import config, constants, firewall, local_info, protocol, transport
 from .constants import (
     COMMAND_MAX_BYTES,
     COMMAND_OFFSET,
@@ -55,6 +55,7 @@ from .transport import (
 )
 
 __all__ = [
+    "config",
     "COMMAND_MAX_BYTES",
     "COMMAND_OFFSET",
     "LOGOFF_COMMAND",

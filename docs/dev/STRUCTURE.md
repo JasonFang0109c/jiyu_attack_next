@@ -31,6 +31,7 @@ jiyu_attack_next/
 |   |   |-- protocol.py           # 报文构造、分片、地址校验
 |   |   |-- transport.py          # UDP 发送、文件传送与结果解析
 |   |   |-- firewall.py           # 防火墙规则与按需 UAC 提权
+|   |   |-- config.py             # JSON with comments 配置读写
 |   |   `-- local_info.py         # 本机 IP 与端口探测
 |   |-- cli/
 |   |   |-- __init__.py
@@ -42,6 +43,7 @@ jiyu_attack_next/
 |       |-- build_info.py         # 读取打包构建时间与版本号
 |       |-- components.py         # 共用目标参数与任务栏
 |       |-- models.py             # 连接状态、设备备注与结构化运行日志
+|       |-- settings_store.py     # settings.json 的 core/gui 分组读写
 |       |-- workers.py            # 后台任务
 |       `-- pages/
 |           |-- __init__.py       # 汇总导出页面类

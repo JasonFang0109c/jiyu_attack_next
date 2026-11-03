@@ -8,11 +8,11 @@ from pathlib import Path
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-from PySide6.QtCore import QSettings, QTimer
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from app.gui import app as gui
-from app.gui.models import DATA_DIRECTORY_NAME, SETTINGS_FILE_NAME
+from app.gui.models import DATA_DIRECTORY_NAME, portable_settings
 
 
 def main():
@@ -57,8 +57,9 @@ def main():
     data_root = Path("build") / "verify-gui-data"
     data_dir = data_root / DATA_DIRECTORY_NAME
     data_dir.mkdir(parents=True, exist_ok=True)
-    settings = QSettings(str(data_dir / SETTINGS_FILE_NAME), QSettings.IniFormat)
-    settings.setValue(gui.FIRST_CLOSE_PROMPT_SETTINGS_KEY, True)
+    settings = portable_settings(data_dir)
+    settings.set_value(gui.FIRST_CLOSE_PROMPT_SETTINGS_KEY, True)
+    settings.sync()
     alias_store = gui.DeviceAliasStore(settings=settings)
     window = gui.MainWindow(alias_store=alias_store, data_dir=data_dir)
     window.resize(args.width, args.height)

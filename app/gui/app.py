@@ -1,5 +1,6 @@
 """图形界面主窗口：单实例控制、任务队列、托盘与各页面的信号接线。"""
 
+import base64
 import getpass
 import hashlib
 import shutil
@@ -16,7 +17,6 @@ from PySide6.QtCore import (
     QEvent,
     QLocale,
     QObject,
-    QSettings,
     Qt,
     QTimer,
     Signal,
@@ -76,6 +76,7 @@ from .pages import (
     MessagePage,
     SettingsPage,
 )
+from .settings_store import STATUS_NO_ERROR
 from .workers import SendWorker, TaskWorker
 
 APP_NAME = "JiYu Attack Next"
@@ -250,6 +251,9 @@ class MainWindow(FluentWindow):
         if not self.enable_tray:
             self.close_behavior = CLOSE_BEHAVIOR_QUIT
         self._settings_error = getattr(self, "_close_behavior_error", "")
+        # 配置文件整体读取失败时也要提示一次，否则用户只会看到设置全部回落到默认值。
+        if self.settings.message and not self._settings_error:
+            self._settings_error = self.settings.message
         self.first_close_prompt_shown = self._load_first_close_prompt_shown()
         self._quit_requested = False
         self._quit_finished = False
@@ -345,11 +349,16 @@ class MainWindow(FluentWindow):
 
     def _restore_window_geometry(self):
         """恢复上次退出时的窗口位置与大小，越界时夹回当前屏幕。"""
-        raw = self.settings.value(WINDOW_GEOMETRY_SETTINGS_KEY, None)
-        if not isinstance(raw, QByteArray) or raw.isEmpty():
+        raw = self.settings.value(WINDOW_GEOMETRY_SETTINGS_KEY, "")
+        if not isinstance(raw, str) or not raw.strip():
             self.logs.debug("应用", "没有可恢复的窗口位置，使用默认大小")
             return
-        if not self.restoreGeometry(raw):
+        try:
+            stored = QByteArray(base64.b64decode(raw.encode("ascii"), validate=True))
+        except (ValueError, UnicodeEncodeError):
+            self.logs.warning("设置", "窗口位置记录已损坏，使用默认大小")
+            return
+        if not self.restoreGeometry(stored):
             self.logs.warning("设置", "窗口位置恢复失败，使用默认大小")
             return
         self._clamp_to_screen()
@@ -388,26 +397,29 @@ class MainWindow(FluentWindow):
         # 最小化状态下的几何是任务栏图标位置，写进去会让下次启动出现在角落。
         if self.isMinimized():
             return
-        self.settings.setValue(WINDOW_GEOMETRY_SETTINGS_KEY, self.saveGeometry())
+        self.settings.set_value(
+            WINDOW_GEOMETRY_SETTINGS_KEY,
+            base64.b64encode(bytes(self.saveGeometry())).decode("ascii"),
+        )
         self.settings.sync()
-        if self.settings.status() != QSettings.NoError:
+        if self.settings.status() != STATUS_NO_ERROR:
             self.logs.warning(
                 "设置",
                 "窗口位置保存失败",
                 "设置文件：%s；状态：%s"
-                % (self.settings.fileName(), self.settings.status()),
+                % (self.settings.file_name(), self.settings.status()),
             )
 
     def _save_first_close_prompt_shown(self):
         self.first_close_prompt_shown = True
-        self.settings.setValue(FIRST_CLOSE_PROMPT_SETTINGS_KEY, True)
+        self.settings.set_value(FIRST_CLOSE_PROMPT_SETTINGS_KEY, True)
         self.settings.sync()
-        if self.settings.status() != QSettings.NoError:
+        if self.settings.status() != STATUS_NO_ERROR:
             self.logs.warning(
                 "设置",
                 "首次关闭提示状态保存失败",
                 "设置文件：%s；状态：%s"
-                % (self.settings.fileName(), self.settings.status()),
+                % (self.settings.file_name(), self.settings.status()),
             )
 
     def _setup_tray(self):
@@ -1265,14 +1277,14 @@ class MainWindow(FluentWindow):
         previous = self.mica_enabled
         self.mica_enabled = bool(enabled)
         self.apply_mica(self.mica_enabled)
-        self.settings.setValue(MICA_SETTINGS_KEY, self.mica_enabled)
+        self.settings.set_value(MICA_SETTINGS_KEY, self.mica_enabled)
         self.settings.sync()
-        if self.settings.status() != QSettings.NoError:
+        if self.settings.status() != STATUS_NO_ERROR:
             self.logs.error(
                 "设置",
                 "云母效果保存失败",
                 "设置文件：%s；状态：%s"
-                % (self.settings.fileName(), self.settings.status()),
+                % (self.settings.file_name(), self.settings.status()),
             )
             self.mica_enabled = previous
             self.apply_mica(previous)
@@ -1302,14 +1314,14 @@ class MainWindow(FluentWindow):
             return
         previous = self.close_behavior
         self.close_behavior = normalized
-        self.settings.setValue(CLOSE_BEHAVIOR_SETTINGS_KEY, normalized)
+        self.settings.set_value(CLOSE_BEHAVIOR_SETTINGS_KEY, normalized)
         self.settings.sync()
-        if self.settings.status() != QSettings.NoError:
+        if self.settings.status() != STATUS_NO_ERROR:
             self.logs.error(
                 "设置",
                 "关闭窗口行为保存失败",
                 "设置文件：%s；状态：%s"
-                % (self.settings.fileName(), self.settings.status()),
+                % (self.settings.file_name(), self.settings.status()),
             )
             self.close_behavior = previous
             self._notify("设置保存失败", "无法写入设置文件", "错误")

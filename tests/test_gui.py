@@ -21,7 +21,6 @@ from PySide6.QtCore import (
     QEvent,
     QPoint,
     QPointF,
-    QSettings,
     QSize,
     Qt,
     QTimer,
@@ -41,6 +40,7 @@ from qfluentwidgets import (
     qconfig,
 )
 
+from app import core
 from app.gui import app as gui
 from app.gui import components, models
 from app.gui.pages.common import (
@@ -73,9 +73,9 @@ class GuiTests(unittest.TestCase):
         self.addCleanup(lambda: shutil.rmtree(self.temp_root, ignore_errors=True))
         self.data_dir = self.temp_root / "JiYuAttackNextData"
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.settings_path = str(self.data_dir / "settings.ini")
+        self.settings_path = str(self.data_dir / "settings.json")
         self.alias_store = gui.DeviceAliasStore(
-            settings=QSettings(self.settings_path, QSettings.IniFormat)
+            settings=models.portable_settings(self.data_dir)
         )
         self.window = gui.MainWindow(
             alias_store=self.alias_store, data_dir=self.data_dir, enable_tray=False
@@ -426,7 +426,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(page.table.item(0, 1).text(), "10.0.0.1-10")
 
         reloaded = gui.DeviceAliasStore(
-            settings=QSettings(self.settings_path, QSettings.IniFormat)
+            settings=models.portable_settings(self.data_dir)
         )
         self.assertEqual(reloaded.match("机房范围"), ("机房范围", "10.0.0.1-10"))
         self.state.set_value("target", "机房范围")
@@ -465,8 +465,40 @@ class GuiTests(unittest.TestCase):
         )
         self.assertTrue(
             models.portable_settings(data_dir)
-            .fileName()
+            .file_name()
             .endswith(models.SETTINGS_FILE_NAME)
+        )
+
+    def test_settings_json_keeps_core_and_gui_groups(self):
+        self.alias_store.add("配置分组", "10.0.0.9")
+        self.window.set_close_behavior(models.CLOSE_BEHAVIOR_QUIT)
+        path = self.data_dir / models.SETTINGS_FILE_NAME
+        self.assertTrue(path.exists())
+        text = path.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("// "))
+        data = core.config.loads(text)
+        self.assertEqual(data["core"]["device_aliases"], {"配置分组": "10.0.0.9"})
+        self.assertEqual(
+            data["gui"]["window"]["close_behavior"], models.CLOSE_BEHAVIOR_QUIT
+        )
+        self.assertIn("gui", data)
+        self.assertIn("core", data)
+
+    def test_settings_json_accepts_handwritten_comments(self):
+        path = self.data_dir / models.SETTINGS_FILE_NAME
+        self.alias_store.add("手写注释", "10.0.0.8")
+        text = path.read_text(encoding="utf-8")
+        edited = text.replace(
+            '"core": {',
+            "// 手写的分组说明" + chr(10) + '  "core": {',
+            1,
+        )
+        path.write_text(edited, encoding="utf-8")
+        reloaded = models.SettingsStore(path)
+        self.assertEqual(reloaded.status(), models.STATUS_NO_ERROR)
+        self.assertEqual(
+            reloaded.value(models.DEVICE_ALIAS_SETTINGS_KEY),
+            {"手写注释": "10.0.0.8"},
         )
 
     def test_runtime_logs_are_persisted_and_loaded(self):
@@ -1537,7 +1569,7 @@ class GuiTests(unittest.TestCase):
             settings_page.mica_switch.setChecked(False)
             self.assertFalse(self.window.mica_enabled)
             self.assertFalse(self.window.isMicaEffectEnabled())
-            reloaded = QSettings(self.settings_path, QSettings.IniFormat)
+            reloaded = models.portable_settings(self.data_dir)
             self.assertEqual(
                 models.normalize_switch(reloaded.value(models.MICA_SETTINGS_KEY), True),
                 False,
@@ -1550,13 +1582,13 @@ class GuiTests(unittest.TestCase):
         self.window.move(120, 90)
         self.window._quit_requested = True
         self.window.close()
-        stored = QSettings(self.settings_path, QSettings.IniFormat).value(
+        stored = models.portable_settings(self.data_dir).value(
             models.WINDOW_GEOMETRY_SETTINGS_KEY
         )
         self.assertIsNotNone(stored)
         window = gui.MainWindow(
             alias_store=gui.DeviceAliasStore(
-                settings=QSettings(self.settings_path, QSettings.IniFormat)
+                settings=models.portable_settings(self.data_dir)
             ),
             data_dir=self.data_dir,
             enable_tray=False,
@@ -1572,7 +1604,7 @@ class GuiTests(unittest.TestCase):
     def test_close_behavior_switch_persists_and_defaults_to_tray(self):
         window = gui.MainWindow(
             alias_store=gui.DeviceAliasStore(
-                settings=QSettings(self.settings_path, QSettings.IniFormat)
+                settings=models.portable_settings(self.data_dir)
             ),
             data_dir=self.data_dir,
         )
@@ -1587,14 +1619,14 @@ class GuiTests(unittest.TestCase):
             window.close()
             window.deleteLater()
         self.assertEqual(
-            QSettings(self.settings_path, QSettings.IniFormat).value(
+            models.portable_settings(self.data_dir).value(
                 models.CLOSE_BEHAVIOR_SETTINGS_KEY
             ),
             models.CLOSE_BEHAVIOR_QUIT,
         )
         reloaded = gui.MainWindow(
             alias_store=gui.DeviceAliasStore(
-                settings=QSettings(self.settings_path, QSettings.IniFormat)
+                settings=models.portable_settings(self.data_dir)
             ),
             data_dir=self.data_dir,
             enable_tray=False,
@@ -1662,7 +1694,7 @@ class GuiTests(unittest.TestCase):
     def test_close_hides_to_tray_when_tray_mode_is_enabled(self):
         window = gui.MainWindow(
             alias_store=gui.DeviceAliasStore(
-                settings=QSettings(self.settings_path, QSettings.IniFormat)
+                settings=models.portable_settings(self.data_dir)
             ),
             data_dir=self.data_dir,
             enable_tray=False,
@@ -1685,7 +1717,7 @@ class GuiTests(unittest.TestCase):
     def test_first_close_can_minimize_to_tray_and_prompts_only_once(self):
         window = gui.MainWindow(
             alias_store=gui.DeviceAliasStore(
-                settings=QSettings(self.settings_path, QSettings.IniFormat)
+                settings=models.portable_settings(self.data_dir)
             ),
             data_dir=self.data_dir,
             enable_tray=False,
@@ -1702,8 +1734,10 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(window.close_behavior, models.CLOSE_BEHAVIOR_TRAY)
             self.assertTrue(window.first_close_prompt_shown)
             self.assertTrue(
-                QSettings(self.settings_path, QSettings.IniFormat).value(
-                    models.FIRST_CLOSE_PROMPT_SETTINGS_KEY, False, type=bool
+                bool(
+                    models.portable_settings(self.data_dir).value(
+                        models.FIRST_CLOSE_PROMPT_SETTINGS_KEY, False
+                    )
                 )
             )
 
@@ -1714,7 +1748,7 @@ class GuiTests(unittest.TestCase):
             self.assertFalse(window.isVisible())
             reloaded = gui.MainWindow(
                 alias_store=gui.DeviceAliasStore(
-                    settings=QSettings(self.settings_path, QSettings.IniFormat)
+                    settings=models.portable_settings(self.data_dir)
                 ),
                 data_dir=self.data_dir,
                 enable_tray=False,
@@ -1733,7 +1767,7 @@ class GuiTests(unittest.TestCase):
     def test_first_close_can_choose_direct_exit(self):
         window = gui.MainWindow(
             alias_store=gui.DeviceAliasStore(
-                settings=QSettings(self.settings_path, QSettings.IniFormat)
+                settings=models.portable_settings(self.data_dir)
             ),
             data_dir=self.data_dir,
             enable_tray=False,
@@ -1751,8 +1785,10 @@ class GuiTests(unittest.TestCase):
             self.assertTrue(window.first_close_prompt_shown)
             self.assertIsNone(window.tray_icon)
             self.assertTrue(
-                QSettings(self.settings_path, QSettings.IniFormat).value(
-                    models.FIRST_CLOSE_PROMPT_SETTINGS_KEY, False, type=bool
+                bool(
+                    models.portable_settings(self.data_dir).value(
+                        models.FIRST_CLOSE_PROMPT_SETTINGS_KEY, False
+                    )
                 )
             )
         finally:
@@ -1763,7 +1799,7 @@ class GuiTests(unittest.TestCase):
     def test_close_quit_mode_exits_and_stops_tray(self):
         window = gui.MainWindow(
             alias_store=gui.DeviceAliasStore(
-                settings=QSettings(self.settings_path, QSettings.IniFormat)
+                settings=models.portable_settings(self.data_dir)
             ),
             data_dir=self.data_dir,
             enable_tray=False,
@@ -1786,7 +1822,7 @@ class GuiTests(unittest.TestCase):
     def test_tray_menu_shows_window_and_quits(self):
         window = gui.MainWindow(
             alias_store=gui.DeviceAliasStore(
-                settings=QSettings(self.settings_path, QSettings.IniFormat)
+                settings=models.portable_settings(self.data_dir)
             ),
             data_dir=self.data_dir,
             enable_tray=False,
@@ -1809,7 +1845,7 @@ class GuiTests(unittest.TestCase):
     def test_tray_quit_requests_event_loop_exit_when_hidden(self):
         window = gui.MainWindow(
             alias_store=gui.DeviceAliasStore(
-                settings=QSettings(self.settings_path, QSettings.IniFormat)
+                settings=models.portable_settings(self.data_dir)
             ),
             data_dir=self.data_dir,
             enable_tray=False,

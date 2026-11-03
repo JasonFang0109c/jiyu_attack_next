@@ -11,17 +11,19 @@ import re
 import sys
 import threading
 
-from PySide6.QtCore import QObject, QSettings, Signal
+from PySide6.QtCore import QObject, Signal
 
 from .. import core
+from .settings_store import STATUS_NO_ERROR, SettingsStore
 
 DATA_DIRECTORY_NAME = "JiYuAttackNextData"
-SETTINGS_FILE_NAME = "settings.ini"
+SETTINGS_FILE_NAME = "settings.json"
 LOG_FILE_NAME = "runtime.log"
-CLOSE_BEHAVIOR_SETTINGS_KEY = "window/close_behavior"
-FIRST_CLOSE_PROMPT_SETTINGS_KEY = "window/first_close_prompt_shown"
-WINDOW_GEOMETRY_SETTINGS_KEY = "window/geometry"
-MICA_SETTINGS_KEY = "window/mica_enabled"
+DEVICE_ALIAS_SETTINGS_KEY = "core/device_aliases"
+CLOSE_BEHAVIOR_SETTINGS_KEY = "gui/window/close_behavior"
+FIRST_CLOSE_PROMPT_SETTINGS_KEY = "gui/window/first_close_prompt_shown"
+WINDOW_GEOMETRY_SETTINGS_KEY = "gui/window/geometry"
+MICA_SETTINGS_KEY = "gui/window/mica_enabled"
 DEFAULT_MICA_ENABLED = True
 SWITCH_TRUE_VALUES = ("true", "1", "yes", "on")
 SWITCH_FALSE_VALUES = ("false", "0", "no", "off")
@@ -54,7 +56,7 @@ def normalize_switch(value, default):
     """把设置里的开关值转换为布尔值，无法识别时退回默认值。
 
     Args:
-        value: 从 ``QSettings`` 读出的原始值，可能是布尔、字符串或 ``None``。
+        value: 从 ``settings.json`` 读出的原始值，可能是布尔、字符串或 ``None``。
         default: 配置缺失或格式非法时使用的默认状态。
 
     Returns:
@@ -102,9 +104,9 @@ def portable_data_dir(executable=None):
 
 
 def portable_settings(data_dir=None):
-    """返回便携设置对象，配置文件位于数据目录下的 settings.ini。"""
+    """返回便携设置对象，配置文件位于数据目录下的 settings.json。"""
     root = Path(data_dir).resolve() if data_dir is not None else portable_data_dir()
-    return QSettings(str(root / SETTINGS_FILE_NAME), QSettings.IniFormat)
+    return SettingsStore(root / SETTINGS_FILE_NAME)
 
 
 def portable_log_path(data_dir=None):
@@ -119,7 +121,7 @@ class DeviceAliasStore(QObject):
     changed = Signal()
     renamed = Signal(str, str)
     removed = Signal(str)
-    SETTINGS_KEY = "device_aliases"
+    SETTINGS_KEY = DEVICE_ALIAS_SETTINGS_KEY
     MAX_NAME_LENGTH = 64
 
     def __init__(self, settings=None, parent=None):
@@ -131,7 +133,7 @@ class DeviceAliasStore(QObject):
 
     def _load(self):
         """从设置文件读取备注；数据损坏时记录原因并保留空表。"""
-        raw = self._settings.value(self.SETTINGS_KEY, "{}")
+        raw = self._settings.value(self.SETTINGS_KEY, {})
         try:
             if isinstance(raw, str):
                 data = json.loads(raw) if raw else {}
@@ -225,21 +227,12 @@ class DeviceAliasStore(QObject):
             raise OSError(
                 "%s；为避免覆盖原数据，请先修复或清除该配置项" % self.load_error
             )
-        try:
-            settings_path = self._settings.fileName()
-            if settings_path:
-                Path(settings_path).expanduser().parent.mkdir(
-                    parents=True, exist_ok=True
-                )
-            self._settings.setValue(
-                self.SETTINGS_KEY,
-                json.dumps(aliases, ensure_ascii=False, separators=(",", ":")),
+        self._settings.set_value(self.SETTINGS_KEY, dict(aliases))
+        self._settings.sync()
+        if self._settings.status() != STATUS_NO_ERROR:
+            raise OSError(
+                "设备备注保存失败：%s" % (self._settings.message or "写入失败")
             )
-            self._settings.sync()
-        except OSError as error:
-            raise OSError("设备备注保存失败：%s" % error) from error
-        if self._settings.status() != QSettings.NoError:
-            raise OSError("设备备注保存失败")
         self._aliases = aliases
 
     def add(self, name, address):
