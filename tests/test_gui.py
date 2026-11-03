@@ -482,6 +482,27 @@ class GuiTests(unittest.TestCase):
         self.application.processEvents()
         self.assertTrue(targets.port_input.hasFocus())
 
+    def test_ipv4_segments_advance_on_dot_key(self):
+        targets = self.message.targets
+        segments = targets.target_input.segments
+        self.window.show()
+        self.window.show_page("message")
+        self.application.processEvents()
+        segments[0].setFocus()
+        for edit, text in zip(segments[:3], ("10", "49", "151")):
+            edit.setText(text)
+            QTest.keyClick(edit, Qt.Key_Period)
+            self.application.processEvents()
+        self.assertTrue(segments[3].hasFocus())
+        # 点号只用于跳段，不进入输入框，四段仍是纯数字。
+        self.assertEqual([edit.text() for edit in segments[:3]], ["10", "49", "151"])
+        segments[3].setText("7")
+        self.assertEqual(self.state.values["target"], "10.49.151.7")
+        # 回车行为保持不变：最后一段回车进入端口输入框。
+        QTest.keyClick(segments[3], Qt.Key_Return)
+        self.application.processEvents()
+        self.assertTrue(targets.port_input.hasFocus())
+
     def test_device_picker_lists_aliases_and_selects_target(self):
         self.alias_store.add("教室 A", "192.168.1.10")
         self.alias_store.add("一号机房", "192.168.1.11")

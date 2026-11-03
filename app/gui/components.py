@@ -1,6 +1,14 @@
 """Fluent 界面共用的连接参数、页面标题与任务栏。"""
 
-from PySide6.QtCore import QRegularExpression, QSignalBlocker, QSize, Qt, Signal, Slot
+from PySide6.QtCore import (
+    QEvent,
+    QRegularExpression,
+    QSignalBlocker,
+    QSize,
+    Qt,
+    Signal,
+    Slot,
+)
 from PySide6.QtGui import QIntValidator, QRegularExpressionValidator
 from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import (
@@ -153,6 +161,8 @@ class Ipv4TargetInput(QWidget):
                 edit.setToolTip("最后一段 IPv4、末段范围或 /24 网段")
             edit.textChanged.connect(self._segments_changed)
             edit.returnPressed.connect(lambda key=index: self._advance(key))
+            # 点号由本控件拦截：段内输入“.”等同于按回车，不会写进数字框。
+            edit.installEventFilter(self)
             layout.addWidget(edit)
             self.segments.append(edit)
         self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -210,6 +220,16 @@ class Ipv4TargetInput(QWidget):
             target.selectAll()
         else:
             self.nextFieldRequested.emit()
+
+    def eventFilter(self, obj, event):
+        """拦截段内的点号按键，按回车的方式跳到下一段。"""
+        if event.type() == QEvent.Type.KeyPress and obj in self.segments:
+            # 小键盘点号与主键盘点号都送 Key_Period；中文输入法可能在
+            # InputMethod 事件里给出“。”，这里一并处理。
+            if event.key() == Qt.Key.Key_Period or event.text() in (".", "。"):
+                self._advance(self.segments.index(obj))
+                return True
+        return super().eventFilter(obj, event)
 
 
 class TargetControls(QWidget):
