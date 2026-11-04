@@ -49,21 +49,27 @@ from .models import (
     CLOSE_BEHAVIOR_SETTINGS_KEY,
     CLOSE_BEHAVIOR_TRAY,
     DEFAULT_CLOSE_BEHAVIOR,
-    DEFAULT_MICA_ENABLED,
+    DEFAULT_WINDOW_MATERIAL,
     FIRST_CLOSE_PROMPT_SETTINGS_KEY,
+    MATERIAL_ACRYLIC,
+    MATERIAL_SOLID,
     MICA_SETTINGS_KEY,
     WINDOW_GEOMETRY_SETTINGS_KEY,
+    WINDOW_MATERIAL_LABELS,
+    WINDOW_MATERIAL_SETTINGS_KEY,
+    WINDOW_MATERIALS,
     ConnectionState,
     DeviceAliasStore,
     LogLevel,
     LogStore,
-    mica_available,
     normalize_close_behavior,
     normalize_log_level,
     normalize_switch,
+    normalize_window_material,
     portable_data_dir,
     portable_log_path,
     portable_settings,
+    window_material_available,
 )
 from .pages import (
     AboutPage,
@@ -78,7 +84,7 @@ from .pages import (
     SettingsPage,
 )
 from .settings_store import STATUS_NO_ERROR
-from .window_effect import apply_acrylic, remove_acrylic
+from .window_effect import apply_acrylic, apply_mica, clear_material
 from .workers import SendWorker, TaskWorker
 
 APP_NAME = "JiYu Attack Next"
@@ -274,8 +280,8 @@ class MainWindow(FluentWindow):
         self.setWindowIcon(app_icon())
         self._setup_tray()
         self.blur_enabled = False
-        self.mica_enabled = self._load_mica_enabled()
-        self.apply_mica(self.mica_enabled)
+        self.window_material = self._load_window_material()
+        self.apply_window_material(self.window_material)
         self.setCustomBackgroundColor("#f5f6f8", "#202020")
         self.setMinimumSize(960, 640)
         self.resize(1180, 780)
@@ -291,7 +297,7 @@ class MainWindow(FluentWindow):
             "firewall": FirewallPage(self),
             "logs": LogPage(self.logs, self),
             "settings": SettingsPage(
-                self.logs, self.close_behavior, self.mica_enabled, self
+                self.logs, self.close_behavior, self.window_material, self
             ),
             "about": AboutPage(self),
         }
@@ -338,43 +344,47 @@ class MainWindow(FluentWindow):
             return value.strip().casefold() in ("1", "true", "yes", "on")
         return bool(value)
 
-    def _load_mica_enabled(self):
-        """读取背景模糊开关，配置缺失或无法识别时使用默认值。"""
-        raw = self.settings.value(MICA_SETTINGS_KEY, None)
-        return normalize_switch(raw, DEFAULT_MICA_ENABLED)
+    def _load_window_material(self):
+        """读取窗口材质，配置缺失时用旧版背景模糊开关换算。"""
+        raw = self.settings.value(WINDOW_MATERIAL_SETTINGS_KEY, None)
+        legacy = normalize_switch(self.settings.value(MICA_SETTINGS_KEY, None), None)
+        return normalize_window_material(raw, legacy)
 
-    def apply_mica(self, enabled):
-        """按开关状态启用或关闭窗口背景模糊。
+    def apply_window_material(self, material):
+        """按材质切换窗口背景效果。
 
         Args:
-            enabled: ``True`` 表示希望启用背景模糊。
+            material: ``WINDOW_MATERIALS`` 中的材质标识。
 
         Note:
-            实际效果是亚克力实时模糊而不是系统云母：云母只采样桌面壁纸，
-            窗口下方压着别的应用时背景不会跟着变；亚克力由 DWM 实时模糊
-            窗口下方的全部内容。库的开关名仍是 mica，它同时负责把窗口背景
-            刷成透明，两者配合模糊才能透出来。
+            云母与亚克力都调用组件自带的 ``windowEffect``：云母走
+            ``setMicaEffect``，亚克力走 ``setAcrylicEffect`` 配合窗口玻璃区域。
+            纯色则彻底清掉系统效果并把背景刷回不透明色。
         """
-        enabled = bool(enabled) and mica_available()
-        self.blur_enabled = enabled
-        self.setMicaEffectEnabled(enabled)
-        handle = int(self.winId())
-        if not enabled:
-            remove_acrylic(handle)
-            # 库在非 Windows 11 上会直接返回，背景色要自己恢复，否则窗口全透明。
+        material = normalize_window_material(material)
+        dark_theme = isDarkTheme()
+        # 云母与亚克力互斥，先统一关掉库的云母开关，避免系统 backdrop 叠在亚克力上。
+        self.blur_enabled = material != MATERIAL_SOLID
+        self.setMicaEffectEnabled(False)
+        if material == MATERIAL_SOLID:
+            clear_material(self)
+            # 库关闭材质后不会恢复底色，这里自己刷回不透明，否则窗口全透明。
             self.setBackgroundColor(
-                QColor("#202020") if isDarkTheme() else QColor("#f5f6f8")
+                QColor("#202020") if dark_theme else QColor("#f5f6f8")
             )
             return
-        # 库只在 Windows 11 上把背景刷成透明，低版本要自己刷，否则亚克力被盖住。
+        # 库只在部分系统上把背景刷成透明，自己刷一遍，否则材质被底色盖住。
         self.setBackgroundColor(QColor(0, 0, 0, 0))
-        apply_acrylic(handle, isDarkTheme())
+        if material == MATERIAL_ACRYLIC:
+            apply_acrylic(self, dark_theme)
+        else:
+            apply_mica(self, dark_theme)
 
     def _refresh_background_effect(self):
-        """重新应用模糊，系统在窗口显示与主题切换时会把背景重置回云母。"""
-        if not self.blur_enabled:
+        """重新应用材质，系统在窗口显示与主题切换时会把背景重置回云母。"""
+        if self.window_material == MATERIAL_SOLID:
             return
-        apply_acrylic(int(self.winId()), isDarkTheme())
+        self.apply_window_material(self.window_material)
 
     def showEvent(self, event):
         """窗口显示后再应用一次模糊，覆盖库在 showEvent 里设下的云母。"""
@@ -552,7 +562,7 @@ class MainWindow(FluentWindow):
         self.pages["logs"].deleteSelectedRequested.connect(self.delete_selected_logs)
         self.pages["logs"].cancelRequested.connect(self.cancel_task)
         self.pages["settings"].themeRequested.connect(self.set_theme)
-        self.pages["settings"].micaRequested.connect(self.set_mica_enabled)
+        self.pages["settings"].materialRequested.connect(self.set_window_material)
         self.pages["settings"].closeBehaviorRequested.connect(self.set_close_behavior)
         self.pages["settings"].logLevelRequested.connect(self.set_log_level)
         self.pages["settings"].clearDataRequested.connect(self.clear_data)
@@ -1302,38 +1312,41 @@ class MainWindow(FluentWindow):
         setTheme(theme, save=False)
         self.logs.info("应用", "界面主题已切换", "主题：%s" % theme)
 
-    @Slot(bool)
-    def set_mica_enabled(self, enabled):
-        """保存背景模糊开关并立即生效，写盘失败时回滚到原状态。
+    @Slot(str)
+    def set_window_material(self, material):
+        """保存窗口材质并立即生效，写盘失败时回滚到原材质。
 
         Args:
-            enabled: 设置页开关的目标状态。
+            material: 设置页下拉框选中的材质标识。
         """
-        if not mica_available():
-            self.logs.warning("设置", "当前系统不支持背景模糊，已忽略开关改动")
-            self.pages["settings"].set_mica_enabled(False)
+        target = normalize_window_material(material)
+        if target not in WINDOW_MATERIALS:
             return
-        previous = self.mica_enabled
-        self.mica_enabled = bool(enabled)
-        self.apply_mica(self.mica_enabled)
-        self.settings.set_value(MICA_SETTINGS_KEY, self.mica_enabled)
+        if not window_material_available(target):
+            self.logs.warning("设置", "当前系统不支持该窗口材质，已忽略改动")
+            self.pages["settings"].set_window_material(self.window_material)
+            return
+        previous = self.window_material
+        self.window_material = target
+        self.apply_window_material(target)
+        self.settings.set_value(WINDOW_MATERIAL_SETTINGS_KEY, target)
         self.settings.sync()
         if self.settings.status() != STATUS_NO_ERROR:
             self.logs.error(
                 "设置",
-                "背景模糊保存失败",
+                "窗口材质保存失败",
                 "设置文件：%s；状态：%s"
                 % (self.settings.file_name(), self.settings.status()),
             )
-            self.mica_enabled = previous
-            self.apply_mica(previous)
-            self.pages["settings"].set_mica_enabled(previous)
+            self.window_material = previous
+            self.apply_window_material(previous)
+            self.pages["settings"].set_window_material(previous)
             self._notify("设置保存失败", "无法写入设置文件", "错误")
             return
         self.logs.info(
             "设置",
-            "背景模糊已更新",
-            "开关状态：%s" % ("开启" if self.mica_enabled else "关闭"),
+            "窗口材质已更新",
+            "材质：%s" % WINDOW_MATERIAL_LABELS[target],
         )
 
     @Slot(str)
@@ -1525,10 +1538,10 @@ class MainWindow(FluentWindow):
         self.settings = portable_settings(self.data_dir)
         self.close_behavior = DEFAULT_CLOSE_BEHAVIOR
         self.first_close_prompt_shown = False
-        # 设置文件已删除，背景模糊与窗口位置一并回到默认状态。
-        self.mica_enabled = DEFAULT_MICA_ENABLED
-        self.apply_mica(self.mica_enabled)
-        self.pages["settings"].set_mica_enabled(self.mica_enabled)
+        # 设置文件已删除，窗口材质与窗口位置一并回到默认状态。
+        self.window_material = DEFAULT_WINDOW_MATERIAL
+        self.apply_window_material(self.window_material)
+        self.pages["settings"].set_window_material(self.window_material)
         self.resize(1180, 780)
         self._center_on_screen()
         self.pages["settings"].set_close_behavior(DEFAULT_CLOSE_BEHAVIOR)

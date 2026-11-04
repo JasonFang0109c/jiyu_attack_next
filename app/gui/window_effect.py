@@ -1,169 +1,133 @@
-"""窗口背景材质：用亚克力实时模糊替代表面云母。
+"""窗口材质：调用组件自带的 DWM 效果实现云母与亚克力。
 
-Windows 11 的云母（Mica）由系统按桌面壁纸采样，窗口下方的其他应用不会
-被计入，所以拖动窗口或切换下层窗口时背景不会变化。亚克力（Acrylic）由
-DWM 实时模糊窗口下方的内容，既能透出壁纸，也能透出下层应用窗口。
+云母（Mica）由系统按桌面壁纸采样，窗口下方压着别的应用时背景不会变化；
+亚克力（Acrylic）由 DWM 实时模糊窗口下方的内容，包括其他应用窗口。
 
-启用亚克力需要同时做三件事，缺一不可：
-
-1. ``DwmExtendFrameIntoClientArea`` 把客户区扩展成玻璃区域，否则 DWM 会把
-   客户区当成不透明，效果完全不可见；
-2. ``SetWindowCompositionAttribute`` 设置 ``ACCENT_ENABLE_ACRYLICBLURBEHIND``；
-3. 清掉系统 backdrop（``DWMWA_SYSTEMBACKDROP_TYPE = 0``），否则先前由
-   ``setMicaEffect`` 设下的 backdrop 会盖住亚克力。
+两个效果都由 ``PySide6-Fluent-Widgets`` 依赖的 ``qframelesswindow`` 提供，
+这里只负责按项目需要拼装调用顺序，不再自己声明 Win32 结构体。亚克力需要
+三步配合才能透出下层内容：先 ``DwmEnableBlurBehindWindow`` 打开客户区模糊，
+再用 ``DwmExtendFrameIntoClientArea`` 把客户区扩展成玻璃区域，最后用
+``setAcrylicEffect`` 写入强调色策略，并清掉先前由云母设下的系统 backdrop，
+否则旧的 backdrop 会盖住亚克力。
 """
 
 import sys
-from ctypes import POINTER, Structure, byref, c_int, c_size_t, c_uint, pointer, sizeof
+from ctypes import byref, c_int
 
-ACCENT_DISABLED = 0
-ACCENT_ENABLE_ACRYLICBLURBEHIND = 4
-# 亚克力必须带上这组标志位，否则 DWM 会把区域当作纯色处理，效果看不出来。
-ACCENT_FLAGS = 0x20 | 0x40 | 0x80 | 0x100
-WCA_ACCENT_POLICY = 19
-DWMWA_USE_IMMERSIVE_DARK_MODE = 20
-DWMWA_SYSTEMBACKDROP_TYPE = 38
+if sys.platform == "win32":
+    from qframelesswindow.windows.c_structures import DWMWINDOWATTRIBUTE, MARGINS
+else:  # pragma: no cover - 其他系统没有 DWM 结构体
+    DWMWINDOWATTRIBUTE = None
+    MARGINS = None
+
 TRANSPARENT_MARGINS = 16777215
+SYSTEMBACKDROP_NONE = 0
+LIGHT_TINT = (0xF5, 0xF6, 0xF8)
+DARK_TINT = (0x20, 0x20, 0x20)
+ACRYLIC_ALPHA = 0xA0
 
 
-class AccentPolicy(Structure):
-    """``ACCENT_POLICY`` 结构体。"""
-
-    _fields_ = [
-        ("accent_state", c_int),
-        ("accent_flags", c_int),
-        ("gradient_color", c_uint),
-        ("animation_id", c_int),
-    ]
-
-
-class WindowCompositionAttributeData(Structure):
-    """``WINDOWCOMPOSITIONATTRIBDATA`` 结构体。"""
-
-    _fields_ = [
-        ("attribute", c_int),
-        ("data", POINTER(AccentPolicy)),
-        # 结构体里是 SIZE_T，64 位上占 8 字节，用 c_uint 会让布局错位。
-        ("size_of_data", c_size_t),
-    ]
-
-
-class Margins(Structure):
-    """``MARGINS`` 结构体。"""
-
-    _fields_ = [
-        ("left", c_int),
-        ("right", c_int),
-        ("top", c_int),
-        ("bottom", c_int),
-    ]
-
-
-def acrylic_tint(dark_theme, alpha=0xA0):
-    """返回亚克力的染色值，格式为 ABGR。
+def acrylic_color(dark_theme, alpha=ACRYLIC_ALPHA):
+    """返回组件 ``setAcrylicEffect`` 需要的染色值。
 
     Args:
         dark_theme: ``True`` 表示深色主题。
-        alpha: 染色不透明度，越大越不透明，越小越能看清下层内容。默认值
-            与库的 ``setAcrylicEffect`` 一致，能透出下层又保证文字可读。
+        alpha: 染色不透明度，越大越不透明。默认值与库的默认染色一致。
 
     Returns:
-        int: 可直接写入 ``ACCENT_POLICY`` 的 32 位染色值。
+        str: 形如 ``RRGGBBAA`` 的十六进制字符串。
     """
-    red, green, blue = (0x20, 0x20, 0x20) if dark_theme else (0xF5, 0xF6, 0xF8)
-    return (alpha << 24) | (blue << 16) | (green << 8) | red
+    red, green, blue = DARK_TINT if dark_theme else LIGHT_TINT
+    return "%02X%02X%02X%02X" % (red, green, blue, alpha)
 
 
-_API = None
+def _effect(window):
+    """返回窗口自带的 DWM 效果对象与句柄，不可用时返回 ``None``。"""
+    if sys.platform != "win32":
+        return None
+    effect = getattr(window, "windowEffect", None)
+    if effect is None:
+        return None
+    try:
+        handle = int(window.winId())
+    except (AttributeError, RuntimeError, TypeError):
+        return None
+    if not handle:
+        return None
+    return effect, handle
 
 
-def _api():
-    """返回已声明签名的 user32 与 dwmapi 函数，只加载一次。"""
-    global _API
-    if _API is not None:
-        return _API
-
-    from ctypes import WinDLL, c_bool, c_void_p
-    from ctypes.wintypes import DWORD
-
-    user32 = WinDLL("user32")
-    dwmapi = WinDLL("dwmapi")
-
-    set_composition = user32.SetWindowCompositionAttribute
-    set_composition.restype = c_bool
-    set_composition.argtypes = [c_int, POINTER(WindowCompositionAttributeData)]
-
-    extend_frame = dwmapi.DwmExtendFrameIntoClientArea
-    extend_frame.restype = c_int
-    extend_frame.argtypes = [c_int, POINTER(Margins)]
-
-    set_attribute = dwmapi.DwmSetWindowAttribute
-    set_attribute.restype = c_int
-    set_attribute.argtypes = [c_int, DWORD, c_void_p, DWORD]
-
-    _API = (set_composition, extend_frame, set_attribute)
-    return _API
-
-
-def _set_attribute(set_attribute, handle, attribute, value):
-    """写入一个 32 位 DWM 窗口属性。"""
-    data = c_int(value)
-    set_attribute(handle, attribute, byref(data), sizeof(data))
-
-
-def _set_accent(handle, state, gradient_color=0):
-    """写入强调色策略，``state`` 为 ``ACCENT_DISABLED`` 时表示关闭。"""
-    set_composition, _, _ = _api()
-    policy = AccentPolicy(state, ACCENT_FLAGS, gradient_color, 0)
-    data = WindowCompositionAttributeData(
-        WCA_ACCENT_POLICY, pointer(policy), sizeof(policy)
-    )
-    set_composition(handle, pointer(data))
-
-
-def apply_acrylic(handle, dark_theme=False):
+def apply_acrylic(window, dark_theme=False):
     """给窗口启用亚克力实时模糊。
 
     Args:
-        handle: 窗口句柄，通常是 ``int(widget.winId())``。
+        window: 任何带 ``windowEffect`` 的窗口。
         dark_theme: ``True`` 表示深色主题，决定染色与标题栏明暗。
 
     Returns:
         bool: 系统不是 Windows 或调用失败时为 ``False``。
     """
-    if sys.platform != "win32":
+    target = _effect(window)
+    if target is None:
         return False
-    handle = int(handle)
-    if not handle:
-        return False
+    effect, handle = target
     try:
-        set_composition, extend_frame, set_attribute = _api()
-        # 先扩展玻璃区域，否则客户区被当作不透明，效果看不出来。
-        margins = Margins(TRANSPARENT_MARGINS, TRANSPARENT_MARGINS, 0, 0)
-        extend_frame(handle, byref(margins))
-        # 库的 setMicaEffect 会设下系统 backdrop，它会盖住亚克力，这里先清零。
-        _set_attribute(set_attribute, handle, DWMWA_SYSTEMBACKDROP_TYPE, 0)
-        _set_accent(handle, ACCENT_ENABLE_ACRYLICBLURBEHIND, acrylic_tint(dark_theme))
-        _set_attribute(
-            set_attribute, handle, DWMWA_USE_IMMERSIVE_DARK_MODE, int(bool(dark_theme))
+        effect.enableBlurBehindWindow(handle)
+        margins = MARGINS(TRANSPARENT_MARGINS, TRANSPARENT_MARGINS, 0, 0)
+        effect.DwmExtendFrameIntoClientArea(handle, byref(margins))
+        effect.setAcrylicEffect(handle, acrylic_color(dark_theme))
+        effect.DwmSetWindowAttribute(
+            handle,
+            DWMWINDOWATTRIBUTE.DWMWA_SYSTEMBACKDROP_TYPE.value,
+            byref(c_int(SYSTEMBACKDROP_NONE)),
+            4,
         )
     except (OSError, ValueError, AttributeError):
         return False
     return True
 
 
-def remove_acrylic(handle):
-    """关闭窗口背景效果，窗口恢复为不透明。"""
-    if sys.platform != "win32":
-        return
-    handle = int(handle)
-    if not handle:
-        return
+def apply_mica(window, dark_theme=False):
+    """给窗口启用系统云母。
+
+    Args:
+        window: 任何带 ``windowEffect`` 的窗口。
+        dark_theme: ``True`` 表示深色主题。
+
+    Returns:
+        bool: 系统不是 Windows 或调用失败时为 ``False``。
+    """
+    target = _effect(window)
+    if target is None:
+        return False
+    effect, handle = target
     try:
-        _, extend_frame, set_attribute = _api()
-        _set_accent(handle, ACCENT_DISABLED)
-        _set_attribute(set_attribute, handle, DWMWA_SYSTEMBACKDROP_TYPE, 0)
-        # 撤销客户区扩展，否则窗口虽然不模糊，内容仍然是半透明的。
-        extend_frame(handle, byref(Margins(0, 0, 0, 0)))
+        effect.disableBlurBehindWindow(handle)
+        effect.setMicaEffect(handle, dark_theme)
+    except (OSError, ValueError, AttributeError):
+        return False
+    return True
+
+
+def clear_material(window):
+    """关闭窗口背景材质，窗口恢复为不透明。
+
+    Args:
+        window: 任何带 ``windowEffect`` 的窗口。
+    """
+    target = _effect(window)
+    if target is None:
+        return
+    effect, handle = target
+    try:
+        effect.disableBlurBehindWindow(handle)
+        effect.removeBackgroundEffect(handle)
+        effect.DwmSetWindowAttribute(
+            handle,
+            DWMWINDOWATTRIBUTE.DWMWA_SYSTEMBACKDROP_TYPE.value,
+            byref(c_int(SYSTEMBACKDROP_NONE)),
+            4,
+        )
+        effect.DwmExtendFrameIntoClientArea(handle, byref(MARGINS(0, 0, 0, 0)))
     except (OSError, ValueError, AttributeError):
         pass

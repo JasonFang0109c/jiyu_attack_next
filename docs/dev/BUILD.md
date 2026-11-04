@@ -22,6 +22,8 @@ python -m pip install -r requirements.txt
 
 已有虚拟环境时无需重新创建，GUI 和打包依赖的版本以根目录 [requirements.txt](../../requirements.txt) 为准。若虚拟环境早于 Fluent 组件库引入，重新执行一次安装命令即可。
 
+`requirements.txt` 安装的是 `PySide6-Fluent-Widgets[full]`，比基础包多带 `scipy`、`pillow` 与 `colorthief`，组件库用它们做亚克力控件的高斯模糊与取色。缺这几个包时 `isAcrylicAvailable` 为假，亚克力控件会退化纯色背景。升级组件库时用 `pip install --upgrade` 不会自动补装 extra，需要写明 `[full]`。打包脚本按 `packaging/JiYuAttackNext.spec` 排除 `scipy` 里用不到的子包与 Pillow 的 AVIF、Tk 插件，只保留 `scipy.ndimage` 及其依赖。
+
 ## 源码运行
 
 | 运行方式 | 命令 |
@@ -64,7 +66,7 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python "C:\Pytho
 
 ## 运行数据
 
-EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json` 保存设备备注（`core` 组）与界面设置（`gui` 组，含关闭窗口行为、背景模糊开关和主窗口位置），`runtime.log` 保存界面运行日志，`cli.log` 保存命令行模式的运行日志（固定 `DEBUG` 等级）。`settings.json` 使用 JSON with comments，允许手写 `//`、`/* */` 注释与尾逗号，程序保存时会重写整个文件。该目录由 `.gitignore` 排除，源码运行时位于项目根目录。
+EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json` 保存设备备注（`core` 组）与界面设置（`gui` 组，含关闭窗口行为、窗口材质和主窗口位置），`runtime.log` 保存界面运行日志，`cli.log` 保存命令行模式的运行日志（固定 `DEBUG` 等级）。`settings.json` 使用 JSON with comments，允许手写 `//`、`/* */` 注释与尾逗号，程序保存时会重写整个文件。该目录由 `.gitignore` 排除，源码运行时位于项目根目录。
 
 - 日志包含毫秒时间、规范级别、线程、输出位置、功能分类、消息与异常详情，便于从用户环境回传排查。
 - 只移动 EXE 而不移动该文件夹时，新位置按默认配置启动。

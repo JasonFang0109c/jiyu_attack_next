@@ -15,7 +15,14 @@ from qfluentwidgets import (
 )
 
 from ..components import SectionCard, page_heading
-from ..models import LOG_LEVELS, mica_available, normalize_log_level
+from ..models import (
+    LOG_LEVELS,
+    WINDOW_MATERIAL_LABELS,
+    WINDOW_MATERIALS,
+    normalize_log_level,
+    normalize_window_material,
+    window_material_available,
+)
 from .common import Page
 
 # 设置项标签用 13 像素：比卡片标题（BodyLabel 默认 14）小一档，
@@ -31,7 +38,7 @@ def setting_label(text, parent):
 
 
 class ThemeCard(SectionCard):
-    """界面主题卡片：标题行加颜色模式、背景模糊两项设置。
+    """界面主题卡片：标题行加颜色模式、窗口材质两项设置。
 
     样式对齐关于页的仓库信息卡片，标题与设置行之间留出固定间距。
     """
@@ -39,7 +46,7 @@ class ThemeCard(SectionCard):
     HEADING_GAP = 6
 
     def __init__(self, parent=None):
-        # 行间距比普通卡片大一些，把颜色模式与背景模糊开关分成两组。
+        # 行间距比普通卡片大一些，把颜色模式与窗口材质分成两组。
         super().__init__(parent, spacing=16, margins=(18, 12, 18, 12))
         self.setObjectName("settingsThemeCard")
         self.heading = BodyLabel("界面主题", self)
@@ -51,12 +58,12 @@ class SettingsPage(Page):
     """集中放置全局开关，所有改动通过信号交给主窗口处理。"""
 
     themeRequested = Signal(object)
-    micaRequested = Signal(bool)
+    materialRequested = Signal(str)
     closeBehaviorRequested = Signal(str)
     logLevelRequested = Signal(str)
     clearDataRequested = Signal()
 
-    def __init__(self, log_store, close_behavior, mica_enabled, parent=None):
+    def __init__(self, log_store, close_behavior, window_material, parent=None):
         super().__init__("settings", parent)
         self.log_store = log_store
         page_heading(self.vbox, "设置")
@@ -79,27 +86,30 @@ class SettingsPage(Page):
         theme_row.addWidget(self.theme_box)
         theme_card.body.addLayout(theme_row)
 
-        mica_row = QHBoxLayout()
-        mica_row.addWidget(setting_label("背景模糊", self))
-        mica_row.addStretch()
-        self.mica_switch = SwitchButton(self)
-        self.mica_switch.setAccessibleName("背景模糊")
-        self.mica_switch.setOnText("")
-        self.mica_switch.setOffText("")
-        self.mica_switch.setSpacing(0)
-        self.mica_switch.label.hide()
-        self.mica_switch.setChecked(mica_enabled)
-        # 系统不支持时禁用开关并说明原因，避免用户以为改了没生效。
-        self.mica_supported = mica_available()
-        self.mica_switch.setEnabled(self.mica_supported)
-        self.mica_switch.setToolTip(
-            "开启后窗口背景实时模糊下方内容，包括其他应用窗口，需 Windows 10（内部版本 17763 及以上）"
-            if self.mica_supported
-            else "当前系统不支持背景模糊，需要 Windows 10（内部版本 17763 及以上）"
+        material_row = QHBoxLayout()
+        material_row.addWidget(setting_label("窗口材质", self))
+        material_row.addStretch()
+        self.material_box = ComboBox(self)
+        for material in WINDOW_MATERIALS:
+            self.material_box.addItem(
+                WINDOW_MATERIAL_LABELS[material], userData=material
+            )
+        current_material = normalize_window_material(window_material)
+        # 系统不支持时保留选项但置灰，让用户知道该项依赖系统能力。
+        self.supported_materials = {
+            material: window_material_available(material)
+            for material in WINDOW_MATERIALS
+        }
+        for index, material in enumerate(WINDOW_MATERIALS):
+            self.material_box.setItemEnabled(index, self.supported_materials[material])
+        self.material_box.setCurrentIndex(WINDOW_MATERIALS.index(current_material))
+        self.material_box.setMinimumWidth(180)
+        self.material_box.setToolTip(
+            "Mica 由系统按桌面壁纸采样；Acrylic 实时模糊窗口下方的内容，包括其他应用窗口"
         )
-        self.mica_switch.checkedChanged.connect(self._select_mica)
-        mica_row.addWidget(self.mica_switch)
-        theme_card.body.addLayout(mica_row)
+        self.material_box.currentIndexChanged.connect(self._select_material)
+        material_row.addWidget(self.material_box)
+        theme_card.body.addLayout(material_row)
         self.vbox.addWidget(theme_card)
 
         settings_card = SectionCard(self, spacing=16)
@@ -164,17 +174,22 @@ class SettingsPage(Page):
     def _select_theme(self, index):
         self.themeRequested.emit([Theme.LIGHT, Theme.DARK, Theme.AUTO][index])
 
-    def _select_mica(self, checked):
-        self.micaRequested.emit(bool(checked))
+    def _select_material(self, index):
+        if 0 <= index < len(WINDOW_MATERIALS):
+            self.materialRequested.emit(WINDOW_MATERIALS[index])
 
-    def set_mica_enabled(self, enabled):
-        """按当前配置同步背景模糊开关，期间屏蔽开关自身的信号。
+    def set_window_material(self, material):
+        """按当前配置同步窗口材质下拉框，期间屏蔽下拉框自身的信号。
 
         Args:
-            enabled: ``True`` 表示启用背景模糊。
+            material: 当前生效的材质标识。
         """
-        with QSignalBlocker(self.mica_switch):
-            self.mica_switch.setChecked(bool(enabled))
+        material = normalize_window_material(material)
+        index = WINDOW_MATERIALS.index(material)
+        if self.material_box.currentIndex() == index:
+            return
+        with QSignalBlocker(self.material_box):
+            self.material_box.setCurrentIndex(index)
 
     def _select_close_behavior(self, checked):
         self.closeBehaviorRequested.emit("tray" if checked else "quit")

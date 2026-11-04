@@ -12,6 +12,7 @@ from qfluentwidgets import BodyLabel, CaptionLabel, FluentIcon as FIF, ProgressB
 
 from ... import core
 from ..components import (
+    CORNER_RADIUS,
     SectionCard,
     TargetControls,
     TaskFooter,
@@ -80,7 +81,7 @@ class FilePage(Page):
         # 先设置边框与圆角，再安装带复选框的自定义表头；顺序颠倒时
         # Fluent 样式刷新会访问未完成布局的表头子控件。
         self.tree.setBorderVisible(True)
-        self.tree.setBorderRadius(6)
+        self.tree.setBorderRadius(CORNER_RADIUS)
         header = FileTreeHeader(
             Qt.Horizontal,
             self.tree,

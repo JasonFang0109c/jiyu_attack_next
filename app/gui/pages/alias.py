@@ -19,6 +19,7 @@ from qfluentwidgets import (
 )
 
 from ..components import (
+    CORNER_RADIUS,
     Ipv4TargetInput,
     SectionCard,
     center_dialog,
@@ -85,7 +86,7 @@ class AliasPage(Page):
         self.table_card = SectionCard(self, spacing=0, margins=(0, 0, 0, 0))
         self.table = table_widget(["备注名", "IP 地址"], self.table_card)
         # 表格铺满卡片，圆角与卡片保持一致，避免出现两条错位弧线。
-        self.table.setBorderRadius(12)
+        self.table.setBorderRadius(CORNER_RADIUS)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(
             1, QHeaderView.ResizeToContents

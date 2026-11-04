@@ -28,8 +28,9 @@ SETTINGS_COMMENTS = {
     "gui/window/geometry": (
         "主窗口上次退出时的位置与大小（Qt 序列化结果转 base64），手改会导致恢复失败",
     ),
+    "gui/window/material": ("窗口材质：mica 云母、acrylic 亚克力实时模糊、solid 纯色",),
     "gui/window/mica_enabled": (
-        "窗口背景模糊开关（键名沿用早期云母命名）；不支持的系统上固定无效",
+        "旧版背景模糊开关，仅在没有 material 时用于换算材质，可删",
     ),
 }
 

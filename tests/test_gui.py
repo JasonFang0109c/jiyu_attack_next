@@ -171,7 +171,7 @@ class GuiTests(unittest.TestCase):
             [button.text() for button in about.findChildren(HyperlinkButton)],
         )
         self.assertEqual(about.author_card.objectName(), "aboutInfoCard")
-        self.assertEqual(about.author_card.borderRadius, 12)
+        self.assertEqual(about.author_card.borderRadius, components.CORNER_RADIUS)
         self.assertEqual(about.author_card.detail.text(), "JasonFang0109c")
         hero = about.findChild(QWidget, "aboutHero")
         self.assertIsNotNone(hero)
@@ -185,7 +185,7 @@ class GuiTests(unittest.TestCase):
         # 版本与构建时间合并到“版本信息”，组件版本改名为“组件信息”。
         self.assertEqual(about.version_card.heading.text(), "版本信息")
         self.assertEqual(about.version_card.objectName(), "aboutDetailCard")
-        self.assertEqual(about.version_card.borderRadius, 12)
+        self.assertEqual(about.version_card.borderRadius, components.CORNER_RADIUS)
         self.assertEqual(about.version_value.text(), build_info.version_text())
         self.assertEqual(about.version_value.objectName(), "aboutVersion")
         self.assertEqual(about.build_time_value.text(), "源码运行")
@@ -315,7 +315,9 @@ class GuiTests(unittest.TestCase):
         for page in self.window.pages.values():
             cards = page.findChildren(components.SectionCard)
             self.assertGreaterEqual(len(cards), 1, page.objectName())
-            self.assertTrue(all(card.borderRadius == 12 for card in cards))
+            self.assertTrue(
+                all(card.borderRadius == components.CORNER_RADIUS for card in cards)
+            )
 
     def test_title_bar_keeps_icon_and_title(self):
         self.assertFalse(self.window.titleBar.iconLabel.isHidden())
@@ -1596,7 +1598,7 @@ class GuiTests(unittest.TestCase):
                 label = row.itemAt(0).widget()
                 if isinstance(label, BodyLabel):
                     labels.append(label.text())
-        self.assertEqual(labels, ["颜色模式", "背景模糊"])
+        self.assertEqual(labels, ["颜色模式", "窗口材质"])
         behavior_layout = settings_page.findChild(
             components.SectionCard, "settingsBehaviorCard"
         ).body
@@ -1614,47 +1616,65 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(settings_page.clear_data_button.isVisibleTo(settings_page))
         self.assertFalse(hasattr(self.window.pages["about"], "clear_data_button"))
 
-    def test_blur_switch_reflects_support_and_persists(self):
+    def test_window_material_reflects_support_and_persists(self):
         settings_page = self.window.pages["settings"]
         self.assertEqual(settings_page.theme_card.objectName(), "settingsThemeCard")
-        self.assertEqual(settings_page.theme_card.borderRadius, 12)
-        supported = models.mica_available()
-        self.assertEqual(settings_page.mica_supported, supported)
-        self.assertEqual(settings_page.mica_switch.isEnabled(), supported)
-        self.assertEqual(self.window.mica_enabled, models.DEFAULT_MICA_ENABLED)
         self.assertEqual(
-            self.window.blur_enabled, supported and models.DEFAULT_MICA_ENABLED
+            settings_page.theme_card.borderRadius, components.CORNER_RADIUS
         )
-        if supported:
-            settings_page.mica_switch.setChecked(False)
-            self.assertFalse(self.window.mica_enabled)
-            self.assertFalse(self.window.blur_enabled)
-            reloaded = models.portable_settings(self.data_dir)
-            self.assertEqual(
-                models.normalize_switch(reloaded.value(models.MICA_SETTINGS_KEY), True),
-                False,
-            )
-            settings_page.mica_switch.setChecked(True)
-            self.assertTrue(self.window.mica_enabled)
-            self.assertTrue(self.window.blur_enabled)
+        self.assertEqual(
+            settings_page.material_box.itemText(0),
+            models.WINDOW_MATERIAL_LABELS[models.MATERIAL_MICA],
+        )
+        self.assertEqual(settings_page.material_box.itemData(0), models.MATERIAL_MICA)
+        self.assertEqual(self.window.window_material, models.DEFAULT_WINDOW_MATERIAL)
+        self.assertTrue(settings_page.material_box.isEnabled())
+        settings_page.material_box.setCurrentIndex(
+            models.WINDOW_MATERIALS.index(models.MATERIAL_SOLID)
+        )
+        self.assertEqual(self.window.window_material, models.MATERIAL_SOLID)
+        reloaded = models.portable_settings(self.data_dir)
+        self.assertEqual(
+            models.normalize_window_material(
+                reloaded.value(models.WINDOW_MATERIAL_SETTINGS_KEY)
+            ),
+            models.MATERIAL_SOLID,
+        )
+        settings_page.material_box.setCurrentIndex(
+            models.WINDOW_MATERIALS.index(models.MATERIAL_MICA)
+        )
+        self.assertEqual(self.window.window_material, models.MATERIAL_MICA)
 
-    @unittest.skipUnless(sys.platform == "win32", "仅 Windows 提供亚克力背景")
-    def test_window_effect_applies_acrylic_to_widget_handle(self):
-        widget = QWidget()
-        self.addCleanup(widget.deleteLater)
-        widget.resize(320, 200)
-        widget.show()
-        QTest.qWait(10)
-        handle = int(widget.winId())
-        # 使用须知这类没有父窗口的对话框不会被替换成替身，句柄始终有效。
-        self.assertTrue(window_effect.apply_acrylic(handle, False))
-        window_effect.apply_acrylic(handle, True)
-        window_effect.remove_acrylic(handle)
-        self.assertEqual(window_effect.acrylic_tint(False) & 0x00FFFFFF, 0xF8F6F5)
-        self.assertEqual(window_effect.acrylic_tint(True) & 0x00FFFFFF, 0x202020)
-        self.assertEqual(window_effect.acrylic_tint(False, 0x10) >> 24, 0x10)
-        self.assertFalse(window_effect.apply_acrylic(0, False))
-        window_effect.remove_acrylic(0)
+    def test_legacy_blur_switch_maps_to_window_material(self):
+        self.assertEqual(
+            models.normalize_window_material(None, True), models.MATERIAL_MICA
+        )
+        self.assertEqual(
+            models.normalize_window_material(None, False), models.MATERIAL_SOLID
+        )
+        self.assertEqual(
+            models.normalize_window_material("acrylic", None), models.MATERIAL_ACRYLIC
+        )
+        self.assertEqual(
+            models.normalize_window_material("unknown", None),
+            models.DEFAULT_WINDOW_MATERIAL,
+        )
+
+    @unittest.skipUnless(sys.platform == "win32", "仅 Windows 提供窗口材质")
+    def test_window_effect_applies_material_to_window(self):
+        self.assertTrue(window_effect.apply_acrylic(self.window, False))
+        window_effect.apply_acrylic(self.window, True)
+        self.assertTrue(window_effect.apply_mica(self.window, False))
+        self.assertTrue(window_effect.apply_mica(self.window, True))
+        window_effect.clear_material(self.window)
+        self.assertEqual(window_effect.acrylic_color(False, 0x00), "F5F6F800")
+        self.assertEqual(window_effect.acrylic_color(True, 0x00), "20202000")
+        self.assertEqual(window_effect.acrylic_color(False, 0x10), "F5F6F810")
+
+    def test_window_effect_ignores_objects_without_dwm(self):
+        self.assertFalse(window_effect.apply_acrylic(None, False))
+        self.assertFalse(window_effect.apply_mica(None, False))
+        window_effect.clear_material(None)
 
     def test_window_geometry_is_remembered_across_restarts(self):
         self.window.resize(1000, 700)

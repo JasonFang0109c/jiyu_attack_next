@@ -8,7 +8,13 @@ from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QVBoxLayout, QWidg
 from qfluentwidgets import CheckBox, TableWidget, TreeItemDelegate, TreeWidget
 from qfluentwidgets.components.widgets.check_box import CheckBoxIcon
 
-from ..components import SectionCard, TargetControls, TaskFooter, page_heading
+from ..components import (
+    CORNER_RADIUS,
+    SectionCard,
+    TargetControls,
+    TaskFooter,
+    page_heading,
+)
 
 ASSET_ROOT = Path(__file__).resolve().parents[3] / "assets"
 
@@ -190,7 +196,7 @@ def table_widget(headers, parent, table_class=TableWidget):
     table.setSelectionBehavior(QAbstractItemView.SelectRows)
     table.setWordWrap(False)
     table.setBorderVisible(True)
-    table.setBorderRadius(6)
+    table.setBorderRadius(CORNER_RADIUS)
     table.horizontalHeader().setStretchLastSection(True)
     return table
 

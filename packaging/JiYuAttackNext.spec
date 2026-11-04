@@ -22,14 +22,39 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    # 组件库只用 scipy.ndimage 做高斯模糊，其余子包不会在运行时导入。
+    # scipy.linalg 与 scipy.special 是 ndimage 的依赖，不能排除。
+    excludes=[
+        "scipy.cluster",
+        "scipy.constants",
+        "scipy.datasets",
+        "scipy.differentiate",
+        "scipy.fft",
+        "scipy.fftpack",
+        "scipy.integrate",
+        "scipy.interpolate",
+        "scipy.io",
+        "scipy.misc",
+        "scipy.odr",
+        "scipy.optimize",
+        "scipy.signal",
+        "scipy.sparse",
+        "scipy.spatial",
+        "scipy.stats",
+    ],
     noarchive=False,
 )
+# Pillow 的 AVIF 与 Tk 插件不会被组件库用到，留着只会白占体积。
+PILLOW_UNUSED = {"_avif", "_imagingtk"}
 # Build hosts can expose incompatible ICU DLLs (for example via Poppler).
 # PySide6 uses the Windows system ICU DLL; keep unrelated PATH copies out.
-a.binaries = [entry for entry in a.binaries if Path(entry[0]).name.casefold() not in {
-    "icuuc.dll", "icuin.dll", "icudt78.dll", "icuio78.dll",
-}]
+a.binaries = [
+    entry
+    for entry in a.binaries
+    if Path(entry[0]).name.casefold()
+    not in {"icuuc.dll", "icuin.dll", "icudt78.dll", "icuio78.dll"}
+    and Path(entry[0]).stem.casefold() not in PILLOW_UNUSED
+]
 pyz = PYZ(a.pure)
 exe = EXE(
     pyz,

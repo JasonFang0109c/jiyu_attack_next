@@ -113,12 +113,17 @@ def page_heading(layout, title, action=None):
     layout.addLayout(row)
 
 
+# Fluent 2 的形状令牌里，Large 是 8 像素，用于卡片这类大号容器；
+# 12 像素属于 X-Large，只留给按钮面板与浮出层，卡片用它会显得过圆。
+CORNER_RADIUS = 8
+
+
 class SectionCard(SimpleCardWidget):
     """带圆角与内边距的页面功能分区。"""
 
     def __init__(self, parent=None, spacing=12, margins=(20, 18, 20, 18)):
         super().__init__(parent)
-        self.setBorderRadius(12)
+        self.setBorderRadius(CORNER_RADIUS)
         self.body = QVBoxLayout(self)
         self.body.setContentsMargins(*margins)
         self.body.setSpacing(spacing)
