@@ -101,9 +101,35 @@ jobs:
           \`\`\`
           EOF
 
-      # 每次先删除旧的 nightly 预发布与标签再重新发布，历史资产与旧说明都不会残留，
-      # 也不必依赖对同名文件逐个覆盖的行为。
+      # 同一天只更新同一个预发布，跨天才删除重建：删除重建会触发一次新的
+      # release 事件，仓库关注者的动态会被每日一次而不是每次推送刷屏。
+      - name: Decide whether to reuse today's nightly release
+        id: nightly_state
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ "${VERSION}" != *-nightly.* ]]; then
+            echo "::error::nightly 版本号缺少 -nightly.YYYYMMDD 后缀：${VERSION}"
+            exit 1
+          fi
+          stamp="${VERSION##*-nightly.}"
+          existing=""
+          if gh release view nightly >/dev/null 2>&1; then
+            existing="$(gh release view nightly --json name --jq '.name')"
+          fi
+          if [[ "${existing}" == *"${stamp}"* ]]; then
+            echo "reuse=true" >> "${GITHUB_OUTPUT}"
+            echo "当天已有 ${existing}，原地更新资产与说明，不产生新的发布通知"
+          else
+            echo "reuse=false" >> "${GITHUB_OUTPUT}"
+            echo "当天还没有 nightly 预发布（现有：${existing:-无}），删除旧的再重新发布"
+          fi
+
       - name: Remove previous nightly release
+        if: ${{ steps.nightly_state.outputs.reuse != 'true' }}
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -126,8 +152,27 @@ jobs:
           prerelease: true
           target_commitish: ${{ github.sha }}
           fail_on_unmatched_files: true
+          # 同一天复用同一个预发布时用它替换已存在的同名资产。
+          overwrite_files: true
           make_latest: false
           files: |
             dist/JiYuAttackNext.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 复用当天的预发布时是原地更新，标签仍停在当天第一次构建的提交上，
+      # 这里把它挪到本次提交，保证 nightly 标签与资产始终对应。
+      - name: Point nightly tag at this build
+        if: ${{ steps.nightly_state.outputs.reuse == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if gh api --method PATCH \
+            "repos/${GITHUB_REPOSITORY}/git/refs/tags/nightly" \
+            -f sha="${GITHUB_SHA}" -F force=true >/dev/null; then
+            echo "nightly 标签已指向 ${GITHUB_SHA}"
+          else
+            echo "::warning::nightly 标签未能移动，资产已是本次构建"
+          fi

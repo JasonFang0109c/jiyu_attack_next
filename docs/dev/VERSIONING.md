@@ -58,11 +58,11 @@ nightly 的后缀符合 SemVer 第 9 条“先行版本号”的约定：标识�
 | 通道 | 触发方式 | 标签 | Release 属性 | 资产文件名 |
 | --- | --- | --- | --- | --- |
 | 正式版 | Actions 页面手动运行 `Release` | `v0.1.0`（与版本号一致，不复用） | 正式版，`make_latest: true` | `JiYuAttackNext-0.1.0.exe`，另附固定名 `JiYuAttackNext.exe` |
-| nightly | 推送到 `main` 且改动影响产物，或手动运行 | `nightly`（每次删除重建） | 预发布，`make_latest: false` | `JiYuAttackNext.exe` |
+| nightly | 推送到 `main` 且改动影响产物，或手动运行 | `nightly`（同一天原地更新，跨天删除重建） | 预发布，`make_latest: false` | `JiYuAttackNext.exe` |
 
 - 标签名带 `v` 前缀是 Git 的通行写法，但 `v` 不属于 SemVer 版本号本身。
 - 正式版额外提供带版本号的资产名，便于归档；固定名资产保证 README 与文档中的下载链接长期有效。该资产是同一个 EXE，同时提供 GUI 与 CLI。
-- nightly 每次发布前先删除旧的预发布与 `nightly` 标签，再重新创建，因此历史资产与旧说明不会残留；下载地址仍固定为 `https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly`。
+- nightly 同一天内重复构建时原地更新同一个预发布，只替换资产与说明，不产生新的发布通知；日期变了才删除旧的预发布与 `nightly` 标签再重新创建，因此历史资产与旧说明不会残留，下载地址仍固定为 `https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly`。
 - 发布说明中的日期使用 ISO 8601 格式（`YYYY-MM-DD`），与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 的建议一致。
 - 同一个 EXE 同时提供 GUI 与 CLI，发布资产不再附带独立的命令行脚本。
 

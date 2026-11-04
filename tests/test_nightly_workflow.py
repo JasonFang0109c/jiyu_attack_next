@@ -91,14 +91,48 @@ class NightlyWorkflowTests(unittest.TestCase):
         self.assertNotIn("CLI:", self.workflow)
         self.assertNotIn("cli_sha256", self.workflow)
 
-    def test_workflow_deletes_previous_nightly_release_before_publish(self):
-        # 先删掉旧的预发布与标签再重建，历史资产不会残留，
-        # 也不再依赖 overwrite_files 只覆盖同名文件的行为。
-        self.assertIn("gh release delete nightly --yes --cleanup-tag", self.workflow)
-        self.assertIn("gh release view nightly", self.workflow)
-        self.assertNotIn("overwrite_files", self.workflow)
+    def test_workflow_reuses_same_day_release_and_deletes_on_new_day(self):
+        # 同一天只在原预发布上更新资产与说明，跨天才删除重建：
+        # 每次删除重建都会推一条 release 事件，关注者的动态会被刷屏。
+        self.assertIn("Decide whether to reuse today's nightly release", self.workflow)
+        self.assertIn('echo "reuse=true" >> "${GITHUB_OUTPUT}"', self.workflow)
+        self.assertIn('echo "reuse=false" >> "${GITHUB_OUTPUT}"', self.workflow)
+        state = self.workflow.index("Decide whether to reuse today's nightly release")
+        self.assertLess(state, self.workflow.index("Remove previous nightly release"))
         self.assertLess(
             self.workflow.index("Remove previous nightly release"),
+            self.workflow.index("Publish Nightly Build pre-release"),
+        )
+
+    def test_workflow_skips_removal_when_today_release_exists(self):
+        # 删除步骤只在新的一天执行，同一天走 overwrite_files 原地替换。
+        self.assertIn(
+            "if: ${{ steps.nightly_state.outputs.reuse != 'true' }}",
+            self.workflow,
+        )
+        self.assertIn("gh release delete nightly --yes --cleanup-tag", self.workflow)
+        self.assertIn("overwrite_files: true", self.workflow)
+
+    def test_workflow_compares_release_date_from_version_stamp(self):
+        # 日期取自构建版本号的 -nightly.YYYYMMDD 后缀，
+        # 与产物里记录的日期同源，不依赖运行器本地时区。
+        self.assertIn('stamp="${VERSION##*-nightly.}"', self.workflow)
+        self.assertIn("gh release view nightly --json name", self.workflow)
+        self.assertIn("needs.build.outputs.version", self.workflow)
+        self.assertIn("::error::nightly 版本号缺少", self.workflow)
+
+    def test_workflow_moves_nightly_tag_only_when_reusing(self):
+        # 复用当天的预发布时是原地更新，标签要挪到本次提交。
+        self.assertIn("Point nightly tag at this build", self.workflow)
+        self.assertIn(
+            "if: ${{ steps.nightly_state.outputs.reuse == 'true' }}",
+            self.workflow,
+        )
+        self.assertIn(
+            '"repos/${GITHUB_REPOSITORY}/git/refs/tags/nightly"', self.workflow
+        )
+        self.assertGreater(
+            self.workflow.index("Point nightly tag at this build"),
             self.workflow.index("Publish Nightly Build pre-release"),
         )
 
