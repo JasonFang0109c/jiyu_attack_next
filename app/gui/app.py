@@ -28,17 +28,19 @@ from PySide6.QtWidgets import QApplication, QFileDialog, QSystemTrayIcon
 from qfluentwidgets import (
     Action,
     Dialog,
-    FluentIcon as FIF,
     FluentTranslator,
     FluentWindow,
     InfoBar,
     InfoBarPosition,
     NavigationItemPosition,
-    isDarkTheme,
     SystemTrayMenu,
     Theme,
+    isDarkTheme,
     setTheme,
     setThemeColor,
+)
+from qfluentwidgets import (
+    FluentIcon as FIF,
 )
 
 from .. import core
@@ -305,7 +307,8 @@ class MainWindow(FluentWindow):
         self.network_pages = [
             self.pages[key] for key in ("message", "command", "device")
         ]
-        self.task_pages = self.network_pages + [
+        self.task_pages = [
+            *self.network_pages,
             self.pages["file"],
             self.pages["local"],
             self.pages["firewall"],
@@ -832,10 +835,8 @@ class MainWindow(FluentWindow):
             self._validation_error("file", str(error))
             return
         total_size = sum(size for _, _, size in entries)
-        if len(entries) == 1:
-            file_label = source.name
-        else:
-            file_label = "%d 个文件" % len(entries)
+        # 单个文件显示名字，多个文件只报数量，避免对话框被长路径撑开。
+        file_label = source.name if len(entries) == 1 else "%d 个文件" % len(entries)
         if not self._confirm(
             "确认传送文件",
             "目标：%s\n目标数量：%d\n文件：%s\n大小：%s\n目标保存位置：当前用户桌面"

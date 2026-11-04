@@ -4,8 +4,8 @@
 源码运行时退回项目根目录，避免在 ``app/`` 里散落运行数据。
 """
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 DATA_DIRECTORY_NAME = "JiYuAttackNextData"
 LOG_FILE_NAME = "runtime.log"

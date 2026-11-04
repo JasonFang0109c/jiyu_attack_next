@@ -15,10 +15,12 @@ from PySide6.QtWidgets import (
 from qfluentwidgets import (
     BodyLabel,
     CaptionLabel,
-    FluentIcon as FIF,
     HyperlinkButton,
     SmoothScrollArea,
     TitleLabel,
+)
+from qfluentwidgets import (
+    FluentIcon as FIF,
 )
 
 from ..build_info import build_time_text, version_text

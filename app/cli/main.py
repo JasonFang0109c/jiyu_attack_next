@@ -1,10 +1,9 @@
 """命令行参数解析与命令分发。"""
 
 import argparse
-from multiprocessing import freeze_support
+import sys
 from os import system
 from pathlib import Path
-import sys
 from time import sleep
 
 from ..core import (

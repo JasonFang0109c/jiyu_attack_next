@@ -20,7 +20,7 @@ python -m pip install -r requirements.txt
 python -m pip install -r requirements-dev.txt
 ```
 
-`requirements-dev.txt` 只放本地开发工具（目前是 Black），不需要打进 EXE。
+`requirements-dev.txt` 只放本地开发工具（目前是 ruff），不需要打进 EXE。
 
 激活后可查看解释器版本或脚本帮助，也可直接使用虚拟环境解释器：
 
@@ -51,13 +51,14 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Clean
 
 ## 代码风格
 
-排版交给 Black，注释与 docstring 手写，完整规则见[代码风格规范](STYLE.md)。**每写完一处代码就格式化一次**，不要攒到提交前统一处理。
+排版交给 `ruff format`，静态检查交给 `ruff check`，注释与 docstring 手写，完整规则见[代码风格规范](STYLE.md)。**每写完一处代码就格式化一次**，不要攒到提交前统一处理。
 
 ```powershell
-.\.venv\Scripts\python.exe -m black .
+.\.venv\Scripts\python.exe -m ruff format .
+.\.venv\Scripts\python.exe -m ruff check --fix .
 ```
 
-配置在根目录 `pyproject.toml`（行宽 88、目标版本 `py313`）。`app/core/constants.py` 的十六进制报文数组由 Black 排除，只能手工按现有换行维护，不要重排。提交前用 `black --check .` 确认没有待格式化内容；纯排版改动按 `Style` 类型单独提交，不与功能改动混在一起。
+配置在根目录 `pyproject.toml`（行宽 88、目标版本 `py313`）。`app/core/constants.py` 的十六进制报文数组由 ruff 排除，只能手工按现有换行维护，不要重排。提交前用 `ruff format --check .` 与 `ruff check .` 确认没有待格式化或待修复内容；纯排版改动按 `Style` 类型单独提交，不与功能改动混在一起。
 
 ## 离线检查
 

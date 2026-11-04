@@ -2,7 +2,8 @@
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QHBoxLayout, QSizePolicy
-from qfluentwidgets import BodyLabel, CaptionLabel, FluentIcon as FIF, PlainTextEdit
+from qfluentwidgets import BodyLabel, CaptionLabel, PlainTextEdit
+from qfluentwidgets import FluentIcon as FIF
 
 from ... import core
 from ..components import tool_button

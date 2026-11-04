@@ -1,11 +1,11 @@
 """命令行入口的测试：帮助输出、参数分发与打包后的入口行为。"""
 
-from pathlib import Path
 import contextlib
 import io
 import subprocess
 import sys
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from app import core

@@ -64,19 +64,20 @@
 
 ## 代码风格
 
-完整规则见[代码风格规范](docs/dev/STYLE.md)，配置在根目录 `pyproject.toml`（Black、行宽 88、目标版本 `py313`）。
+完整规则见[代码风格规范](docs/dev/STYLE.md)，配置在根目录 `pyproject.toml`（ruff 格式化与 lint、行宽 88、目标版本 `py313`）。
 
 **每写完一处代码就格式化一次，不要攒到提交前统一处理。**
 
 ```powershell
-.\.venv\Scripts\python.exe -m black .
+.\.venv\Scripts\python.exe -m ruff format .
+.\.venv\Scripts\python.exe -m ruff check --fix .
 ```
 
-- 排版交给 Black，不手工对齐 `=`、`:` 或续行括号，也不用行尾短注释。
-- `app/core/constants.py` 的十六进制报文数组被 Black 排除，新增报文时沿用现有每行字节数与缩进，不要重排已有行。
+- 排版交给 `ruff format`，不手工对齐 `=`、`:` 或续行括号，也不用行尾短注释。
+- `app/core/constants.py` 的十六进制报文数组被 ruff 排除，新增报文时沿用现有每行字节数与缩进，不要重排已有行。
 - docstring 用 Google 风格（`Args`、`Returns`、`Yields`、`Raises`、`Attributes`，说明文字中文），只写模块、公共类、公共函数与逻辑复杂的函数。
 - 注释一律整行中文，解释“为什么”而非复述代码；待办写成 `# TODO(负责人): 具体动作`。
-- 提交前用 `black --check .` 确认没有待格式化内容；纯排版改动按 `Style` 类型单独提交，不与功能改动混在一起。
+- 提交前用 `ruff format --check .` 与 `ruff check .` 确认没有待格式化或待修复内容；纯排版改动按 `Style` 类型单独提交，不与功能改动混在一起。
 
 ## GUI 日志
 

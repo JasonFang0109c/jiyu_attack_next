@@ -1,15 +1,15 @@
 """图形界面的离线测试：窗口装配、页面交互、日志与单实例行为。"""
 
-import os
-import json
 import io
+import json
+import os
 import shutil
 import socket
 import sys
 import time
 import unittest
-from threading import Event
 from pathlib import Path
+from threading import Event
 from unittest.mock import patch
 
 os.environ.setdefault(
@@ -302,8 +302,8 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(build_info.build_time_text(), "源码运行")
 
     def test_version_comes_from_bundle_asset(self):
-        from app.gui import build_info
         from app import __version__
+        from app.gui import build_info
 
         self.assertEqual(build_info.version_text(), __version__)
         version_file = self.temp_root / "bundle" / build_info.VERSION_FILE_NAME
@@ -385,11 +385,13 @@ class GuiTests(unittest.TestCase):
         page = self.window.pages["aliases"]
         self.assertEqual(
             page.info_button.toolTip(),
-            "备注名可直接用作目标；支持 IPv4、末段范围和 /24，" "修改后同步引用。",
+            "备注名可直接用作目标；支持 IPv4、末段范围和 /24，修改后同步引用。",
         )
         self.assertEqual(page.info_button.size().width(), 28)
         page.name_input.setText("教室 A")
-        for edit, text in zip(page.address_input.segments, ("192", "168", "1", "10")):
+        for edit, text in zip(
+            page.address_input.segments, ("192", "168", "1", "10"), strict=True
+        ):
             edit.setText(text)
         page.save_button.click()
         self.assertEqual(self.alias_store.match("教室 a"), ("教室 A", "192.168.1.10"))
@@ -403,7 +405,9 @@ class GuiTests(unittest.TestCase):
 
         page.edit_button.click()
         page.name_input.setText("一号机房")
-        for edit, text in zip(page.address_input.segments, ("192", "168", "1", "11")):
+        for edit, text in zip(
+            page.address_input.segments, ("192", "168", "1", "11"), strict=True
+        ):
             edit.setText(text)
         page.save_button.click()
         self.assertEqual(self.state.values["target"], "一号机房")
@@ -425,7 +429,9 @@ class GuiTests(unittest.TestCase):
     def test_device_alias_supports_ranges_and_is_persisted(self):
         page = self.window.pages["aliases"]
         page.name_input.setText("机房范围")
-        for edit, text in zip(page.address_input.segments, ("10", "0", "0", "1-10")):
+        for edit, text in zip(
+            page.address_input.segments, ("10", "0", "0", "1-10"), strict=True
+        ):
             edit.setText(text)
         page.save_button.click()
         self.assertEqual(
@@ -543,7 +549,9 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(targets.device_button.text(), "选择设备")
         self.assertEqual(targets.device_button.parentWidget(), targets)
         self.assertEqual(len(targets.target_input.segments), 4)
-        for edit, text in zip(targets.target_input.segments, ("192", "168", "1", "20")):
+        for edit, text in zip(
+            targets.target_input.segments, ("192", "168", "1", "20"), strict=True
+        ):
             edit.setText(text)
         self.assertEqual(targets.target_input.text(), "192.168.1.20")
         self.assertEqual(self.state.values["target"], "192.168.1.20")
@@ -556,7 +564,7 @@ class GuiTests(unittest.TestCase):
         self.window.show_page("message")
         self.application.processEvents()
         segments[0].setFocus()
-        for edit, text in zip(segments[:3], ("10", "49", "151")):
+        for edit, text in zip(segments[:3], ("10", "49", "151"), strict=True):
             edit.setText(text)
             QTest.keyClick(edit, Qt.Key_Return)
             self.application.processEvents()
@@ -578,7 +586,7 @@ class GuiTests(unittest.TestCase):
         self.window.show_page("message")
         self.application.processEvents()
         segments[0].setFocus()
-        for edit, text in zip(segments[:3], ("10", "49", "151")):
+        for edit, text in zip(segments[:3], ("10", "49", "151"), strict=True):
             edit.setText(text)
             QTest.keyClick(edit, Qt.Key_Period)
             self.application.processEvents()
@@ -760,12 +768,14 @@ class GuiTests(unittest.TestCase):
                 "file_count": 1,
             }
 
-        with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
-            with patch.object(
+        with (
+            patch.object(gui.core, "get_ip", return_value=["模拟目标"]),
+            patch.object(
                 gui.core, "transfer_file", side_effect=fake_transfer
-            ) as transfer:
-                self.window.start_file_transfer()
-                self.wait_for(lambda: self.window.thread is None)
+            ) as transfer,
+        ):
+            self.window.start_file_transfer()
+            self.wait_for(lambda: self.window.thread is None)
         transfer.assert_called_once()
         self.assertEqual(
             transfer.call_args.kwargs["items"], [(str(source.resolve()), "报告.txt")]
@@ -803,8 +813,9 @@ class GuiTests(unittest.TestCase):
         QTest.qWait(200)
         self.confirm_patcher.stop()
         try:
-            with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
-                with patch.object(
+            with (
+                patch.object(gui.core, "get_ip", return_value=["模拟目标"]),
+                patch.object(
                     gui.core,
                     "transfer_file",
                     return_value={
@@ -814,16 +825,19 @@ class GuiTests(unittest.TestCase):
                         "listen_ip": "127.0.0.1",
                         "file_count": 1,
                     },
-                ) as transfer:
-                    QTimer.singleShot(150, lambda: click_dialog("yesButton"))
-                    self.window.start_file_transfer()
-                    self.wait_for(lambda: self.window.thread is None)
+                ) as transfer,
+            ):
+                QTimer.singleShot(150, lambda: click_dialog("yesButton"))
+                self.window.start_file_transfer()
+                self.wait_for(lambda: self.window.thread is None)
             transfer.assert_called_once()
-            with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
-                with patch.object(gui.core, "transfer_file") as cancelled_transfer:
-                    QTimer.singleShot(150, lambda: click_dialog("cancelButton"))
-                    self.window.start_file_transfer()
-                    self.assertIsNone(self.window.thread)
+            with (
+                patch.object(gui.core, "get_ip", return_value=["模拟目标"]),
+                patch.object(gui.core, "transfer_file") as cancelled_transfer,
+            ):
+                QTimer.singleShot(150, lambda: click_dialog("cancelButton"))
+                self.window.start_file_transfer()
+                self.assertIsNone(self.window.thread)
             cancelled_transfer.assert_not_called()
         finally:
             self.confirm_patcher.start()
@@ -874,7 +888,7 @@ class GuiTests(unittest.TestCase):
         self.assertIs(page.info_button.parent(), page)
         self.assertEqual(
             page.info_button.toolTip(),
-            "勾选项发送到目标桌面并保留文件夹结构；" "目标需支持远程命令和 curl。",
+            "勾选项发送到目标桌面并保留文件夹结构；目标需支持远程命令和 curl。",
         )
         self.assertEqual(page.info_button.size().width(), 28)
         self.assertEqual(page.info_button.size().height(), 28)
@@ -1053,12 +1067,14 @@ class GuiTests(unittest.TestCase):
                 "file_count": 1,
             }
 
-        with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
-            with patch.object(
+        with (
+            patch.object(gui.core, "get_ip", return_value=["模拟目标"]),
+            patch.object(
                 gui.core, "transfer_file", side_effect=fake_transfer
-            ) as transfer:
-                self.window.start_file_transfer()
-                self.wait_for(lambda: self.window.thread is None)
+            ) as transfer,
+        ):
+            self.window.start_file_transfer()
+            self.wait_for(lambda: self.window.thread is None)
         transfer.assert_called_once()
         self.assertEqual(
             captured["items"], [(str((folder / "b.txt").resolve()), "选中测试/b.txt")]
@@ -1137,16 +1153,18 @@ class GuiTests(unittest.TestCase):
                 ),
             )
 
-        with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
-            with patch.object(
+        with (
+            patch.object(gui.core, "get_ip", return_value=["模拟目标"]),
+            patch.object(
                 gui.core, "execute_send_report", side_effect=fake_send
-            ) as runner:
-                self.message.footer.send_button.click()
-                self.assertTrue(self.command.footer.send_button.isEnabled())
-                self.assertIn("可继续加入队列", self.command.footer.status.text())
-                self.wait_for(lambda: self.window.thread is None)
-                runner.assert_called_once()
-                self.assertEqual(runner.call_args.args[0].command, "")
+            ) as runner,
+        ):
+            self.message.footer.send_button.click()
+            self.assertTrue(self.command.footer.send_button.isEnabled())
+            self.assertIn("可继续加入队列", self.command.footer.status.text())
+            self.wait_for(lambda: self.window.thread is None)
+            runner.assert_called_once()
+            self.assertEqual(runner.call_args.args[0].command, "")
         self.assertTrue(self.message.footer.send_button.isEnabled())
         self.assertFalse(self.message.footer.cancel_button.isEnabled())
         self.assertIn("已发送 2 个报文", self.message.footer.status.text())
@@ -1169,10 +1187,12 @@ class GuiTests(unittest.TestCase):
                 ),
             )
 
-        with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
-            with patch.object(gui.core, "execute_send_report", side_effect=fake_send):
-                self.message.footer.send_button.click()
-                self.wait_for(lambda: self.window.thread is None)
+        with (
+            patch.object(gui.core, "get_ip", return_value=["模拟目标"]),
+            patch.object(gui.core, "execute_send_report", side_effect=fake_send),
+        ):
+            self.message.footer.send_button.click()
+            self.wait_for(lambda: self.window.thread is None)
         self.assertIn("失败 1 台", self.message.footer.status.text())
         self.assertEqual(self.window.logs.entries[-1].level, models.LogLevel.WARNING)
         self.assertEqual(self.notify.call_args.args[0], "部分目标失败")
@@ -1196,21 +1216,25 @@ class GuiTests(unittest.TestCase):
                 ),
             )
 
-        with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
-            with patch.object(gui.core, "execute_send_report", side_effect=fake_send):
-                self.window.start_send("message")
-                self.assertTrue(started.wait(2))
-                self.message.editor.setPlainText("第二条")
-                self.assertTrue(self.message.footer.send_button.isEnabled())
-                self.window.start_send("message")
-                self.assertEqual(len(self.window._task_queue), 1)
-                self.assertIn("已加入队列", self.message.footer.status.text())
-                release.set()
-                self.wait_for(
-                    lambda: self.window.thread is None
+        with (
+            patch.object(gui.core, "get_ip", return_value=["模拟目标"]),
+            patch.object(gui.core, "execute_send_report", side_effect=fake_send),
+        ):
+            self.window.start_send("message")
+            self.assertTrue(started.wait(2))
+            self.message.editor.setPlainText("第二条")
+            self.assertTrue(self.message.footer.send_button.isEnabled())
+            self.window.start_send("message")
+            self.assertEqual(len(self.window._task_queue), 1)
+            self.assertIn("已加入队列", self.message.footer.status.text())
+            release.set()
+            self.wait_for(
+                lambda: (
+                    self.window.thread is None
                     and not self.window._task_queue
                     and len(calls) == 2
                 )
+            )
         self.assertEqual(calls, ["第一条", "第二条"])
 
     def test_cancel_also_drops_queued_remote_requests(self):
@@ -1231,28 +1255,32 @@ class GuiTests(unittest.TestCase):
                 ),
             )
 
-        with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
-            with patch.object(gui.core, "execute_send_report", side_effect=fake_send):
-                self.window.start_send("message")
-                self.assertTrue(started.wait(2))
-                self.message.editor.setPlainText("第二条")
-                self.window.start_send("message")
-                self.assertEqual(len(self.window._task_queue), 1)
-                self.window.cancel_task()
-                self.assertEqual(self.window._task_queue, [])
-                release.set()
-                self.wait_for(lambda: self.window.thread is None)
+        with (
+            patch.object(gui.core, "get_ip", return_value=["模拟目标"]),
+            patch.object(gui.core, "execute_send_report", side_effect=fake_send),
+        ):
+            self.window.start_send("message")
+            self.assertTrue(started.wait(2))
+            self.message.editor.setPlainText("第二条")
+            self.window.start_send("message")
+            self.assertEqual(len(self.window._task_queue), 1)
+            self.window.cancel_task()
+            self.assertEqual(self.window._task_queue, [])
+            release.set()
+            self.wait_for(lambda: self.window.thread is None)
         self.assertEqual(calls, ["第一条"])
 
     def test_worker_failure_is_reported_and_logged(self):
         self.state.set_value("target", "192.168.1.10")
         self.command.editor.setPlainText("whoami")
-        with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
-            with patch.object(
+        with (
+            patch.object(gui.core, "get_ip", return_value=["模拟目标"]),
+            patch.object(
                 gui.core, "execute_send_report", side_effect=OSError("模拟错误")
-            ):
-                self.window.start_send("command")
-                self.wait_for(lambda: self.window.thread is None)
+            ),
+        ):
+            self.window.start_send("command")
+            self.wait_for(lambda: self.window.thread is None)
         self.assertIn("模拟错误", self.command.footer.status.text())
         self.assertEqual(self.window.logs.entries[-1].category, "远程命令")
         self.assertEqual(self.window.logs.entries[-1].level, models.LogLevel.ERROR)
@@ -1775,15 +1803,15 @@ class GuiTests(unittest.TestCase):
             options.cancel_event.wait(2)
             raise RuntimeError("操作已取消")
 
-        with patch.object(gui.core, "get_ip", return_value=["模拟目标"]):
-            with patch.object(
-                gui.core, "execute_send_report", side_effect=cancellable_send
-            ):
-                self.window.start_send("message")
-                self.window.close()
-                self.wait_for(
-                    lambda: self.window.thread is None and not self.window.isVisible()
-                )
+        with (
+            patch.object(gui.core, "get_ip", return_value=["模拟目标"]),
+            patch.object(gui.core, "execute_send_report", side_effect=cancellable_send),
+        ):
+            self.window.start_send("message")
+            self.window.close()
+            self.wait_for(
+                lambda: self.window.thread is None and not self.window.isVisible()
+            )
         self.assertTrue(self.window.close_after_task)
         self.assertTrue(
             any(entry.message == "操作已取消" for entry in self.window.logs.entries)

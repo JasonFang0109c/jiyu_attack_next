@@ -1,20 +1,24 @@
 """界面会话参数、设备备注和运行记录。"""
 
-from collections import deque
-from dataclasses import dataclass, replace
-from datetime import datetime
-from enum import StrEnum
 import inspect
 import json
-from pathlib import Path
 import re
 import sys
 import threading
+from collections import deque
+from contextlib import suppress
+from dataclasses import dataclass, replace
+from datetime import datetime
+from enum import StrEnum
+from pathlib import Path
+from types import MappingProxyType
 
 from PySide6.QtCore import QObject, Signal
 
 from .. import core
-from ..core import (
+
+# 这些名字由本模块转出给界面层，导入后即被其它模块引用。
+from ..core import (  # noqa: F401
     DATA_DIRECTORY_NAME,
     LOG_FILE_NAME,
     portable_data_dir,
@@ -358,7 +362,10 @@ class ConnectionState(QObject):
     """
 
     changed = Signal(str, object)
-    DEFAULTS = {"target": "", "port": 4705, "loops": 1, "interval": 22.0}
+    # 只读共享的缺省值，实例里始终先 copy 再修改。
+    DEFAULTS = MappingProxyType(
+        {"target": "", "port": 4705, "loops": 1, "interval": 22.0}
+    )
 
     def __init__(self, aliases=None, parent=None):
         super().__init__(parent)
@@ -606,10 +613,8 @@ class LogStore(QObject):
         self._file_handle = None
         if handle is None:
             return
-        try:
+        with suppress(OSError):
             handle.close()
-        except OSError:
-            pass
 
     def _load(self):
         """读取历史日志；旧版 JSONL 记录会被转换成规范文本。"""
@@ -727,10 +732,8 @@ class LogStore(QObject):
                 temp_path.unlink(missing_ok=True)
         except OSError as error:
             self.storage_error = "运行日志更新失败：%s" % error
-            try:
+            with suppress(OSError):
                 temp_path.unlink(missing_ok=True)
-            except OSError:
-                pass
 
     def _emit(
         self,

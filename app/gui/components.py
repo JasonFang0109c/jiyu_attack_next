@@ -1,5 +1,7 @@
 """Fluent 界面共用的连接参数、页面标题与任务栏。"""
 
+from itertools import pairwise
+
 from PySide6.QtCore import (
     QEvent,
     QRect,
@@ -231,7 +233,7 @@ class Ipv4TargetInput(QWidget):
         else:
             parts = ("", "", "", "")
         changed = False
-        for edit, part in zip(self.segments, parts):
+        for edit, part in zip(self.segments, parts, strict=True):
             if edit.text() == part:
                 continue
             edit.blockSignals(True)
@@ -269,12 +271,15 @@ class Ipv4TargetInput(QWidget):
 
     def eventFilter(self, obj, event):
         """拦截段内的点号按键，按回车的方式跳到下一段。"""
-        if event.type() == QEvent.Type.KeyPress and obj in self.segments:
-            # 小键盘点号与主键盘点号都送 Key_Period；中文输入法可能在
-            # InputMethod 事件里给出“。”，这里一并处理。
-            if event.key() == Qt.Key.Key_Period or event.text() in (".", "。"):
-                self._advance(self.segments.index(obj))
-                return True
+        # 小键盘点号与主键盘点号都送 Key_Period；中文输入法可能在
+        # InputMethod 事件里给出“。”，这里一并处理。
+        if (
+            event.type() == QEvent.Type.KeyPress
+            and obj in self.segments
+            and (event.key() == Qt.Key.Key_Period or event.text() in (".", "。"))
+        ):
+            self._advance(self.segments.index(obj))
+            return True
         return super().eventFilter(obj, event)
 
 
@@ -381,7 +386,7 @@ class TargetControls(QWidget):
     def _set_tab_order(self):
         """让 Tab 依次经过四段地址、选择设备、端口、轮数与间隔。"""
         segments = self.target_input.segments
-        for current, following in zip(segments, segments[1:]):
+        for current, following in pairwise(segments):
             QWidget.setTabOrder(current, following)
         QWidget.setTabOrder(segments[-1], self.device_button)
         QWidget.setTabOrder(self.device_button, self.port_input)

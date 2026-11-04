@@ -12,10 +12,12 @@ from PySide6.QtWidgets import (
 from qfluentwidgets import (
     CaptionLabel,
     Dialog,
-    FluentIcon as FIF,
     LineEdit,
     PrimaryPushButton,
     PushButton,
+)
+from qfluentwidgets import (
+    FluentIcon as FIF,
 )
 
 from ..components import (
@@ -46,7 +48,7 @@ class AliasPage(Page):
         heading_actions_layout.setSpacing(8)
         heading_actions_layout.addWidget(self.count_label)
         self.info_button = info_button(
-            "备注名可直接用作目标；支持 IPv4、末段范围和 /24，" "修改后同步引用。",
+            "备注名可直接用作目标；支持 IPv4、末段范围和 /24，修改后同步引用。",
             heading_actions,
         )
         heading_actions_layout.addWidget(self.info_button)

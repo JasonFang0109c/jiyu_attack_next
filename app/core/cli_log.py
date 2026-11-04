@@ -7,10 +7,11 @@
 本模块只依赖标准库：``app/cli/`` 不允许引入 ``PySide6``。
 """
 
-from datetime import datetime
 import inspect
-from pathlib import Path
 import threading
+from contextlib import suppress
+from datetime import datetime
+from pathlib import Path
 
 LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
 DEFAULT_CATEGORY = "命令行"
@@ -51,10 +52,8 @@ class CliLog:
         self._handle = None
         if handle is None:
             return
-        try:
+        with suppress(OSError):
             handle.close()
-        except OSError:
-            pass
 
     def debug(self, message, category=None, details=""):
         """记录调试信息：参数、路径与中间结果。"""
@@ -160,8 +159,8 @@ def configure(path=None, category=DEFAULT_CATEGORY):
         CliLog: 全局日志对象。
     """
     LOG.close()
-    LOG._path = Path(path) if path is not None else None  # noqa: SLF001
-    LOG._category = category  # noqa: SLF001
+    LOG._path = Path(path) if path is not None else None
+    LOG._category = category
     LOG.storage_error = ""
     return LOG
 

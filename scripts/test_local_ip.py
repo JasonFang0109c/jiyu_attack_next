@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app import core
+from app import core  # noqa: E402  (需要先把仓库根加入 sys.path)
 
 
 class TestFailure(RuntimeError):

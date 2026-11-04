@@ -1,8 +1,8 @@
 """打包构建时间与版本信息。"""
 
+import sys
 from datetime import datetime
 from pathlib import Path
-import sys
 
 BUILD_TIME_FILE_NAME = "build_time.txt"
 VERSION_FILE_NAME = "version.txt"

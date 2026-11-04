@@ -6,12 +6,14 @@ from qfluentwidgets import (
     BodyLabel,
     CaptionLabel,
     ComboBox,
-    FluentIcon as FIF,
     PushButton,
     SwitchButton,
     Theme,
     getFont,
     qconfig,
+)
+from qfluentwidgets import (
+    FluentIcon as FIF,
 )
 
 from ..components import SectionCard, page_heading

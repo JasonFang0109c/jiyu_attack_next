@@ -4,8 +4,8 @@
 用法：python packaging/gen_version_info.py <版本号> <输出路径>
 """
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from PyInstaller.utils.win32.versioninfo import (
     FixedFileInfo,
@@ -44,8 +44,7 @@ def build_version_info(version):
                             StringStruct("FileDescription", PRODUCT_NAME),
                             StringStruct("FileVersion", version),
                             StringStruct("InternalName", INTERNAL_NAME),
-                            StringStruct("OriginalFilename",
-                                         INTERNAL_NAME + ".exe"),
+                            StringStruct("OriginalFilename", INTERNAL_NAME + ".exe"),
                             StringStruct("ProductName", PRODUCT_NAME),
                             StringStruct("ProductVersion", version),
                         ],

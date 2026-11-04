@@ -1,7 +1,8 @@
 """防火墙页：阻断或恢复 StudentMain.exe 的联网规则。"""
 
 from PySide6.QtWidgets import QHBoxLayout, QHeaderView, QTableWidgetItem
-from qfluentwidgets import BodyLabel, ComboBox, FluentIcon as FIF, setFont
+from qfluentwidgets import BodyLabel, ComboBox, setFont
+from qfluentwidgets import FluentIcon as FIF
 
 from ..components import SectionCard, TaskFooter, page_heading
 from .common import Page, table_widget
@@ -62,7 +63,7 @@ class FirewallPage(Page):
                 label = next(
                     (
                         item
-                        for item, prefix in zip(labels, prefixes)
+                        for item, prefix in zip(labels, prefixes, strict=True)
                         if result["command"].startswith(prefix)
                     ),
                     labels[-1],

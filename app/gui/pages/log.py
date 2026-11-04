@@ -1,8 +1,9 @@
 """运行日志页：筛选、勾选、导出与删除运行日志。"""
 
-from PySide6.QtCore import QSignalBlocker, QTimer, Qt, Signal, Slot
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer, Signal, Slot
 from PySide6.QtWidgets import QHBoxLayout, QHeaderView, QTableWidgetItem
-from qfluentwidgets import CaptionLabel, ComboBox, FluentIcon as FIF, SearchLineEdit
+from qfluentwidgets import CaptionLabel, ComboBox, SearchLineEdit
+from qfluentwidgets import FluentIcon as FIF
 
 from ..components import SectionCard, page_heading, tool_button
 from ..models import LOG_LEVELS

@@ -1,12 +1,13 @@
 """UDP 发送、文件传送与传输结果。"""
 
+import secrets
+import select
+import socket
+from contextlib import suppress
 from dataclasses import dataclass
 from enum import StrEnum
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-import secrets
-import select
-import socket
 from threading import Event, Lock, Thread
 from time import monotonic, sleep
 from urllib.parse import urlsplit
@@ -188,7 +189,7 @@ def send_tracked(
     if cancel_event and cancel_event.is_set():
         raise RuntimeError("操作已取消")
     sockets = {}
-    sent = {host: 0 for host in hosts}
+    sent = dict.fromkeys(hosts, 0)
     states = {}
     try:
         for host in hosts:
@@ -344,7 +345,7 @@ def build_items_bootstrap_script(items, urls, desktop_dir=None):
     if len(items) != len(urls):
         raise ValueError("下载地址数量与文件数量不一致")
     blocks = []
-    for (relative, size), url in zip(items, urls):
+    for (relative, size), url in zip(items, urls, strict=True):
         relative = str(relative).replace("\\", "/").strip("/")
         parts = [part for part in relative.split("/") if part]
         if not parts:
@@ -653,10 +654,8 @@ class FileTransferServer:
             if percent == self._progress_value:
                 return
             self._progress_value = percent
-        try:
+        with suppress(Exception):
             self.progress("目标正在下载文件：%d%%" % percent)
-        except Exception:
-            pass
 
     def complete_file(self, index=0):
         """记录一个文件下载完成，全部完成后置位 downloaded。"""

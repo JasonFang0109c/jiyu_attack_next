@@ -1,8 +1,29 @@
-[tool.black]
+[tool.ruff]
 line-length = 88
-target-version = ["py313"]
+target-version = "py313"
 # 报文常量是逐字节对齐的十六进制数组，重排只会产生上千行无意义改动；
-# output/ 存放本地构建产物，不参与格式化。
-extend-exclude = 'app[\\/]core[\\/]constants\.py|output'
-# 显式传入文件路径时也跳过，避免误格式化报文数组。
-force-exclude = 'app[\\/]core[\\/]constants\.py'
+# output/ 存放本地构建产物，不参与格式化与检查。
+extend-exclude = ["app/core/constants.py", "output"]
+
+[tool.ruff.format]
+# 沿用双引号、空格缩进与魔法尾逗号，和源码现有排版一致。
+quote-style = "double"
+indent-style = "space"
+
+[tool.ruff.lint]
+select = [
+    "E4",  # import 相关错误
+    "E7",  # 语句级错误
+    "E9",  # 运行时错误
+    "F",   # Pyflakes
+    "I",   # import 排序
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "C4",  # flake8-comprehensions
+    "RUF", # Ruff 自有规则
+]
+# 中文标点是项目规范的一部分，全角逗号、冒号、括号不应被判定为歧义字符。
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]

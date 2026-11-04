@@ -110,9 +110,8 @@ class CoreTests(unittest.TestCase):
             "192.168.1.1-255",
             "10.0.0.0/16",
         ]:
-            with self.subTest(value=value):
-                with self.assertRaises(ValueError):
-                    self.core.count_targets(value)
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.core.count_targets(value)
 
     def test_options_validation(self):
         good = self.core.SendOptions("192.168.1.10", message="通知")
@@ -128,9 +127,8 @@ class CoreTests(unittest.TestCase):
             self.core.SendOptions("192.168.1.10", message="通知", extra="nc"),
         ]
         for options in bad_cases:
-            with self.subTest(options=options):
-                with self.assertRaises(ValueError):
-                    self.core.validate_options(options)
+            with self.subTest(options=options), self.assertRaises(ValueError):
+                self.core.validate_options(options)
 
     def test_packet_preparation(self):
         options = self.core.SendOptions(
@@ -155,9 +153,8 @@ class CoreTests(unittest.TestCase):
 
     def test_invalid_reverse_range_is_rejected(self):
         for value in ["192.168.1.10-1", "192.168.1.0-10", "192.168.1.1-255"]:
-            with self.subTest(value=value):
-                with self.assertRaises(ValueError):
-                    self.core.get_ip(value)
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.core.get_ip(value)
 
     def test_gui_send_uses_bytes_and_shared_transport(self):
         options = self.core.SendOptions(
@@ -170,16 +167,18 @@ class CoreTests(unittest.TestCase):
             for chunk in self.core.split_message(options.message)
         ]
         packets.append(bytes(self.core.pkg_sendlist("-c", options.command)))
-        with patch.object(
-            self.core.transport, "get_ip", return_value=["模拟目标甲", "模拟目标乙"]
+        with (
+            patch.object(
+                self.core.transport, "get_ip", return_value=["模拟目标甲", "模拟目标乙"]
+            ),
+            patch.object(socket, "socket", side_effect=[first, second]),
+            patch.object(
+                self.core.transport,
+                "ping_hosts",
+                return_value={"模拟目标甲": True, "模拟目标乙": True},
+            ),
         ):
-            with patch.object(socket, "socket", side_effect=[first, second]):
-                with patch.object(
-                    self.core.transport,
-                    "ping_hosts",
-                    return_value={"模拟目标甲": True, "模拟目标乙": True},
-                ):
-                    outcome = self.core.execute_send_report(options)
+            outcome = self.core.execute_send_report(options)
         self.assertEqual(outcome.sent, 12)
         # 每个目标各自建连接，轮询两轮后各发一遍完整报文序列。
         for client, host in ((first, "模拟目标甲"), (second, "模拟目标乙")):
@@ -198,11 +197,13 @@ class CoreTests(unittest.TestCase):
         options = self.core.SendOptions(
             "192.168.1.10", message="通知", cancel_event=stopped
         )
-        with patch.object(self.core.transport, "get_ip", return_value=["模拟目标"]):
-            with patch.object(socket, "socket") as factory:
-                with self.assertRaisesRegex(RuntimeError, "操作已取消"):
-                    self.core.execute_send(options)
-                factory.assert_not_called()
+        with (
+            patch.object(self.core.transport, "get_ip", return_value=["模拟目标"]),
+            patch.object(socket, "socket") as factory,
+            self.assertRaisesRegex(RuntimeError, "操作已取消"),
+        ):
+            self.core.execute_send(options)
+        factory.assert_not_called()
 
     def test_cancellation_interrupts_long_interval(self):
         stopped = Event()
@@ -216,10 +217,12 @@ class CoreTests(unittest.TestCase):
             if "轮已发送" in message:
                 stopped.set()
 
-        with patch.object(self.core.transport, "get_ip", return_value=["模拟目标"]):
-            with patch.object(socket, "socket", return_value=fake_socket):
-                with self.assertRaisesRegex(RuntimeError, "操作已取消"):
-                    self.core.execute_send(options, report)
+        with (
+            patch.object(self.core.transport, "get_ip", return_value=["模拟目标"]),
+            patch.object(socket, "socket", return_value=fake_socket),
+            self.assertRaisesRegex(RuntimeError, "操作已取消"),
+        ):
+            self.core.execute_send(options, report)
         fake_socket.send.assert_called_once()
         fake_socket.close.assert_called_once()
 
@@ -227,10 +230,12 @@ class CoreTests(unittest.TestCase):
         fake_socket = MagicMock()
         fake_socket.__enter__.return_value = fake_socket
         fake_socket.sendto.side_effect = OSError("模拟发送失败")
-        with patch.object(self.core.transport, "get_ip", return_value=["模拟目标"]):
-            with patch.object(socket, "socket", return_value=fake_socket):
-                with self.assertRaisesRegex(OSError, "模拟发送失败"):
-                    self.core.send([[1, 2, 3]], "模拟目标")
+        with (
+            patch.object(self.core.transport, "get_ip", return_value=["模拟目标"]),
+            patch.object(socket, "socket", return_value=fake_socket),
+            self.assertRaisesRegex(OSError, "模拟发送失败"),
+        ):
+            self.core.send([[1, 2, 3]], "模拟目标")
         fake_socket.__exit__.assert_called_once()
 
     def test_send_tracked_marks_rejected_and_unreachable_targets(self):
@@ -238,9 +243,11 @@ class CoreTests(unittest.TestCase):
         rejected.send.side_effect = ConnectionResetError("端口不可达")
         unreachable = MagicMock()
         unreachable.connect.side_effect = OSError("网络不可达")
-        with patch.object(self.core.transport, "get_ip", return_value=["甲", "乙"]):
-            with patch.object(socket, "socket", side_effect=[rejected, unreachable]):
-                outcome = self.core.send_tracked([[1, 2, 3]], "模拟目标", interval=0)
+        with (
+            patch.object(self.core.transport, "get_ip", return_value=["甲", "乙"]),
+            patch.object(socket, "socket", side_effect=[rejected, unreachable]),
+        ):
+            outcome = self.core.send_tracked([[1, 2, 3]], "模拟目标", interval=0)
         self.assertEqual(outcome.sent, 0)
         self.assertEqual(
             [item.state for item in outcome.deliveries],
@@ -250,12 +257,14 @@ class CoreTests(unittest.TestCase):
 
     def test_send_tracked_confirms_silent_targets_with_echo(self):
         client = MagicMock()
-        with patch.object(self.core.transport, "get_ip", return_value=["10.0.0.5"]):
-            with patch.object(socket, "socket", return_value=client):
-                with patch.object(
-                    self.core.transport, "ping_hosts", return_value={"10.0.0.5": True}
-                ):
-                    outcome = self.core.send_tracked([[1], [2]], "模拟目标", interval=0)
+        with (
+            patch.object(self.core.transport, "get_ip", return_value=["10.0.0.5"]),
+            patch.object(socket, "socket", return_value=client),
+            patch.object(
+                self.core.transport, "ping_hosts", return_value={"10.0.0.5": True}
+            ),
+        ):
+            outcome = self.core.send_tracked([[1], [2]], "模拟目标", interval=0)
         self.assertEqual(outcome.sent, 2)
         self.assertTrue(outcome.deliveries[0].ok)
         self.assertEqual(outcome.failed, ())
@@ -266,12 +275,14 @@ class CoreTests(unittest.TestCase):
 
     def test_send_tracked_reports_targets_that_never_answer(self):
         client = MagicMock()
-        with patch.object(self.core.transport, "get_ip", return_value=["10.0.0.6"]):
-            with patch.object(socket, "socket", return_value=client):
-                with patch.object(
-                    self.core.transport, "ping_hosts", return_value={"10.0.0.6": False}
-                ):
-                    outcome = self.core.send_tracked([[1]], "模拟目标", interval=0)
+        with (
+            patch.object(self.core.transport, "get_ip", return_value=["10.0.0.6"]),
+            patch.object(socket, "socket", return_value=client),
+            patch.object(
+                self.core.transport, "ping_hosts", return_value={"10.0.0.6": False}
+            ),
+        ):
+            outcome = self.core.send_tracked([[1]], "模拟目标", interval=0)
         self.assertEqual(
             [item.state for item in outcome.deliveries],
             [self.core.DeliveryState.NO_RESPONSE],
@@ -291,11 +302,13 @@ class CoreTests(unittest.TestCase):
             "UDP [::]:4705 *:* 123\n"
             "UDP 0.0.0.0:9999 *:* 5123\n",
         )
-        with patch.object(
-            self.core.local_info, "run_windows_command", side_effect=[tasks, ports]
+        with (
+            patch.object(
+                self.core.local_info, "run_windows_command", side_effect=[tasks, ports]
+            ),
+            patch.object(socket, "gethostbyname", return_value="模拟本机"),
         ):
-            with patch.object(socket, "gethostbyname", return_value="模拟本机"):
-                ip, result = self.core.local_ip_and_ports()
+            ip, result = self.core.local_ip_and_ports()
         self.assertEqual(ip, "模拟本机")
         self.assertEqual(result, ["4705"])
 
@@ -503,17 +516,19 @@ class CoreTests(unittest.TestCase):
                     self.assertEqual(response.read(), b"partial-payload")
                 return 1
 
-            with patch.object(self.core.transport, "send", side_effect=fake_send):
-                with self.assertRaisesRegex(RuntimeError, "完成 1/2 个目标") as failure:
-                    self.core.transfer_file(
-                        "192.168.1.1-2",
-                        4705,
-                        str(source),
-                        listen_ip="127.0.0.1",
-                        timeout=0.2,
-                        attempts=1,
-                        retry_delay=0,
-                    )
+            with (
+                patch.object(self.core.transport, "send", side_effect=fake_send),
+                self.assertRaisesRegex(RuntimeError, "完成 1/2 个目标") as failure,
+            ):
+                self.core.transfer_file(
+                    "192.168.1.1-2",
+                    4705,
+                    str(source),
+                    listen_ip="127.0.0.1",
+                    timeout=0.2,
+                    attempts=1,
+                    retry_delay=0,
+                )
             self.assertIn("192.168.1.1", str(failure.exception))
             self.assertEqual(requested, ["192.168.1.2"])
         finally:
@@ -537,9 +552,11 @@ class CoreTests(unittest.TestCase):
             file_timeout=120,
         )
         buffer = io.StringIO()
-        with patch.object(cli, "transfer_file", return_value=result):
-            with redirect_stdout(buffer):
-                self.assertEqual(cli.run_file_transfer(arguments), 0)
+        with (
+            patch.object(cli, "transfer_file", return_value=result),
+            redirect_stdout(buffer),
+        ):
+            self.assertEqual(cli.run_file_transfer(arguments), 0)
         self.assertIn("2 个目标桌面", buffer.getvalue())
 
     def test_collect_transfer_items_expands_folders(self):
@@ -741,18 +758,18 @@ class CoreTests(unittest.TestCase):
         try:
             source = directory / "payload.bin"
             source.write_bytes(b"data")
-            with patch.object(self.core.transport, "send", return_value=1):
-                with self.assertRaisesRegex(
-                    RuntimeError, "目标未访问文件服务.*发送端 IP"
-                ):
-                    self.core.transfer_file(
-                        "192.168.1.10",
-                        4705,
-                        str(source),
-                        listen_ip="127.0.0.1",
-                        timeout=0.2,
-                        attempts=1,
-                    )
+            with (
+                patch.object(self.core.transport, "send", return_value=1),
+                self.assertRaisesRegex(RuntimeError, "目标未访问文件服务.*发送端 IP"),
+            ):
+                self.core.transfer_file(
+                    "192.168.1.10",
+                    4705,
+                    str(source),
+                    listen_ip="127.0.0.1",
+                    timeout=0.2,
+                    attempts=1,
+                )
         finally:
             shutil.rmtree(directory, ignore_errors=True)
 
@@ -819,26 +836,28 @@ class CoreTests(unittest.TestCase):
         try:
             source = directory / "payload.bin"
             source.write_bytes(b"data")
-            with patch.object(self.core.transport, "send", return_value=1):
-                with self.assertRaisesRegex(RuntimeError, "超时"):
-                    self.core.transfer_file(
-                        "192.168.1.10",
-                        4705,
-                        str(source),
-                        listen_ip="127.0.0.1",
-                        timeout=0.2,
-                    )
-                stopped = Event()
-                stopped.set()
-                with self.assertRaisesRegex(RuntimeError, "操作已取消"):
-                    self.core.transfer_file(
-                        "192.168.1.10",
-                        4705,
-                        str(source),
-                        listen_ip="127.0.0.1",
-                        timeout=1,
-                        cancel_event=stopped,
-                    )
+            with (
+                patch.object(self.core.transport, "send", return_value=1),
+                self.assertRaisesRegex(RuntimeError, "超时"),
+            ):
+                self.core.transfer_file(
+                    "192.168.1.10",
+                    4705,
+                    str(source),
+                    listen_ip="127.0.0.1",
+                    timeout=0.2,
+                )
+            stopped = Event()
+            stopped.set()
+            with self.assertRaisesRegex(RuntimeError, "操作已取消"):
+                self.core.transfer_file(
+                    "192.168.1.10",
+                    4705,
+                    str(source),
+                    listen_ip="127.0.0.1",
+                    timeout=1,
+                    cancel_event=stopped,
+                )
         finally:
             shutil.rmtree(directory, ignore_errors=True)
 
@@ -891,10 +910,12 @@ class CoreTests(unittest.TestCase):
         shutil.rmtree(log_path.parent, ignore_errors=True)
         outcome = SimpleNamespace(deliveries=[], failed=[])
         buffer = io.StringIO()
-        with patch.object(cli, "portable_cli_log_path", return_value=log_path):
-            with patch.object(cli, "send_tracked", return_value=outcome):
-                with redirect_stdout(buffer):
-                    code = cli.main(["-ip", "192.168.1.10", "-msg", "通知"])
+        with (
+            patch.object(cli, "portable_cli_log_path", return_value=log_path),
+            patch.object(cli, "send_tracked", return_value=outcome),
+            redirect_stdout(buffer),
+        ):
+            code = cli.main(["-ip", "192.168.1.10", "-msg", "通知"])
         self.assertEqual(code, 0)
         text = log_path.read_text(encoding="utf-8")
         self.assertIn("命令行启动", text)
@@ -905,10 +926,12 @@ class CoreTests(unittest.TestCase):
 
     def test_cli_help_and_version_do_not_create_log(self):
         for arguments in (["-h"], ["--version"]):
-            with patch.object(cli, "portable_cli_log_path") as log_path:
-                with redirect_stdout(io.StringIO()):
-                    with self.assertRaises(SystemExit):
-                        cli.main(arguments)
+            with (
+                patch.object(cli, "portable_cli_log_path") as log_path,
+                redirect_stdout(io.StringIO()),
+                self.assertRaises(SystemExit),
+            ):
+                cli.main(arguments)
             log_path.assert_not_called()
 
     def test_cli_file_transfer_forwards_every_path(self):
@@ -926,18 +949,20 @@ class CoreTests(unittest.TestCase):
         log_path = self.test_root / "cli-multi" / "cli.log"
         shutil.rmtree(log_path.parent, ignore_errors=True)
         buffer = io.StringIO()
-        with patch.object(cli, "portable_cli_log_path", return_value=log_path):
-            with patch.object(cli, "transfer_file", return_value=result) as transfer:
-                with redirect_stdout(buffer):
-                    code = cli.main(
-                        [
-                            "-ip",
-                            "192.168.1.10",
-                            "--file",
-                            "包",
-                            "单.txt",
-                        ]
-                    )
+        with (
+            patch.object(cli, "portable_cli_log_path", return_value=log_path),
+            patch.object(cli, "transfer_file", return_value=result) as transfer,
+            redirect_stdout(buffer),
+        ):
+            code = cli.main(
+                [
+                    "-ip",
+                    "192.168.1.10",
+                    "--file",
+                    "包",
+                    "单.txt",
+                ]
+            )
         self.assertEqual(code, 0)
         self.assertEqual(transfer.call_args.kwargs["paths"], ["包", "单.txt"])
         self.assertIn("文件已传送", buffer.getvalue())

@@ -39,9 +39,7 @@ def _is_usable_local_address(value, target=None):
         return False
     # 198.18.0.0/15 是网络基准测试保留网段，Mihomo 等 TUN 虚拟网卡
     # 常把它作为本地地址返回，但目标电脑无法通过该地址回连。
-    if address in ipaddress.IPv4Network("198.18.0.0/15"):
-        return False
-    return True
+    return address not in ipaddress.IPv4Network("198.18.0.0/15")
 
 
 def detect_local_ip(target=None):

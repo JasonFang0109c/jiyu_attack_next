@@ -1,11 +1,11 @@
 """用系统 ICMP 接口探测目标主机是否在线。"""
 
-from concurrent.futures import ThreadPoolExecutor
 import ctypes
-from ctypes import wintypes
 import ipaddress
 import struct
 import sys
+from concurrent.futures import ThreadPoolExecutor
+from ctypes import wintypes
 
 # 回显载荷只用于确认往返，内容本身没有含义。
 _ECHO_PAYLOAD = b"jiyu-attack-next"
@@ -171,7 +171,7 @@ def ping_hosts(hosts, timeout_ms=_ECHO_TIMEOUT_MS):
         results = pool.map(
             lambda item: _echo_once(api, item[1], timeout_ms), addresses.items()
         )
-    alive = dict(zip(addresses, results))
+    alive = dict(zip(addresses, results, strict=True))
     if not all(alive.values()):
         resolved = _arp_addresses()
         for host, address in addresses.items():

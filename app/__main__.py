@@ -1,8 +1,9 @@
 """统一入口：无参数启动图形界面，有参数运行命令行模式。"""
 
-from multiprocessing import freeze_support
 import locale
 import sys
+from contextlib import suppress
+from multiprocessing import freeze_support
 
 
 def _console_encoding():
@@ -80,20 +81,21 @@ def _rebind_console_streams():
     for name in ("stdout", "stderr"):
         if getattr(sys, name) is not None:
             continue
-        try:
+        # 控制台可能已断开，重新打开失败时保持空流即可，不影响后续逻辑。
+        with suppress(OSError):
             setattr(
                 sys,
                 name,
-                open(
+                # 输出流必须一直可用，不能交给 with 在退出时关闭。
+                open(  # noqa: SIM115
                     "CONOUT$",
                     "w",
                     encoding=_console_encoding(),
                     errors="replace",
                     buffering=1,
+                    closefd=False,
                 ),
             )
-        except OSError:
-            pass
 
 
 def _silence_streams():
@@ -102,7 +104,11 @@ def _silence_streams():
 
     for name in ("stdout", "stderr"):
         if getattr(sys, name) is None:
-            setattr(sys, name, open(os.devnull, "w", encoding="utf-8"))
+            # 空流要一直保留到进程结束，交给解释器关闭。
+            stream = open(  # noqa: SIM115
+                os.devnull, "w", encoding="utf-8", closefd=False
+            )
+            setattr(sys, name, stream)
 
 
 def _show_cli_console():

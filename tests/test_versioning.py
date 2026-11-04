@@ -1,15 +1,15 @@
 """校验版本号在包、命令行与打包配置之间保持一致。"""
 
-from pathlib import Path
 import re
 import sys
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from app import __version__ as package_version
-from app.gui import build_info
 from app import core
 from app.cli.main import parser
+from app.gui import build_info
 
 SEMVER_PATTERN = re.compile(
     r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"

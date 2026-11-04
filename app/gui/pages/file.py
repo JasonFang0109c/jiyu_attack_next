@@ -1,6 +1,6 @@
 """文件传送页：选择文件或文件夹，预览目录结构并发起传送。"""
 
-from PySide6.QtCore import QSignalBlocker, QSize, QTimer, Qt, Signal
+from PySide6.QtCore import QSignalBlocker, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -8,7 +8,8 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QTreeWidgetItem,
 )
-from qfluentwidgets import BodyLabel, CaptionLabel, FluentIcon as FIF, ProgressBar
+from qfluentwidgets import BodyLabel, CaptionLabel, ProgressBar
+from qfluentwidgets import FluentIcon as FIF
 
 from ... import core
 from ..components import (
@@ -38,7 +39,7 @@ class FilePage(Page):
         self._syncing = False
         self._busy = False
         self.info_button = info_button(
-            "勾选项发送到目标桌面并保留文件夹结构；" "目标需支持远程命令和 curl。", self
+            "勾选项发送到目标桌面并保留文件夹结构；目标需支持远程命令和 curl。", self
         )
         page_heading(self.vbox, "文件传送", self.info_button)
         self.target_card = SectionCard(self)

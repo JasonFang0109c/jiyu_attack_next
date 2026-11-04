@@ -2,32 +2,32 @@
 <h1>代码风格规范</h1>
 <p>
    <img alt="Python 3.13" src="https://img.shields.io/badge/Python-3.13-3776AB?style=for-the-badge&logo=python&logoColor=white&labelColor=212121">
-   <img alt="Black" src="https://img.shields.io/badge/格式化-Black-000000?style=for-the-badge&logo=black&logoColor=white&labelColor=212121">
+   <img alt="Ruff" src="https://img.shields.io/badge/格式化与检查-Ruff-261230?style=for-the-badge&logo=ruff&logoColor=white&labelColor=212121">
 </p>
 <p><a href="../../README.md">← 返回项目首页</a> 丨 <a href="CONTRIBUTING.md">开发与提交规范</a> 丨 <a href="STRUCTURE.md">项目结构</a></p>
 </div>
 
 ---
 
-排版由 Black 自动完成，注释与 docstring 由开发者按本文手写。**每写完一处代码就格式化一次**，不要攒到提交前统一处理。
+排版由 `ruff format` 自动完成，静态检查由 `ruff check` 把关，注释与 docstring 由开发者按本文手写。**每写完一处代码就格式化一次**，不要攒到提交前统一处理。
 
 ## 工具与配置
 
-配置在根目录 [pyproject.toml](../../pyproject.toml)：Black、行宽 88、目标版本 `py313`。开发工具单独放在 [requirements-dev.txt](../../requirements-dev.txt)，不进打包产物。
+配置在根目录 [pyproject.toml](../../pyproject.toml)：ruff 格式化与 lint、行宽 88、目标版本 `py313`。开发工具单独放在 [requirements-dev.txt](../../requirements-dev.txt)，不进打包产物。
 
 ```powershell
 python -m pip install -r requirements-dev.txt
 ```
 
-`app/core/constants.py` 保存逐字节对齐的十六进制报文数组（`store`），整体被 Black 排除。该文件只手工维护：新增报文时沿用现有每行字节数与缩进，不要为对齐重排已有行，否则会产生上千行的无意义改动。
+`app/core/constants.py` 保存逐字节对齐的十六进制报文数组（`store`），整体被 ruff 排除。该文件只手工维护：新增报文时沿用现有每行字节数与缩进，不要为对齐重排已有行，否则会产生上千行的无意义改动。
 
 ## 排版规则
 
-- 行宽 88 个字符，超长由 Black 自行换行；Black 无法拆分的超长字符串要提成模块级常量后再引用。
+- 行宽 88 个字符，超长由 `ruff format` 自行换行；无法拆分的超长字符串要提成模块级常量后再引用。
 - 4 空格缩进，双引号优先，两个顶层定义之间空两行，方法之间空一行。
 - 导入顺序为“标准库 / 第三方 / 本项目”，每组之间空一行；不使用通配符导入（如 `from .common import *`）。
 - 不在同一行塞多条语句，不用行尾分号，不留行尾空白。
-- 不手工对齐 `=`、`:` 或续行括号；续行样式以 Black 的输出为准，不要为了竖排再改回去。
+- 不手工对齐 `=`、`:` 或续行括号；续行样式以 `ruff format` 的输出为准，不要为了竖排再改回去。
 
 ## Docstring
 
@@ -98,13 +98,15 @@ self.table.blockSignals(True)
 改完任意 `.py` 文件后立刻执行，让格式化成为一次独立动作，不要留到最后：
 
 ```powershell
-.\.venv\Scripts\python.exe -m black .
+.\.venv\Scripts\python.exe -m ruff format .
+.\.venv\Scripts\python.exe -m ruff check --fix .
 ```
 
 提交前确认没有待格式化内容：
 
 ```powershell
-.\.venv\Scripts\python.exe -m black --check .
+.\.venv\Scripts\python.exe -m ruff format --check .
+.\.venv\Scripts\python.exe -m ruff check .
 ```
 
 - `--check` 只报告不修改，用于确认工作区已格式化；有输出时本地先跑一次不带 `--check` 的命令。

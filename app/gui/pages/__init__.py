@@ -1,15 +1,15 @@
 """Fluent 工作页面集合。"""
 
-from .message import MessagePage
+from .about import AboutDetailCard, AboutInfoCard, AboutPage
+from .alias import AliasPage
 from .command import CommandPage
 from .device import DevicePage
 from .file import FilePage
-from .alias import AliasPage
-from .local import LocalPage
 from .firewall import FirewallPage
+from .local import LocalPage
 from .log import LogPage
+from .message import MessagePage
 from .settings import SettingsPage
-from .about import AboutInfoCard, AboutDetailCard, AboutPage
 
 __all__ = [
     "AboutDetailCard",

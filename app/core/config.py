@@ -6,6 +6,7 @@
 
 import json
 import re
+from contextlib import suppress
 from pathlib import Path
 
 HEADER = (
@@ -161,8 +162,6 @@ def write(path, data, comments=None):
         temp_path.write_text(dumps(data, comments), encoding="utf-8")
         temp_path.replace(target)
     except OSError:
-        try:
+        with suppress(OSError):
             temp_path.unlink(missing_ok=True)
-        except OSError:
-            pass
         raise

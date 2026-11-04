@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from contextlib import suppress
 from pathlib import Path
 
 
@@ -41,7 +42,7 @@ def run_windows_command(command):
 def _firewall_result(command, process, *, success=False, note=""):
     stdout = process.stdout.strip()
     stderr = process.stderr.strip()
-    if note:
+    if note:  # noqa: SIM108  (两路输出来源不同，拆开写更清楚)
         output = note + ("\n" + stdout if stdout else "")
     else:
         output = stdout or stderr
@@ -238,10 +239,8 @@ def _run_firewall_elevated(action):
             raise RuntimeError("管理员权限进程返回的防火墙结果无效")
         return results
     finally:
-        try:
+        with suppress(OSError):
             os.unlink(result_path)
-        except OSError:
-            pass
 
 
 def request_firewall_rule(action):
