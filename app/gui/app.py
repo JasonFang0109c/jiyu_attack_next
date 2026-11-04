@@ -350,6 +350,18 @@ class MainWindow(FluentWindow):
         legacy = normalize_switch(self.settings.value(MICA_SETTINGS_KEY, None), None)
         return normalize_window_material(raw, legacy)
 
+    def _normalBackgroundColor(self):
+        """返回窗口常态底色，材质开启时必须是全透明。
+
+        库的 ``_normalBackgroundColor`` 只在它自己的云母开关打开时返回透明，
+        而这里改走 ``windowEffect`` 直接施加材质，开关始终是关的。若沿用库的
+        实现，窗口获得焦点、鼠标移入移出都会把底色动画回不透明色，材质随之
+        被完全盖住，表现就是“设置了却没生效、切换后也不生效”。
+        """
+        if getattr(self, "window_material", None) in (None, MATERIAL_SOLID):
+            return QColor("#202020") if isDarkTheme() else QColor("#f5f6f8")
+        return QColor(0, 0, 0, 0)
+
     def apply_window_material(self, material):
         """按材质切换窗口背景效果。
 
