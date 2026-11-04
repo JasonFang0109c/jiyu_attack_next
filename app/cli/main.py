@@ -84,6 +84,25 @@ def build_parser():
 parser = build_parser()
 
 
+# 只打印帮助或版本号的调用没有任何副作用，也不该在数据目录留下日志文件。
+INFORMATIONAL_ARGUMENTS = ("-h", "--help", "-V", "--version")
+
+
+def is_informational(arguments):
+    """判断本次调用是否只是查看帮助或版本号。
+
+    只认单独一个帮助或版本号参数；``-msg "-h"`` 这类把短横线内容当作
+    参数值传进来的写法仍按普通发送处理，避免误跳过日志。
+
+    Args:
+        arguments: 命令行参数列表。
+
+    Returns:
+        bool: 只查帮助或版本号时为 ``True``。
+    """
+    return len(arguments) == 1 and arguments[0] in INFORMATIONAL_ARGUMENTS
+
+
 def start_logging():
     """启用命令行日志；等级固定 DEBUG，文件名与界面日志分开。"""
     cli_log.configure(portable_cli_log_path())
@@ -318,6 +337,10 @@ def main(argv=None):
     arguments = list(sys.argv[1:] if argv is None else argv)
     if arguments[:1] == [FIREWALL_HELPER_ARGUMENT]:
         return run_firewall_helper(arguments[1:])
+    if is_informational(arguments):
+        # 帮助与版本号走 argparse 自身的退出路径，不创建数据目录与日志文件。
+        parser.parse_args(arguments)
+        return 0
     start_logging()
     cli_log.LOG.info(
         "命令行启动",

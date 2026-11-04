@@ -903,6 +903,14 @@ class CoreTests(unittest.TestCase):
         self.assertIn("开始发送", text)
         self.assertIn("命令行结束", text)
 
+    def test_cli_help_and_version_do_not_create_log(self):
+        for arguments in (["-h"], ["--version"]):
+            with patch.object(cli, "portable_cli_log_path") as log_path:
+                with redirect_stdout(io.StringIO()):
+                    with self.assertRaises(SystemExit):
+                        cli.main(arguments)
+            log_path.assert_not_called()
+
     def test_cli_file_transfer_forwards_every_path(self):
         result = {
             "name": "2 个文件",

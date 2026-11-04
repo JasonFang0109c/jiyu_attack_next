@@ -57,15 +57,25 @@ class NightlyWorkflowTests(unittest.TestCase):
         self.assertIn('$env:INPUT_CHANNEL -eq "nightly"', self.build)
         self.assertIn("version=$version", self.build)
 
-    def test_workflow_includes_latest_commit_changelog_last(self):
-        self.assertIn("git log -1 --pretty=%B", self.workflow)
-        self.assertIn("## Message", self.workflow)
-        self.assertIn("${commit_message}", self.workflow)
+    def test_workflow_notes_list_version_build_time_commit_and_run(self):
+        # 顺序固定为版本号、构建时间、提交、工作流运行，便于开工单时逐项抄录。
+        order = [
+            "- **Version:**",
+            "- **Built at:**",
+            "- **Commit:**",
+            "- **Workflow run:**",
+        ]
+        positions = [self.workflow.index(item) for item in order]
+        self.assertEqual(positions, sorted(positions))
+
+    def test_workflow_notes_keep_assets_line_plain(self):
+        # 资产行只留文件名，产物说明交给文档，发布说明不再重复解释。
+        self.assertIn("- \\`JiYuAttackNext.exe\\`", self.workflow)
+        self.assertNotIn("图形界面与命令行共用", self.workflow)
+        self.assertNotIn("## Message", self.workflow)
+        self.assertNotIn("${commit_message}", self.workflow)
+        self.assertNotIn("git log -1 --pretty=%B", self.workflow)
         self.assertNotIn("## 更新日志", self.workflow)
-        self.assertGreater(
-            self.workflow.index("## Message"),
-            self.workflow.index("## SHA256"),
-        )
 
     def test_workflow_lists_commits_in_push_range(self):
         # 路径过滤按整个推送判定，tip 是文档也可能包含代码提交；
@@ -77,10 +87,6 @@ class NightlyWorkflowTests(unittest.TestCase):
         self.assertGreater(
             self.workflow.index("## Commits"),
             self.workflow.index("## SHA256"),
-        )
-        self.assertLess(
-            self.workflow.index("## Commits"),
-            self.workflow.index("## Message"),
         )
 
     def test_workflow_publishes_unified_exe(self):
