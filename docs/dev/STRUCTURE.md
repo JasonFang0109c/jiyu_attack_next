@@ -32,10 +32,12 @@ jiyu_attack_next/
 |   |   |-- transport.py          # UDP 发送、文件传送与结果解析
 |   |   |-- firewall.py           # 防火墙规则与按需 UAC 提权
 |   |   |-- config.py             # JSON with comments 配置读写
+|   |   |-- paths.py              # 数据目录与日志文件位置
+|   |   |-- cli_log.py            # 命令行运行日志
 |   |   `-- local_info.py         # 本机 IP 与端口探测
 |   |-- cli/
 |   |   |-- __init__.py
-|   |   `-- main.py               # argparse、命令分发与终端输出
+|   |   `-- main.py               # argparse、命令分发、终端输出与命令行日志
 |   `-- gui/
 |       |-- __init__.py
 |       |-- __main__.py           # GUI 源码入口
@@ -112,7 +114,7 @@ jiyu_attack_next/
 | `.venv/` | Python 虚拟环境 | 保留供开发和构建使用 |
 | `build/` | 构建缓存、转换后的图标、测试临时目录与截图 | 验证结束后可删除，按需重新生成 |
 | `output/` | 最终 EXE | 保留需要运行或分发的产物 |
-| `JiYuAttackNextData/` | 便携数据目录：EXE 同级生成，保存设备备注、关闭窗口行为与运行日志；源码运行时位于项目根目录 | 需要保留配置时随 EXE 一起移动，删除后恢复默认；也可在 GUI“设置”页底部清除 |
+| `JiYuAttackNextData/` | 便携数据目录：EXE 同级生成，保存设备备注、关闭窗口行为、界面日志 `runtime.log` 与命令行日志 `cli.log`；源码运行时位于项目根目录 | 需要保留配置时随 EXE 一起移动，删除后恢复默认；也可在 GUI“设置”页底部清除 |
 
 以上目录及 `__pycache__/`、工具缓存均由 `.gitignore` 排除，不提交 Git。根目录不保留重复的旧入口文件或遗留截图。
 

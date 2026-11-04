@@ -82,7 +82,7 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Clean
 
 ## 运行日志
 
-仅在改动 GUI 日志行为或调用点时适用。GUI 运行日志遵循 [日志规范](https://itliwei.github.io/technology/engineer/develop/logger.html)，等级统一使用 `DEBUG`、`INFO`、`WARNING`、`ERROR`，其中 `warn` 写作 `warning`。默认运行等级为 `INFO`，可在“设置”页切换；低于当前等级的记录不会写入列表和 `runtime.log`。
+仅在改动 GUI 或 CLI 日志行为、调用点时适用。GUI 运行日志遵循 [日志规范](https://itliwei.github.io/technology/engineer/develop/logger.html)，等级统一使用 `DEBUG`、`INFO`、`WARNING`、`ERROR`，其中 `warn` 写作 `warning`。默认运行等级为 `INFO`，可在“设置”页切换；低于当前等级的记录不会写入列表和 `runtime.log`。
 
 ```text
 2026-10-23 12:34:56.789 [12345] [MainThread] INFO    app.gui.app.MainWindow:123 - [文本消息] 开始发送：192.168.1.20，端口 4705，1 轮
@@ -90,6 +90,15 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Clean
 ```
 
 新增日志优先调用 `LogStore.debug/info/warning/error`，关键节点携带目标、端口、文件名、耗时等定位信息，异常附带堆栈，不记录密码、令牌等敏感信息。日志页支持功能与级别筛选、多选、导出选中、删除选中和表头全选；相关行为变更需同步更新 [GUI 模式使用说明](../usage/GUI.md) 和 `tests/test_gui.py`。
+
+命令行模式写自己的日志文件 `cli.log`，与界面的 `runtime.log` 分开，两者共用一个数据目录，规则在 `app/core/paths.py`。实现位于 `app/core/cli_log.py` 的 `CliLog`：只依赖标准库，等级固定 `DEBUG` 且不提供开关，写入 `app.cli` 与 `app.core` 时必须用它而不是 `LogStore`（`LogStore` 依赖 PySide6，命令行入口不允许导入 Qt）。格式与界面日志一致，便于同一套工具阅读：
+
+```text
+2026-11-04 13:29:10.527 [10440] [MainThread] DEBUG   app.cli.main.main:318 - [命令行] 命令行参数
+    ip=10.49.151.29；port=4705；msg=Hello
+```
+
+新增命令行节点时按功能分类调用 `core.cli_log.LOG.debug/info/warning/error`，参数快照、目标与报文数量、每个目标的送达判定、文件传送路径与监听端口、异常都要落盘；`main()` 里已用 `finally` 关闭句柄，无需在分支里手动关闭。
 
 ## 提交信息
 

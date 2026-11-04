@@ -118,7 +118,7 @@ python -m app
 
 cmd 在 EXE 所在目录可直接写 `JiYuAttackNext.exe ...`；PowerShell 需要 `.\` 前缀，或使用绝对路径。CLI 参数与示例见 [CLI 模式使用说明](CLI.md)。EXE 为单文件程序，首次启动会解压运行时资源，可能需要数秒。
 
-程序首次写入备注或日志时，会在 EXE 所在目录创建 `JiYuAttackNextData` 子文件夹，其中 `settings.json` 保存设备备注与界面设置，`runtime.log` 保存运行日志。`settings.json` 是带注释的 JSON：`core` 组存放设备备注，`gui` 组存放界面设置，允许手写 `//` 与 `/* */` 注释和尾逗号，程序保存时会重写整个文件，手写注释只在下次保存前有效。若 EXE 所在目录不可写，备注和日志会保存失败并在界面提示；请将 EXE 放到可写目录后运行。
+程序首次写入备注或日志时，会在 EXE 所在目录创建 `JiYuAttackNextData` 子文件夹，其中 `settings.json` 保存设备备注与界面设置，`runtime.log` 保存界面运行日志，`cli.log` 保存命令行模式的运行日志。`settings.json` 是带注释的 JSON：`core` 组存放设备备注，`gui` 组存放界面设置，允许手写 `//` 与 `/* */` 注释和尾逗号，程序保存时会重写整个文件，手写注释只在下次保存前有效。若 EXE 所在目录不可写，备注和日志会保存失败并在界面提示；请将 EXE 放到可写目录后运行。
 
 ## 系统托盘与退出
 

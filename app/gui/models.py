@@ -14,11 +14,15 @@ import threading
 from PySide6.QtCore import QObject, Signal
 
 from .. import core
+from ..core import (
+    DATA_DIRECTORY_NAME,
+    LOG_FILE_NAME,
+    portable_data_dir,
+    portable_log_path,
+)
 from .settings_store import STATUS_NO_ERROR, SettingsStore
 
-DATA_DIRECTORY_NAME = "JiYuAttackNextData"
 SETTINGS_FILE_NAME = "settings.json"
-LOG_FILE_NAME = "runtime.log"
 DEVICE_ALIAS_SETTINGS_KEY = "core/device_aliases"
 CLOSE_BEHAVIOR_SETTINGS_KEY = "gui/window/close_behavior"
 FIRST_CLOSE_PROMPT_SETTINGS_KEY = "gui/window/first_close_prompt_shown"
@@ -92,27 +96,10 @@ def mica_available():
         return False
 
 
-def portable_data_dir(executable=None):
-    """返回与可执行文件同级的数据目录，源码运行时返回项目根目录。"""
-    if executable is not None:
-        executable_dir = Path(executable).resolve().parent
-    elif getattr(sys, "frozen", False):
-        executable_dir = Path(sys.executable).resolve().parent
-    else:
-        executable_dir = Path(__file__).resolve().parents[2]
-    return executable_dir / DATA_DIRECTORY_NAME
-
-
 def portable_settings(data_dir=None):
     """返回便携设置对象，配置文件位于数据目录下的 settings.json。"""
     root = Path(data_dir).resolve() if data_dir is not None else portable_data_dir()
     return SettingsStore(root / SETTINGS_FILE_NAME)
-
-
-def portable_log_path(data_dir=None):
-    """返回运行日志文件的完整路径。"""
-    root = Path(data_dir).resolve() if data_dir is not None else portable_data_dir()
-    return root / LOG_FILE_NAME
 
 
 class DeviceAliasStore(QObject):

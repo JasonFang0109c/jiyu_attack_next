@@ -1,6 +1,16 @@
 """协议、传输、防火墙、本机信息与配置解析核心。"""
 
-from . import config, constants, firewall, local_info, protocol, transport
+from . import (
+    cli_log,
+    config,
+    constants,
+    firewall,
+    local_info,
+    paths,
+    protocol,
+    transport,
+)
+from .cli_log import CliLog
 from .constants import (
     COMMAND_MAX_BYTES,
     COMMAND_OFFSET,
@@ -18,6 +28,14 @@ from .firewall import (
     request_firewall_rule,
     run_firewall_helper,
     set_firewall_rule,
+)
+from .paths import (
+    CLI_LOG_FILE_NAME,
+    DATA_DIRECTORY_NAME,
+    LOG_FILE_NAME,
+    portable_cli_log_path,
+    portable_data_dir,
+    portable_log_path,
 )
 from .local_info import (
     detect_local_ip,
@@ -56,6 +74,15 @@ from .transport import (
 
 __all__ = [
     "config",
+    "cli_log",
+    "paths",
+    "CliLog",
+    "CLI_LOG_FILE_NAME",
+    "DATA_DIRECTORY_NAME",
+    "LOG_FILE_NAME",
+    "portable_cli_log_path",
+    "portable_data_dir",
+    "portable_log_path",
     "COMMAND_MAX_BYTES",
     "COMMAND_OFFSET",
     "LOGOFF_COMMAND",

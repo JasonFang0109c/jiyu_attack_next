@@ -532,7 +532,7 @@ class CoreTests(unittest.TestCase):
         arguments = SimpleNamespace(
             ip="192.168.1.1-2",
             p=4705,
-            file="report.pdf",
+            file=["report.pdf"],
             file_ip=None,
             file_timeout=120,
         )
@@ -856,11 +856,84 @@ class CoreTests(unittest.TestCase):
                 "30",
             ]
         )
-        self.assertEqual(args.file, "report.pdf")
+        self.assertEqual(args.file, ["report.pdf"])
         self.assertEqual(args.file_ip, "192.168.1.20")
         self.assertEqual(args.file_timeout, 30)
         with self.assertRaises(SystemExit):
             parser.parse_args(["--file", "report.pdf", "-msg", "通知"])
+
+    def test_file_option_accepts_multiple_paths(self):
+        parser = cli.build_parser()
+        args = parser.parse_args(
+            ["-ip", "192.168.1.10", "--file", "a.txt", "文件夹", "b.bin"]
+        )
+        self.assertEqual(args.file, ["a.txt", "文件夹", "b.bin"])
+
+    def test_cli_log_keeps_own_file_and_debug_level(self):
+        log_path = self.test_root / "cli-log" / "cli.log"
+        shutil.rmtree(log_path.parent, ignore_errors=True)
+        log = core.cli_log.configure(log_path)
+        try:
+            log.debug("调试细节", "测试", "附加：值")
+            log.info("关键节点", "测试")
+        finally:
+            core.cli_log.close()
+        text = log_path.read_text(encoding="utf-8")
+        self.assertIn("DEBUG", text)
+        self.assertIn("[测试] 调试细节", text)
+        self.assertIn("\n    附加：值", text)
+        self.assertIn("INFO", text)
+        self.assertNotIn("WARNING", text)
+        self.assertIsNone(log._handle)
+
+    def test_cli_main_writes_log_next_to_data_directory(self):
+        log_path = self.test_root / "cli-main" / "cli.log"
+        shutil.rmtree(log_path.parent, ignore_errors=True)
+        outcome = SimpleNamespace(deliveries=[], failed=[])
+        buffer = io.StringIO()
+        with patch.object(cli, "portable_cli_log_path", return_value=log_path):
+            with patch.object(cli, "send_tracked", return_value=outcome):
+                with redirect_stdout(buffer):
+                    code = cli.main(["-ip", "192.168.1.10", "-msg", "通知"])
+        self.assertEqual(code, 0)
+        text = log_path.read_text(encoding="utf-8")
+        self.assertIn("命令行启动", text)
+        self.assertIn("命令行参数", text)
+        self.assertIn("ip=192.168.1.10", text)
+        self.assertIn("开始发送", text)
+        self.assertIn("命令行结束", text)
+
+    def test_cli_file_transfer_forwards_every_path(self):
+        result = {
+            "name": "2 个文件",
+            "size": 12,
+            "target": "192.168.1.10",
+            "targets": ["192.168.1.10"],
+            "transferred": ["192.168.1.10"],
+            "listen_ip": "192.168.1.20",
+            "port": 50000,
+            "files": ["包/a.txt", "单.txt"],
+            "file_count": 2,
+        }
+        log_path = self.test_root / "cli-multi" / "cli.log"
+        shutil.rmtree(log_path.parent, ignore_errors=True)
+        buffer = io.StringIO()
+        with patch.object(cli, "portable_cli_log_path", return_value=log_path):
+            with patch.object(cli, "transfer_file", return_value=result) as transfer:
+                with redirect_stdout(buffer):
+                    code = cli.main(
+                        [
+                            "-ip",
+                            "192.168.1.10",
+                            "--file",
+                            "包",
+                            "单.txt",
+                        ]
+                    )
+        self.assertEqual(code, 0)
+        self.assertEqual(transfer.call_args.kwargs["paths"], ["包", "单.txt"])
+        self.assertIn("文件已传送", buffer.getvalue())
+        self.assertIn("文件传送参数", log_path.read_text(encoding="utf-8"))
 
     def test_send_cli_parser_keeps_existing_options(self):
         parser = cli.build_parser()
