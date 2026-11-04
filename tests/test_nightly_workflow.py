@@ -72,7 +72,6 @@ class NightlyWorkflowTests(unittest.TestCase):
         # 资产行只留文件名，产物说明交给文档，发布说明不再重复解释。
         self.assertIn("- \\`JiYuAttackNext.exe\\`", self.workflow)
         self.assertNotIn("图形界面与命令行共用", self.workflow)
-        self.assertNotIn("## Message", self.workflow)
         self.assertNotIn("${commit_message}", self.workflow)
         self.assertNotIn("git log -1 --pretty=%B", self.workflow)
         self.assertNotIn("## 更新日志", self.workflow)
@@ -88,6 +87,21 @@ class NightlyWorkflowTests(unittest.TestCase):
             self.workflow.index("## Commits"),
             self.workflow.index("## SHA256"),
         )
+
+    def test_workflow_links_each_commit(self):
+        # 每条提交的缩写哈希都链到 commit 页面，方便从发布说明直接看改动。
+        self.assertIn("/commit/%H", self.workflow)
+        self.assertNotIn("--pretty=format:'- `%h` %s'", self.workflow)
+
+    def test_workflow_message_lists_every_commit(self):
+        # 说明小节收录范围内全部提交的完整信息，而不是只放最新一条。
+        self.assertIn("## Message", self.workflow)
+        self.assertIn("commit-messages.md", self.workflow)
+        self.assertLess(
+            self.workflow.index("## Commits"),
+            self.workflow.index("## Message"),
+        )
+        self.assertNotIn("git log -1 --pretty=%B", self.workflow)
 
     def test_workflow_publishes_unified_exe(self):
         self.assertIn("files: |", self.workflow)
