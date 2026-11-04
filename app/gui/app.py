@@ -34,6 +34,7 @@ from qfluentwidgets import (
     InfoBar,
     InfoBarPosition,
     NavigationItemPosition,
+    isDarkTheme,
     SystemTrayMenu,
     Theme,
     setTheme,
@@ -77,6 +78,7 @@ from .pages import (
     SettingsPage,
 )
 from .settings_store import STATUS_NO_ERROR
+from .window_effect import apply_acrylic, remove_acrylic
 from .workers import SendWorker, TaskWorker
 
 APP_NAME = "JiYu Attack Next"
@@ -271,6 +273,7 @@ class MainWindow(FluentWindow):
         self.titleBar.hBoxLayout.setContentsMargins(6, 0, 0, 0)
         self.setWindowIcon(app_icon())
         self._setup_tray()
+        self.blur_enabled = False
         self.mica_enabled = self._load_mica_enabled()
         self.apply_mica(self.mica_enabled)
         self.setCustomBackgroundColor("#f5f6f8", "#202020")
@@ -336,18 +339,52 @@ class MainWindow(FluentWindow):
         return bool(value)
 
     def _load_mica_enabled(self):
-        """读取云母开关，配置缺失或无法识别时使用默认值。"""
+        """读取背景模糊开关，配置缺失或无法识别时使用默认值。"""
         raw = self.settings.value(MICA_SETTINGS_KEY, None)
         return normalize_switch(raw, DEFAULT_MICA_ENABLED)
 
     def apply_mica(self, enabled):
-        """按开关状态启用或关闭云母背景。
+        """按开关状态启用或关闭窗口背景模糊。
 
         Args:
-            enabled: ``True`` 表示希望启用云母背景。
+            enabled: ``True`` 表示希望启用背景模糊。
+
+        Note:
+            实际效果是亚克力实时模糊而不是系统云母：云母只采样桌面壁纸，
+            窗口下方压着别的应用时背景不会跟着变；亚克力由 DWM 实时模糊
+            窗口下方的全部内容。库的开关名仍是 mica，它同时负责把窗口背景
+            刷成透明，两者配合模糊才能透出来。
         """
-        # 库在非 Windows 11 上会静默忽略，这里先判断一次，避免把状态当成已生效。
-        self.setMicaEffectEnabled(bool(enabled) and mica_available())
+        enabled = bool(enabled) and mica_available()
+        self.blur_enabled = enabled
+        self.setMicaEffectEnabled(enabled)
+        handle = int(self.winId())
+        if not enabled:
+            remove_acrylic(handle)
+            # 库在非 Windows 11 上会直接返回，背景色要自己恢复，否则窗口全透明。
+            self.setBackgroundColor(
+                QColor("#202020") if isDarkTheme() else QColor("#f5f6f8")
+            )
+            return
+        # 库只在 Windows 11 上把背景刷成透明，低版本要自己刷，否则亚克力被盖住。
+        self.setBackgroundColor(QColor(0, 0, 0, 0))
+        apply_acrylic(handle, isDarkTheme())
+
+    def _refresh_background_effect(self):
+        """重新应用模糊，系统在窗口显示与主题切换时会把背景重置回云母。"""
+        if not self.blur_enabled:
+            return
+        apply_acrylic(int(self.winId()), isDarkTheme())
+
+    def showEvent(self, event):
+        """窗口显示后再应用一次模糊，覆盖库在 showEvent 里设下的云母。"""
+        super().showEvent(event)
+        self._refresh_background_effect()
+
+    def _onThemeChangedFinished(self):
+        """主题切换后重新应用模糊，深浅色决定染色与标题栏明暗。"""
+        super()._onThemeChangedFinished()
+        self._refresh_background_effect()
 
     def _restore_window_geometry(self):
         """恢复上次退出时的窗口位置与大小，越界时夹回当前屏幕。"""
@@ -1267,13 +1304,13 @@ class MainWindow(FluentWindow):
 
     @Slot(bool)
     def set_mica_enabled(self, enabled):
-        """保存云母开关并立即生效，写盘失败时回滚到原状态。
+        """保存背景模糊开关并立即生效，写盘失败时回滚到原状态。
 
         Args:
             enabled: 设置页开关的目标状态。
         """
         if not mica_available():
-            self.logs.warning("设置", "当前系统不支持云母效果，已忽略开关改动")
+            self.logs.warning("设置", "当前系统不支持背景模糊，已忽略开关改动")
             self.pages["settings"].set_mica_enabled(False)
             return
         previous = self.mica_enabled
@@ -1284,7 +1321,7 @@ class MainWindow(FluentWindow):
         if self.settings.status() != STATUS_NO_ERROR:
             self.logs.error(
                 "设置",
-                "云母效果保存失败",
+                "背景模糊保存失败",
                 "设置文件：%s；状态：%s"
                 % (self.settings.file_name(), self.settings.status()),
             )
@@ -1295,7 +1332,7 @@ class MainWindow(FluentWindow):
             return
         self.logs.info(
             "设置",
-            "云母效果已更新",
+            "背景模糊已更新",
             "开关状态：%s" % ("开启" if self.mica_enabled else "关闭"),
         )
 
@@ -1488,7 +1525,7 @@ class MainWindow(FluentWindow):
         self.settings = portable_settings(self.data_dir)
         self.close_behavior = DEFAULT_CLOSE_BEHAVIOR
         self.first_close_prompt_shown = False
-        # 设置文件已删除，云母与窗口位置一并回到默认状态。
+        # 设置文件已删除，背景模糊与窗口位置一并回到默认状态。
         self.mica_enabled = DEFAULT_MICA_ENABLED
         self.apply_mica(self.mica_enabled)
         self.pages["settings"].set_mica_enabled(self.mica_enabled)

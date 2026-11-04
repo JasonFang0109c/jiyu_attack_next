@@ -79,19 +79,18 @@ def normalize_switch(value, default):
 
 
 def mica_available():
-    """判断当前系统能否绘制云母（Mica）背景。
+    """判断当前系统能否给窗口加上实时模糊的背景。
 
-    Fluent Widgets 的 ``setMicaEffectEnabled`` 只在 Windows 11（build
-    22000 及以上）生效，其余系统会静默返回；这里提前判断，让设置页能
-    明确告诉用户该开关是否可用。
+    窗口实际用的是亚克力（Acrylic），由 DWM 实时模糊窗口下方的内容；
+    它从 Windows 10 1809（build 17763）开始提供，比系统云母的适用范围更宽。
 
     Returns:
-        bool: 系统支持云母效果时为 ``True``。
+        bool: 系统支持亚克力背景时为 ``True``。
     """
     if sys.platform != "win32":
         return False
     try:
-        return sys.getwindowsversion().build >= 22000
+        return sys.getwindowsversion().build >= 17763
     except (AttributeError, ValueError):
         return False
 

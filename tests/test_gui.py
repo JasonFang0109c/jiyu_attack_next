@@ -48,7 +48,7 @@ from qfluentwidgets import (
 
 from app import core
 from app.gui import app as gui
-from app.gui import components, models
+from app.gui import components, models, window_effect
 from app.gui.pages.common import (
     CompactHeaderCheckBox,
     CompactTreeItemDelegate,
@@ -1596,7 +1596,7 @@ class GuiTests(unittest.TestCase):
                 label = row.itemAt(0).widget()
                 if isinstance(label, BodyLabel):
                     labels.append(label.text())
-        self.assertEqual(labels, ["颜色模式", "云母效果"])
+        self.assertEqual(labels, ["颜色模式", "背景模糊"])
         behavior_layout = settings_page.findChild(
             components.SectionCard, "settingsBehaviorCard"
         ).body
@@ -1614,7 +1614,7 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(settings_page.clear_data_button.isVisibleTo(settings_page))
         self.assertFalse(hasattr(self.window.pages["about"], "clear_data_button"))
 
-    def test_mica_switch_reflects_support_and_persists(self):
+    def test_blur_switch_reflects_support_and_persists(self):
         settings_page = self.window.pages["settings"]
         self.assertEqual(settings_page.theme_card.objectName(), "settingsThemeCard")
         self.assertEqual(settings_page.theme_card.borderRadius, 12)
@@ -1623,13 +1623,12 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(settings_page.mica_switch.isEnabled(), supported)
         self.assertEqual(self.window.mica_enabled, models.DEFAULT_MICA_ENABLED)
         self.assertEqual(
-            self.window.isMicaEffectEnabled(),
-            supported and models.DEFAULT_MICA_ENABLED,
+            self.window.blur_enabled, supported and models.DEFAULT_MICA_ENABLED
         )
         if supported:
             settings_page.mica_switch.setChecked(False)
             self.assertFalse(self.window.mica_enabled)
-            self.assertFalse(self.window.isMicaEffectEnabled())
+            self.assertFalse(self.window.blur_enabled)
             reloaded = models.portable_settings(self.data_dir)
             self.assertEqual(
                 models.normalize_switch(reloaded.value(models.MICA_SETTINGS_KEY), True),
@@ -1637,6 +1636,25 @@ class GuiTests(unittest.TestCase):
             )
             settings_page.mica_switch.setChecked(True)
             self.assertTrue(self.window.mica_enabled)
+            self.assertTrue(self.window.blur_enabled)
+
+    @unittest.skipUnless(sys.platform == "win32", "仅 Windows 提供亚克力背景")
+    def test_window_effect_applies_acrylic_to_widget_handle(self):
+        widget = QWidget()
+        self.addCleanup(widget.deleteLater)
+        widget.resize(320, 200)
+        widget.show()
+        QTest.qWait(10)
+        handle = int(widget.winId())
+        # 使用须知这类没有父窗口的对话框不会被替换成替身，句柄始终有效。
+        self.assertTrue(window_effect.apply_acrylic(handle, False))
+        window_effect.apply_acrylic(handle, True)
+        window_effect.remove_acrylic(handle)
+        self.assertEqual(window_effect.acrylic_tint(False) & 0x00FFFFFF, 0xF8F6F5)
+        self.assertEqual(window_effect.acrylic_tint(True) & 0x00FFFFFF, 0x202020)
+        self.assertEqual(window_effect.acrylic_tint(False, 0x10) >> 24, 0x10)
+        self.assertFalse(window_effect.apply_acrylic(0, False))
+        window_effect.remove_acrylic(0)
 
     def test_window_geometry_is_remembered_across_restarts(self):
         self.window.resize(1000, 700)

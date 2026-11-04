@@ -31,7 +31,7 @@ def setting_label(text, parent):
 
 
 class ThemeCard(SectionCard):
-    """界面主题卡片：标题行加颜色模式、云母两项设置。
+    """界面主题卡片：标题行加颜色模式、背景模糊两项设置。
 
     样式对齐关于页的仓库信息卡片，标题与设置行之间留出固定间距。
     """
@@ -39,7 +39,7 @@ class ThemeCard(SectionCard):
     HEADING_GAP = 6
 
     def __init__(self, parent=None):
-        # 行间距比普通卡片大一些，把颜色模式与云母开关分成两组。
+        # 行间距比普通卡片大一些，把颜色模式与背景模糊开关分成两组。
         super().__init__(parent, spacing=16, margins=(18, 12, 18, 12))
         self.setObjectName("settingsThemeCard")
         self.heading = BodyLabel("界面主题", self)
@@ -80,22 +80,22 @@ class SettingsPage(Page):
         theme_card.body.addLayout(theme_row)
 
         mica_row = QHBoxLayout()
-        mica_row.addWidget(setting_label("云母效果", self))
+        mica_row.addWidget(setting_label("背景模糊", self))
         mica_row.addStretch()
         self.mica_switch = SwitchButton(self)
-        self.mica_switch.setAccessibleName("云母效果")
+        self.mica_switch.setAccessibleName("背景模糊")
         self.mica_switch.setOnText("")
         self.mica_switch.setOffText("")
         self.mica_switch.setSpacing(0)
         self.mica_switch.label.hide()
         self.mica_switch.setChecked(mica_enabled)
-        # 库只在 Windows 11 上真正绘制云母，其余系统禁用开关并说明原因。
+        # 系统不支持时禁用开关并说明原因，避免用户以为改了没生效。
         self.mica_supported = mica_available()
         self.mica_switch.setEnabled(self.mica_supported)
         self.mica_switch.setToolTip(
-            "开启后窗口使用 Windows 11 云母背景，需 Windows 11（内部版本 22000 及以上）"
+            "开启后窗口背景实时模糊下方内容，包括其他应用窗口，需 Windows 10（内部版本 17763 及以上）"
             if self.mica_supported
-            else "当前系统不支持云母效果，需要 Windows 11（内部版本 22000 及以上）"
+            else "当前系统不支持背景模糊，需要 Windows 10（内部版本 17763 及以上）"
         )
         self.mica_switch.checkedChanged.connect(self._select_mica)
         mica_row.addWidget(self.mica_switch)
@@ -168,10 +168,10 @@ class SettingsPage(Page):
         self.micaRequested.emit(bool(checked))
 
     def set_mica_enabled(self, enabled):
-        """按当前配置同步云母开关，期间屏蔽开关自身的信号。
+        """按当前配置同步背景模糊开关，期间屏蔽开关自身的信号。
 
         Args:
-            enabled: ``True`` 表示启用云母背景。
+            enabled: ``True`` 表示启用背景模糊。
         """
         with QSignalBlocker(self.mica_switch):
             self.mica_switch.setChecked(bool(enabled))

@@ -64,7 +64,7 @@
     <td width="33%" valign="middle">
       <h3>⚙️ 设置</h3>
       <ul style="list-style-position: inside; padding-left: 0;">
-        <li>切换主题、云母效果与关闭行为</li>
+        <li>切换主题、背景模糊与关闭行为</li>
         <li>调整运行日志等级</li>
         <li>确认后清除本地数据</li>
       </ul>
