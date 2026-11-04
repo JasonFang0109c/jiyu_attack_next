@@ -2,6 +2,8 @@
 
 适用于本仓库全部代码、测试、构建与文档修改。以下条目按改动范围判断是否适用：只做与某节无关的改动时，跳过该节，不必为了走流程而执行。
 
+改动请尽量限制在仓库内：尽量不要修改或新建工作区（本仓库根目录）之外的文件。确有必要时先说明原因并取得确认，临时脚本与验证产物放在已被 `.gitignore` 排除的 `build/` 下，用完删除。
+
 ## 阅读范围
 
 按改动范围决定读什么，不必通读全部文档：
@@ -48,7 +50,7 @@
 - [PySide6 示例](https://github.com/zhiyiYo/PyQt-Fluent-Widgets/tree/PySide6/examples)
 
 - 以 PySide6 分支和本项目安装的 `PySide6-Fluent-Widgets` 版本为准，不套用 PyQt5/PyQt6 示例。
-- 复用 `qfluentwidgets` 已有组件、主题与样式，不重复实现。
+- 复用 `qfluentwidgets` 已有组件、主题与样式，不重复实现；亚克力与云母统一调用组件自带的 `windowEffect`，不自行用 ctypes 操作窗口材质。
 - 文档、示例与本地版本冲突时，通过导入、源码或最小测试验证后再改。
 - GUI 行为或交互变化时同步更新 [GUI 文档](docs/usage/GUI.md) 与 `tests/test_gui.py`。
 
