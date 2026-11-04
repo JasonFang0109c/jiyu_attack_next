@@ -3,8 +3,12 @@
 from PySide6.QtCore import QSize, QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QWidget
-from qfluentwidgets import CaptionLabel, IndeterminateProgressBar, SplashScreen
-from qfluentwidgets import SubtitleLabel
+from qfluentwidgets import (
+    BodyLabel,
+    IndeterminateProgressBar,
+    SplashScreen,
+    TitleLabel,
+)
 
 from .build_info import version_text
 
@@ -23,14 +27,14 @@ class AppSplashScreen(SplashScreen):
         progress: 不确定进度条，表示界面还在准备。
     """
 
-    ICON_SIZE = QSize(96, 96)
+    ICON_SIZE = QSize(128, 128)
     # 图标在窗口垂直居中位置再上抬这么多像素，给下方的文字与进度条留空间。
-    ICON_LIFT = 52
-    GROUP_GAP = 18
-    LABEL_GAP = 4
-    PROGRESS_WIDTH = 220
-    PROGRESS_MARGIN = 48
-    STATUS_GAP = 10
+    ICON_LIFT = 68
+    GROUP_GAP = 22
+    LABEL_GAP = 6
+    PROGRESS_WIDTH = 260
+    PROGRESS_MARGIN = 52
+    STATUS_GAP = 12
     # 遮罩至少停留这么久，否则构造很快时会一闪而过。
     MINIMUM_DURATION = 800
 
@@ -60,9 +64,9 @@ class AppSplashScreen(SplashScreen):
         # 遮罩是主窗口的一部分，不需要库自带的标题栏与窗口按钮。
         self.titleBar.hide()
 
-        self.title_label = SubtitleLabel(title or APP_NAME, self)
-        self.version_label = CaptionLabel(version or version_text(), self)
-        self.status_label = CaptionLabel("正在准备界面…", self)
+        self.title_label = TitleLabel(title or APP_NAME, self)
+        self.version_label = BodyLabel(version or version_text(), self)
+        self.status_label = BodyLabel("正在准备界面…", self)
         self.progress = IndeterminateProgressBar(self)
         self.progress.setFixedWidth(self.PROGRESS_WIDTH)
 
