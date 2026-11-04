@@ -1,6 +1,6 @@
 """运行日志页：筛选、勾选、导出与删除运行日志。"""
 
-from PySide6.QtCore import QSignalBlocker, Qt, Signal, Slot
+from PySide6.QtCore import QSignalBlocker, QTimer, Qt, Signal, Slot
 from PySide6.QtWidgets import QHBoxLayout, QHeaderView, QTableWidgetItem
 from qfluentwidgets import CaptionLabel, ComboBox, FluentIcon as FIF, SearchLineEdit
 
@@ -115,11 +115,18 @@ class LogPage(Page):
         store.removed.connect(self._remove_entries)
         store.cleared.connect(self._clear_entries)
         store.levelChanged.connect(self._level_changed)
+        self._scroll_timer = QTimer(self)
+        self._scroll_timer.setSingleShot(True)
+        self._scroll_timer.setInterval(0)
+        self._scroll_timer.timeout.connect(self._scroll_to_latest)
         self._suspend_filter = True
+        # 回填历史日志时先关闭重绘，整批插完再统一刷新一次。
+        self.table.setUpdatesEnabled(False)
         try:
             for entry in self.store.entries:
                 self._append_entry(entry)
         finally:
+            self.table.setUpdatesEnabled(True)
             self._suspend_filter = False
         self.apply_filter()
         self._position_header_checkbox()
@@ -146,9 +153,10 @@ class LogPage(Page):
                 "%s (%d)" % (entry.thread_name, entry.thread_id),
                 "%s:%d" % (entry.logger_name, entry.line_number),
             ]
+            tooltip = entry.as_text()
             for column, value in enumerate(values, start=1):
                 item = QTableWidgetItem(value.replace("\r", "").replace("\n", " "))
-                item.setToolTip(entry.as_text())
+                item.setToolTip(tooltip)
                 self.table.setItem(row, column, item)
         finally:
             self.table.blockSignals(False)
@@ -159,28 +167,24 @@ class LogPage(Page):
         self._meta_by_uid[entry.uid] = (
             entry.category,
             str(entry.level),
-            self._entry_search_text(entry),
+            " ".join(values).casefold(),
         )
         if self._suspend_filter:
             return
         matched = self._refresh_row(row, entry.uid)
         self._update_selection_controls()
         if matched:
-            self.table.scrollToBottom()
+            self._request_scroll()
 
-    @staticmethod
-    def _entry_search_text(entry):
-        """拼接参与搜索的字段，避免刷新筛选时再读单元格文本。"""
-        return " ".join(
-            [
-                entry.time,
-                str(entry.level),
-                entry.category,
-                entry.message,
-                "%s (%d)" % (entry.thread_name, entry.thread_id),
-                "%s:%d" % (entry.logger_name, entry.line_number),
-            ]
-        ).casefold()
+    def _request_scroll(self):
+        """登记一次滚动请求，同一批追加里只真正滚动一次。"""
+        if not self._scroll_timer.isActive():
+            self._scroll_timer.start()
+
+    def _scroll_to_latest(self):
+        """滚到最后一条记录；页面不可见时跳过，切回页面时自然定位在末尾。"""
+        if self.isVisible():
+            self.table.scrollToBottom()
 
     def _drop_row(self, row):
         """删除一行并同步行号映射，避免整表重建。"""

@@ -1635,6 +1635,7 @@ def main():
     window.quit_application()
     if window.isVisible():
         window.hide()
+    window.logs.close()
     window.deleteLater()
     # 延迟删除事件只在真实应用实例上派发：测试会用替身替换 QApplication，
     # 此前创建过的实例也可能已被销毁，此时静态调用会让 Qt 直接终止进程。

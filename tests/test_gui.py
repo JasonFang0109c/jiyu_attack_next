@@ -27,7 +27,13 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QDialog, QSystemTrayIcon, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QDialog,
+    QLabel,
+    QSystemTrayIcon,
+    QWidget,
+)
 from qfluentwidgets import (
     BodyLabel,
     CaptionLabel,
@@ -1534,6 +1540,49 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(
             models.LogStore(log_path=log_path).entries[0].level, models.LogLevel.WARNING
         )
+
+    def test_log_file_keeps_one_handle_and_flushes_each_line(self):
+        log_path = self.data_dir / models.LOG_FILE_NAME
+        store = models.LogStore(log_path=log_path)
+        try:
+            store.info("应用", "第一行")
+            handle = store._file_handle
+            self.assertIsNotNone(handle)
+            store.info("应用", "第二行")
+            # 同一个句柄跨条复用，且每条写完即可从磁盘读到。
+            self.assertIs(store._file_handle, handle)
+            self.assertFalse(handle.closed)
+            text = log_path.read_text(encoding="utf-8")
+            self.assertIn("[应用] 第一行", text)
+            self.assertIn("[应用] 第二行", text)
+        finally:
+            store.close()
+        self.assertIsNone(store._file_handle)
+
+    def test_log_page_coalesces_scroll_requests_into_one(self):
+        store = self.window.logs
+        store.clear()
+        page = self.window.pages["logs"]
+        page._scroll_timer.stop()
+        with patch.object(page.table, "scrollToBottom") as scroll:
+            for index in range(30):
+                store.info("应用", "滚动记录 %d" % index)
+            # 定时器未触发前不会逐条滚动，一批追加只滚一次。
+            self.assertEqual(scroll.call_count, 0)
+            self.assertTrue(page._scroll_timer.isActive())
+            self.application.processEvents()
+            self.assertLessEqual(scroll.call_count, 1)
+
+    def test_about_page_reuses_application_icon(self):
+        about = self.show_about_page()
+        pixmaps = [
+            label.pixmap()
+            for label in about.findChildren(QLabel)
+            if not label.pixmap().isNull()
+        ]
+        self.assertTrue(pixmaps)
+        expected = QApplication.windowIcon().pixmap(96, 96)
+        self.assertEqual(pixmaps[0].toImage(), expected.toImage())
 
     def test_settings_show_close_behavior_above_log_level(self):
         settings_page = self.window.pages["settings"]

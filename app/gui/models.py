@@ -523,7 +523,9 @@ class LogStore(QObject):
         self, parent=None, limit=2000, log_path=None, minimum_level=DEFAULT_LOG_LEVEL
     ):
         super().__init__(parent)
-        self.log_path = Path(log_path) if log_path is not None else None
+        self._log_path = None
+        self._file_handle = None
+        self.log_path = log_path
         self.storage_error = ""
         self.entries = deque(maxlen=limit)
         self._minimum_level = normalize_log_level(minimum_level)
@@ -534,6 +536,31 @@ class LogStore(QObject):
     def minimum_level(self):
         """返回当前写入阈值。"""
         return self._minimum_level
+
+    @property
+    def log_path(self):
+        """日志文件路径；改为 ``None`` 时关闭已打开的文件。"""
+        return self._log_path
+
+    @log_path.setter
+    def log_path(self, value):
+        self._close_file()
+        self._log_path = Path(value) if value is not None else None
+
+    def close(self):
+        """释放日志文件句柄；每行都已刷盘，关闭只影响句柄占用。"""
+        self._close_file()
+
+    def _close_file(self):
+        """关闭持久写入句柄；下次写日志时按需重新打开。"""
+        handle = self._file_handle
+        self._file_handle = None
+        if handle is None:
+            return
+        try:
+            handle.close()
+        except OSError:
+            pass
 
     def _load(self):
         """读取历史日志；旧版 JSONL 记录会被转换成规范文本。"""
@@ -611,26 +638,44 @@ class LogStore(QObject):
             del frame
 
     def _append_to_file(self, entry):
-        """按时间顺序追加一行；写失败只记录状态，不打断任务。"""
+        """按时间顺序追加一行；写失败只记录状态，不打断任务。
+
+        句柄跨条复用并在每条之后刷盘：重新打开文件比写一行本身贵两个数量级，
+        逐条刷盘仍能保证进程异常退出时已写入的记录不会丢。
+        """
         if self.log_path is None:
             return
         try:
-            self.log_path.parent.mkdir(parents=True, exist_ok=True)
-            with self.log_path.open("a", encoding="utf-8", newline="\n") as target:
-                target.write(entry.as_text() + "\n")
+            handle = self._file_handle
+            if handle is None:
+                self.log_path.parent.mkdir(parents=True, exist_ok=True)
+                handle = self.log_path.open("a", encoding="utf-8", newline="\n")
+                self._file_handle = handle
+            handle.write(entry.as_text() + "\n")
+            handle.flush()
         except OSError as error:
             self.storage_error = "运行日志保存失败：%s" % error
+            self._close_file()
 
     def _rewrite_file(self):
         """用当前记录整体覆盖日志文件；先写临时文件再替换，避免写坏原文件。"""
         if self.log_path is None:
             return
+        # Windows 上被打开的文件无法整体替换，重写前先释放句柄。
+        self._close_file()
         temp_path = Path(str(self.log_path) + ".tmp")
         try:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)
             text = "\n".join(entry.as_text() for entry in self.entries)
-            temp_path.write_text(text + ("\n" if text else ""), encoding="utf-8")
-            temp_path.replace(self.log_path)
+            content = text + ("\n" if text else "")
+            temp_path.write_text(content, encoding="utf-8")
+            try:
+                temp_path.replace(self.log_path)
+            except OSError:
+                # 别的实例可能仍持有该文件的追加句柄，整体替换会失败；
+                # 退回原地覆盖，追加句柄之后的写入依旧落在文件末尾。
+                self.log_path.write_text(content, encoding="utf-8")
+                temp_path.unlink(missing_ok=True)
         except OSError as error:
             self.storage_error = "运行日志更新失败：%s" % error
             try:

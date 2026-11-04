@@ -4,7 +4,14 @@ from importlib.metadata import PackageNotFoundError, version
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QVBoxLayout,
+    QWidget,
+)
 from qfluentwidgets import (
     BodyLabel,
     CaptionLabel,
@@ -136,8 +143,10 @@ class AboutPage(Page):
         hero_body = QVBoxLayout(hero)
         hero_body.setContentsMargins(20, 18, 20, 18)
         hero_body.setSpacing(10)
-        icon_path = ASSET_ROOT / "app.svg"
-        icon = QIcon(str(icon_path)).pixmap(96, 96)
+        icon = QApplication.windowIcon()
+        if icon.isNull():
+            icon = QIcon(str(ASSET_ROOT / "app.svg"))
+        icon = icon.pixmap(96, 96)
         icon_label = QLabel(hero)
         icon_label.setPixmap(icon)
         icon_label.setFixedSize(96, 96)
