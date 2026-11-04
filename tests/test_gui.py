@@ -48,7 +48,7 @@ from qfluentwidgets import (
 
 from app import core
 from app.gui import app as gui
-from app.gui import components, models, window_effect
+from app.gui import components, models, splash, window_effect
 from app.gui.pages.common import (
     CompactHeaderCheckBox,
     CompactTreeItemDelegate,
@@ -2005,6 +2005,98 @@ class UsageNoticeTests(unittest.TestCase):
         ):
             gui.main()
         window_class.return_value.show.assert_called_once_with()
+
+    def test_startup_shows_splash_before_event_loop(self):
+        with (
+            patch.object(gui, "QApplication"),
+            patch.object(gui, "configure_application"),
+            patch.object(gui, "SingleInstance"),
+            patch.object(gui, "confirm_usage_notice", return_value=True),
+            patch.object(gui, "install_exception_logging"),
+            patch.object(gui, "MainWindow"),
+            patch.object(gui, "create_splash") as create,
+        ):
+            gui.main()
+        # 遮罩必须围绕主窗口创建并启动，否则界面会在搭建期间露出半成品。
+        create.assert_called_once()
+        create.return_value.start.assert_called_once_with()
+
+
+class SplashScreenTests(unittest.TestCase):
+    """校验启动遮罩：图标、文字、跟随尺寸与关闭时机。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.application = QApplication.instance() or QApplication([])
+        gui.configure_application(cls.application)
+
+    def setUp(self):
+        gui.setTheme(Theme.LIGHT)
+        self.parent = QWidget()
+        self.parent.resize(1180, 780)
+        self.parent.show()
+        self.addCleanup(self.parent.deleteLater)
+
+    def create(self, **kwargs):
+        screen = splash.create_splash(self.parent, **kwargs)
+        self.addCleanup(screen.deleteLater)
+        return screen
+
+    def test_splash_uses_project_icon_and_hides_title_bar(self):
+        screen = self.create()
+        screen.start()
+        self.application.processEvents()
+        # 库自带的标题栏会露出最小化/最大化/关闭按钮，遮罩必须盖掉。
+        self.assertFalse(screen.titleBar.isVisible())
+        self.assertFalse(screen.icon().isNull())
+        self.assertEqual(screen.iconSize(), splash.AppSplashScreen.ICON_SIZE)
+        self.assertEqual(screen.title_label.text(), gui.APP_NAME)
+        self.assertEqual(screen.version_label.text(), gui.version_text())
+        self.assertTrue(screen.isVisible())
+
+    def test_splash_follows_parent_size(self):
+        screen = self.create()
+        screen.start()
+        self.application.processEvents()
+        self.assertEqual(screen.size(), self.parent.size())
+        self.parent.resize(980, 640)
+        self.application.processEvents()
+        self.assertEqual(screen.size(), self.parent.size())
+        # 图标与文字都必须落在遮罩内，缩小时不能被裁到外面。
+        for widget in (
+            screen.iconWidget,
+            screen.title_label,
+            screen.version_label,
+            screen.status_label,
+            screen.progress,
+        ):
+            self.assertGreaterEqual(widget.geometry().top(), 0, widget.objectName())
+            self.assertLessEqual(widget.geometry().bottom(), screen.height())
+
+    def test_splash_finish_is_idempotent(self):
+        screen = self.create(minimum_duration=10_000)
+        screen.start()
+        self.application.processEvents()
+        self.assertFalse(screen.is_finished())
+        screen.finish()
+        self.assertTrue(screen.is_finished())
+        self.assertFalse(screen.isVisible())
+        # 再调一次不应抛异常，也不应重复关闭。
+        screen.finish()
+        self.assertTrue(screen.is_finished())
+
+    def test_splash_closes_after_minimum_duration(self):
+        screen = self.create(minimum_duration=10)
+        screen.start()
+        deadline = time.monotonic() + 5
+        while not screen.is_finished() and time.monotonic() < deadline:
+            QTest.qWait(10)
+        self.assertTrue(screen.is_finished())
+        self.assertFalse(screen.isVisible())
+
+    def test_create_splash_ignores_non_widget(self):
+        # 测试会把主窗口整体替换成替身，此时不应尝试创建遮罩。
+        self.assertIsNone(splash.create_splash(object()))
 
 
 class SingleInstanceTests(unittest.TestCase):

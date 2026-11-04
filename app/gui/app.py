@@ -84,6 +84,7 @@ from .pages import (
     SettingsPage,
 )
 from .settings_store import STATUS_NO_ERROR
+from .splash import create_splash
 from .window_effect import apply_acrylic, apply_mica, clear_material
 from .workers import SendWorker, TaskWorker
 
@@ -1686,7 +1687,12 @@ def main():
     # 仅靠 Qt 的“最后一个窗口关闭”规则不足以让 exec() 返回。
     window.quitRequested.connect(application.quit)
     install_exception_logging(window.logs)
+    # 遮罩在窗口显示前创建：它会自动跟随父窗口尺寸并置顶，
+    # 界面搭建期间的半成品布局不会露出来。
+    splash = create_splash(window)
     window.show()
+    if splash is not None:
+        splash.start()
     window.logs.info(
         "应用",
         "主窗口已显示，进入事件循环",
