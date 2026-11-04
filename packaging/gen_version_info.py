@@ -19,6 +19,7 @@ from PyInstaller.utils.win32.versioninfo import (
 
 PRODUCT_NAME = "Class management by Mythware Student Side Program"
 INTERNAL_NAME = "JiYuAttackNext"
+LEGAL_COPYRIGHT = "Copyright (C) 2026 JasonFang0109c. Licensed under GPL-3.0-or-later."
 
 
 def numeric_parts(version):
@@ -44,6 +45,7 @@ def build_version_info(version):
                             StringStruct("FileDescription", PRODUCT_NAME),
                             StringStruct("FileVersion", version),
                             StringStruct("InternalName", INTERNAL_NAME),
+                            StringStruct("LegalCopyright", LEGAL_COPYRIGHT),
                             StringStruct("OriginalFilename", INTERNAL_NAME + ".exe"),
                             StringStruct("ProductName", PRODUCT_NAME),
                             StringStruct("ProductVersion", version),

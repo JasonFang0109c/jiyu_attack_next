@@ -19,6 +19,7 @@ jiyu_attack_next/
 |       |-- nightly-build.yml     # Nightly 构建与滚动预发布
 |       `-- release.yml           # 正式版发布（仅手动触发）
 |-- README.md                     # 基础介绍与文档导航
+|-- LICENSE                       # GNU General Public License v3.0
 |-- requirements.txt              # GUI 与构建依赖
 |-- requirements-dev.txt          # 本地开发工具（ruff）
 |-- pyproject.toml                # ruff 格式化与 lint 配置

@@ -200,6 +200,15 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(about.component_card.objectName(), "aboutDetailCard")
         self.assertIn("PySide6", about.component_card.rows)
         self.assertIn("PySide6-Fluent-Widgets", about.component_card.rows)
+        self.assertEqual(about.license_card.heading.text(), "许可信息")
+        self.assertEqual(
+            about.license_card.rows["license"].text(),
+            "GNU General Public License v3.0",
+        )
+        self.assertEqual(
+            about.license_card.rows["license"].getUrl().toString(),
+            "https://www.gnu.org/licenses/gpl-3.0.html",
+        )
         self.assertNotIn(
             "组件版本", [label.text() for label in about.findChildren(BodyLabel)]
         )
@@ -213,7 +222,12 @@ class GuiTests(unittest.TestCase):
 
     def test_about_detail_rows_share_uniform_height(self):
         about = self.show_about_page()
-        cards = (about.repository_card, about.version_card, about.component_card)
+        cards = (
+            about.repository_card,
+            about.version_card,
+            about.component_card,
+            about.license_card,
+        )
         row_height = about.repository_card.row_height()
         for card in cards:
             heights = {widget.height() for widget in card.rows.values()}
@@ -225,7 +239,12 @@ class GuiTests(unittest.TestCase):
 
     def test_about_links_are_not_clipped(self):
         about = self.show_about_page()
-        for card in (about.repository_card, about.version_card, about.component_card):
+        for card in (
+            about.repository_card,
+            about.version_card,
+            about.component_card,
+            about.license_card,
+        ):
             for widget in card.rows.values():
                 # 下划线位于按钮下缘，高度小于 sizeHint 就会被裁掉。
                 self.assertGreaterEqual(

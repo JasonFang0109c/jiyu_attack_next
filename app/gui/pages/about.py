@@ -222,6 +222,21 @@ class AboutPage(Page):
         ]:
             self.component_card.add_row(package, title_text, package_version(package))
         content.addWidget(self.component_card)
+
+        self.license_card = AboutDetailCard("许可信息", content_host)
+        self.license_card.add_row(
+            "license",
+            "许可证",
+            "GNU General Public License v3.0",
+            url="https://www.gnu.org/licenses/gpl-3.0.html",
+            icon=FIF.LINK,
+        )
+        self.license_card.add_row(
+            "copyright",
+            "版权所有",
+            "Copyright (C) 2026 JasonFang0109c",
+        )
+        content.addWidget(self.license_card)
         content.addStretch()
         scroll.setWidget(content_host)
         # 必须在 setWidget 之后调用：transparent 背景要同时作用于滚动区域
