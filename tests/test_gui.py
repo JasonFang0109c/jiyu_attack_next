@@ -41,6 +41,7 @@ from qfluentwidgets import (
     FluentWindow,
     HyperlinkButton,
     SmoothScrollArea,
+    StrongBodyLabel,
     Theme,
     ToolTip,
     qconfig,
@@ -150,6 +151,15 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.state.values["port"], 4705)
         self.assertEqual(self.window.logs.minimum_level, models.LogLevel.INFO)
         self.assertIn("0 / 163", self.command.statistics.text())
+
+    def test_application_font_stack_matches_component_fonts(self):
+        # 组件库控件按 getFont 取字体，QApplication 的字体管不到它们，
+        # 两处必须给同一个字体栈，否则中文与西文会混用不同字族。
+        families = gui.font_families()
+        self.assertTrue(families)
+        self.assertEqual(qconfig.get(qconfig.fontFamilies), families)
+        self.assertEqual(self.application.font().families(), families)
+        self.assertEqual(StrongBodyLabel().font().families(), families)
 
     def test_idle_status_is_hidden_and_about_page_has_project_info(self):
         self.assertFalse(self.message.footer.status.isVisible())

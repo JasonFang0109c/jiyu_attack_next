@@ -23,7 +23,7 @@ from PySide6.QtCore import (
     Signal,
     Slot,
 )
-from PySide6.QtGui import QColor, QDesktopServices, QFont, QIcon
+from PySide6.QtGui import QColor, QDesktopServices, QFont, QFontDatabase, QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QFileDialog, QSystemTrayIcon
 from qfluentwidgets import (
@@ -37,6 +37,7 @@ from qfluentwidgets import (
     SystemTrayMenu,
     Theme,
     isDarkTheme,
+    setFontFamilies,
     setTheme,
     setThemeColor,
 )
@@ -232,9 +233,31 @@ class SingleInstance(QObject):
         self.primary = False
 
 
+# Win11 的 Fluent 字体是 Segoe UI Variable，Win10 只有 Segoe UI；
+# 中文统一回落到微软雅黑 UI，避免两种字混排时基线不一致。
+LATIN_FONT_CANDIDATES = ("Segoe UI Variable Text", "Segoe UI")
+CHINESE_FONT = "Microsoft YaHei UI"
+CJK_FONT_CANDIDATES = ("Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC")
+
+
+def font_families():
+    """按系统已装字体给出界面字体栈，缺失的候选会被跳过。"""
+    installed = set(QFontDatabase.families())
+    families = [name for name in LATIN_FONT_CANDIDATES if name in installed]
+    families.extend(name for name in CJK_FONT_CANDIDATES if name in installed)
+    return families or [CHINESE_FONT]
+
+
 def configure_application(application):
     """设置全局字体、中文区域与默认主题色。"""
-    application.setFont(QFont("Microsoft YaHei UI", 10))
+    families = font_families()
+    # 组件库的控件字号由 getFont 统一给出，字体栈必须同步设进去，
+    # 否则只有没显式设字体的控件会用上面的 QApplication 字体。
+    setFontFamilies(families)
+    default_font = QFont()
+    default_font.setFamilies(families)
+    default_font.setPointSize(10)
+    application.setFont(default_font)
     # 应用级图标会让使用须知等在主窗口之前出现的对话框也用同一个任务栏图标。
     application.setWindowIcon(app_icon())
     locale = QLocale(QLocale.Chinese, QLocale.China)
