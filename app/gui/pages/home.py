@@ -15,7 +15,7 @@ from qfluentwidgets import (
     SimpleCardWidget,
     SmoothScrollArea,
     StrongBodyLabel,
-    TitleLabel,
+    SubtitleLabel,
 )
 from qfluentwidgets import (
     FluentIcon as FIF,
@@ -200,7 +200,9 @@ class HomePage(Page):
 
         self.cards = {}
         for section, entries in SECTIONS:
-            content.addWidget(TitleLabel(section, host))
+            # 分组标题与各页顶部的页标题同样使用 SubtitleLabel，
+            # 免得首页看起来比功能页的标题层级更高。
+            content.addWidget(SubtitleLabel(section, host))
             # 两列排布与官方 Gallery 一致，单卡宽度足够放下说明文字。
             grid = QGridLayout()
             grid.setSpacing(12)
