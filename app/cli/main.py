@@ -116,7 +116,7 @@ def build_parser():
         const=10,
         type=int,
         metavar="SECONDS",
-        help="发送教师端宣告并监听 SECONDS 秒，默认 10 秒",
+        help="以教师端模拟身份发送宣告并监听 SECONDS 秒，默认 10 秒",
     )
     action_group.add_argument(
         "--students",
@@ -150,7 +150,11 @@ def build_parser():
         help="黑屏中间显示的提示",
     )
     parser.add_argument(
-        "--channel", type=int, default=1, metavar="N", help="教师端会话频道，默认 1"
+        "--channel",
+        type=int,
+        default=1,
+        metavar="N",
+        help="教师端模拟的会话频道，默认 1",
     )
     parser.add_argument(
         "--teacher-name",
@@ -426,7 +430,7 @@ def run_action(arguments):
         duration = (
             arguments.announce if arguments.announce is not None else arguments.students
         )
-        print("正在发送教师端宣告，监听 %d 秒…" % duration, flush=True)
+        print("正在以教师端模拟身份发送宣告，监听 %d 秒…" % duration, flush=True)
         records = collect_students(
             duration=duration,
             channel=arguments.channel,
@@ -436,7 +440,7 @@ def run_action(arguments):
         )
         if not records:
             print("未发现学生机；请确认与学生端在同一网段，且频道一致")
-            log.warning("未发现学生机", "教师端", "监听 %d 秒" % duration)
+            log.warning("未发现学生机", "教师端模拟", "监听 %d 秒" % duration)
             return True
         for record in records:
             info = record.get("info") or {}
@@ -460,7 +464,7 @@ def run_action(arguments):
                 print("  %s（%d）" % (label, len(entries)))
                 for identifier, name in entries:
                     print("    %-10s %s" % (identifier, name))
-        log.info("教师端查询完成", "教师端", "学生数：%d" % len(records))
+        log.info("教师端模拟查询完成", "教师端模拟", "学生数：%d" % len(records))
         return True
 
     action = build_action_payload(arguments)

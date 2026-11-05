@@ -403,6 +403,23 @@ class GuiTests(unittest.TestCase):
             remote, ["文本消息", "文件传送", "设备操作", "远程命令", "设备备注"]
         )
 
+    def test_application_command_is_nested_under_students(self):
+        # 应用命令依赖教师端模拟会话，因此挂在学生信息下面作为子项。
+        panel = self.window.navigationInterface.panel
+        self.assertEqual(panel.items["appcmd"].parentRouteKey, "students")
+        students = panel.items["students"].widget
+        self.assertIn("应用命令", [child.text() for child in students.treeChildren])
+
+    def test_switching_to_child_page_expands_its_parent(self):
+        panel = self.window.navigationInterface.panel
+        students = panel.items["students"].widget
+        students.setExpanded(False, ani=False)
+        self.window.show_page("appcmd")
+        self.assertTrue(students.isExpanded)
+        # 窗口未显示时 isVisible 恒为假，这里看是否被显式隐藏。
+        self.assertTrue(all(not child.isHidden() for child in students.treeChildren))
+        self.assertEqual(self.window.current_page(), "appcmd")
+
     def test_home_page_lists_shortcuts_and_function_cards(self):
         home = self.window.pages["home"]
         self.assertEqual(home.objectName(), "home")

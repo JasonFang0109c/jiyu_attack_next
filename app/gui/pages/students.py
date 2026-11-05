@@ -34,6 +34,8 @@ class StudentsPage(Page):
     def __init__(self, parent=None):
         super().__init__("students", parent)
         page_heading(self.vbox, "学生信息")
+        # 这一页扮演教师端，标题下先说清身份，免得和真实教师机混淆。
+        self.vbox.addWidget(BodyLabel("教师端模拟：向学生端宣告并发起登录握手。", self))
 
         config_row = QHBoxLayout()
         config_row.addWidget(BodyLabel("频道", self))
@@ -54,7 +56,7 @@ class StudentsPage(Page):
         self.content_card = SectionCard(self)
         self.content_card.body.addWidget(
             BodyLabel(
-                "点“发现学生”会发送教师端宣告并监听登录请求，"
+                "点“发现学生”会以教师端模拟身份发送宣告并监听登录请求，"
                 "收到登录后自动应答并拉取系统信息。",
                 self.content_card,
             )

@@ -600,10 +600,13 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.pages["device"], FIF.POWER_BUTTON, "设备操作")
         self.addSubInterface(self.pages["command"], FIF.COMMAND_PROMPT, "远程命令")
         self.addSubInterface(self.pages["aliases"], FIF.QUICK_NOTE, "设备备注")
-        self.addSubInterface(self.pages["appcmd"], FIF.ROBOT, "应用命令")
         self.navigationInterface.addSeparator()
-        self.navigationInterface.addItemHeader("教师端")
+        self.navigationInterface.addItemHeader("教师端模拟")
         self.addSubInterface(self.pages["students"], FIF.PEOPLE, "学生信息")
+        # 应用命令只在教师端模拟的会话建立后才有意义，挂到学生信息下面当子项。
+        self.addSubInterface(
+            self.pages["appcmd"], FIF.ROBOT, "应用命令", parent="students"
+        )
         self.navigationInterface.addSeparator()
         self.navigationInterface.addItemHeader("本机工具")
         self.addSubInterface(self.pages["local"], FIF.IOT, "本机信息")
@@ -662,8 +665,19 @@ class MainWindow(FluentWindow):
             QDesktopServices.openUrl(QUrl(url))
 
     def show_page(self, key):
-        """切换到指定页面。"""
-        self.switchTo(self.pages[key])
+        """切换到指定页面，并展开它所属的父级导航项。"""
+        # 应用命令挂在学生信息下面，直接切过去时父项仍是收起的，
+        # 侧边栏看不出当前位置，所以先把父项展开。
+        page = self.pages[key]
+        parent_key = getattr(page, "parentRouteKey", None) or getattr(
+            self.navigationInterface.panel.items.get(key), "parentRouteKey", None
+        )
+        node = getattr(
+            self.navigationInterface.panel.items.get(parent_key), "widget", None
+        )
+        if node is not None and not node.isExpanded:
+            node.setExpanded(True, ani=False)
+        self.switchTo(page)
 
     def current_page(self):
         """返回当前页面名。"""
@@ -1104,7 +1118,7 @@ class MainWindow(FluentWindow):
         )
 
     def start_student_scan(self):
-        """发送教师端宣告并监听登录，收集学生机信息。"""
+        """以教师端模拟身份发送宣告并监听登录，收集学生机信息。"""
         if self.thread is not None:
             self.logs.warning(
                 "学生信息",
@@ -1115,7 +1129,7 @@ class MainWindow(FluentWindow):
         page = self.pages["students"]
         self.logs.info(
             "学生信息",
-            "开始发送教师端宣告",
+            "开始以教师端模拟身份发送宣告",
             "频道：%d；教师名：%s"
             % (page.channel_input.value(), page.teacher_input.text().strip() or "1"),
         )
