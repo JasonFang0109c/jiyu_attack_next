@@ -10,14 +10,18 @@ from ..core import (
     FIREWALL_HELPER_ARGUMENT,
     LOGOFF_COMMAND,
     __version__,
+    appcmd,
     basicCMD,
     cli_log,
+    collect_students,
     format_size,
+    get_ip,
     local_ip_and_ports,
     pkg_sendlist,
     portable_cli_log_path,
     read_message,
     request_firewall_rule,
+    run_app_operation,
     run_firewall_helper,
     send_tracked,
     split_message,
@@ -76,6 +80,84 @@ def build_parser():
         type=str,
         choices=["r", "s", "l", "g", "break", "continue"],
         help="Extra Options加载额外的选项 eg：-e r；-e l 注销",
+    )
+    action_group = parser.add_mutually_exclusive_group()
+    action_group.add_argument(
+        "--run",
+        metavar="PATH",
+        help="在目标电脑上运行指定程序（应用命令 0x0F）",
+    )
+    action_group.add_argument(
+        "--url", metavar="URL", help="在目标电脑上打开网址（应用命令 0x18）"
+    )
+    action_group.add_argument(
+        "--kill", type=int, metavar="PID", help="结束目标电脑上的指定进程（MESS）"
+    )
+    action_group.add_argument(
+        "--blackscreen",
+        nargs="?",
+        const=10,
+        type=int,
+        metavar="SECONDS",
+        help="黑屏并按 SECONDS 秒自动解除，默认 10 秒",
+    )
+    action_group.add_argument(
+        "--unlock", action="store_true", help="解除目标电脑的黑屏与键鼠锁"
+    )
+    action_group.add_argument(
+        "--exit-student", action="store_true", help="让目标电脑退出学生端"
+    )
+    action_group.add_argument(
+        "--close-apps", action="store_true", help="关闭目标电脑上的所有程序"
+    )
+    action_group.add_argument(
+        "--announce",
+        nargs="?",
+        const=10,
+        type=int,
+        metavar="SECONDS",
+        help="发送教师端宣告并监听 SECONDS 秒，默认 10 秒",
+    )
+    action_group.add_argument(
+        "--students",
+        nargs="?",
+        const=8,
+        type=int,
+        metavar="SECONDS",
+        help="发现学生机并拉取信息、进程与窗口，默认监听 8 秒",
+    )
+    parser.add_argument(
+        "--run-args", type=str, default="", metavar="TEXT", help="--run 的启动参数"
+    )
+    parser.add_argument(
+        "--run-show",
+        type=int,
+        default=0,
+        choices=[0, 1, 2],
+        metavar="MODE",
+        help="--run 的窗口状态：0 正常、1 最小化、2 最大化",
+    )
+    parser.add_argument(
+        "--no-lock",
+        action="store_true",
+        help="--blackscreen 只黑屏，不锁定键盘与鼠标",
+    )
+    parser.add_argument(
+        "--blackout-text",
+        type=str,
+        default="",
+        metavar="TEXT",
+        help="黑屏中间显示的提示",
+    )
+    parser.add_argument(
+        "--channel", type=int, default=1, metavar="N", help="教师端会话频道，默认 1"
+    )
+    parser.add_argument(
+        "--teacher-name",
+        type=str,
+        default="1",
+        metavar="NAME",
+        help="学生端显示的教师名",
     )
     return parser
 
@@ -294,11 +376,122 @@ def log_arguments(arguments):
     )
 
 
+def build_action_payload(arguments):
+    """按 CLI 动作参数生成应用命令负载与投递通道。
+
+    Returns:
+        tuple | None: ``(动作名, 负载, 通道, 补发负载)``；没有动作参数时为
+        ``None``。补发负载仅黑屏锁键鼠使用。
+
+    Raises:
+        ValueError: 同一调用里给了多个动作参数。
+    """
+    if arguments.run:
+        return (
+            "远程运行程序",
+            appcmd.run_program_payload(
+                arguments.run, arguments.run_args, arguments.run_show
+            ),
+            "comd",
+            None,
+        )
+    if arguments.url:
+        url = arguments.url if "://" in arguments.url else "http://" + arguments.url
+        return "打开网址", appcmd.open_url_payload(url), "comd", None
+    if arguments.kill is not None:
+        return "终止进程", appcmd.kill_payload(process_id=arguments.kill), "mess", None
+    if arguments.blackscreen is not None:
+        lock = not arguments.no_lock
+        return (
+            "黑屏并锁定键鼠" if lock else "黑屏",
+            appcmd.blackscreen_mess_payload(
+                lock, arguments.blackscreen, arguments.blackout_text
+            ),
+            "session",
+            appcmd.blackscreen_payload(lock, arguments.blackscreen) if lock else None,
+        )
+    if arguments.unlock:
+        return "解除黑屏", appcmd.unlock_payload(), "session", None
+    if arguments.exit_student:
+        return "退出学生端", appcmd.exit_student_payload(), "comd", None
+    if arguments.close_apps:
+        return "关闭所有程序", appcmd.close_apps_payload(), "comd", None
+    return None
+
+
+def run_action(arguments):
+    """执行应用命令、宣告或学生信息查询，返回是否已处理本次调用。"""
+    log = cli_log.LOG
+    if arguments.announce is not None or arguments.students is not None:
+        duration = (
+            arguments.announce if arguments.announce is not None else arguments.students
+        )
+        print("正在发送教师端宣告，监听 %d 秒…" % duration, flush=True)
+        records = collect_students(
+            duration=duration,
+            channel=arguments.channel,
+            teacher_name=arguments.teacher_name,
+            port=arguments.p,
+            report=print,
+        )
+        if not records:
+            print("未发现学生机；请确认与学生端在同一网段，且频道一致")
+            log.warning("未发现学生机", "教师端", "监听 %d 秒" % duration)
+            return True
+        for record in records:
+            info = record.get("info") or {}
+            print(
+                "\n[学生] %s  %s  用户：%s  系统：%s %s  CPU：%s %s  内存：%s"
+                % (
+                    record.get("address", ""),
+                    info.get("name", "未知"),
+                    info.get("user", "未知"),
+                    info.get("os", ""),
+                    info.get("os_version", ""),
+                    info.get("cpu_vendor", ""),
+                    info.get("cpu_model", ""),
+                    info.get("memory", ""),
+                )
+            )
+            for section, label in (("processes", "进程"), ("windows", "窗口")):
+                entries = record.get(section) or []
+                if not entries:
+                    continue
+                print("  %s（%d）" % (label, len(entries)))
+                for identifier, name in entries:
+                    print("    %-10s %s" % (identifier, name))
+        log.info("教师端查询完成", "教师端", "学生数：%d" % len(records))
+        return True
+
+    action = build_action_payload(arguments)
+    if action is None:
+        return False
+    name, payload, channel, lock = action
+    hosts = get_ip(arguments.ip)
+    print("开始%s，目标 %d 个" % (name, len(hosts)), flush=True)
+    result = run_app_operation(
+        hosts,
+        payload,
+        channel=channel,
+        port=arguments.p,
+        session_channel=arguments.channel,
+        report=print,
+        lock_payload=lock,
+    )
+    print("%s完成：%d 台目标，共发送 %d 字节" % (name, result["hosts"], result["sent"]))
+    log.info(
+        name, "应用命令", "目标：%d 台；字节：%d" % (result["hosts"], result["sent"])
+    )
+    return True
+
+
 def run_from_cmd(arguments):
     """校验参数并分发 CLI 请求。"""
     log_arguments(arguments)
     log = cli_log.LOG
     try:
+        if run_action(arguments):
+            return
         single_command(arguments)
         if arguments.e in {"g", "break", "continue"}:
             return
