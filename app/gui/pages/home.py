@@ -35,18 +35,22 @@ class ShortcutCard(SimpleCardWidget):
 
     MINIMUM_WIDTH = 176
     ICON_SIZE = 40
+    # 图标四周的留白取同一个值，上、下、左三边看起来才一样宽。
+    PADDING = 26
 
     def __init__(self, icon, title, description, parent=None):
         super().__init__(parent)
         self.setBorderRadius(CORNER_RADIUS)
         self.setClickEnabled(True)
         self.setMinimumWidth(self.MINIMUM_WIDTH)
-        self.setMinimumHeight(150)
+        self.setMinimumHeight(176)
         self.setCursor(Qt.PointingHandCursor)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 16, 18, 14)
-        layout.setSpacing(8)
+        layout.setContentsMargins(
+            self.PADDING, self.PADDING, self.PADDING, self.PADDING
+        )
+        layout.setSpacing(10)
         self.icon_widget = IconWidget(icon, self)
         self.icon_widget.setFixedSize(self.ICON_SIZE, self.ICON_SIZE)
         layout.addWidget(self.icon_widget)
