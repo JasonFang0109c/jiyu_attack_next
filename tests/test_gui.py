@@ -40,6 +40,7 @@ from qfluentwidgets import (
     Dialog,
     FluentWindow,
     HyperlinkButton,
+    NavigationItemHeader,
     SmoothScrollArea,
     StrongBodyLabel,
     Theme,
@@ -388,36 +389,54 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.message.editor.toPlainText(), "测试通知")
         self.assertEqual(self.command.editor.toPlainText(), "whoami")
 
-    def test_navigation_lists_remote_pages_in_send_and_control_order(self):
-        # 远程操作按使用频率排列，文件传送紧跟文本消息，设备备注收尾。
-        order = [
-            item.widget.text()
-            for item in self.window.navigationInterface.panel.items.values()
-            if item.widget is not None
+    def test_navigation_groups_pages_in_expected_order(self):
+        # 分组顺序固定：远程操作、教师端模拟、设备备注、本机工具。
+        panel = self.window.navigationInterface.panel
+        top = [
+            item.routeKey
+            for item in panel.items.values()
+            if not item.parentRouteKey
+            and item.routeKey not in ("logs", "settings", "about")
         ]
-        # 首页单独排在分组之前，其余五页仍按使用频率排列。
-        home = order[:1]
-        self.assertEqual(home, ["首页"])
-        remote = order[1:6]
         self.assertEqual(
-            remote, ["文本消息", "文件传送", "设备操作", "远程命令", "设备备注"]
+            top,
+            [
+                "home",
+                "group_remote",
+                "group_teacher",
+                "aliases",
+                "group_local",
+            ],
+        )
+        self.assertEqual(
+            [child.text() for child in panel.widget("group_remote").treeChildren],
+            ["文本消息", "文件传送", "设备操作", "远程命令"],
+        )
+        self.assertEqual(
+            [child.text() for child in panel.widget("group_teacher").treeChildren],
+            ["应用命令", "学生信息"],
+        )
+        self.assertEqual(
+            [child.text() for child in panel.widget("group_local").treeChildren],
+            ["本机信息", "防火墙"],
         )
 
-    def test_application_command_is_nested_under_students(self):
-        # 应用命令依赖教师端模拟会话，因此挂在学生信息下面作为子项。
-        panel = self.window.navigationInterface.panel
-        self.assertEqual(panel.items["appcmd"].parentRouteKey, "students")
-        students = panel.items["students"].widget
-        self.assertIn("应用命令", [child.text() for child in students.treeChildren])
+    def test_navigation_groups_have_no_header_text(self):
+        # 分组靠缩进表达层级，侧边栏不再出现灰色小字分类标题。
+        headers = [
+            widget.text()
+            for widget in self.window.navigationInterface.panel.findChildren(
+                NavigationItemHeader
+            )
+        ]
+        self.assertEqual(headers, [])
 
-    def test_switching_to_child_page_expands_its_parent(self):
+    def test_switching_to_child_page_expands_its_group(self):
         panel = self.window.navigationInterface.panel
-        students = panel.items["students"].widget
-        students.setExpanded(False, ani=False)
+        group = panel.widget("group_teacher")
+        group.setExpanded(False, ani=False)
         self.window.show_page("appcmd")
-        self.assertTrue(students.isExpanded)
-        # 窗口未显示时 isVisible 恒为假，这里看是否被显式隐藏。
-        self.assertTrue(all(not child.isHidden() for child in students.treeChildren))
+        self.assertTrue(group.isExpanded)
         self.assertEqual(self.window.current_page(), "appcmd")
 
     def test_home_page_lists_shortcuts_and_function_cards(self):

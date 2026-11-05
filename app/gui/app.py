@@ -278,6 +278,43 @@ def app_icon():
     return QIcon(str(resource_root / "assets" / "app.svg"))
 
 
+# 侧边栏分组：分组节点只用于承载子页面，不再额外插入灰色小标题。
+# 设备备注插在「教师端模拟」之后、「本机工具」之前。
+NAVIGATION_ALIASES_AFTER = "group_teacher"
+
+NAVIGATION_GROUPS = (
+    (
+        "group_remote",
+        FIF.GLOBE,
+        "远程操作",
+        (
+            ("message", FIF.MESSAGE, "文本消息"),
+            ("file", FIF.SEND, "文件传送"),
+            ("device", FIF.POWER_BUTTON, "设备操作"),
+            ("command", FIF.COMMAND_PROMPT, "远程命令"),
+        ),
+    ),
+    (
+        "group_teacher",
+        FIF.CONNECT,
+        "教师端模拟",
+        (
+            ("appcmd", FIF.ROBOT, "应用命令"),
+            ("students", FIF.PEOPLE, "学生信息"),
+        ),
+    ),
+    (
+        "group_local",
+        FIF.DEVELOPER_TOOLS,
+        "本机工具",
+        (
+            ("local", FIF.IOT, "本机信息"),
+            ("firewall", FIF.CERTIFICATE, "防火墙"),
+        ),
+    ),
+)
+
+
 class MainWindow(FluentWindow):
     """主窗口：持有连接状态、日志与全部页面，并串行调度后台任务。
 
@@ -594,23 +631,12 @@ class MainWindow(FluentWindow):
         self.navigationInterface.setReturnButtonVisible(False)
         self.addSubInterface(self.pages["home"], FIF.HOME, "首页")
         self.navigationInterface.addSeparator()
-        self.navigationInterface.addItemHeader("远程操作")
-        self.addSubInterface(self.pages["message"], FIF.MESSAGE, "文本消息")
-        self.addSubInterface(self.pages["file"], FIF.SEND, "文件传送")
-        self.addSubInterface(self.pages["device"], FIF.POWER_BUTTON, "设备操作")
-        self.addSubInterface(self.pages["command"], FIF.COMMAND_PROMPT, "远程命令")
-        self.addSubInterface(self.pages["aliases"], FIF.QUICK_NOTE, "设备备注")
+        for route, icon, title, children in NAVIGATION_GROUPS:
+            self._add_navigation_group(route, icon, title, children)
+            if route == NAVIGATION_ALIASES_AFTER:
+                # 设备备注是独立入口，位置在教师端模拟与本机工具之间。
+                self.addSubInterface(self.pages["aliases"], FIF.QUICK_NOTE, "设备备注")
         self.navigationInterface.addSeparator()
-        self.navigationInterface.addItemHeader("教师端模拟")
-        self.addSubInterface(self.pages["students"], FIF.PEOPLE, "学生信息")
-        # 应用命令只在教师端模拟的会话建立后才有意义，挂到学生信息下面当子项。
-        self.addSubInterface(
-            self.pages["appcmd"], FIF.ROBOT, "应用命令", parent="students"
-        )
-        self.navigationInterface.addSeparator()
-        self.navigationInterface.addItemHeader("本机工具")
-        self.addSubInterface(self.pages["local"], FIF.IOT, "本机信息")
-        self.addSubInterface(self.pages["firewall"], FIF.CERTIFICATE, "防火墙")
         self.addSubInterface(
             self.pages["logs"], FIF.HISTORY, "运行日志", NavigationItemPosition.BOTTOM
         )
@@ -621,6 +647,47 @@ class MainWindow(FluentWindow):
             self.pages["about"], FIF.INFO, "关于", NavigationItemPosition.BOTTOM
         )
         self.navigationInterface.expand(useAni=False)
+        self._fit_navigation_groups()
+        # 侧边栏收起再展开时库会重设每个分组的高度，这里补一次，避免子项叠在一起。
+        self.navigationInterface.panel.displayModeChanged.connect(
+            lambda _mode: self._fit_navigation_groups()
+        )
+
+    def _fit_navigation_groups(self):
+        """让分组高度与其子项数量一致。
+
+        expand() 会把每个导航项重新压成单行高度，子项因此叠在一起，
+        所以展开之后再按布局的实际尺寸把分组撑开。
+        """
+        for route, _icon, _title, _children in NAVIGATION_GROUPS:
+            node = self.navigationInterface.panel.widget(route)
+            node.vBoxLayout.activate()
+            if node.isExpanded:
+                node.setFixedSize(node.sizeHint())
+            else:
+                node.setFixedHeight(node.itemWidget.height())
+        self.navigationInterface.setMinimumHeight(
+            self.navigationInterface.panel.layoutMinHeight()
+        )
+
+    def _add_navigation_group(self, route, icon, title, children):
+        """创建一个只承载子项的分组节点，并按其顺序挂上子页面。"""
+        # 分组本身不是页面，所以不可选中，点击只切换展开状态。
+        self.navigationInterface.addItem(
+            routeKey=route, icon=icon, text=title, selectable=False, tooltip=title
+        )
+        node = self.navigationInterface.panel.widget(route)
+        # 先展开再加子项：insertChild 只在父项已展开时才把高度算进去，
+        # 反过来先加子项会让它们全部挤在同一行里。
+        node.setExpanded(True, ani=False)
+        # 侧边栏收起时会先把展开状态存下来，不打开这一项就恢复不回去。
+        node.setRememberExpandState(True)
+        for key, child_icon, child_title in children:
+            self.addSubInterface(self.pages[key], child_icon, child_title, parent=route)
+        self.navigationInterface.setMinimumHeight(
+            self.navigationInterface.panel.layoutMinHeight()
+        )
+        return node
 
     def _connect_actions(self):
         """把各页面的按钮与信号接到主窗口的处理方法。"""
