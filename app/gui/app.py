@@ -174,16 +174,24 @@ class SingleInstance(QObject):
         return True
 
     def notify_existing(self):
-        """通知已有实例显示窗口。"""
-        socket = QLocalSocket(self)
-        socket.connectToServer(self.key)
-        if not socket.waitForConnected(500):
-            return False
-        socket.write(b"show")
-        socket.flush()
-        socket.waitForBytesWritten(500)
-        socket.disconnectFromServer()
-        return True
+        """通知已有实例显示窗口。
+
+        套接字用完立刻销毁：它是短连接，跟着 ``SingleInstance`` 活到进程结束
+        会在退出阶段留下未处理的网络事件，偶发崩在事件循环里。
+        """
+        socket = QLocalSocket()
+        try:
+            socket.connectToServer(self.key)
+            if not socket.waitForConnected(500):
+                return False
+            socket.write(b"show")
+            socket.flush()
+            socket.waitForBytesWritten(500)
+            socket.disconnectFromServer()
+            socket.waitForDisconnected(500)
+            return True
+        finally:
+            socket.deleteLater()
 
     def _handle_connection(self):
         """接受新连接并发出唤醒信号，让已运行的窗口显示出来。"""
@@ -208,8 +216,14 @@ class SingleInstance(QObject):
             return
 
     def close(self):
-        """关闭本地服务端并移除同名服务，避免下次启动被残留占用。"""
+        """关闭本地服务端并移除同名服务，避免下次启动被残留占用。
+
+        已接受的连接由服务端持有，关闭前先断开，防止服务端销毁后仍有
+        连接信号指向已释放的对象。
+        """
         if self.server is not None:
+            for connection in self.server.findChildren(QLocalSocket):
+                connection.close()
             self.server.close()
             QLocalServer.removeServer(self.key)
             self.server.deleteLater()
@@ -388,6 +402,9 @@ class MainWindow(FluentWindow):
         """
         material = normalize_window_material(material)
         dark_theme = isDarkTheme()
+        # 主题切换会启动一段底色动画，动画终点按切换前的材质计算，可能在
+        # 这里设好底色之后又把窗口刷回透明，必须先停掉再改色。
+        self.backgroundColorAni.stop()
         # 云母与亚克力互斥，先统一关掉库的云母开关，避免系统 backdrop 叠在亚克力上。
         self.blur_enabled = material != MATERIAL_SOLID
         self.setMicaEffectEnabled(False)

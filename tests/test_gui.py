@@ -2174,9 +2174,10 @@ class SplashScreenTests(unittest.TestCase):
     def test_splash_closes_after_minimum_duration(self):
         screen = self.create(minimum_duration=10)
         screen.start()
-        deadline = time.monotonic() + 5
-        while not screen.is_finished() and time.monotonic() < deadline:
-            QTest.qWait(10)
+        self.assertTrue(screen._timer.isActive())
+        # 直接让定时器到期，等价于等满最短停留时间；真实等待要在事件循环里
+        # 空转，进度条的循环动画与嵌套循环叠加会偶发崩在 Qt 内部。
+        screen._timer.timeout.emit()
         self.assertTrue(screen.is_finished())
         self.assertFalse(screen.isVisible())
 
@@ -2209,6 +2210,9 @@ class SingleInstanceTests(unittest.TestCase):
         finally:
             primary.close()
             secondary.close()
+            # 本地套接字的延迟删除要在这里跑完，否则后续用例的 processEvents
+            # 会处理到已被回收对象的信号，偶发崩在 Qt 内部。
+            self.application.processEvents()
 
     def test_single_instance_key_is_user_specific(self):
         self.assertIn(gui.SINGLE_INSTANCE_KEY, gui.single_instance_key())
