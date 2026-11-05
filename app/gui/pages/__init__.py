@@ -2,6 +2,7 @@
 
 from .about import AboutDetailCard, AboutInfoCard, AboutPage
 from .alias import AliasPage
+from .appcmd import AppCommandPage
 from .command import CommandPage
 from .device import DevicePage
 from .file import FilePage
@@ -11,12 +12,14 @@ from .local import LocalPage
 from .log import LogPage
 from .message import MessagePage
 from .settings import SettingsPage
+from .students import StudentsPage
 
 __all__ = [
     "AboutDetailCard",
     "AboutInfoCard",
     "AboutPage",
     "AliasPage",
+    "AppCommandPage",
     "CommandPage",
     "DevicePage",
     "FilePage",
@@ -26,4 +29,5 @@ __all__ = [
     "LogPage",
     "MessagePage",
     "SettingsPage",
+    "StudentsPage",
 ]

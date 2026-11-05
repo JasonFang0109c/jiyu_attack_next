@@ -32,6 +32,8 @@ def main():
             "device",
             "file",
             "aliases",
+            "appcmd",
+            "students",
             "local",
             "firewall",
             "logs",

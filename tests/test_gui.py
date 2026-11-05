@@ -145,7 +145,9 @@ class GuiTests(unittest.TestCase):
         self.assertIsInstance(self.window, FluentWindow)
         self.assertEqual(self.window.windowTitle(), gui.APP_NAME)
         self.assertFalse(self.window.windowIcon().isNull())
-        self.assertEqual(self.window.stackedWidget.count(), 11)
+        # 首页加 10 个功能页：文本消息、文件传送、设备操作、远程命令、设备备注、
+        # 应用命令、学生信息、本机信息、防火墙、运行日志，另有设置与关于。
+        self.assertEqual(self.window.stackedWidget.count(), 13)
         self.assertEqual(self.window.current_page(), "home")
         self.assertEqual(self.state.values["target"], "")
         self.assertEqual(self.state.values["port"], 4705)

@@ -78,6 +78,7 @@ from .models import (
 from .pages import (
     AboutPage,
     AliasPage,
+    AppCommandPage,
     CommandPage,
     DevicePage,
     FilePage,
@@ -87,6 +88,7 @@ from .pages import (
     LogPage,
     MessagePage,
     SettingsPage,
+    StudentsPage,
 )
 from .settings_store import STATUS_NO_ERROR
 from .splash import create_splash
@@ -113,6 +115,8 @@ USAGE_NOTICE_TEXT = (
     "点击“同意并继续”表示你已阅读并接受上述声明。"
 )
 CATEGORIES = {
+    "appcmd": "应用命令",
+    "students": "学生信息",
     "message": "文本消息",
     "command": "远程命令",
     "device": "设备操作",
@@ -338,6 +342,8 @@ class MainWindow(FluentWindow):
         self.pages = {
             "home": HomePage(self),
             "message": MessagePage(self.connection_state, self),
+            "appcmd": AppCommandPage(self.connection_state, self),
+            "students": StudentsPage(self),
             "command": CommandPage(self.connection_state, self),
             "device": DevicePage(self.connection_state, self),
             "file": FilePage(self.connection_state, self),
@@ -350,14 +356,17 @@ class MainWindow(FluentWindow):
             ),
             "about": AboutPage(self),
         }
+        # 应用命令页也带目标输入区与底栏，忙碌状态和其他网络页一致。
         self.network_pages = [
-            self.pages[key] for key in ("message", "command", "device")
+            self.pages[key] for key in ("message", "command", "device", "appcmd")
         ]
         self.task_pages = [
             *self.network_pages,
             self.pages["file"],
             self.pages["local"],
             self.pages["firewall"],
+            self.pages["appcmd"],
+            self.pages["students"],
         ]
         self._build_navigation()
         self._connect_actions()
@@ -591,6 +600,10 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.pages["device"], FIF.POWER_BUTTON, "设备操作")
         self.addSubInterface(self.pages["command"], FIF.COMMAND_PROMPT, "远程命令")
         self.addSubInterface(self.pages["aliases"], FIF.QUICK_NOTE, "设备备注")
+        self.addSubInterface(self.pages["appcmd"], FIF.ROBOT, "应用命令")
+        self.navigationInterface.addSeparator()
+        self.navigationInterface.addItemHeader("教师端")
+        self.addSubInterface(self.pages["students"], FIF.PEOPLE, "学生信息")
         self.navigationInterface.addSeparator()
         self.navigationInterface.addItemHeader("本机工具")
         self.addSubInterface(self.pages["local"], FIF.IOT, "本机信息")
@@ -619,6 +632,10 @@ class MainWindow(FluentWindow):
         self.pages["local"].footer.requested.connect(self.start_local_probe)
         self.pages["local"].copyRequested.connect(self.copy_local_ip)
         self.pages["firewall"].footer.requested.connect(self.start_firewall)
+        self.pages["appcmd"].footer.requested.connect(self.start_app_command)
+        self.pages["students"].footer.requested.connect(self.start_student_scan)
+        self.pages["students"].refreshRequested.connect(self.refresh_students)
+        self.pages["students"].killRequested.connect(self.kill_student_process)
         for page in self.task_pages:
             page.footer.cancelled.connect(self.cancel_task)
             page.footer.viewLogs.connect(lambda: self.show_page("logs"))
@@ -1027,6 +1044,194 @@ class MainWindow(FluentWindow):
             self._local_failed,
         )
 
+    def start_app_command(self):
+        """校验目标后把选中的应用命令发给全部目标设备。"""
+        if self.thread is not None:
+            self.logs.warning(
+                "应用命令",
+                "已有任务在运行，应用命令未发送",
+                "当前任务：%s" % (self.active_kind or "无"),
+            )
+            return
+        page = self.pages["appcmd"]
+        target = self.connection_state.values["target"].strip()
+        try:
+            hosts = core.get_ip(self.connection_state.resolve_target(target))
+        except ValueError as error:
+            page.targets.target_input.setError(True)
+            page.targets.target_input.setFocus()
+            self._validation_error(
+                "appcmd", str(error), "输入目标：%s" % (target or "（空）")
+            )
+            return
+        try:
+            delivery = page.delivery()
+        except (ValueError, UnicodeError) as error:
+            self._validation_error("appcmd", str(error), "应用命令参数校验失败")
+            return
+        if delivery["name"] in {
+            "退出学生端",
+            "关闭所有程序",
+            "黑屏并锁定键鼠",
+        } and not self._confirm(
+            "确认发送 %s" % delivery["name"],
+            "目标：%s\n设备数量：%d\n该操作会立即在目标设备上执行，是否继续？"
+            % (self.connection_state.format_target(), len(hosts)),
+        ):
+            self.logs.info("应用命令", "用户取消了操作", "操作：%s" % delivery["name"])
+            return
+        self.logs.info(
+            "应用命令",
+            "开始发送：%s" % delivery["name"],
+            "目标：%s；设备数：%d；通道：%s"
+            % (target, len(hosts), delivery["channel"]),
+        )
+        cancel_event = Event()
+        self._begin_task(
+            "appcmd",
+            TaskWorker(
+                run_app_operation,
+                hosts,
+                delivery["payload"],
+                channel=delivery["channel"],
+                port=self.connection_state.values["port"],
+                session_channel=page.channel_input.value(),
+                lock_payload=delivery["lock"],
+                cancel_event=cancel_event,
+            ),
+            self._appcmd_finished,
+            self._local_failed,
+        )
+
+    def start_student_scan(self):
+        """发送教师端宣告并监听登录，收集学生机信息。"""
+        if self.thread is not None:
+            self.logs.warning(
+                "学生信息",
+                "已有任务在运行，学生发现未开始",
+                "当前任务：%s" % (self.active_kind or "无"),
+            )
+            return
+        page = self.pages["students"]
+        self.logs.info(
+            "学生信息",
+            "开始发送教师端宣告",
+            "频道：%d；教师名：%s"
+            % (page.channel_input.value(), page.teacher_input.text().strip() or "1"),
+        )
+        cancel_event = Event()
+        self._begin_task(
+            "students",
+            TaskWorker(
+                core.collect_students,
+                duration=STUDENT_SCAN_SECONDS,
+                channel=page.channel_input.value(),
+                teacher_name=page.teacher_input.text().strip() or "1",
+                port=self.connection_state.values["port"],
+                cancel_event=cancel_event,
+            ),
+            self._students_finished,
+            self._local_failed,
+        )
+
+    def refresh_students(self):
+        """重新拉取所选学生的信息、进程与窗口。"""
+        if self.thread is not None:
+            self.logs.warning("学生信息", "已有任务在运行，刷新未开始")
+            return
+        page = self.pages["students"]
+        host = page.selected_address()
+        if not host:
+            self._notify("请选择学生", "先在列表里选一台学生机", "警告")
+            return
+        records = {item.get("address"): item for item in page.records}
+        cancel_event = Event()
+        self._begin_task(
+            "students",
+            TaskWorker(
+                refresh_student,
+                host,
+                page.channel_input.value(),
+                page.teacher_input.text().strip() or "1",
+                self.connection_state.values["port"],
+                records,
+                cancel_event=cancel_event,
+            ),
+            self._students_finished,
+            self._local_failed,
+        )
+
+    def kill_student_process(self):
+        """结束所选学生机上的所选进程。"""
+        if self.thread is not None:
+            self.logs.warning("学生信息", "已有任务在运行，结束进程未开始")
+            return
+        page = self.pages["students"]
+        host = page.selected_address()
+        process_id = page.selected_detail_id()
+        if not host or process_id is None or page.detail_kind() != "processes":
+            self._notify("请选择进程", "先选一台学生机，再在进程列表里选一行", "警告")
+            return
+        if not self._confirm(
+            "确认结束进程",
+            "目标：%s\n进程号：%d\n是否结束该进程？" % (host, process_id),
+        ):
+            return
+        self.logs.info(
+            "学生信息", "结束进程", "目标：%s；进程号：%d" % (host, process_id)
+        )
+        cancel_event = Event()
+        self._begin_task(
+            "students",
+            TaskWorker(
+                terminate_process,
+                host,
+                process_id,
+                page.channel_input.value(),
+                self.connection_state.values["port"],
+                cancel_event=cancel_event,
+            ),
+            self._students_action_finished,
+            self._local_failed,
+        )
+
+    @Slot(object)
+    def _appcmd_finished(self, result):
+        page = self.pages["appcmd"]
+        message = "已发送 %d 个字节给 %d 台设备" % (result["sent"], result["hosts"])
+        page.footer.set_status(message)
+        self.logs.info(
+            "应用命令",
+            message,
+            "耗时：%.3f 秒" % (time.monotonic() - self.active_started_at),
+        )
+        self._notify("应用命令", message, "成功")
+
+    @Slot(object)
+    def _students_finished(self, records):
+        page = self.pages["students"]
+        page.set_students(records)
+        message = "发现 %d 台学生机" % len(records)
+        page.footer.set_status(message)
+        self.logs.info(
+            "学生信息",
+            message,
+            "耗时：%.3f 秒" % (time.monotonic() - self.active_started_at),
+        )
+        self._notify("学生信息", message, "成功")
+
+    @Slot(object)
+    def _students_action_finished(self, result):
+        page = self.pages["students"]
+        message = result.get("message", "操作已发送")
+        page.footer.set_status(message)
+        self.logs.info(
+            "学生信息",
+            message,
+            "耗时：%.3f 秒" % (time.monotonic() - self.active_started_at),
+        )
+        self._notify("学生信息", message, "成功")
+
     def _begin_task(self, kind, worker, finished, failed):
         """启动后台任务；已有任务在跑时改为排队，保证同一时间只跑一个。"""
         if self.thread is not None:
@@ -1078,8 +1283,10 @@ class MainWindow(FluentWindow):
         self.pages["file"].set_busy(
             busy, self.active_cancel is not None, queueable=True
         )
-        for key in ("local", "firewall"):
+        for key in ("local", "firewall", "students"):
             self.pages[key].footer.set_busy(busy)
+        self.pages["students"].refresh_button.setEnabled(not busy)
+        self.pages["students"].kill_button.setEnabled(not busy)
         self.pages["firewall"].action_box.setEnabled(not busy)
         self.pages["settings"].clear_data_button.setEnabled(not busy)
         self.pages["logs"].cancel_button.setEnabled(
@@ -1690,6 +1897,68 @@ class MainWindow(FluentWindow):
         # 窗口从托盘隐藏状态下关闭时 Qt 不认为“最后一个窗口已关闭”，
         # 事件循环会继续空转、进程留在后台，这里显式通知 main() 退出。
         self.quitRequested.emit()
+
+
+# 发现学生时监听多久；太短收不到登录，太长会让人以为卡住。
+STUDENT_SCAN_SECONDS = 8.0
+
+
+def run_app_operation(
+    hosts,
+    payload,
+    channel="comd",
+    port=4705,
+    session_channel=1,
+    local_ip=None,
+    report=None,
+    cancel_event=None,
+    lock_payload=None,
+):
+    """后台线程入口：把应用命令按通道发给全部目标。"""
+    if report:
+        report("正在发送到 %d 台设备" % len(hosts))
+    return core.run_app_operation(
+        hosts,
+        payload,
+        channel,
+        port,
+        session_channel,
+        local_ip,
+        report,
+        cancel_event,
+        lock_payload,
+    )
+
+
+def refresh_student(
+    host, channel=1, teacher_name="1", port=4705, previous=None, report=None
+):
+    """重新拉取一台学生的信息、进程与窗口。"""
+    if report:
+        report("正在向 %s 请求信息上报" % host)
+    records = core.fetch_students_info(
+        [host], channel=channel, teacher_name=teacher_name, port=port, report=report
+    )
+    fresh = records[0] if records else {"address": host}
+    merged = dict((previous or {}).get(host) or {})
+    merged.update({key: value for key, value in fresh.items() if value})
+    merged["address"] = host
+    return [merged]
+
+
+def terminate_process(host, process_id, channel=1, port=4705, report=None):
+    """向学生端下发结束指定进程的请求。"""
+    if report:
+        report("正在结束 %s 上的进程 %d" % (host, process_id))
+    sent = core.send_mess_command(
+        host,
+        core.appcmd.kill_payload(process_id=process_id, force=True),
+        channel,
+        None,
+        "结束进程",
+        report,
+    )
+    return {"sent": sent, "message": "已请求结束进程 %d" % process_id}
 
 
 def probe_local(report=None):

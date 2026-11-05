@@ -1,6 +1,7 @@
 """协议、传输、防火墙、本机信息与配置解析核心。"""
 
 from . import (
+    appcmd,
     cli_log,
     config,
     constants,
@@ -8,7 +9,12 @@ from . import (
     local_info,
     paths,
     protocol,
+    teacher,
     transport,
+)
+from .appcmd import (
+    parse_message,
+    parse_student_info,
 )
 from .cli_log import CliLog
 from .constants import (
@@ -53,6 +59,18 @@ from .protocol import (
     split_message,
     validate_options,
 )
+from .teacher import (
+    TeacherSession,
+    collect_students,
+    fetch_students_info,
+    run_app_operation,
+    send_app_command,
+    send_app_commands,
+    send_blackscreens,
+    send_mess_command,
+    send_session_broadcast,
+    send_unlocks,
+)
 from .transport import (
     Delivery,
     DeliveryState,
@@ -89,12 +107,15 @@ __all__ = [
     "FileTransferServer",
     "SendOptions",
     "SendOutcome",
+    "TeacherSession",
     "__version__",
+    "appcmd",
     "basicCMD",
     "build_bootstrap_script",
     "build_items_bootstrap_script",
     "build_transfer_command",
     "cli_log",
+    "collect_students",
     "collect_transfer_items",
     "config",
     "constants",
@@ -102,6 +123,7 @@ __all__ = [
     "detect_local_ip",
     "execute_send",
     "execute_send_report",
+    "fetch_students_info",
     "firewall",
     "format_b4_send",
     "format_size",
@@ -109,6 +131,8 @@ __all__ = [
     "local_info",
     "local_ip_and_ports",
     "normalize_transfer_items",
+    "parse_message",
+    "parse_student_info",
     "paths",
     "pkg_sendlist",
     "portable_cli_log_path",
@@ -118,13 +142,21 @@ __all__ = [
     "protocol",
     "read_message",
     "request_firewall_rule",
+    "run_app_operation",
     "run_firewall_helper",
     "run_windows_command",
     "send",
+    "send_app_command",
+    "send_app_commands",
+    "send_blackscreens",
+    "send_mess_command",
+    "send_session_broadcast",
     "send_tracked",
+    "send_unlocks",
     "set_firewall_rule",
     "split_message",
     "store",
+    "teacher",
     "transfer_file",
     "transport",
     "validate_file_transfer",
