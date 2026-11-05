@@ -43,7 +43,6 @@ class ShortcutCard(SimpleCardWidget):
         self.setBorderRadius(CORNER_RADIUS)
         self.setClickEnabled(True)
         self.setMinimumWidth(self.MINIMUM_WIDTH)
-        self.setMinimumHeight(176)
         self.setCursor(Qt.PointingHandCursor)
 
         layout = QVBoxLayout(self)
@@ -59,7 +58,6 @@ class ShortcutCard(SimpleCardWidget):
         self.description_label = CaptionLabel(description, self)
         self.description_label.setWordWrap(True)
         layout.addWidget(self.description_label)
-        layout.addStretch()
         footer = QHBoxLayout()
         footer.addStretch()
         self.arrow = IconWidget(FIF.LINK, self)
