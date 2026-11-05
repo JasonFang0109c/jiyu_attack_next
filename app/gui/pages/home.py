@@ -34,6 +34,7 @@ class ShortcutCard(SimpleCardWidget):
     """顶部的快捷入口：图标、标题、说明与右下角的外链箭头。"""
 
     MINIMUM_WIDTH = 176
+    ICON_SIZE = 40
 
     def __init__(self, icon, title, description, parent=None):
         super().__init__(parent)
@@ -47,7 +48,7 @@ class ShortcutCard(SimpleCardWidget):
         layout.setContentsMargins(18, 16, 18, 14)
         layout.setSpacing(8)
         self.icon_widget = IconWidget(icon, self)
-        self.icon_widget.setFixedSize(26, 26)
+        self.icon_widget.setFixedSize(self.ICON_SIZE, self.ICON_SIZE)
         layout.addWidget(self.icon_widget)
         self.title_label = StrongBodyLabel(title, self)
         layout.addWidget(self.title_label)
@@ -75,6 +76,8 @@ class ActionCard(SimpleCardWidget):
     """功能入口卡片：左侧纯图标，右侧标题与一句话说明。"""
 
     ICON_SIZE = 28
+    # 图标左右两侧的留白取同一个值，视觉上才会居中在一条竖直的留白里。
+    ICON_GAP = 22
 
     def __init__(self, icon, title, description, parent=None):
         super().__init__(parent)
@@ -84,8 +87,8 @@ class ActionCard(SimpleCardWidget):
         self.setCursor(Qt.PointingHandCursor)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(18, 14, 18, 14)
-        layout.setSpacing(16)
+        layout.setContentsMargins(self.ICON_GAP, 14, 18, 14)
+        layout.setSpacing(self.ICON_GAP)
         self.icon_widget = IconWidget(icon, self)
         self.icon_widget.setFixedSize(self.ICON_SIZE, self.ICON_SIZE)
         self.icon_widget.setAttribute(Qt.WA_TransparentForMouseEvents, True)
