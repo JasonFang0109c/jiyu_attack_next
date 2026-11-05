@@ -6,6 +6,7 @@ from .command import CommandPage
 from .device import DevicePage
 from .file import FilePage
 from .firewall import FirewallPage
+from .home import HomePage
 from .local import LocalPage
 from .log import LogPage
 from .message import MessagePage
@@ -20,6 +21,7 @@ __all__ = [
     "DevicePage",
     "FilePage",
     "FirewallPage",
+    "HomePage",
     "LocalPage",
     "LogPage",
     "MessagePage",

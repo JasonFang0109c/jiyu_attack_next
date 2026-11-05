@@ -19,10 +19,11 @@ from PySide6.QtCore import (
     QObject,
     Qt,
     QTimer,
+    QUrl,
     Signal,
     Slot,
 )
-from PySide6.QtGui import QColor, QFont, QIcon
+from PySide6.QtGui import QColor, QDesktopServices, QFont, QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QFileDialog, QSystemTrayIcon
 from qfluentwidgets import (
@@ -80,6 +81,7 @@ from .pages import (
     DevicePage,
     FilePage,
     FirewallPage,
+    HomePage,
     LocalPage,
     LogPage,
     MessagePage,
@@ -91,6 +93,12 @@ from .window_effect import apply_acrylic, apply_mica, clear_material
 from .workers import SendWorker, TaskWorker
 
 APP_NAME = "JiYu Attack Next"
+# 首页快捷卡片里除页面跳转外的目标，统一在这里维护地址。
+HOME_LINKS = {
+    "repository": "https://github.com/JasonFang0109c/jiyu_attack_next",
+    "document": "https://github.com/JasonFang0109c/jiyu_attack_next/blob/main/docs/usage/GUI.md",
+    "feedback": "https://github.com/JasonFang0109c/jiyu_attack_next/issues",
+}
 SINGLE_INSTANCE_KEY = "JiYuAttackNext-single-instance"
 # 测试会把模块里的 QApplication 换成替身，这里留住真实类用于启动流程的类型判断。
 REAL_APPLICATION = QApplication
@@ -291,6 +299,7 @@ class MainWindow(FluentWindow):
         self._restore_window_geometry()
         self.stackedWidget.setAnimationEnabled(False)
         self.pages = {
+            "home": HomePage(self),
             "message": MessagePage(self.connection_state, self),
             "command": CommandPage(self.connection_state, self),
             "device": DevicePage(self.connection_state, self),
@@ -534,6 +543,8 @@ class MainWindow(FluentWindow):
         self.navigationInterface.setExpandWidth(200)
         self.navigationInterface.setMinimumExpandWidth(1050)
         self.navigationInterface.setReturnButtonVisible(False)
+        self.addSubInterface(self.pages["home"], FIF.HOME, "首页")
+        self.navigationInterface.addSeparator()
         self.navigationInterface.addItemHeader("远程操作")
         self.addSubInterface(self.pages["message"], FIF.MESSAGE, "文本消息")
         self.addSubInterface(self.pages["file"], FIF.SEND, "文件传送")
@@ -582,6 +593,16 @@ class MainWindow(FluentWindow):
         self.pages["settings"].closeBehaviorRequested.connect(self.set_close_behavior)
         self.pages["settings"].logLevelRequested.connect(self.set_log_level)
         self.pages["settings"].clearDataRequested.connect(self.clear_data)
+        self.pages["home"].pageRequested.connect(self._open_home_link)
+
+    def _open_home_link(self, target):
+        """处理首页卡片：页面键直接跳转，其余按外部链接打开。"""
+        if target in self.pages:
+            self.show_page(target)
+            return
+        url = HOME_LINKS.get(target)
+        if url is not None:
+            QDesktopServices.openUrl(QUrl(url))
 
     def show_page(self, key):
         """切换到指定页面。"""

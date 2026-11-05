@@ -26,6 +26,7 @@ def main():
     parser.add_argument(
         "--page",
         choices=[
+            "home",
             "message",
             "command",
             "device",
@@ -37,7 +38,7 @@ def main():
             "settings",
             "about",
         ],
-        default="message",
+        default="home",
     )
     parser.add_argument("--theme", choices=["light", "dark"], default="light")
     parser.add_argument("--sample", action="store_true")
@@ -52,8 +53,6 @@ def main():
     )
     app = QApplication(sys.argv)
     gui.configure_application(app)
-    if args.theme == "dark":
-        gui.setTheme(gui.Theme.DARK)
     data_root = Path("build") / "verify-gui-data"
     data_dir = data_root / DATA_DIRECTORY_NAME
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -62,6 +61,13 @@ def main():
     settings.sync()
     alias_store = gui.DeviceAliasStore(settings=settings)
     window = gui.MainWindow(alias_store=alias_store, data_dir=data_dir)
+    # 主窗口构造时会按设置重设主题，暗色要在窗口建好之后再切，截图才是暗色。
+    if args.theme == "dark":
+        gui.setTheme(gui.Theme.DARK)
+    # 截图只能抓到窗口自己画的内容，材质透明区域会留白；
+    # 固定成纯色背景，暗色截图的文字才有真实底色可对照。
+    window.window_material = gui.MATERIAL_SOLID
+    window.apply_window_material(gui.MATERIAL_SOLID)
     window.resize(args.width, args.height)
     if args.sample:
         window.logs.clear()

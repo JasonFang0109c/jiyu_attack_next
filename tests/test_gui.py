@@ -140,12 +140,12 @@ class GuiTests(unittest.TestCase):
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
         self.application.processEvents()
 
-    def test_fluent_window_has_ten_function_pages(self):
+    def test_fluent_window_has_all_function_pages(self):
         self.assertIsInstance(self.window, FluentWindow)
         self.assertEqual(self.window.windowTitle(), gui.APP_NAME)
         self.assertFalse(self.window.windowIcon().isNull())
-        self.assertEqual(self.window.stackedWidget.count(), 10)
-        self.assertEqual(self.window.current_page(), "message")
+        self.assertEqual(self.window.stackedWidget.count(), 11)
+        self.assertEqual(self.window.current_page(), "home")
         self.assertEqual(self.state.values["target"], "")
         self.assertEqual(self.state.values["port"], 4705)
         self.assertEqual(self.window.logs.minimum_level, models.LogLevel.INFO)
@@ -331,7 +331,18 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(build_info.version_text(), "9.9.9")
 
     def test_every_page_uses_rounded_section_cards(self):
-        for page in self.window.pages.values():
+        # 首页用整块横幅与入口卡片组织内容，没有分区卡片，单独断言卡片圆角。
+        home = self.window.pages["home"]
+        self.assertTrue(home.cards)
+        self.assertTrue(
+            all(
+                card.borderRadius == components.CORNER_RADIUS
+                for card in home.cards.values()
+            )
+        )
+        for key, page in self.window.pages.items():
+            if key == "home":
+                continue
             cards = page.findChildren(components.SectionCard)
             self.assertGreaterEqual(len(cards), 1, page.objectName())
             self.assertTrue(
@@ -372,10 +383,38 @@ class GuiTests(unittest.TestCase):
             for item in self.window.navigationInterface.panel.items.values()
             if item.widget is not None
         ]
-        remote = order[:5]
+        # 首页单独排在分组之前，其余五页仍按使用频率排列。
+        home = order[:1]
+        self.assertEqual(home, ["首页"])
+        remote = order[1:6]
         self.assertEqual(
             remote, ["文本消息", "文件传送", "设备操作", "远程命令", "设备备注"]
         )
+
+    def test_home_page_lists_shortcuts_and_function_cards(self):
+        home = self.window.pages["home"]
+        self.assertEqual(home.objectName(), "home")
+        self.assertEqual(
+            list(home.shortcuts), ["message", "repository", "document", "feedback"]
+        )
+        # 功能卡片覆盖除首页、设置、关于以外的全部页面，点击即跳转。
+        self.assertEqual(
+            set(home.cards),
+            set(self.window.pages) - {"home", "settings", "about"},
+        )
+        self.assertEqual(home.cards["message"].objectName(), "homeCard_message")
+        home.cards["logs"].clicked.emit()
+        self.assertEqual(self.window.current_page(), "logs")
+
+    def test_home_shortcut_opens_page_or_external_link(self):
+        home = self.window.pages["home"]
+        opened = []
+        with patch.object(gui, "QDesktopServices") as desktop:
+            desktop.openUrl.side_effect = lambda url: opened.append(url.toString())
+            home.pageRequested.emit("repository")
+            home.pageRequested.emit("file")
+        self.assertEqual(opened, [gui.HOME_LINKS["repository"]])
+        self.assertEqual(self.window.current_page(), "file")
 
     def test_dialog_centers_on_parent_and_falls_back_to_screen(self):
         parent = QWidget()

@@ -51,6 +51,7 @@ jiyu_attack_next/
 |       `-- pages/
 |           |-- __init__.py       # 汇总导出页面类
 |           |-- common.py         # 页面基类、文件树与日志表格组件
+|           |-- home.py           # 首页：横幅快捷入口与功能卡片
 |           |-- message.py        # 消息页
 |           |-- command.py        # 命令页
 |           |-- device.py         # 设备页
@@ -96,7 +97,7 @@ jiyu_attack_next/
 - `app/core/` 只依赖标准库，提供报文常量、协议构造、UDP 与文件传送、防火墙规则和本机信息探测。CLI 与 GUI 都通过 `from .. import core` 使用这些接口。
 - `app/cli/main.py` 负责 argparse、参数校验、单条命令、文件传送、防火墙命令与终端输出；不再作为可单独复制的单文件脚本维护。
 - `app/gui/app.py` 基于 `FluentWindow` 实现侧边导航、任务调度、单实例运行与页面联动。
-- `app/gui/pages/` 按消息、命令、设备、文件传送、设备备注、本机信息、防火墙、日志、设置和关于拆分页面；文件传送页使用带复选框与全选的文件树，公共控件集中在 `common.py`。
+- `app/gui/pages/` 按首页、消息、命令、设备、文件传送、设备备注、本机信息、防火墙、日志、设置和关于拆分页面；文件传送页使用带复选框与全选的文件树，公共控件集中在 `common.py`。
 - `app/gui/build_info.py` 从打包资源读取构建时间与版本号，源码运行时分别显示“源码运行”和 `app.__version__`。
 - `app/gui/components.py` 提供跨页面同步的连接参数和统一任务栏。
 - `app/gui/splash.py` 提供启动遮罩：主窗口显示后用项目图标、应用名、版本号与不确定进度条盖住界面，跟随窗口尺寸，最短停留一段时间后自动关闭。
