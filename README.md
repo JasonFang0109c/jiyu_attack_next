@@ -181,15 +181,18 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1
 
 ## 项目来源与参考
 
-来源仓库：[ht0Ruial/Jiyu_udp_attack](https://github.com/ht0Ruial/Jiyu_udp_attack)，最早的单文件命令行版本由该项目改写而来。
+- [ht0Ruial/Jiyu_udp_attack](https://github.com/ht0Ruial/Jiyu_udp_attack)
+  最早的单文件命令行版本由该项目改写而来。
 
-来源仓库：[yunsjxh/Third-party-JiYu-Teacher-Endpoint](https://github.com/yunsjxh/Third-party-JiYu-Teacher-Endpoint)，教师端模拟、学生信息上报、应用命令、缩略图与屏幕观看的报文结构参考了它的实现与说明。该仓库与本项目没有代码依赖关系，也不构成上游分支。
+- [yunsjxh/Third-party-JiYu-Teacher-Endpoint](https://github.com/yunsjxh/Third-party-JiYu-Teacher-Endpoint)
+  教师端模拟、学生信息上报、应用命令、缩略图与屏幕观看的报文结构参考了它的实现与说明。该仓库与本项目没有代码依赖关系，也不构成上游分支。
 
 当前仓库的具体行为以本项目代码和文档为准。
 
 ## 贡献者
 
 - [JasonFang0109c](https://github.com/JasonFang0109c)
+- [Leogyx](https://github.com/Leogyx)
 - [仙道领域绝巅](https://github.com/suiyuanlixin)
 
 ## 许可证
