@@ -161,8 +161,8 @@ class FileTreeWidget(TreeWidget):
         return super().viewportEvent(event)
 
     def _set_hover_item(self, item):
-        if item is self._hover_item:
-            return
+        # 不去重：重建树之后页面缓存的悬停项可能仍然等于新条目，
+        # 这里跳过通知就会让复选框一直不出现。重复通知由页面自己挡住。
         self._hover_item = item
         self.hoverItemChanged.emit(item)
 

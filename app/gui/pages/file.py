@@ -378,6 +378,8 @@ class FilePage(Page):
 
     def _hover_item_changed(self, item):
         previous = getattr(self, "_hovered_item", None)
+        if item is previous:
+            return
         if previous is not None:
             self._set_item_state_role(previous, previous.checkState(0), hovered=False)
         self._hovered_item = item
