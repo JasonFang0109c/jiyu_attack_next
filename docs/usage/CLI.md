@@ -133,6 +133,10 @@ start /wait JiYuAttackNext.exe -ip 10.49.151.29 -msg "Hello"
 | `--control` | 开关 | 关 | 与 `--view` 配合，先申请接管键鼠再观看 |
 | `--tcp-port PORT` | 整数 | `4806` | 屏幕观看使用的学生端 TCP 端口 |
 | `--output-dir DIR` | 路径 | `preview` | 缩略图与画面帧的保存目录，不存在时自动创建 |
+| `--chat TEXT` | 文本 | — | 走教师会话聊天通道发送文本，目标需先登录教师会话 |
+| `--kill-window HWND` | 整数 | — | 按窗口句柄让目标关闭该窗口，进程继续运行 |
+| `--probe` | 开关 | 关 | 只探测目标 `--tcp-port` 是否可连，不发送任何请求 |
+| `--peer IP` | 地址 | — | 额外直接宣告的对端地址，可重复；用于组播被过滤的场景 |
 
 `--blackscreen` 与 `--unlock` 必须让 `--channel` 与学生端所在频道一致：这两条报文只在会话组播上被处理，单播不生效。锁键鼠的解除不能靠再发一次黑屏并把锁参数去掉，学生端只把 `lock_input=1` 当作上锁。
 
@@ -317,11 +321,13 @@ JiYuAttackNext.exe --announce 15 --channel 2 --teacher-name "实验教师"
 
 ```powershell
 JiYuAttackNext.exe -ip 10.49.151.29 --preview 8
-JiYuAttackNext.exe -ip 10.49.151.29 --view 20 --output-dir D:	mprames
+JiYuAttackNext.exe -ip 10.49.151.29 --view 20 --output-dir \\tmp\frames
 JiYuAttackNext.exe -ip 10.49.151.29 --view 20 --control
 ```
 
 `--preview` 请一帧缩略图，原图存成 `<地址>.jpg`，色度还原后的版本存成 `<地址>_fixed.jpg`。学生端给的是自下而上的 DIB 且色度通道被取反，直接打开会上下颠倒、颜色发绿，因此两个文件都要留一份方便对比；Pillow 不可用时只写原图并在终端提示无法修正。
+
+`--chat` 与图形界面的“聊天消息”页一致：先按 `--channel` 宣告一轮并等待登录，再单播 MESS 类型 `0x800` 的文本，目标没有登录教师会话时直接报错。`--kill-window` 只关窗口不杀进程，句柄可以写成 `0x` 开头的十六进制。`--probe` 只做一次 `4806/TCP` 连接尝试，用来区分端口未开、被防火墙拦截与地址写错三种情况。`--peer` 会被追加到宣告目标里，目标网络过滤组播时用它直接指定对端。
 
 `--view` 会先把屏幕传输指令发给学生端，再连接 `--tcp-port`（默认 4806）连续接收桌面分片。屏幕内容按 1 KB 分片到达，接收侧按偏移重组，缺片时回一条重传应答补齐。JPEG 帧存成 `<地址>_NNN.jpg`，H.264 帧既存原始码流 `<地址>_NNN.h264`，也用 PyAV（FFmpeg 绑定）解码后逐帧存成 `<地址>_NNN_MMM.png`。加 `--control` 会先申请接管键鼠，学生端的输入只在观看端转动；不加则只观看。命令行没有可转发的交互界面，接管会在观看结束后自动解除，用图形界面观看时才能在画面上直接操作键鼠。
 

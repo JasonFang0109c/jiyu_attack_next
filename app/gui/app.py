@@ -79,7 +79,10 @@ from .pages import (
     AboutPage,
     AliasPage,
     AppCommandPage,
+    ChatPage,
+    CloseWindowPage,
     CommandPage,
+    ControlPage,
     DevicePage,
     FilePage,
     FirewallPage,
@@ -87,7 +90,9 @@ from .pages import (
     LocalPage,
     LogPage,
     MessagePage,
+    ScreenPage,
     SettingsPage,
+    ShellPage,
     StudentsPage,
 )
 from .screen_window import ScreenWindow
@@ -118,6 +123,9 @@ USAGE_NOTICE_TEXT = (
 CATEGORIES = {
     "appcmd": "应用命令",
     "students": "学生信息",
+    "screen": "屏幕画面",
+    "chat": "聊天消息",
+    "closewindow": "关闭窗口",
     "message": "文本消息",
     "command": "远程命令",
     "device": "设备操作",
@@ -293,6 +301,7 @@ NAVIGATION_GROUPS = (
             ("file", FIF.SEND, "文件传送"),
             ("device", FIF.POWER_BUTTON, "设备操作"),
             ("command", FIF.COMMAND_PROMPT, "远程命令"),
+            ("shell", FIF.SPEED_HIGH, "反弹终端"),
         ),
     ),
     (
@@ -302,6 +311,10 @@ NAVIGATION_GROUPS = (
         (
             ("appcmd", FIF.ROBOT, "应用命令"),
             ("students", FIF.PEOPLE, "学生信息"),
+            ("screen", FIF.VIDEO, "屏幕画面"),
+            ("control", FIF.ZOOM, "远程接管"),
+            ("chat", FIF.CHAT, "聊天消息"),
+            ("closewindow", FIF.CLOSE, "关闭窗口"),
         ),
     ),
     (
@@ -374,7 +387,7 @@ class MainWindow(FluentWindow):
         self.apply_window_material(self.window_material)
         self.setCustomBackgroundColor("#f5f6f8", "#202020")
         self.setMinimumSize(960, 640)
-        self.resize(1180, 780)
+        self.resize(1180, 1000)
         self._restore_window_geometry()
         self.stackedWidget.setAnimationEnabled(False)
         self.pages = {
@@ -382,6 +395,11 @@ class MainWindow(FluentWindow):
             "message": MessagePage(self.connection_state, self),
             "appcmd": AppCommandPage(self.connection_state, self),
             "students": StudentsPage(self),
+            "screen": ScreenPage(self),
+            "control": ControlPage(self),
+            "chat": ChatPage(self.connection_state, self),
+            "closewindow": CloseWindowPage(self.connection_state, self),
+            "shell": ShellPage(self.logs, self),
             "command": CommandPage(self.connection_state, self),
             "device": DevicePage(self.connection_state, self),
             "file": FilePage(self.connection_state, self),
@@ -396,7 +414,15 @@ class MainWindow(FluentWindow):
         }
         # 应用命令页也带目标输入区与底栏，忙碌状态和其他网络页一致。
         self.network_pages = [
-            self.pages[key] for key in ("message", "command", "device", "appcmd")
+            self.pages[key]
+            for key in (
+                "message",
+                "command",
+                "device",
+                "appcmd",
+                "chat",
+                "closewindow",
+            )
         ]
         self.task_pages = [
             *self.network_pages,
@@ -502,6 +528,31 @@ class MainWindow(FluentWindow):
         """窗口显示后再应用一次模糊，覆盖库在 showEvent 里设下的云母。"""
         super().showEvent(event)
         self._refresh_background_effect()
+
+    def resizeEvent(self, event):
+        """窗口高度跨过阈值时切换侧边栏的展开与图标模式。"""
+        super().resizeEvent(event)
+        self._sync_navigation_mode()
+
+    def _sync_navigation_mode(self):
+        """按窗口高度决定侧边栏是否展开。
+
+        导航项占用的高度超过窗口时，库会把子项压成同一条高度，分组标题与
+        子项就会互相压字；这里只在高度够时展开，变矮时收回图标模式。
+        """
+        # 无边框窗口在基类构造里就会触发 resizeEvent，此时导航栏还不存在。
+        if not hasattr(self, "navigationInterface"):
+            return
+        tall = self.height() >= NAVIGATION_EXPAND_HEIGHT
+        if tall == getattr(self, "_navigation_tall", None):
+            return
+        self._navigation_tall = tall
+        panel = self.navigationInterface.panel
+        if tall:
+            self.navigationInterface.expand(useAni=False)
+        elif not panel.isCollapsed():
+            panel.collapse()
+        self._fit_navigation_groups()
 
     def _onThemeChangedFinished(self):
         """主题切换后重新应用模糊，深浅色决定染色与标题栏明暗。"""
@@ -647,7 +698,11 @@ class MainWindow(FluentWindow):
         self.addSubInterface(
             self.pages["about"], FIF.INFO, "关于", NavigationItemPosition.BOTTOM
         )
-        self.navigationInterface.expand(useAni=False)
+        self._navigation_tall = None
+        # 导航项比较多，窗口不够高时展开会让分组与子项挤在一起，
+        # 这种情况下保持库默认的图标模式，等窗口拉高后由 resizeEvent 再展开。
+        if self.height() >= NAVIGATION_EXPAND_HEIGHT:
+            self.navigationInterface.expand(useAni=False)
         self._fit_navigation_groups()
         # 侧边栏收起再展开时库会重设每个分组的高度，这里补一次，避免子项叠在一起。
         self.navigationInterface.panel.displayModeChanged.connect(
@@ -660,16 +715,38 @@ class MainWindow(FluentWindow):
         expand() 会把每个导航项重新压成单行高度，子项因此叠在一起，
         所以展开之后再按布局的实际尺寸把分组撑开。
         """
+        # 分组展开与否跟着侧边栏的展开状态走：面板收起时分组也要收起来，
+        # 只按 node.isExpanded 判断会拿到过期状态，子项留在画面上互相压字。
+        panel = self.navigationInterface.panel
+        # 收起动画进行中宽度仍在变化，这时按展开处理会把分组撑开却挤在 48 像素里。
+        expanded = not panel.isCollapsed() and panel.width() >= panel.expandWidth
         for route, _icon, _title, _children in NAVIGATION_GROUPS:
             node = self.navigationInterface.panel.widget(route)
+            node.setExpanded(expanded, ani=False)
             node.vBoxLayout.activate()
-            if node.isExpanded:
+            if expanded:
                 node.setFixedSize(node.sizeHint())
             else:
-                node.setFixedHeight(node.itemWidget.height())
-        self.navigationInterface.setMinimumHeight(
-            self.navigationInterface.panel.layoutMinHeight()
+                # 收起成图标模式时回到库的紧凑尺寸，否则分组仍留着展开时的
+                # 两百像素宽，文字会从图标右侧露出来。
+                node.setCompacted(True)
+        self._apply_navigation_minimum_height()
+
+    def _apply_navigation_minimum_height(self):
+        """按导航内容设置侧边栏最小高度，但不让它把窗口顶高。
+
+        导航项多起来之后，布局高度会超过常见的屏幕高度，窗口就再也缩不回去；
+        这里给一个上限，超出部分交给侧边栏自己滚动。窗口比导航内容还矮时保持
+        库默认的图标模式，展开状态下的子项会挤成同一条高度而互相压字。
+        """
+        panel = self.navigationInterface.panel
+        # 上下两块布局各自的最小高度就是导航项与底部按钮真正需要的空间。
+        needed = (
+            panel.topLayout.minimumSize().height()
+            + panel.bottomLayout.minimumSize().height()
+            + NAVIGATION_HEADER_HEIGHT
         )
+        self.navigationInterface.setMinimumHeight(min(needed, NAVIGATION_MAX_HEIGHT))
 
     def _add_navigation_group(self, route, icon, title, children):
         """创建一个只承载子项的分组节点，并按其顺序挂上子页面。"""
@@ -685,9 +762,7 @@ class MainWindow(FluentWindow):
         node.setRememberExpandState(True)
         for key, child_icon, child_title in children:
             self.addSubInterface(self.pages[key], child_icon, child_title, parent=route)
-        self.navigationInterface.setMinimumHeight(
-            self.navigationInterface.panel.layoutMinHeight()
-        )
+        self._apply_navigation_minimum_height()
         return node
 
     def _connect_actions(self):
@@ -707,8 +782,12 @@ class MainWindow(FluentWindow):
         self.pages["students"].footer.requested.connect(self.start_student_scan)
         self.pages["students"].refreshRequested.connect(self.refresh_students)
         self.pages["students"].killRequested.connect(self.kill_student_process)
-        self.pages["students"].previewRequested.connect(self.refresh_preview)
-        self.pages["students"].viewRequested.connect(self.watch_screen)
+        self.pages["chat"].footer.requested.connect(self.start_chat)
+        self.pages["closewindow"].footer.requested.connect(self.start_close_window)
+        self.pages["screen"].previewRequested.connect(self.refresh_preview)
+        self.pages["screen"].viewRequested.connect(self.watch_screen)
+        self.pages["screen"].probeRequested.connect(self.probe_screen_port)
+        self.pages["control"].controlRequested.connect(self.start_remote_control)
         for page in self.task_pages:
             page.footer.cancelled.connect(self.cancel_task)
             page.footer.viewLogs.connect(lambda: self.show_page("logs"))
@@ -1187,6 +1266,92 @@ class MainWindow(FluentWindow):
             self._local_failed,
         )
 
+    def start_chat(self):
+        """把聊天消息发给已登录教师会话的学生。"""
+        if self.thread is not None:
+            self.logs.warning("聊天消息", "已有任务在运行，聊天消息未发送")
+            return
+        page = self.pages["chat"]
+        target = self.connection_state.values["target"].strip()
+        try:
+            hosts = core.get_ip(self.connection_state.resolve_target(target))
+        except ValueError as error:
+            page.targets.target_input.setError(True)
+            page.targets.target_input.setFocus()
+            self._validation_error(
+                "chat", str(error), "输入目标：%s" % (target or "（空）")
+            )
+            return
+        try:
+            text = page.message()
+        except ValueError as error:
+            self._validation_error("chat", str(error), "聊天内容为空")
+            return
+        self.logs.info(
+            "聊天消息",
+            "发送聊天消息",
+            "目标：%s；设备数：%d；字符数：%d" % (target, len(hosts), len(text)),
+        )
+        cancel_event = Event()
+        self._begin_task(
+            "chat",
+            TaskWorker(
+                send_chat_message,
+                hosts,
+                text,
+                channel=page.channel(),
+                teacher_name=page.teacher_name(),
+                port=self.connection_state.values["port"],
+                cancel_event=cancel_event,
+            ),
+            self._mess_finished,
+            self._local_failed,
+        )
+
+    def start_close_window(self):
+        """按句柄关闭学生机上的应用窗口。"""
+        if self.thread is not None:
+            self.logs.warning("关闭窗口", "已有任务在运行，关闭请求未发送")
+            return
+        page = self.pages["closewindow"]
+        target = self.connection_state.values["target"].strip()
+        try:
+            hosts = core.get_ip(self.connection_state.resolve_target(target))
+        except ValueError as error:
+            page.targets.target_input.setError(True)
+            page.targets.target_input.setFocus()
+            self._validation_error(
+                "closewindow", str(error), "输入目标：%s" % (target or "（空）")
+            )
+            return
+        try:
+            window = page.window_handle()
+        except ValueError as error:
+            page.window_input.setError(True)
+            page.window_input.setFocus()
+            self._validation_error("closewindow", str(error), "窗口句柄解析失败")
+            return
+        self.logs.info(
+            "关闭窗口",
+            "发送关闭请求",
+            "目标：%s；设备数：%d；句柄：%d" % (target, len(hosts), window),
+        )
+        cancel_event = Event()
+        self._begin_task(
+            "closewindow",
+            TaskWorker(
+                close_remote_window,
+                hosts,
+                window,
+                channel=page.channel(),
+                teacher_name="1",
+                port=self.connection_state.values["port"],
+                cancel_event=cancel_event,
+            ),
+            self._mess_finished,
+            self._local_failed,
+        )
+
     def start_student_scan(self):
         """以教师端模拟身份发送宣告并监听登录，收集学生机信息。"""
         if self.thread is not None:
@@ -1280,25 +1445,26 @@ class MainWindow(FluentWindow):
         )
 
     def refresh_preview(self):
-        """拉取所选学生的屏幕缩略图。"""
+        """按地址拉取学生的屏幕缩略图。"""
         if self.thread is not None:
-            self.logs.warning("学生信息", "已有任务在运行，缩略图未开始")
+            self.logs.warning("屏幕画面", "已有任务在运行，缩略图未开始")
             return
-        page = self.pages["students"]
-        host = page.selected_address()
+        page = self.pages["screen"]
+        host = page.host()
         if not host:
-            self._notify("请选择学生", "先在列表里选一台学生机", "警告")
+            self._notify("请填写地址", "先填写要拉取画面的学生地址", "警告")
             return
-        self.logs.info("学生信息", "拉取屏幕缩略图", "目标：%s" % host)
+        page.set_status("正在向 %s 请求缩略图…" % host)
+        self.logs.info("屏幕画面", "拉取屏幕缩略图", "目标：%s" % host)
         cancel_event = Event()
         self._begin_task(
-            "students",
+            "screen",
             TaskWorker(
                 collect_preview,
                 host,
                 PREVIEW_SECONDS,
-                page.channel_input.value(),
-                page.teacher_input.text().strip() or "1",
+                page.channel(),
+                "1",
                 self.connection_state.values["port"],
                 cancel_event=cancel_event,
             ),
@@ -1306,38 +1472,83 @@ class MainWindow(FluentWindow):
             self._local_failed,
         )
 
+    def probe_screen_port(self):
+        """只探测学生端画面端口能否连上，不请求任何画面内容。"""
+        page = self.pages["screen"]
+        host = page.host()
+        if not host:
+            self._notify("请填写地址", "先填写要检查的学生地址", "警告")
+            return
+        page.set_status("正在检查 %s 的画面端口…" % host)
+        reachable, detail = core.probe(host, timeout=PROBE_TIMEOUT)
+        if reachable:
+            page.set_status("%s 的画面端口可连，可以点“观看画面”" % host)
+            self.logs.info("屏幕画面", "画面端口可连", "目标：%s" % host)
+            return
+        page.set_status("%s 的画面端口连不上：%s" % (host, detail or "无响应"))
+        self.logs.warning(
+            "屏幕画面",
+            "画面端口不可连",
+            "目标：%s；原因：%s" % (host, detail or "超时"),
+        )
+
     def watch_screen(self):
         """打开屏幕观看窗口，按需请求接管键鼠。"""
-        page = self.pages["students"]
-        host = page.selected_address()
+        page = self.pages["screen"]
+        host = page.host()
         if not host:
-            self._notify("请选择学生", "先在列表里选一台学生机", "警告")
+            self._notify("请填写地址", "先填写要观看的学生地址", "警告")
             return
-        window = ScreenWindow(
-            host,
-            self.connection_state.values["port"],
-            page.channel_input.value(),
-            self,
-        )
+        self._open_screen_window(host, page.channel(), take_control=False)
+        page.set_status("已打开 %s 的画面窗口" % host)
+
+    def start_remote_control(self):
+        """打开画面窗口并直接进入键鼠接管。"""
+        page = self.pages["control"]
+        host = page.host()
+        if not host:
+            self._notify("请填写地址", "先填写要接管的学生地址", "警告")
+            return
+        self._open_screen_window(host, page.channel(), take_control=True)
+        page.set_status("已打开 %s 的画面窗口，正在接管" % host)
+
+    def _open_screen_window(self, host, channel, take_control):
+        """创建画面窗口，需要接管时等窗口画出第一帧再发远控请求。"""
+        window = ScreenWindow(host, self.connection_state.values["port"], channel, self)
         window.show()
-        self.logs.info("学生信息", "打开屏幕观看", "目标：%s" % host)
+        if take_control:
+            # 接管请求要等窗口先把画面画出来，否则用户看不到自己接管的是哪一台。
+            QTimer.singleShot(600, window.take_control)
+        self.logs.info(
+            "屏幕画面",
+            "打开屏幕观看",
+            "目标：%s；自动接管：%s" % (host, "是" if take_control else "否"),
+        )
+
+    @Slot(object)
+    def _mess_finished(self, result):
+        page = self.pages[self.active_kind]
+        targets = result or []
+        message = "已送达 %d 台设备" % len(targets)
+        page.footer.set_status(message)
+        self.logs.info(
+            CATEGORIES[self.active_kind], message, "目标：%s" % "；".join(targets)
+        )
+        self._notify(CATEGORIES[self.active_kind], message, "成功")
 
     @Slot(object)
     def _preview_finished(self, result):
-        page = self.pages["students"]
+        page = self.pages["screen"]
         address = result.get("address")
         image = result.get("preview")
+        page.set_preview(image)
         if image:
-            for record in page.records:
-                if record.get("address") == address:
-                    record["preview"] = image
-                    break
-            page._refresh_preview()
             message = "已刷新 %s 的缩略图" % address
         else:
-            message = "%s 未返回缩略图" % address
+            message = "%s 未返回缩略图，确认学生端在线且允许推送" % address
+        page.set_status(message)
         page.footer.set_status(message)
-        self.logs.info("学生信息", message, "目标：%s" % address)
+        self.logs.info("屏幕画面", message, "目标：%s" % address)
 
     @Slot(object)
     def _appcmd_finished(self, result):
@@ -1431,8 +1642,10 @@ class MainWindow(FluentWindow):
             self.pages[key].footer.set_busy(busy)
         self.pages["students"].refresh_button.setEnabled(not busy)
         self.pages["students"].kill_button.setEnabled(not busy)
-        self.pages["students"].preview_button.setEnabled(not busy)
-        self.pages["students"].view_button.setEnabled(not busy)
+        self.pages["screen"].preview_button.setEnabled(not busy)
+        self.pages["screen"].view_button.setEnabled(not busy)
+        self.pages["screen"].probe_button.setEnabled(not busy)
+        self.pages["control"].control_button.setEnabled(not busy)
         self.pages["firewall"].action_box.setEnabled(not busy)
         self.pages["settings"].clear_data_button.setEnabled(not busy)
         self.pages["logs"].cancel_button.setEnabled(
@@ -1970,7 +2183,7 @@ class MainWindow(FluentWindow):
         self.window_material = DEFAULT_WINDOW_MATERIAL
         self.apply_window_material(self.window_material)
         self.pages["settings"].set_window_material(self.window_material)
-        self.resize(1180, 780)
+        self.resize(1180, 1000)
         self._center_on_screen()
         self.pages["settings"].set_close_behavior(DEFAULT_CLOSE_BEHAVIOR)
         if self.enable_tray and QSystemTrayIcon.isSystemTrayAvailable():
@@ -2049,6 +2262,14 @@ class MainWindow(FluentWindow):
 STUDENT_SCAN_SECONDS = 8.0
 # 缩略图监听时长：学生端按 LPNT 策略每 5 秒推一帧，留够两帧的余量。
 PREVIEW_SECONDS = 8.0
+# 端口探测只用来区分「没开」和「网络不通」，等太久反而像是界面卡住。
+PROBE_TIMEOUT = 1.0
+# 侧边栏最小高度的上限：导航项再多也不该把整个窗口顶到超出屏幕。
+NAVIGATION_MAX_HEIGHT = 680
+# 展开侧边栏至少需要这么高的窗口，低于它就只能显示图标，否则子项会互相压字。
+NAVIGATION_EXPAND_HEIGHT = 960
+# 侧边栏顶部菜单按钮那一行的高度，算进导航项需要的空间里。
+NAVIGATION_HEADER_HEIGHT = 36
 
 
 def run_app_operation(
@@ -2075,6 +2296,46 @@ def run_app_operation(
         report,
         cancel_event,
         lock_payload,
+    )
+
+
+def send_chat_message(
+    hosts, text, channel=1, teacher_name="1", port=4705, report=None, cancel_event=None
+):
+    """后台线程入口：等目标登录教师会话后发聊天消息。"""
+    if report:
+        report("正在等待 %d 台设备登录教师会话" % len(hosts))
+    return core.send_chat(
+        hosts,
+        text,
+        channel=channel,
+        teacher_name=teacher_name,
+        port=port,
+        report=report,
+        cancel_event=cancel_event,
+    )
+
+
+def close_remote_window(
+    hosts,
+    window,
+    channel=1,
+    teacher_name="1",
+    port=4705,
+    report=None,
+    cancel_event=None,
+):
+    """后台线程入口：按窗口句柄关闭目标上的窗口。"""
+    if report:
+        report("正在等待 %d 台设备登录教师会话" % len(hosts))
+    return core.close_window(
+        hosts,
+        window,
+        channel=channel,
+        teacher_name=teacher_name,
+        port=port,
+        report=report,
+        cancel_event=cancel_event,
     )
 
 

@@ -34,6 +34,11 @@ def main():
             "aliases",
             "appcmd",
             "students",
+            "screen",
+            "control",
+            "chat",
+            "closewindow",
+            "shell",
             "local",
             "firewall",
             "logs",
@@ -46,7 +51,7 @@ def main():
     parser.add_argument("--sample", action="store_true")
     parser.add_argument("--select-all", action="store_true")
     parser.add_argument("--width", type=int, default=1180)
-    parser.add_argument("--height", type=int, default=760)
+    parser.add_argument("--height", type=int, default=1000)
     args = parser.parse_args()
     Path(args.screenshot).parent.mkdir(parents=True, exist_ok=True)
 
@@ -95,6 +100,10 @@ def main():
     window.show()
 
     def capture():
+        # 侧边栏的折叠状态跟窗口宽度走，上一次窄窗口运行会把状态留在配置里，
+        # 截图前显式展开，画面才是用户默认看到的样子。
+        window.navigationInterface.expand(useAni=False)
+        app.processEvents()
         image = window.grab()
         ok = image.save(args.screenshot, "PNG")
         print(

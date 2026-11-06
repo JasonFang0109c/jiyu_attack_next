@@ -5,6 +5,7 @@
 报文拼装全部交给 :mod:`app.core.appcmd`。
 """
 
+import ipaddress
 import socket
 import struct
 import time
@@ -13,7 +14,7 @@ from threading import Lock
 from time import monotonic, sleep
 
 from . import appcmd
-from .local_info import detect_local_ip
+from .local_info import detect_local_ip, local_networks
 
 # 组播回环要关掉，否则本机会收到自己发出的宣告，把监听结果撑成多个条目。
 _MULTICAST_TTL = 32
@@ -22,6 +23,8 @@ _RECEIVE_BUFFER = 65535
 _POLL_TIMEOUT = 0.2
 # 登录后等学生端把信息回传的时间，太短会拿不到 type 5。
 _INFO_WAIT = 1.2
+# 宣告后等目标登录的时间。聊天这类单播 MESS 必须有登录会话才生效。
+_LOGIN_WAIT = 1.5
 
 
 def _multicast_socket(port, group=None, local_ip=None):
@@ -50,6 +53,49 @@ def _multicast_socket(port, group=None, local_ip=None):
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, membership)
     sock.settimeout(_POLL_TIMEOUT)
     return sock
+
+
+def announce_targets(local_ip, group, port, peers=None):
+    """列出宣告要发往的目标，返回 ``(地址, 端口)`` 列表。
+
+    组播在虚拟交换机和部分无线网络上会被过滤，只发组播时一台学生机都发现
+    不到，所以除了组播地址再补两路：本网段广播，以及网段首个可用地址
+    （VMware 的宿主虚拟网卡默认就落在网段第一个地址上）。``peers`` 用于手工
+    指定跨网段的定向目标。
+
+    Args:
+        local_ip: 本机宣告地址，会从目标里剔除。
+        group: 组播地址。
+        port: 目标 UDP 端口。
+        peers: 额外定向发送的地址，可以为 None。
+
+    Returns:
+        list[tuple[str, int]]: 去重后的目标列表。
+    """
+    targets = []
+    seen = set()
+
+    def add(host):
+        if not host or host == local_ip or host in seen:
+            return
+        seen.add(host)
+        targets.append((host, port))
+
+    add(group)
+    for address, prefix in local_networks():
+        try:
+            network = ipaddress.ip_network("%s/%d" % (address, prefix), strict=False)
+            parsed = ipaddress.ip_address(address)
+        except ValueError:
+            continue
+        # 前缀大于 30 时网段里没有广播可用，公网地址也不该被扫。
+        if network.prefixlen > 30 or not parsed.is_private:
+            continue
+        add(str(network.broadcast_address))
+        add(str(network.network_address + 1))
+    for peer in peers or ():
+        add(str(peer).strip())
+    return targets
 
 
 class TeacherSession:
@@ -104,7 +150,9 @@ class TeacherSession:
                 finally:
                     setattr(self, name, None)
 
-    def announce(self, rounds=1, interval=1.0, report=None, cancel_event=None):
+    def announce(
+        self, rounds=1, interval=1.0, report=None, cancel_event=None, peers=None
+    ):
         """发送在线宣告，学生端据此发现自己并登录。
 
         Args:
@@ -112,11 +160,15 @@ class TeacherSession:
             interval: 相邻两轮的间隔秒数。
             report: 进度回调。
             cancel_event: 取消信号。
+            peers: 额外定向发送的地址，用于组播与广播都到不了的跨网段目标。
 
         Returns:
             int: 实际发送的报文数量。
         """
         self.open()
+        targets = announce_targets(
+            self.local_ip, appcmd.MULTICAST_ADDRESS, self.port, peers
+        )
         sent = 0
         round_index = 0
         while rounds <= 0 or round_index < rounds:
@@ -129,8 +181,9 @@ class TeacherSession:
                 appcmd.canc_packet(self.local_ip, self.channel, self.teacher_name),
             ]
             for packet in packets:
-                self._main.sendto(packet, (appcmd.MULTICAST_ADDRESS, self.port))
-                sent += 1
+                for target in targets:
+                    self._main.sendto(packet, target)
+                    sent += 1
             round_index += 1
             if report:
                 report("第 %d 轮宣告已发送" % round_index)
@@ -325,6 +378,35 @@ class TeacherSession:
         if report:
             report("%s → %s（%d 字节）" % (label or "MESS", host, sent))
         return sent
+
+    def chat(self, host, text, report=None):
+        """向已登录的学生发一条会话聊天消息。
+
+        Args:
+            host: 学生地址。
+            text: 聊天文本。
+            report: 进度回调。
+
+        Returns:
+            int: 发送的字节数。
+        """
+        return self.send_mess(host, appcmd.chat_payload(text), report, "聊天消息")
+
+    def close_window(self, host, window, report=None):
+        """按窗口句柄关闭学生机上的应用（MESS 0x100000 type 3）。
+
+        走的是 ``WM_CLOSE``，学生端只关窗口不杀进程，和按进程号强杀不同。
+
+        Args:
+            host: 学生地址。
+            window: 窗口句柄。
+            report: 进度回调。
+
+        Returns:
+            int: 发送的字节数。
+        """
+        payload = appcmd.kill_payload(window=window, force=False)
+        return self.send_mess(host, payload, report, "关闭应用窗口")
 
     def blackscreen(self, host, lock_input=True, timeout=10, text=""):
         """黑屏并锁键鼠：MESS 发到会话组播，同时补一条 COMD 给学生单播。"""
@@ -573,6 +655,7 @@ def collect_students(
     port=4705,
     report=None,
     cancel_event=None,
+    peers=None,
 ):
     """发一轮宣告后监听，返回带信息的学生记录列表。
 
@@ -583,12 +666,15 @@ def collect_students(
         port: 学生端 UDP 端口。
         report: 进度回调。
         cancel_event: 取消信号。
+        peers: 额外定向宣告的地址，可为 None。
 
     Returns:
         list[dict]: 每台学生机的地址与已收集到的信息。
     """
     with TeacherSession(channel, teacher_name, port) as session:
-        session.announce(rounds=1, report=report, cancel_event=cancel_event)
+        session.announce(
+            rounds=1, report=report, cancel_event=cancel_event, peers=peers
+        )
         session.listen(duration, report=report, cancel_event=cancel_event)
         for host in list(session.students):
             if cancel_event is not None and cancel_event.is_set():
@@ -626,6 +712,127 @@ def fetch_students_info(
                 host, {"address": host, "info": {}, "processes": [], "windows": []}
             )
         return [dict(session.students[host]) for host in hosts]
+
+
+def send_to_logged_students(
+    payload_for,
+    hosts,
+    channel=1,
+    teacher_name="1",
+    port=4705,
+    login_wait=_LOGIN_WAIT,
+    label="MESS",
+    report=None,
+    cancel_event=None,
+):
+    """先宣告等登录，再向目标逐个单播 ``MESS`` 负载。
+
+    聊天消息和按窗口关闭都要求学生已经登录教师会话，无会话时单播过去学生端
+    直接丢掉，所以这里必须先宣告并等一会儿登录请求。
+
+    Args:
+        payload_for: 接收学生地址、返回负载字节的可调用对象。
+        hosts: 目标地址列表。
+        channel: 频道号。
+        teacher_name: 学生端显示的教师名。
+        port: 学生端 UDP 端口。
+        login_wait: 等待登录的秒数。
+        label: 进度回调里显示的动作名。
+        report: 进度回调。
+        cancel_event: 取消信号。
+
+    Returns:
+        list[str]: 实际发出负载的目标地址。
+
+    Raises:
+        ValueError: 目标列表为空，或没有任何目标完成登录。
+    """
+    targets = [address for address in hosts if address]
+    if not targets:
+        raise ValueError("请先指定目标地址")
+    with TeacherSession(channel, teacher_name, port) as session:
+        session.announce(
+            rounds=1, peers=targets, report=report, cancel_event=cancel_event
+        )
+        session.listen(login_wait, report=report, cancel_event=cancel_event)
+        logged = [host for host in targets if host in session.students]
+        if not logged:
+            raise ValueError("目标没有登录教师会话，先确认学生端在线且频道一致")
+        for host in logged:
+            session.send_mess(host, payload_for(host), report, label)
+    return logged
+
+
+def send_chat(
+    hosts,
+    text,
+    channel=1,
+    teacher_name="1",
+    port=4705,
+    report=None,
+    cancel_event=None,
+):
+    """向已登录的学生发送会话聊天消息，返回实际送达的目标。
+
+    Args:
+        hosts: 学生地址列表。
+        text: 聊天文本。
+        channel: 频道号。
+        teacher_name: 学生端显示的教师名。
+        port: 学生端 UDP 端口。
+        report: 进度回调。
+        cancel_event: 取消信号。
+
+    Returns:
+        list[str]: 实际发出消息的目标地址。
+    """
+    payload = appcmd.chat_payload(text)
+    return send_to_logged_students(
+        lambda _host: payload,
+        hosts,
+        channel,
+        teacher_name,
+        port,
+        label="聊天消息",
+        report=report,
+        cancel_event=cancel_event,
+    )
+
+
+def close_window(
+    hosts,
+    window,
+    channel=1,
+    teacher_name="1",
+    port=4705,
+    report=None,
+    cancel_event=None,
+):
+    """按窗口句柄关闭学生机上的应用，返回实际送达的目标。
+
+    Args:
+        hosts: 学生地址列表。
+        window: 窗口句柄。
+        channel: 频道号。
+        teacher_name: 学生端显示的教师名。
+        port: 学生端 UDP 端口。
+        report: 进度回调。
+        cancel_event: 取消信号。
+
+    Returns:
+        list[str]: 实际发出关闭指令的目标地址。
+    """
+    payload = appcmd.kill_payload(window=window, force=False)
+    return send_to_logged_students(
+        lambda _host: payload,
+        hosts,
+        channel,
+        teacher_name,
+        port,
+        label="关闭应用窗口",
+        report=report,
+        cancel_event=cancel_event,
+    )
 
 
 def start_screen(host, channel=1, local_ip=None, report=None):

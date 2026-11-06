@@ -149,7 +149,7 @@ class GuiTests(unittest.TestCase):
         self.assertFalse(self.window.windowIcon().isNull())
         # 首页加 10 个功能页：文本消息、文件传送、设备操作、远程命令、设备备注、
         # 应用命令、学生信息、本机信息、防火墙、运行日志，另有设置与关于。
-        self.assertEqual(self.window.stackedWidget.count(), 13)
+        self.assertEqual(self.window.stackedWidget.count(), 18)
         self.assertEqual(self.window.current_page(), "home")
         self.assertEqual(self.state.values["target"], "")
         self.assertEqual(self.state.values["port"], 4705)
@@ -419,11 +419,11 @@ class GuiTests(unittest.TestCase):
         )
         self.assertEqual(
             [child.text() for child in panel.widget("group_remote").treeChildren],
-            ["文本消息", "文件传送", "设备操作", "远程命令"],
+            ["文本消息", "文件传送", "设备操作", "远程命令", "反弹终端"],
         )
         self.assertEqual(
             [child.text() for child in panel.widget("group_teacher").treeChildren],
-            ["应用命令", "学生信息"],
+            ["应用命令", "学生信息", "屏幕画面", "远程接管", "聊天消息", "关闭窗口"],
         )
         self.assertEqual(
             [child.text() for child in panel.widget("group_local").treeChildren],
@@ -448,29 +448,67 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(group.isExpanded)
         self.assertEqual(self.window.current_page(), "appcmd")
 
-    def test_students_page_shows_preview_and_enables_actions(self):
+    def test_students_page_lists_discovered_records(self):
         page = self.window.pages["students"]
-        page.set_students([{"address": "10.1.1.5", "preview": self.png_bytes()}])
+        page.set_students(
+            [{"address": "10.1.1.5", "info": {"name": "机房-01"}, "processes": []}]
+        )
         self.assertEqual(page.students.rowCount(), 1)
         page.students.selectRow(0)
-        self.assertFalse(page.preview_label.pixmap().isNull())
-        self.assertTrue(page.preview_button.isEnabled())
-        self.assertTrue(page.view_button.isEnabled())
-        # 没有缩略图时回到提示文案，按钮也不该保持可点。
-        page.set_students([{"address": "10.1.1.5"}])
-        page.students.selectRow(0)
-        self.assertIn("暂无缩略图", page.preview_label.text())
-        page.students.clearSelection()
-        self.assertFalse(page.preview_button.isEnabled())
+        self.assertEqual(page.selected_address(), "10.1.1.5")
+        # 画面相关的入口已经搬到独立页面，这一页只剩发现与进程窗口。
+        self.assertFalse(hasattr(page, "preview_button"))
+        self.assertFalse(hasattr(page, "viewRequested"))
 
-    def test_students_page_opens_screen_window_for_selected_host(self):
-        page = self.window.pages["students"]
-        page.set_students([{"address": "10.1.1.5"}])
-        page.students.selectRow(0)
+    def test_screen_page_shows_preview_and_placeholder(self):
+        page = self.window.pages["screen"]
+        page.set_preview(self.png_bytes())
+        self.assertFalse(page.preview_label.pixmap().isNull())
+        page.set_preview(None)
+        self.assertIn("暂无缩略图", page.preview_label.text())
+
+    def test_screen_page_opens_window_for_typed_host(self):
+        page = self.window.pages["screen"]
+        page.host_input.setText("10.1.1.7")
+        page.channel_input.setValue(3)
         with patch.object(gui, "ScreenWindow") as window_class:
             page.viewRequested.emit()
         window_class.assert_called_once()
-        self.assertEqual(window_class.call_args.args[0], "10.1.1.5")
+        self.assertEqual(window_class.call_args.args[0], "10.1.1.7")
+        self.assertEqual(window_class.call_args.args[2], 3)
+
+    def test_control_page_starts_with_takeover(self):
+        page = self.window.pages["control"]
+        page.host_input.setText("10.1.1.8")
+        with (
+            patch.object(gui, "ScreenWindow") as window_class,
+            patch.object(gui.QTimer, "singleShot") as single_shot,
+        ):
+            page.controlRequested.emit()
+        window_class.assert_called_once()
+        self.assertEqual(window_class.call_args.args[0], "10.1.1.8")
+        single_shot.assert_called_once()
+
+    def test_chat_page_requires_message_text(self):
+        page = self.window.pages["chat"]
+        with self.assertRaises(ValueError):
+            page.message()
+        page.editor.setPlainText("机房请注意")
+        self.assertEqual(page.message(), "机房请注意")
+        page.teacher_input.setText("")
+        self.assertEqual(page.teacher_name(), "1")
+
+    def test_close_window_page_parses_handles(self):
+        page = self.window.pages["closewindow"]
+        with self.assertRaises(ValueError):
+            page.window_handle()
+        page.window_input.setText("0x00120A3C")
+        self.assertEqual(page.window_handle(), 0x00120A3C)
+        page.window_input.setText("48212800")
+        self.assertEqual(page.window_handle(), 48212800)
+        page.window_input.setText("0")
+        with self.assertRaises(ValueError):
+            page.window_handle()
 
     def test_screen_view_maps_click_into_remote_coordinates(self):
         from PySide6.QtCore import QPoint

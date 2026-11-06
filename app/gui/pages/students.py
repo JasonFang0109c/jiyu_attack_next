@@ -1,16 +1,14 @@
 """学生信息页：发现学生机，查看系统信息、进程、窗口与屏幕缩略图。"""
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
     QHeaderView,
-    QLabel,
     QLineEdit,
     QTableWidgetItem,
 )
-from qfluentwidgets import BodyLabel, ComboBox, PushButton
+from qfluentwidgets import BodyLabel, ComboBox
 from qfluentwidgets import FluentIcon as FIF
 
 from ..components import (
@@ -32,8 +30,6 @@ class StudentsPage(Page):
     discoverRequested = Signal()
     refreshRequested = Signal()
     killRequested = Signal()
-    previewRequested = Signal()
-    viewRequested = Signal()
 
     def __init__(self, parent=None):
         super().__init__("students", parent)
@@ -61,8 +57,8 @@ class StudentsPage(Page):
         self.content_card.body.addWidget(
             BodyLabel(
                 "点“发现学生”会以教师端模拟身份发送宣告并监听登录请求，"
-                "收到登录后自动应答并拉取系统信息。选中学生后可刷新缩略图；"
-                "点“观看屏幕”打开的窗口里再点“接管键鼠”，就能直接操作那台机器。",
+                "收到登录后自动应答并拉取系统信息。看画面与接管键鼠在"
+                "“屏幕画面”和“远程接管”页里，这一页只管发现与进程窗口。",
                 self.content_card,
             )
         )
@@ -89,14 +85,6 @@ class StudentsPage(Page):
         self.kill_button = tool_button(
             FIF.DELETE, "结束所选进程", self.content_card, self.killRequested.emit
         )
-        # 这两个是这一页新增的入口，按钮直接写文字，免得只有图标认不出来。
-        self.preview_button = PushButton(FIF.CAMERA, "刷新缩略图", self.content_card)
-        self.preview_button.clicked.connect(self.previewRequested.emit)
-        self.view_button = PushButton(FIF.VIDEO, "观看屏幕", self.content_card)
-        self.view_button.clicked.connect(self.viewRequested.emit)
-        detail_row.addWidget(self.preview_button)
-        detail_row.addWidget(self.view_button)
-        detail_row.addSpacing(8)
         detail_row.addWidget(self.refresh_button)
         detail_row.addWidget(self.kill_button)
         self.content_card.body.addLayout(detail_row)
@@ -109,12 +97,6 @@ class StudentsPage(Page):
         self.details.horizontalHeader().setStretchLastSection(True)
         self.content_card.body.addWidget(self.details, 1)
 
-        # 缩略图由学生端推上来，拿到就是完整 JPEG，这里只负责显示。
-        self.preview_label = QLabel("选中学生后可拉取屏幕缩略图", self.content_card)
-        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_label.setMinimumHeight(160)
-        self.preview_label.setScaledContents(False)
-        self.content_card.body.addWidget(self.preview_label)
         self.vbox.addWidget(self.content_card, 1)
 
         self.footer_card = SectionCard(self, spacing=0, margins=(8, 8, 8, 8))
@@ -127,30 +109,6 @@ class StudentsPage(Page):
         self.students.itemSelectionChanged.connect(self._selection_changed)
         self.detail_box.currentIndexChanged.connect(
             lambda _index: self._refresh_details()
-        )
-
-    def set_preview(self, data):
-        """显示缩略图字节，没有数据时回到提示文案。
-
-        Args:
-            data: JPEG 字节，或 ``None``。
-        """
-        if not data:
-            self.preview_label.setPixmap(QPixmap())
-            self.preview_label.setText("暂无缩略图，点“刷新缩略图”重新拉取")
-            return
-        pixmap = QPixmap()
-        if not pixmap.loadFromData(data):
-            self.preview_label.setPixmap(QPixmap())
-            self.preview_label.setText("缩略图数据无法解析")
-            return
-        self.preview_label.setText("")
-        self.preview_label.setPixmap(
-            pixmap.scaled(
-                self.preview_label.size(),
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
         )
 
     def detail_kind(self):
@@ -182,20 +140,11 @@ class StudentsPage(Page):
                 self.students.setItem(row, column, QTableWidgetItem(value))
             self.students.setRowHeight(row, 36)
         self._refresh_details()
-        self._refresh_preview()
         if selected:
             for row, record in enumerate(self.records):
                 if record.get("address") == selected:
                     self.students.selectRow(row)
                     break
-
-    def _refresh_preview(self):
-        """按当前选中的学生刷新缩略图，顺手开关相关按钮。"""
-        record = self.selected_record()
-        self.set_preview(record.get("preview") if record else None)
-        has_selection = record is not None
-        self.preview_button.setEnabled(has_selection)
-        self.view_button.setEnabled(has_selection)
 
     def selected_record(self):
         """返回当前选中的学生记录，未选中时为 None。"""
@@ -213,8 +162,8 @@ class StudentsPage(Page):
         return record.get("address", "") if record else ""
 
     def _selection_changed(self):
+        """选中项变化后刷新详情表。"""
         self._refresh_details()
-        self._refresh_preview()
 
     def _refresh_details(self):
         """按选中学生与类型重建详情表。"""

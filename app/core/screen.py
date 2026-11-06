@@ -20,6 +20,34 @@ RECEIVE_SIZE = 65535
 DELIVERED_HISTORY = 8
 
 
+def probe(host, port=None, local_ip=None, timeout=1.5):
+    """探测学生端的屏幕接收端口是否在监听。
+
+    只做 TCP 握手，不发送 ``feature 8`` 也不连 UMSP，所以不会在目标上留下
+    观看会话。连接失败时给出错误码，便于区分「端口没开」和「本机被拦」。
+
+    Args:
+        host: 学生地址。
+        port: 目标 TCP 端口，省略时用观看会话的默认端口。
+        local_ip: 本机出口地址，省略时交给系统选择。
+        timeout: 连接超时秒数。
+
+    Returns:
+        tuple[bool, str]: 是否可连接，以及连不上时的原因。
+    """
+    # 用 create_connection 而不是 connect_ex：连接超时靠阻塞等待实现，
+    # 而 connect_ex 在设了超时的套接字上会立刻返回 WSAEWOULDBLOCK，
+    # 那样既不会等目标回应，也判断不出端口到底通不通。
+    source = (local_ip, 0) if local_ip else None
+    try:
+        with socket.create_connection(
+            (host, port or appcmd.TCP_COMM_PORT), max(0.1, timeout), source
+        ):
+            return True, ""
+    except OSError as error:
+        return False, str(error)
+
+
 class ScreenSession:
     """一条到学生端的屏幕观看会话。
 

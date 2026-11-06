@@ -49,7 +49,11 @@
       <ul style="list-style-position: inside; padding-left: 0;">
         <li><b>文件传送</b>：勾选文件树下载到桌面</li>
         <li><b>应用命令</b>：运行程序、打开网址、黑屏锁键鼠</li>
-        <li><b>学生信息</b>：宣告发现、缩略图、看屏幕并接管键鼠</li>
+        <li><b>学生信息</b>：宣告发现、系统信息与进程窗口</li>
+        <li><b>屏幕画面</b>：缩略图、实时画面与接管键鼠</li>
+        <li><b>聊天消息</b>：走教师会话通道的双向文本</li>
+        <li><b>关闭窗口</b>：按句柄关闭目标窗口</li>
+        <li><b>反弹终端</b>：本机监听，目标连回得可交互命令行</li>
         <li><b>本机信息</b>：查询 IP 与 Student 端口</li>
         <li><b>防火墙</b>：修改现有规则并查看结果</li>
       </ul>
@@ -93,7 +97,7 @@
 | GUI | 双击 EXE；源码 `python -m app` | 无参数启动，先显示使用须知，同意后打开图形界面 |
 | CLI | `JiYuAttackNext.exe -ip ...`；源码 `python -m app -ip ...` | 带参数启动，在终端显示输出 |
 
-EXE 无需安装 Python；从源码运行 CLI 仍只依赖标准库。两者共用同一套报文实现，默认通信为 UDP，目标端口 `4705`。EXE 为窗口化程序，双击不会创建控制台窗口，带参数运行时把输出写回启动它的终端、不会另开窗口；由于它不占用控制台，提示符会立即返回——需要等命令执行完再继续时用 `start /wait JiYuAttackNext.exe ...`。PowerShell 中若 EXE 不在 `PATH`，需写成 `.\JiYuAttackNext.exe ...`；cmd 可直接运行。
+EXE 无需安装 Python；从源码运行 CLI 需要按 `requirements.txt` 安装依赖。两者共用同一套报文实现，默认通信为 UDP，目标端口 `4705`。EXE 为窗口化程序，双击不会创建控制台窗口，带参数运行时把输出写回启动它的终端、不会另开窗口；由于它不占用控制台，提示符会立即返回——需要等命令执行完再继续时用 `start /wait JiYuAttackNext.exe ...`。PowerShell 中若 EXE 不在 `PATH`，需写成 `.\JiYuAttackNext.exe ...`；cmd 可直接运行。
 
 ## 下载
 

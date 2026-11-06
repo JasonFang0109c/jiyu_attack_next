@@ -3,6 +3,7 @@
 import csv
 import ipaddress
 import socket
+import subprocess
 
 from .firewall import run_windows_command
 from .protocol import get_ip
@@ -144,3 +145,67 @@ def local_ip_and_ports():
             if port.isdigit():
                 ports.add(port)
     return ip, sorted(ports, key=int)
+
+
+# 网卡前缀查一次就够用，结果缓存到进程结束；网卡变动后重启程序即可刷新。
+_NETWORK_CACHE = None
+
+
+def _query_ipv4_networks():
+    """调用系统命令读取本机 IPv4 地址与前缀长度。
+
+    ``ipconfig`` 的输出随系统语言变化，PowerShell 输出的对象属性名是固定的，
+    因此改用它；查询失败时返回空列表，由调用方按 /24 兜底。
+
+    Returns:
+        list[tuple[str, int]]: ``(地址, 前缀长度)`` 列表。
+    """
+    script = (
+        "Get-NetIPAddress -AddressFamily IPv4 | "
+        "ForEach-Object { $_.IPAddress + '/' + $_.PrefixLength }"
+    )
+    try:
+        process = run_windows_command(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", script]
+        )
+    except (OSError, RuntimeError, subprocess.SubprocessError):
+        return []
+    if process.returncode:
+        return []
+    networks = []
+    for line in process.stdout.splitlines():
+        text = line.strip()
+        if not text:
+            continue
+        try:
+            interface = ipaddress.ip_interface(text)
+        except ValueError:
+            continue
+        networks.append((str(interface.ip), interface.network.prefixlen))
+    return networks
+
+
+def local_networks():
+    """返回本机 IPv4 地址与其所在网段的前缀长度。
+
+    宣告时要用本网段广播和网段首个可用地址去补齐组播覆盖不到的目标，需要先
+    知道本机地址属于哪个网段。取不到网卡信息时按 /24 兜底，学校机房的网段
+    基本都是 /24。
+
+    Returns:
+        list[tuple[str, int]]: ``(地址, 前缀长度)`` 列表。
+    """
+    global _NETWORK_CACHE
+    if _NETWORK_CACHE is None:
+        # 回环、链路本地与 TUN 虚拟网卡的地址发不出有用的广播，留着只会让
+        # 宣告多跑几遍无用报文，这里只保留真正能到达局域网的网卡。
+        networks = [
+            (address, prefix)
+            for address, prefix in _query_ipv4_networks()
+            if _is_usable_local_address(address)
+        ]
+        if not networks:
+            address = detect_local_ip()
+            networks = [(address, 24)] if address else []
+        _NETWORK_CACHE = networks
+    return list(_NETWORK_CACHE)

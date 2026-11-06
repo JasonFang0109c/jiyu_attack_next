@@ -14,6 +14,7 @@ from ..core import (
     appcmd,
     basicCMD,
     cli_log,
+    close_window,
     collect_previews,
     collect_students,
     fix_thumbnail,
@@ -22,11 +23,13 @@ from ..core import (
     local_ip_and_ports,
     pkg_sendlist,
     portable_cli_log_path,
+    probe,
     read_message,
     remote_control,
     request_firewall_rule,
     run_app_operation,
     run_firewall_helper,
+    send_chat,
     send_tracked,
     split_message,
     transfer_file,
@@ -147,6 +150,23 @@ def build_parser():
         metavar="SECONDS",
         help="观看目标电脑的实时画面，默认 15 秒",
     )
+    action_group.add_argument(
+        "--chat",
+        type=str,
+        metavar="TEXT",
+        help="向已登录学生发送会话聊天消息（MESS 0x800）",
+    )
+    action_group.add_argument(
+        "--kill-window",
+        type=lambda value: int(value, 0),
+        metavar="HWND",
+        help="按窗口句柄关闭目标电脑上的应用（MESS type 3，等价 WM_CLOSE）",
+    )
+    action_group.add_argument(
+        "--probe",
+        action="store_true",
+        help="探测目标电脑的屏幕传输端口是否在监听，不建立观看会话",
+    )
     parser.add_argument(
         "--run-args", type=str, default="", metavar="TEXT", help="--run 的启动参数"
     )
@@ -188,6 +208,13 @@ def build_parser():
         default="1",
         metavar="NAME",
         help="学生端显示的教师名",
+    )
+    parser.add_argument(
+        "--peer",
+        action="append",
+        default=[],
+        metavar="IP",
+        help="宣告时额外定向单发的地址，可重复，用于组播与广播都到不了的网段",
     )
     parser.add_argument(
         "--tcp-port",
@@ -533,6 +560,70 @@ def run_preview(arguments):
     return True
 
 
+def run_probe(arguments):
+    """探测目标电脑的屏幕传输端口是否在监听。"""
+    log = cli_log.LOG
+    hosts = get_ip(arguments.ip)
+    reachable = 0
+    for host in hosts:
+        ok, detail = probe(host, arguments.tcp_port)
+        if ok:
+            reachable += 1
+            print("[可用] %s：%d 端口在监听" % (host, arguments.tcp_port))
+        else:
+            print(
+                "[-] [不可用] %s：%s（检查学生端是否在线、端口与防火墙）"
+                % (host, detail)
+            )
+    log.info(
+        "屏幕端口探测完成",
+        "教师端模拟",
+        "目标：%d；可用：%d；端口：%d" % (len(hosts), reachable, arguments.tcp_port),
+    )
+    return True
+
+
+def run_chat(arguments):
+    """向已登录的学生发送会话聊天消息。"""
+    log = cli_log.LOG
+    hosts = get_ip(arguments.ip)
+    print("正在发送聊天消息，目标 %d 个…" % len(hosts), flush=True)
+    delivered = send_chat(
+        hosts,
+        arguments.chat,
+        channel=arguments.channel,
+        teacher_name=arguments.teacher_name,
+        port=arguments.p,
+        report=print,
+    )
+    print("聊天消息已发送：%s" % "、".join(delivered))
+    log.info("聊天消息已发送", "教师端模拟", "目标：%s" % "、".join(delivered))
+    return True
+
+
+def run_close_window(arguments):
+    """按窗口句柄关闭学生机上的应用。"""
+    log = cli_log.LOG
+    hosts = get_ip(arguments.ip)
+    window = arguments.kill_window
+    print("正在关闭窗口 0x%08X，目标 %d 个…" % (window, len(hosts)), flush=True)
+    delivered = close_window(
+        hosts,
+        window,
+        channel=arguments.channel,
+        teacher_name=arguments.teacher_name,
+        port=arguments.p,
+        report=print,
+    )
+    print("已发出关闭指令：%s" % "、".join(delivered))
+    log.info(
+        "关闭应用窗口",
+        "教师端模拟",
+        "hwnd=0x%08X；目标：%s" % (window, "、".join(delivered)),
+    )
+    return True
+
+
 def run_view(arguments):
     """观看目标电脑的实时画面，按需请求远控并保存收到的帧。"""
     log = cli_log.LOG
@@ -607,6 +698,7 @@ def run_action(arguments):
             teacher_name=arguments.teacher_name,
             port=arguments.p,
             report=print,
+            peers=arguments.peer,
         )
         if not records:
             print("未发现学生机；请确认与学生端在同一网段，且频道一致")
@@ -641,6 +733,12 @@ def run_action(arguments):
         return run_preview(arguments)
     if arguments.view is not None:
         return run_view(arguments)
+    if arguments.probe:
+        return run_probe(arguments)
+    if arguments.chat:
+        return run_chat(arguments)
+    if arguments.kill_window is not None:
+        return run_close_window(arguments)
 
     action = build_action_payload(arguments)
     if action is None:

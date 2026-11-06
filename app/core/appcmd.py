@@ -428,6 +428,36 @@ def kill_payload(process_id=None, window=None, force=True):
     )
 
 
+def chat_payload(text):
+    """构造会话聊天消息的 ``MESS`` 负载（payload type ``0x800``）。
+
+    学生端只在登录过教师会话之后才处理这类负载，所以这条消息要单播到会话
+    端口。文本按 UTF-16-LE 编码并补一个结尾空字符，长度字段写的是码元数而
+    不是字节数，写成字节数时学生端只显示到第一个字。
+
+    Args:
+        text: 聊天文本。
+
+    Returns:
+        bytes: 去掉 12 字节消息头之后的 ``MESS`` 负载。
+
+    Raises:
+        ValueError: 文本为空或包含 NUL 字符。
+    """
+    if not text:
+        raise ValueError("聊天消息不能为空")
+    if "\x00" in text:
+        raise ValueError("聊天消息不能包含 NUL 字符")
+    raw = text.encode("utf-16-le") + b"\x00\x00"
+    return (
+        struct.pack("<I", 16 + len(raw))
+        + struct.pack("<I", MESS_CHAT_TYPE)
+        + struct.pack("<I", 0)
+        + struct.pack("<I", len(raw) // 2)
+        + raw
+    )
+
+
 def _text(payload, offset, length):
     """按 UTF-16LE 读取定长字符串，截到第一个 NUL 为止。"""
     raw = payload[offset : offset + length * 2]
