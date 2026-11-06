@@ -3,11 +3,11 @@
 <img src="assets/app.svg" width="150" height="150" alt="JiYu Attack Next">
 <p></p>
 <p>
-   <a href="https://github.com/JasonFang0109c/jiyu_attack_next"><img alt="GitHub stars" src="https://img.shields.io/github/stars/JasonFang0109c/jiyu_attack_next?label=Stars&style=flat&color=e3b341&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCc+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J00xMiAxNy4yN0wxOC4xOCAyMWwtMS42NC03LjAzTDIyIDkuMjRsLTcuMTktLjYxTDEyIDIgOS4xOSA4LjYzIDIgOS4yNGw1LjQ2IDQuNzNMNS44MiAyMXonLz48L3N2Zz4="></a>
-   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/forks"><img alt="GitHub forks" src="https://img.shields.io/github/forks/JasonFang0109c/jiyu_attack_next?label=Forks&style=flat&color=57ab5a&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNiAxNic+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J001IDUuMzcydi44NzhjMCAuNDE0LjMzNi43NS43NS43NWg0LjVhLjc1Ljc1IDAgMCAwIC43NS0uNzV2LS44NzhhMi4yNSAyLjI1IDAgMSAxIDEuNSAwdi44NzhhMi4yNSAyLjI1IDAgMCAxLTIuMjUgMi4yNWgtMS41djIuMTI4YTIuMjUxIDIuMjUxIDAgMSAxLTEuNSAwVjguNWgtMS41QTIuMjUgMi4yNSAwIDAgMSAzLjUgNi4yNXYtLjg3OGEyLjI1IDIuMjUgMCAxIDEgMS41IDBaTTUgMy4yNWEuNzUuNzUgMCAxIDAtMS41IDAgLjc1Ljc1IDAgMCAwIDEuNSAwWm02Ljc1Ljc1YS43NS43NSAwIDEgMCAwLTEuNS43NS43NSAwIDAgMCAwIDEuNVptLTMgOC43NWEuNzUuNzUgMCAxIDAtMS41IDAgLjc1Ljc1IDAgMCAwIDEuNSAwWicvPjwvc3ZnPg=="></a>
-   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases"><img alt="GitHub release" src="https://img.shields.io/github/v/release/JasonFang0109c/jiyu_attack_next?label=Release&style=flat&include_prereleases&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNiAxNic+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J00xIDcuNzc1VjIuNzVDMSAxLjc4NCAxLjc4NCAxIDIuNzUgMWg1LjAyNWMuNDY0IDAgLjkxLjE4NCAxLjIzOC41MTNsNi4yNSA2LjI1YTEuNzUgMS43NSAwIDAgMSAwIDIuNDc0bC01LjAyNiA1LjAyNmExLjc1IDEuNzUgMCAwIDEtMi40NzQgMGwtNi4yNS02LjI1QTEuNzUyIDEuNzUyIDAgMCAxIDEgNy43NzVabTEuNSAwYzAgLjA2Ni4wMjYuMTMuMDczLjE3N2w2LjI1IDYuMjVhLjI1LjI1IDAgMCAwIC4zNTQgMGw1LjAyNS01LjAyNWEuMjUuMjUgMCAwIDAgMC0uMzU0bC02LjI1LTYuMjVhLjI1LjI1IDAgMCAwLS4xNzctLjA3M0gyLjc1YS4yNS4yNSAwIDAgMC0uMjUuMjVaTTYgNWExIDEgMCAxIDEgMCAyIDEgMSAwIDAgMSAwLTJaJy8+PC9zdmc+"></a>
-   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly"><img alt="Nightly Build" src="https://img.shields.io/badge/Nightly-Build-blue?style=flat&logo=githubactions&logoColor=white"></a>
-   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/JasonFang0109c/jiyu_attack_next?label=Issues&style=flat&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCc+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J00xMiAyYTEwIDEwIDAgMSAwIDAgMjAgMTAgMTAgMCAwIDAgMC0yMHptMSAxNWgtMnYtMmgydjJ6bTAtNGgtMlY3aDJ2NnonLz48L3N2Zz4="></a>
+   <a href="https://github.com/JasonFang0109c/jiyu_attack_next"><img alt="GitHub stars" src="https://img.shields.io/github/stars/JasonFang0109c/jiyu_attack_next?label=Stars&style=flat&color=orange&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCc+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J00xMiAxNy4yN0wxOC4xOCAyMWwtMS42NC03LjAzTDIyIDkuMjRsLTcuMTktLjYxTDEyIDIgOS4xOSA4LjYzIDIgOS4yNGw1LjQ2IDQuNzNMNS44MiAyMXonLz48L3N2Zz4="></a>
+   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/forks"><img alt="GitHub forks" src="https://img.shields.io/github/forks/JasonFang0109c/jiyu_attack_next?label=Forks&style=flat&color=blue&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNiAxNic+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J001IDUuMzcydi44NzhjMCAuNDE0LjMzNi43NS43NS43NWg0LjVhLjc1Ljc1IDAgMCAwIC43NS0uNzV2LS44NzhhMi4yNSAyLjI1IDAgMSAxIDEuNSAwdi44NzhhMi4yNSAyLjI1IDAgMCAxLTIuMjUgMi4yNWgtMS41djIuMTI4YTIuMjUxIDIuMjUxIDAgMSAxLTEuNSAwVjguNWgtMS41QTIuMjUgMi4yNSAwIDAgMSAzLjUgNi4yNXYtLjg3OGEyLjI1IDIuMjUgMCAxIDEgMS41IDBaTTUgMy4yNWEuNzUuNzUgMCAxIDAtMS41IDAgLjc1Ljc1IDAgMCAwIDEuNSAwWm02Ljc1Ljc1YS43NS43NSAwIDEgMCAwLTEuNS43NS43NSAwIDAgMCAwIDEuNVptLTMgOC43NWEuNzUuNzUgMCAxIDAtMS41IDAgLjc1Ljc1IDAgMCAwIDEuNSAwWicvPjwvc3ZnPg=="></a>
+   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases"><img alt="GitHub release" src="https://img.shields.io/github/v/release/JasonFang0109c/jiyu_attack_next?label=Release&style=flat&color=green&include_prereleases&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNiAxNic+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J00xIDcuNzc1VjIuNzVDMSAxLjc4NCAxLjc4NCAxIDIuNzUgMWg1LjAyNWMuNDY0IDAgLjkxLjE4NCAxLjIzOC41MTNsNi4yNSA2LjI1YTEuNzUgMS43NSAwIDAgMSAwIDIuNDc0bC01LjAyNiA1LjAyNmExLjc1IDEuNzUgMCAwIDEtMi40NzQgMGwtNi4yNS02LjI1QTEuNzUyIDEuNzUyIDAgMCAxIDEgNy43NzVabTEuNSAwYzAgLjA2Ni4wMjYuMTMuMDczLjE3N2w2LjI1IDYuMjVhLjI1LjI1IDAgMCAwIC4zNTQgMGw1LjAyNS01LjAyNWEuMjUuMjUgMCAwIDAgMC0uMzU0bC02LjI1LTYuMjVhLjI1LjI1IDAgMCAwLS4xNzctLjA3M0gyLjc1YS4yNS4yNSAwIDAgMC0uMjUuMjVaTTYgNWExIDEgMCAxIDEgMCAyIDEgMSAwIDAgMSAwLTJaJy8+PC9zdmc+"></a>
+   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly"><img alt="Nightly Build" src="https://img.shields.io/badge/Nightly-Build-purple?style=flat&logo=githubactions&logoColor=white"></a>
+   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/JasonFang0109c/jiyu_attack_next?label=Issues&style=flat&color=red&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCc+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J00xMiAyYTEwIDEwIDAgMSAwIDAgMjAgMTAgMTAgMCAwIDAgMC0yMHptMSAxNWgtMnYtMmgydjJ6bTAtNGgtMlY3aDJ2NnonLz48L3N2Zz4="></a>
 </p>
 <p>极域学生端 UDP 控制报文测试工具，图形界面与命令行合并为同一个 Windows EXE</p>
 <p>基于 PySide6-Fluent-Widgets 构建，打包后无需安装 Python 即可使用 GUI 与 CLI</p>
@@ -32,14 +32,14 @@
 <div align="center">
 <table width="100%" style="border: none;">
   <tr>
-    <td width="33%" valign="top" style="padding: 12px 14px;">
+    <td width="33%" valign="middle" style="padding: 12px 14px;">
       <h3 style="margin: 0 0 10px 0;">🏠 首页</h3>
       <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
         <li>快捷入口与分组功能卡片</li>
         <li>一键跳到常用页面或仓库</li>
       </ul>
     </td>
-    <td width="33%" valign="top" style="padding: 12px 14px;">
+    <td width="33%" valign="middle" style="padding: 12px 14px;">
       <h3 style="margin: 0 0 10px 0;">💬 消息与命令</h3>
       <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
         <li><b>文本消息</b>：多行编辑与分条发送</li>
@@ -47,7 +47,7 @@
         <li><b>远程命令</b>：实时显示缓冲区容量</li>
       </ul>
     </td>
-    <td width="33%" valign="top" style="padding: 12px 14px;">
+    <td width="33%" valign="middle" style="padding: 12px 14px;">
       <h3 style="margin: 0 0 10px 0;">🖥️ 画面与接管</h3>
       <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
         <li><b>屏幕画面</b>：缩略图与实时桌面画面</li>
@@ -56,7 +56,7 @@
     </td>
   </tr>
   <tr>
-    <td width="33%" valign="top" style="padding: 12px 14px;">
+    <td width="33%" valign="middle" style="padding: 12px 14px;">
       <h3 style="margin: 0 0 10px 0;">🎓 教师端模拟</h3>
       <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
         <li><b>应用命令</b>：运行程序、打开网址、黑屏锁键鼠</li>
@@ -64,7 +64,7 @@
         <li><b>关闭窗口</b>：按句柄关闭目标窗口</li>
       </ul>
     </td>
-    <td width="33%" valign="top" style="padding: 12px 14px;">
+    <td width="33%" valign="middle" style="padding: 12px 14px;">
       <h3 style="margin: 0 0 10px 0;">📦 文件与设备</h3>
       <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
         <li><b>文件传送</b>：勾选文件树下载到桌面</li>
@@ -72,7 +72,7 @@
         <li><b>设备备注</b>：IPv4 映射易读名称</li>
       </ul>
     </td>
-    <td width="33%" valign="top" style="padding: 12px 14px;">
+    <td width="33%" valign="middle" style="padding: 12px 14px;">
       <h3 style="margin: 0 0 10px 0;">🕳️ 反弹终端</h3>
       <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
         <li>本机监听，脚本经临时 HTTP 下发</li>
@@ -81,7 +81,7 @@
     </td>
   </tr>
   <tr>
-    <td width="33%" valign="top" style="padding: 12px 14px;">
+    <td width="33%" valign="middle" style="padding: 12px 14px;">
       <h3 style="margin: 0 0 10px 0;">🧰 本机与防火墙</h3>
       <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
         <li><b>本机信息</b>：查询 IP 与 Student 端口</li>
@@ -89,14 +89,14 @@
         <li><b>目标地址</b>：IPv4、末段与 <code>/24</code></li>
       </ul>
     </td>
-    <td width="33%" valign="top" style="padding: 12px 14px;">
+    <td width="33%" valign="middle" style="padding: 12px 14px;">
       <h3 style="margin: 0 0 10px 0;">📋 运行日志</h3>
       <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
         <li>按功能、级别与关键词筛选</li>
         <li>勾选导出或删除选中记录</li>
       </ul>
     </td>
-    <td width="33%" valign="top" style="padding: 12px 14px;">
+    <td width="33%" valign="middle" style="padding: 12px 14px;">
       <h3 style="margin: 0 0 10px 0;">⚙️ 设置与关于</h3>
       <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
         <li>切换主题、窗口材质与关闭行为</li>
