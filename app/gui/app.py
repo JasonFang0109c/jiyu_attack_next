@@ -528,27 +528,32 @@ class MainWindow(FluentWindow):
         """窗口显示后再应用一次模糊，覆盖库在 showEvent 里设下的云母。"""
         super().showEvent(event)
         self._refresh_background_effect()
+        # 滚动区要等窗口真正显示才有尺寸，等这一轮事件走完再滚到当前页面。
+        QTimer.singleShot(0, self._refresh_navigation)
 
     def resizeEvent(self, event):
         """窗口高度跨过阈值时切换侧边栏的展开与图标模式。"""
         super().resizeEvent(event)
         self._sync_navigation_mode()
 
-    def _sync_navigation_mode(self):
-        """窗口高度跨过阈值时调整分组的展开状态。
+    def _refresh_navigation(self):
+        """重排分组并把当前页面滚进可见区域。"""
+        self._fit_navigation_groups()
+        current = self.stackedWidget.currentWidget()
+        if current is not None:
+            self._reveal_navigation_item(current.objectName())
 
-        导航项占用的高度超过窗口时，库会把子项压成同一条高度，分组标题与
-        子项就会互相压字；所以矮窗口只保留分组标题，点开某个分组再看它的
-        子项。侧边栏本身始终可用，不做整体收起。
+    def _sync_navigation_mode(self):
+        """窗口尺寸变化后重新按实际子项高度排布分组。
+
+        库在窗口宽度变化时会把导航项压回单行高度，子项因此叠在一起，这里补一次。
         """
         # 无边框窗口在基类构造里就会触发 resizeEvent，此时导航栏还不存在。
         if not hasattr(self, "navigationInterface"):
             return
-        tall = self.height() >= NAVIGATION_EXPAND_HEIGHT
-        if tall == getattr(self, "_navigation_tall", None):
-            return
-        self._navigation_tall = tall
-        self._fit_navigation_groups()
+        # 启动时页面是在窗口显示前切好的，那时滚动区还没有尺寸，
+        # 这里按当前页面再滚一次，侧边栏才会停在高亮项上。
+        self._refresh_navigation()
 
     def _onThemeChangedFinished(self):
         """主题切换后重新应用模糊，深浅色决定染色与标题栏明暗。"""
@@ -678,13 +683,18 @@ class MainWindow(FluentWindow):
         self.navigationInterface.setMinimumExpandWidth(1050)
         self.navigationInterface.setReturnButtonVisible(False)
         self.addSubInterface(self.pages["home"], FIF.HOME, "首页")
-        self.navigationInterface.addSeparator()
+        self.navigationInterface.addSeparator(NavigationItemPosition.SCROLL)
         for route, icon, title, children in NAVIGATION_GROUPS:
             self._add_navigation_group(route, icon, title, children)
             if route == NAVIGATION_ALIASES_AFTER:
                 # 设备备注是独立入口，位置在教师端模拟与本机工具之间。
-                self.addSubInterface(self.pages["aliases"], FIF.QUICK_NOTE, "设备备注")
-        self.navigationInterface.addSeparator()
+                self.addSubInterface(
+                    self.pages["aliases"],
+                    FIF.QUICK_NOTE,
+                    "设备备注",
+                    NavigationItemPosition.SCROLL,
+                )
+        self.navigationInterface.addSeparator(NavigationItemPosition.SCROLL)
         self.addSubInterface(
             self.pages["logs"], FIF.HISTORY, "运行日志", NavigationItemPosition.BOTTOM
         )
@@ -694,15 +704,13 @@ class MainWindow(FluentWindow):
         self.addSubInterface(
             self.pages["about"], FIF.INFO, "关于", NavigationItemPosition.BOTTOM
         )
-        self._navigation_tall = None
-        # 导航项比较多，窗口不够高时展开会让分组与子项挤在一起，
-        # 这种情况下保持库默认的图标模式，等窗口拉高后由 resizeEvent 再展开。
-        if self.height() >= NAVIGATION_EXPAND_HEIGHT:
-            self.navigationInterface.expand(useAni=False)
+        # 分组放在可滚动区域里，窗口再矮也只是出现滚动条，不会挤压子项，
+        # 所以不管窗口多高都直接展开。
+        self.navigationInterface.expand(useAni=False)
         self._fit_navigation_groups()
         # 侧边栏收起再展开时库会重设每个分组的高度，这里补一次，避免子项叠在一起。
         self.navigationInterface.panel.displayModeChanged.connect(
-            lambda _mode: self._fit_navigation_groups()
+            lambda _mode: self._refresh_navigation()
         )
 
     def _fit_navigation_groups(self):
@@ -714,12 +722,8 @@ class MainWindow(FluentWindow):
         # 分组展开与否跟着侧边栏的展开状态走：面板收起时分组也要收起来，
         # 只按 node.isExpanded 判断会拿到过期状态，子项留在画面上互相压字。
         panel = self.navigationInterface.panel
-        # 分组展开要同时满足两个条件：侧边栏是展开的，且窗口高度装得下所有子项。
-        expanded = (
-            not panel.isCollapsed()
-            and panel.width() >= panel.expandWidth
-            and self.height() >= NAVIGATION_EXPAND_HEIGHT
-        )
+        # 分组跟着侧边栏的展开状态走，内容超高由外层滚动区负责，不需要按窗口高度取舍。
+        expanded = not panel.isCollapsed() and panel.width() >= panel.expandWidth
         for route, _icon, _title, _children in NAVIGATION_GROUPS:
             node = panel.widget(route)
             node.setExpanded(expanded, ani=False)
@@ -731,30 +735,17 @@ class MainWindow(FluentWindow):
             )
         self._apply_navigation_minimum_height()
 
-    def _relayout_navigation(self, route):
-        """分组展开或收起后重排导航，矮窗口下只保留一个分组展开。
+    def _relayout_navigation(self):
+        """分组展开或收起后按实际子项重算高度，并刷新外层滚动区。
 
-        导航项总高度超过窗口时库会把子项压成同一条高度而互相压字，
-        所以窗口不够高时改成手风琴：打开一个分组就收起其它分组。
+        分组的展开与收起互不影响，几个分组可以同时打开；高度超出可视区域时
+        由导航区自己的滚动条处理，不会把子项压到下一个分组标题上。
         """
-        # expanded 在展开动画的每一帧都会发出，这里用标志位挡住重入。
         if getattr(self, "_relaying_navigation", False):
             return
         self._relaying_navigation = True
         try:
             panel = self.navigationInterface.panel
-            node = panel.widget(route)
-            if (
-                node is not None
-                and node.isExpanded
-                and self.height() < NAVIGATION_EXPAND_HEIGHT
-            ):
-                for other_route, _icon, _title, _children in NAVIGATION_GROUPS:
-                    if other_route == route:
-                        continue
-                    other = panel.widget(other_route)
-                    if other is not None and other.isExpanded:
-                        other.setExpanded(False, ani=False)
             for group_route, _icon, _title, _children in NAVIGATION_GROUPS:
                 group = panel.widget(group_route)
                 if group is None:
@@ -765,18 +756,19 @@ class MainWindow(FluentWindow):
                     if group.isExpanded
                     else group.itemWidget.height()
                 )
+            panel.scrollLayout.activate()
+            panel.scrollWidget.adjustSize()
         finally:
             self._relaying_navigation = False
 
     def _apply_navigation_minimum_height(self):
         """按导航内容设置侧边栏最小高度，但不让它把窗口顶高。
 
-        导航项多起来之后，布局高度会超过常见的屏幕高度，窗口就再也缩不回去；
-        这里给一个上限，超出部分交给侧边栏自己滚动。窗口比导航内容还矮时保持
-        库默认的图标模式，展开状态下的子项会挤成同一条高度而互相压字。
+        分组都在可滚动的导航区里，最小高度只算顶部首页那一行与底部按钮，
+        内容再多也只是出现滚动条，不会把窗口顶到超出屏幕。
         """
         panel = self.navigationInterface.panel
-        # 上下两块布局各自的最小高度就是导航项与底部按钮真正需要的空间。
+        # 上下两块布局各自的最小高度就是固定导航项与底部按钮真正需要的空间。
         needed = (
             panel.topLayout.minimumSize().height()
             + panel.bottomLayout.minimumSize().height()
@@ -788,7 +780,12 @@ class MainWindow(FluentWindow):
         """创建一个只承载子项的分组节点，并按其顺序挂上子页面。"""
         # 分组本身不是页面，所以不可选中，点击只切换展开状态。
         self.navigationInterface.addItem(
-            routeKey=route, icon=icon, text=title, selectable=False, tooltip=title
+            routeKey=route,
+            icon=icon,
+            text=title,
+            selectable=False,
+            position=NavigationItemPosition.SCROLL,
+            tooltip=title,
         )
         node = self.navigationInterface.panel.widget(route)
         # 先展开再加子项：insertChild 只在父项已展开时才把高度算进去，
@@ -801,7 +798,7 @@ class MainWindow(FluentWindow):
         # 用户点分组后要让后面的项重新排列，否则子项会压到下一个分组标题上。
         # setExpanded 默认不走动画、不会发 expanded 信号，只能挂点击信号。
         node.itemWidget.itemClicked.connect(
-            lambda *_ignored, group=route: self._relayout_navigation(group)
+            lambda *_ignored: self._relayout_navigation()
         )
         self._apply_navigation_minimum_height()
         return node
@@ -868,6 +865,21 @@ class MainWindow(FluentWindow):
         if node is not None and not node.isExpanded:
             node.setExpanded(True, ani=False)
         self.switchTo(page)
+        self._reveal_navigation_item(key)
+
+    def _reveal_navigation_item(self, key):
+        """把当前页面对应的导航项滚进可见区域。
+
+        分组都在可滚动的导航区里，页面一多当前项就可能落在可视范围之外，
+        侧边栏就看不出现在停在哪一页。
+        """
+        panel = self.navigationInterface.panel
+        item = panel.widget(key)
+        if item is None:
+            return
+        # 先按实际子项高度排一次，滚动位置才会算在排好的布局上。
+        self._relayout_navigation()
+        panel.scrollArea.ensureWidgetVisible(item, 0, 12)
 
     def current_page(self):
         """返回当前页面名。"""
@@ -2307,8 +2319,6 @@ PREVIEW_SECONDS = 8.0
 PROBE_TIMEOUT = 1.0
 # 侧边栏最小高度的上限：导航项再多也不该把整个窗口顶到超出屏幕。
 NAVIGATION_MAX_HEIGHT = 680
-# 展开侧边栏至少需要这么高的窗口，低于它就只能显示图标，否则子项会互相压字。
-NAVIGATION_EXPAND_HEIGHT = 960
 # 侧边栏顶部菜单按钮那一行的高度，算进导航项需要的空间里。
 NAVIGATION_HEADER_HEIGHT = 36
 
