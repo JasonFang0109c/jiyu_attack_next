@@ -29,57 +29,76 @@
 <div align="center">
 <table width="100%" style="border: none;">
   <tr>
-    <td width="33%" valign="middle">
+    <td width="33%" valign="top">
+      <h3>🏠 首页</h3>
+      <ul style="list-style-position: inside; padding-left: 0;">
+        <li>快捷入口与分组功能卡片</li>
+        <li>一键跳到常用页面或仓库</li>
+      </ul>
+    </td>
+    <td width="33%" valign="top">
       <h3>💬 消息与命令</h3>
       <ul style="list-style-position: inside; padding-left: 0;">
         <li><b>文本消息</b>：多行编辑与分条发送</li>
+        <li><b>聊天消息</b>：走教师会话通道的双向文本</li>
         <li><b>远程命令</b>：实时显示缓冲区容量</li>
       </ul>
     </td>
-    <td width="33%" valign="middle">
-      <h3>🎯 目标与操作</h3>
+    <td width="33%" valign="top">
+      <h3>🖥️ 画面与接管</h3>
       <ul style="list-style-position: inside; padding-left: 0;">
-        <li><b>设备操作</b>：重启、关机或注销前预览</li>
-        <li><b>设备备注</b>：IPv4 映射易读名称</li>
-        <li><b>目标地址</b>：IPv4、末段与 <code>/24</code></li>
-      </ul>
-    </td>
-    <td width="33%" valign="middle">
-      <h3>📦 文件与工具</h3>
-      <ul style="list-style-position: inside; padding-left: 0;">
-        <li><b>文件传送</b>：勾选文件树下载到桌面</li>
-        <li><b>应用命令</b>：运行程序、打开网址、黑屏锁键鼠</li>
-        <li><b>学生信息</b>：宣告发现、系统信息与进程窗口</li>
-        <li><b>屏幕画面</b>：缩略图、实时画面与接管键鼠</li>
-        <li><b>聊天消息</b>：走教师会话通道的双向文本</li>
-        <li><b>关闭窗口</b>：按句柄关闭目标窗口</li>
-        <li><b>反弹终端</b>：本机监听，目标连回得可交互命令行</li>
-        <li><b>本机信息</b>：查询 IP 与 Student 端口</li>
-        <li><b>防火墙</b>：修改现有规则并查看结果</li>
+        <li><b>屏幕画面</b>：缩略图与实时桌面画面</li>
+        <li><b>远程接管</b>：在画面里转发键鼠操作</li>
       </ul>
     </td>
   </tr>
   <tr>
-    <td width="33%" valign="middle">
+    <td width="33%" valign="top">
+      <h3>🎓 教师端模拟</h3>
+      <ul style="list-style-position: inside; padding-left: 0;">
+        <li><b>应用命令</b>：运行程序、打开网址、黑屏锁键鼠</li>
+        <li><b>学生信息</b>：宣告发现、系统信息与进程窗口</li>
+        <li><b>关闭窗口</b>：按句柄关闭目标窗口</li>
+      </ul>
+    </td>
+    <td width="33%" valign="top">
+      <h3>📦 文件与设备</h3>
+      <ul style="list-style-position: inside; padding-left: 0;">
+        <li><b>文件传送</b>：勾选文件树下载到桌面</li>
+        <li><b>设备操作</b>：重启、关机或注销前预览</li>
+        <li><b>设备备注</b>：IPv4 映射易读名称</li>
+      </ul>
+    </td>
+    <td width="33%" valign="top">
+      <h3>🕳️ 反弹终端</h3>
+      <ul style="list-style-position: inside; padding-left: 0;">
+        <li>本机监听，脚本经临时 HTTP 下发</li>
+        <li>目标连回后得到可交互命令行</li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <td width="33%" valign="top">
+      <h3>🧰 本机与防火墙</h3>
+      <ul style="list-style-position: inside; padding-left: 0;">
+        <li><b>本机信息</b>：查询 IP 与 Student 端口</li>
+        <li><b>防火墙</b>：修改现有规则并查看结果</li>
+        <li><b>目标地址</b>：IPv4、末段与 <code>/24</code></li>
+      </ul>
+    </td>
+    <td width="33%" valign="top">
       <h3>📋 运行日志</h3>
       <ul style="list-style-position: inside; padding-left: 0;">
         <li>按功能、级别与关键词筛选</li>
         <li>勾选导出或删除选中记录</li>
       </ul>
     </td>
-    <td width="33%" valign="middle">
-      <h3>⚙️ 设置</h3>
+    <td width="33%" valign="top">
+      <h3>⚙️ 设置与关于</h3>
       <ul style="list-style-position: inside; padding-left: 0;">
         <li>切换主题、窗口材质与关闭行为</li>
-        <li>调整运行日志等级</li>
-        <li>确认后清除本地数据</li>
-      </ul>
-    </td>
-    <td width="33%" valign="middle">
-      <h3>ℹ️ 关于</h3>
-      <ul style="list-style-position: inside; padding-left: 0;">
-        <li>作者与仓库信息</li>
-        <li>构建时间与组件版本</li>
+        <li>调整日志等级、确认后清除本地数据</li>
+        <li>查看作者、仓库与构建信息</li>
       </ul>
     </td>
   </tr>
