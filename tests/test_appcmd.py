@@ -3,6 +3,7 @@
 import socket
 import struct
 import unittest
+import unittest.mock
 from threading import Event
 from unittest.mock import patch
 
@@ -455,6 +456,54 @@ class ScreenSessionTests(unittest.TestCase):
         self.feed_fragment(session, 2, 0, len(body), body)
         self.feed_fragment(session, 2, 0, len(body), body)
         self.assertEqual(len(records), 1)
+
+
+class RemoteControlTests(unittest.TestCase):
+    """远控通道：接管请求与输入报文的发送。"""
+
+    def make_control(self):
+        control = core.RemoteControl("10.1.1.5", "10.1.1.9", mode=2, udp_port=4705)
+        control._sock = unittest.mock.Mock()
+        control._ready_at = 0.0
+        return control
+
+    def test_open_sends_transaction_and_keeps_port(self):
+        control = core.RemoteControl("10.1.1.5", "10.1.1.9", udp_port=4705)
+        with unittest.mock.patch("socket.socket") as factory:
+            factory.return_value.getsockname.return_value = ("10.1.1.9", 55120)
+            port = control.open()
+            self.assertEqual(port, 55120)
+            self.assertEqual(control.port, 55120)
+            sent = factory.return_value.sendto
+            self.assertEqual(sent.call_args.args[1], ("10.1.1.5", 4705))
+        control.close(send_stop=False)
+
+    def test_mouse_and_key_build_input_packets(self):
+        control = self.make_control()
+        control.mouse("leftdown", 100, 200)
+        control.key(0x1E, 0x41, key_up=True)
+        calls = control._sock.sendto.call_args_list
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(
+            struct.unpack_from("<II", calls[0].args[0], 0), (appcmd.INPUT_MAGIC, 1)
+        )
+        self.assertEqual(struct.unpack_from("<I", calls[0].args[0], 8)[0], 0x0201)
+        self.assertEqual(
+            struct.unpack_from("<II", calls[1].args[0], 0), (appcmd.INPUT_MAGIC, 16)
+        )
+        self.assertEqual(calls[0].args[1], ("10.1.1.5", 0))
+
+    def test_send_requires_open(self):
+        control = core.RemoteControl("10.1.1.5", "10.1.1.9")
+        with self.assertRaises(RuntimeError):
+            control.mouse("move", 1, 1)
+
+    def test_close_stops_and_releases_socket(self):
+        control = self.make_control()
+        socket_mock = control._sock
+        control.close()
+        socket_mock.close.assert_called_once_with()
+        self.assertIsNone(control._sock)
 
 
 if __name__ == "__main__":

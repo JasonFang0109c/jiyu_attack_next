@@ -62,6 +62,7 @@ from .protocol import (
 )
 from .screen import ScreenSession, fix_thumbnail
 from .teacher import (
+    RemoteControl,
     TeacherSession,
     collect_previews,
     collect_students,
@@ -114,6 +115,7 @@ __all__ = [
     "DeliveryState",
     "FileTransferServer",
     "H264Decoder",
+    "RemoteControl",
     "ScreenSession",
     "SendOptions",
     "SendOutcome",

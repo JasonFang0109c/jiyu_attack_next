@@ -10,7 +10,7 @@ import time
 import unittest
 from pathlib import Path
 from threading import Event
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 os.environ.setdefault(
     "QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen"
@@ -463,6 +463,57 @@ class GuiTests(unittest.TestCase):
             page.viewRequested.emit()
         window_class.assert_called_once()
         self.assertEqual(window_class.call_args.args[0], "10.1.1.5")
+
+    def test_screen_view_maps_click_into_remote_coordinates(self):
+        from PySide6.QtCore import QPoint
+        from PySide6.QtGui import QPixmap as Pixmap
+
+        from app.gui.screen_window import ScreenView
+
+        class Stub:
+            """只为接收转发调用，不需要真实的远控通道。"""
+
+            def __init__(self):
+                self.mouse = []
+
+            def send_mouse(self, action, x, y, data=0):
+                self.mouse.append((action, x, y, data))
+
+            def send_key(self, event, key_up):
+                pass
+
+        stub = Stub()
+        view = ScreenView(stub, None)
+        view.resize(800, 600)
+        pixmap = Pixmap(400, 200)
+        pixmap.fill(QColor("#000000"))
+        view.setPixmap(pixmap)
+        area = view.image_rect()
+        # 400x200 的画面按比例放进 800x600，上下各留 100 像素黑边。
+        self.assertEqual(area.width(), 800)
+        self.assertEqual(area.height(), 400)
+        self.assertEqual(area.y(), 100)
+
+        # 中心点应落在坐标范围的正中间附近，取整方式不同会有几十的偏差。
+        point = view.normalized(area.center())
+        self.assertTrue(32000 <= point[0] <= 33500, point)
+        self.assertTrue(32000 <= point[1] <= 33500, point)
+        # 落在黑边上的点不产生坐标。
+        self.assertIsNone(view.normalized(QPoint(area.center().x(), 10)))
+
+    def test_screen_window_forwards_input_only_after_takeover(self):
+        from app.gui.screen_window import ScreenWindow
+
+        window = ScreenWindow("10.1.1.5")
+        window.control = None
+        window.send_mouse("move", 1, 1)
+        self.assertIsNone(window.control)
+        control = MagicMock()
+        control.port = 55120
+        window.control = control
+        window.send_mouse("leftdown", 100, 200)
+        control.mouse.assert_called_once_with("leftdown", 100, 200, 0)
+        self.assertEqual(window.control_button.text(), "接管键鼠")
 
     def png_bytes(self):
         """生成一张最小的 PNG，用来验证缩略图能真正解析成图片。"""

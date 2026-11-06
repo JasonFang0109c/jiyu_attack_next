@@ -8,6 +8,7 @@
 import socket
 import struct
 import time
+from contextlib import suppress
 from threading import Lock
 from time import monotonic, sleep
 
@@ -654,44 +655,132 @@ def stop_screen(host, channel=1, local_ip=None, report=None):
     )
 
 
+class RemoteControl:
+    """常驻的远控通道：先请求接管，再用同一个套接字持续发送输入。
+
+    学生端只认「发出接管请求的那个本地端口」送来的输入，所以套接字必须一直
+    留着，不能像普通命令那样发包就关。
+
+    Attributes:
+        host: 学生地址。
+        local_ip: 教师端地址。
+        mode: 0 双方可操作、1 停止、2 仅教师操作并锁定学生输入。
+        port: 本机输入端口，构造后由 :meth:`open` 填入实际值。
+    """
+
+    # 学生端接管后要过一小会儿才收输入，首包太早会被丢掉。
+    READY_DELAY = 0.35
+    MOUSE = 1
+    KEYBOARD = 16
+
+    def __init__(self, host, local_ip, mode=2, port=0, udp_port=4705):
+        self.host = host
+        self.local_ip = local_ip
+        self.mode = mode
+        self.port = port
+        self.udp_port = udp_port
+        self._sock = None
+        self._ready_at = 0.0
+        self.inputs = 0
+
+    def __enter__(self):
+        self.open()
+        return self
+
+    def __exit__(self, *_exc):
+        self.close()
+
+    def open(self):
+        """绑定本机端口并发出接管请求。
+
+        Returns:
+            int: 本机输入端口。
+        """
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.bind((self.local_ip, self.port))
+        self.port = sock.getsockname()[1]
+        payload = appcmd.remote_control_payload_for(self.host, self.mode, self.port)
+        packet = appcmd.command_transaction_packet(payload, self.local_ip)
+        sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sender.sendto(packet, (self.host, self.udp_port))
+        finally:
+            sender.close()
+        self._sock = sock
+        self._ready_at = monotonic() + self.READY_DELAY
+        return self.port
+
+    def send(self, kind, payload):
+        """发送一条输入报文。
+
+        Args:
+            kind: :attr:`MOUSE` 或 :attr:`KEYBOARD`。
+            payload: 20 字节输入体。
+
+        Raises:
+            RuntimeError: 还未 :meth:`open`。
+        """
+        if self._sock is None:
+            raise RuntimeError("远控尚未开始，请先请求接管")
+        delay = self._ready_at - monotonic()
+        if delay > 0:
+            sleep(delay)
+        self._sock.sendto(appcmd.input_packet(kind, payload), (self.host, self.port))
+        self.inputs += 1
+
+    def mouse(self, action, x, y, data=0, swapped=0):
+        """发送鼠标事件，坐标已归一化到 0..65535。"""
+        self.send(self.MOUSE, appcmd.mouse_input_payload(action, x, y, data, swapped))
+
+    def key(self, scan_code, virtual_key, key_up=False, extended=False):
+        """发送键盘事件。"""
+        self.send(
+            self.KEYBOARD,
+            appcmd.key_input_payload(scan_code, virtual_key, key_up, extended),
+        )
+
+    def close(self, send_stop=True):
+        """关闭输入通道，可选通知学生端解除锁定。"""
+        sock = self._sock
+        self._sock = None
+        if sock is not None:
+            with suppress(OSError):
+                sock.close()
+        if send_stop:
+            payload = appcmd.remote_control_payload_for(self.host, 1, self.port)
+            packet = appcmd.command_transaction_packet(payload, self.local_ip)
+            sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                with suppress(OSError):
+                    sender.sendto(packet, (self.host, self.udp_port))
+            finally:
+                sender.close()
+
+
 def remote_control(
     host, local_ip, mode=2, port=0, udp_port=4705, report=None, cancel_event=None
 ):
-    """请求接管学生端的输入，返回本机接收输入的端口。
+    """请求接管学生端输入，返回可继续发送键鼠事件的通道。
 
     Args:
         host: 学生地址。
         local_ip: 教师端地址，写进命令事务头。
         mode: 0 双方可操作、1 停止、2 仅教师操作并锁定学生输入。
-        port: 本机接收输入的 UDP 端口，0 表示让系统分配。
+        port: 本机输入端口，0 表示让系统分配。
         udp_port: 学生端 UDP 端口。
         report: 进度回调。
-        cancel_event: 取消信号（保留以便与其他操作统一调用）。
+        cancel_event: 取消信号。
 
     Returns:
-        int: 本机接收输入的端口。
+        RemoteControl: 已建立输入通道的对象，用完需 :meth:`RemoteControl.close`。
     """
     if cancel_event is not None and cancel_event.is_set():
         raise RuntimeError("操作已取消")
-    receiver = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        receiver.bind((local_ip, port))
-        actual = receiver.getsockname()[1]
-        payload = appcmd.remote_control_payload_for(host, mode, actual)
-        packet = appcmd.command_transaction_packet(payload, local_ip)
-        sent = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            sent.sendto(packet, (host, udp_port))
-        finally:
-            sent.close()
-    finally:
-        receiver.close()
+    control = RemoteControl(host, local_ip, mode, port, udp_port)
+    control.open()
     if report:
-        report(
-            "远控请求 → %s（模式 %d，输入端口 %d，%d 字节）"
-            % (host, mode, actual, len(packet))
-        )
-    return actual
+        report("远控请求 → %s（模式 %d，输入端口 %d）" % (host, mode, control.port))
+    return control
 
 
 def collect_previews(
@@ -799,6 +888,7 @@ def view_screen(
 
 
 __all__ = [
+    "RemoteControl",
     "TeacherSession",
     "collect_previews",
     "collect_students",

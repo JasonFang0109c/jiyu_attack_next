@@ -565,23 +565,29 @@ def run_view(arguments):
                     save_frame(width, height, pixels, image)
                     print("  h264 → %s" % image.name)
 
+        control = None
         if arguments.control:
-            port = remote_control(
+            control = remote_control(
                 host,
                 local_ip_and_ports()[0],
                 mode=2,
                 udp_port=arguments.p,
                 report=print,
             )
-            print("  已请求接管键鼠，输入端口 %d" % port)
-        result = view_screen(
-            host,
-            seconds=arguments.view,
-            tcp_port=arguments.tcp_port,
-            channel=arguments.channel,
-            report=print,
-            on_record=handle,
-        )
+            print("  已请求接管键鼠，输入端口 %d" % control.port)
+        try:
+            result = view_screen(
+                host,
+                seconds=arguments.view,
+                tcp_port=arguments.tcp_port,
+                channel=arguments.channel,
+                report=print,
+                on_record=handle,
+            )
+        finally:
+            # 命令行没有交互界面可转发事件，接管只是为了让学生端解除锁定。
+            if control is not None:
+                control.close()
         print("  %s 收到 %d 条记录" % (host, result["records"]))
     log.info("屏幕观看结束", "屏幕", "目标：%d 台" % len(hosts))
     return True
