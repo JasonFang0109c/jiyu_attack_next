@@ -197,8 +197,8 @@ class AboutPage(Page):
             icon=FIF.LINK,
         )
         self.repository_card.add_row(
-            "reference",
-            "参考仓库",
+            "thirdparty",
+            "来源仓库",
             "https://github.com/yunsjxh/Third-party-JiYu-Teacher-Endpoint",
             url="https://github.com/yunsjxh/Third-party-JiYu-Teacher-Endpoint",
             icon=FIF.LINK,

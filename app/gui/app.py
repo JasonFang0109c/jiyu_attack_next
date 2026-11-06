@@ -287,7 +287,7 @@ NAVIGATION_GROUPS = (
     (
         "group_remote",
         FIF.GLOBE,
-        "远程操作",
+        "远程攻击",
         (
             ("message", FIF.MESSAGE, "文本消息"),
             ("file", FIF.SEND, "文件传送"),

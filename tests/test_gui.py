@@ -248,7 +248,7 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(heights, {row_height}, card.heading.text())
             offsets = [widget.geometry().top() for widget in card.rows.values()]
             self.assertEqual(offsets, sorted(offsets))
-        # 行数与行高都一致的卡片，总高应完全相同；仓库信息多一行参考仓库，
+        # 行数与行高都一致的卡片，总高应完全相同；仓库信息多一行来源仓库，
         # 高度自然比另外三张多一行。
         two_row = (about.version_card, about.component_card, about.license_card)
         self.assertEqual(len({card.height() for card in two_row}), 1)
@@ -309,7 +309,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(about.repository_card.heading.text(), "仓库信息")
         self.assertEqual(about.repository_card.objectName(), "aboutDetailCard")
         self.assertEqual(
-            sorted(about.repository_card.rows), ["origin", "reference", "repository"]
+            sorted(about.repository_card.rows), ["origin", "repository", "thirdparty"]
         )
         self.assertEqual(
             about.repository_card.rows["repository"].getUrl().toString(),
@@ -320,7 +320,7 @@ class GuiTests(unittest.TestCase):
             "https://github.com/ht0Ruial/Jiyu_udp_attack",
         )
         self.assertEqual(
-            about.repository_card.rows["reference"].getUrl().toString(),
+            about.repository_card.rows["thirdparty"].getUrl().toString(),
             "https://github.com/yunsjxh/Third-party-JiYu-Teacher-Endpoint",
         )
         self.assertNotIn(
@@ -399,7 +399,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.command.editor.toPlainText(), "whoami")
 
     def test_navigation_groups_pages_in_expected_order(self):
-        # 分组顺序固定：远程操作、教师端模拟、设备备注、本机工具。
+        # 分组顺序固定：远程攻击、教师端模拟、设备备注、本机工具。
         panel = self.window.navigationInterface.panel
         top = [
             item.routeKey

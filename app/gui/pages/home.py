@@ -107,10 +107,10 @@ class ActionCard(SimpleCardWidget):
             child.setAttribute(Qt.WA_TransparentForMouseEvents, True)
 
 
-# 分组内的入口：远程操作按使用频率排，本机工具按用途排。
+# 分组内的入口：远程攻击按使用频率排，本机工具按用途排。
 SECTIONS = (
     (
-        "远程操作",
+        "远程攻击",
         (
             (
                 "message",
