@@ -248,8 +248,10 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(heights, {row_height}, card.heading.text())
             offsets = [widget.geometry().top() for widget in card.rows.values()]
             self.assertEqual(offsets, sorted(offsets))
-        # 行高一致后三张卡片总高相同。
-        self.assertEqual(len({card.height() for card in cards}), 1)
+        # 行数与行高都一致的卡片，总高应完全相同；仓库信息多一行参考仓库，
+        # 高度自然比另外三张多一行。
+        two_row = (about.version_card, about.component_card, about.license_card)
+        self.assertEqual(len({card.height() for card in two_row}), 1)
 
     def test_about_links_are_not_clipped(self):
         about = self.show_about_page()
@@ -306,14 +308,20 @@ class GuiTests(unittest.TestCase):
         about = self.window.pages["about"]
         self.assertEqual(about.repository_card.heading.text(), "仓库信息")
         self.assertEqual(about.repository_card.objectName(), "aboutDetailCard")
-        self.assertEqual(sorted(about.repository_card.rows), ["repository", "upstream"])
+        self.assertEqual(
+            sorted(about.repository_card.rows), ["origin", "reference", "repository"]
+        )
         self.assertEqual(
             about.repository_card.rows["repository"].getUrl().toString(),
             "https://github.com/JasonFang0109c/jiyu_attack_next",
         )
         self.assertEqual(
-            about.repository_card.rows["upstream"].getUrl().toString(),
+            about.repository_card.rows["origin"].getUrl().toString(),
             "https://github.com/ht0Ruial/Jiyu_udp_attack",
+        )
+        self.assertEqual(
+            about.repository_card.rows["reference"].getUrl().toString(),
+            "https://github.com/yunsjxh/Third-party-JiYu-Teacher-Endpoint",
         )
         self.assertNotIn(
             "GitHub 仓库", [label.text() for label in about.findChildren(BodyLabel)]

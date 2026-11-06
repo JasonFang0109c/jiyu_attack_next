@@ -190,10 +190,17 @@ class AboutPage(Page):
             icon=FIF.GITHUB,
         )
         self.repository_card.add_row(
-            "upstream",
-            "上游仓库",
+            "origin",
+            "来源仓库",
             "https://github.com/ht0Ruial/Jiyu_udp_attack",
             url="https://github.com/ht0Ruial/Jiyu_udp_attack",
+            icon=FIF.LINK,
+        )
+        self.repository_card.add_row(
+            "reference",
+            "参考仓库",
+            "https://github.com/yunsjxh/Third-party-JiYu-Teacher-Endpoint",
+            url="https://github.com/yunsjxh/Third-party-JiYu-Teacher-Endpoint",
             icon=FIF.LINK,
         )
         content.addWidget(self.repository_card)
