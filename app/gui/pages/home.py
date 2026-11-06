@@ -223,7 +223,7 @@ class HomePage(Page):
         self.title_label = LargeTitleLabel("JiYu Attack Next", host)
         content.addWidget(self.title_label)
         self.subtitle_label = CaptionLabel(
-            "极域学生端 UDP 控制报文测试工具 · 版本 %s" % version_text(), host
+            "极域课堂 UDP 报文测试工具 · 版本 %s" % version_text(), host
         )
         content.addWidget(self.subtitle_label)
         content.addSpacing(8)

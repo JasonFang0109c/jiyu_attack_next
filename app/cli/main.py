@@ -39,7 +39,9 @@ from ..core import (
 
 def build_parser():
     """创建 CLI 参数解析器。"""
-    parser = argparse.ArgumentParser(description="极域学生端 UDP 控制报文测试工具")
+    parser = argparse.ArgumentParser(
+        description="极域课堂 UDP 报文测试工具（学生端控制与教师端模拟）"
+    )
     parser.add_argument(
         "-V",
         "--version",

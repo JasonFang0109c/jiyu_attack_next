@@ -9,7 +9,7 @@
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly"><img alt="Nightly Build" src="https://img.shields.io/badge/Nightly-Build-purple?style=flat&logo=githubactions&logoColor=white"></a>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/JasonFang0109c/jiyu_attack_next?label=Issues&style=flat&color=red&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCc+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J00xMiAyYTEwIDEwIDAgMSAwIDAgMjAgMTAgMTAgMCAwIDAgMC0yMHptMSAxNWgtMnYtMmgydjJ6bTAtNGgtMlY3aDJ2NnonLz48L3N2Zz4="></a>
 </p>
-<p>极域学生端 UDP 控制报文测试工具，图形界面与命令行合并为同一个 Windows EXE</p>
+<p>极域课堂 UDP 报文测试工具，覆盖学生端控制与教师端模拟，图形界面与命令行合并为同一个 Windows EXE</p>
 <p>基于 PySide6-Fluent-Widgets 构建，打包后无需安装 Python 即可使用 GUI 与 CLI</p>
 <p>仅供已获授权的教学环境测试使用</p>
 </div>
@@ -194,9 +194,9 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1
 
 ## 项目来源与参考
 
-- [ht0Ruial/Jiyu_udp_attack](https://github.com/ht0Ruial/Jiyu_udp_attack)<br>最早的单文件命令行版本由该项目改写而来。
+- [ht0Ruial/Jiyu_udp_attack](https://github.com/ht0Ruial/Jiyu_udp_attack)<br>文本消息、远程命令、重启关机注销、本机信息与防火墙规则的报文结构。
 
-- [yunsjxh/Third-party-JiYu-Teacher-Endpoint](https://github.com/yunsjxh/Third-party-JiYu-Teacher-Endpoint)<br>教师端模拟、学生信息上报、应用命令、缩略图与屏幕观看的报文结构参考了它的实现与说明。该仓库与本项目没有代码依赖关系，也不构成上游分支。
+- [yunsjxh/Third-party-JiYu-Teacher-Endpoint](https://github.com/yunsjxh/Third-party-JiYu-Teacher-Endpoint)<br>教师端模拟、学生信息上报、应用命令、缩略图与屏幕观看的报文结构。
 
 当前仓库的具体行为以本项目代码和文档为准。
 
