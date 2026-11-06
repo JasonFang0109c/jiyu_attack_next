@@ -33,7 +33,7 @@
 | `__pycache__/`、`*.py[cod]` | 字节码缓存 |
 | `.pytest_cache/`、`.mypy_cache/`、`.ruff_cache/`、`.coverage`、`htmlcov/` | 工具与覆盖率缓存 |
 | `build/`、`output/` | 构建缓存与构建产物 |
-| `JiYuAttackNextData/` | 便携运行数据（备注、设置、运行日志） |
+| `JiYuAttackNextData/` | 便携运行数据（备注、设置、运行日志）；`output/` 下的那一份是用户数据，任何时候都不要删除 |
 | `.env`、`.env.*`（`!.env.example` 除外） | 本地环境配置 |
 | `Thumbs.db`、`.DS_Store` | 系统生成文件 |
 
@@ -88,7 +88,7 @@
 只在改动 GUI 日志行为或日志调用点时适用。日志规范参考 [日志规范](https://itliwei.github.io/technology/engineer/develop/logger.html)，`warn` 统一写作 `warning`。
 
 - 只使用 `DEBUG`、`INFO`、`WARNING`、`ERROR` 四个等级，不引入中文等级存储值。
-- 运行等级由构建变体固定：正常版本只写 `WARNING` 及以上，`_Debug` 版本从 `DEBUG` 起；等级是写入阈值，低于阈值的记录不进入列表与日志文件。界面与命令行都不提供切换入口，新增日志代码不要假设能临时调低阈值。
+- 等级是写入阈值，低于阈值的记录不进入列表与日志文件。正常版本默认 `WARNING`，设置页可以在 `INFO`、`WARNING`、`ERROR` 之间调整，`DEBUG` 记录只存在于 `_Debug` 版本；调试版本固定从 `DEBUG` 起全量记录，设置页的下拉框随之禁用，配置文件里的默认等级也不参与判断。命令行没有开关，按变体默认等级写入。
 - `DEBUG` 用于参数快照、进度与返回值；`INFO` 用于启动、关键操作、任务开始与完成；`WARNING` 用于可恢复异常、参数问题与用户取消；`ERROR` 用于任务失败与异常。
 - 用户可见的成功 InfoBar 对应 `INFO`，失败对应 `ERROR`，可恢复提示对应 `WARNING`。
 - 每条日志包含毫秒时间、线程 ID 与名称、级别、模块与行号、功能分类和消息。
@@ -145,7 +145,7 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1
 - 删除 `build\` 整个目录：它是 PyInstaller 的 `--workpath`，含中间文件、图标与版本资源。
 - 删除验证用的临时脚本与截图，例如 `output\verify_*.png`、`build\tmp\*`。
 - 字节码与工具缓存同样在收尾时删除，不要只靠 `.gitignore` 兜底，避免污染备份与磁盘。
-- 不删除 `output\JiYuAttackNextData\`：其中的备注、设置与运行日志是用户数据，不是残留。
+- **不删除 `output\JiYuAttackNextData\`。** 里面的备注、设置与运行日志是用户自己的数据，不管它是构建、测试还是截图验证产生的，收尾时都原样保留；需要干净的验证环境时换用其他目录或临时数据目录，不要删它。
 
 ## Git 提交
 
