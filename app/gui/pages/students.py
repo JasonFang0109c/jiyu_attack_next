@@ -61,7 +61,8 @@ class StudentsPage(Page):
         self.content_card.body.addWidget(
             BodyLabel(
                 "点“发现学生”会以教师端模拟身份发送宣告并监听登录请求，"
-                "收到登录后自动应答并拉取系统信息。",
+                "收到登录后自动应答并拉取系统信息。选中学生后可刷新缩略图；"
+                "点“观看屏幕”打开的窗口里再点“接管键鼠”，就能直接操作那台机器。",
                 self.content_card,
             )
         )

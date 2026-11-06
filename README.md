@@ -48,6 +48,8 @@
       <h3>📦 文件与工具</h3>
       <ul style="list-style-position: inside; padding-left: 0;">
         <li><b>文件传送</b>：勾选文件树下载到桌面</li>
+        <li><b>应用命令</b>：运行程序、打开网址、黑屏锁键鼠</li>
+        <li><b>学生信息</b>：宣告发现、缩略图、看屏幕并接管键鼠</li>
         <li><b>本机信息</b>：查询 IP 与 Student 端口</li>
         <li><b>防火墙</b>：修改现有规则并查看结果</li>
       </ul>
@@ -154,9 +156,13 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1
 
 脚本会自动选择本机局域网地址，在系统分配的空闲 UDP 端口上依次验证文本消息、远程命令、重启、关机、注销和连续发送，无需安装或运行学生端。`--target 127.0.0.1` 可改用回环地址，`--repeat` 可调整连续发送次数。
 
-## 项目来源
+## 项目来源与参考
 
-上游仓库：[ht0Ruial/Jiyu_udp_attack](https://github.com/ht0Ruial/Jiyu_udp_attack)。当前仓库的具体行为以本项目代码和文档为准。
+来源仓库：[ht0Ruial/Jiyu_udp_attack](https://github.com/ht0Ruial/Jiyu_udp_attack)，最早的单文件命令行版本由该项目改写而来。
+
+参考仓库：[yunsjxh/Third-party-JiYu-Teacher-Endpoint](https://github.com/yunsjxh/Third-party-JiYu-Teacher-Endpoint)，教师端模拟、学生信息上报、应用命令、缩略图与屏幕观看的报文结构参考了它的实现与说明。参考仓库与本项目没有代码依赖关系，也不构成上游分支。
+
+当前仓库的具体行为以本项目代码和文档为准。
 
 ## 许可证
 
