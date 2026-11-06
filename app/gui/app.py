@@ -67,7 +67,6 @@ from .models import (
     LogLevel,
     LogStore,
     normalize_close_behavior,
-    normalize_log_level,
     normalize_switch,
     normalize_window_material,
     portable_data_dir,
@@ -838,7 +837,6 @@ class MainWindow(FluentWindow):
         self.pages["settings"].themeRequested.connect(self.set_theme)
         self.pages["settings"].materialRequested.connect(self.set_window_material)
         self.pages["settings"].closeBehaviorRequested.connect(self.set_close_behavior)
-        self.pages["settings"].logLevelRequested.connect(self.set_log_level)
         self.pages["settings"].clearDataRequested.connect(self.clear_data)
         self.pages["home"].pageRequested.connect(self._open_home_link)
 
@@ -1961,18 +1959,6 @@ class MainWindow(FluentWindow):
             return
         removed = self.logs.remove_entries(uids)
         self.logs.info("运行日志", "已删除选中日志", "删除记录数：%d" % len(removed))
-
-    @Slot(str)
-    def set_log_level(self, level):
-        """切换运行日志等级，低于该等级的记录不再写入。"""
-        previous = self.logs.minimum_level
-        normalized = normalize_log_level(level)
-        self.logs.set_level(normalized)
-        self.logs.warning(
-            "运行日志",
-            "运行日志等级已调整",
-            "原等级：%s；新等级：%s" % (previous, normalized),
-        )
 
     def _save_text(self, filename, text):
         """写出 UTF-8（带 BOM）文本，失败时提示并记录日志。"""

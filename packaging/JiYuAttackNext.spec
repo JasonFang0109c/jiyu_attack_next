@@ -1,6 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
 from pathlib import Path
+
 from PyInstaller.utils.hooks import copy_metadata
 
 
@@ -9,6 +11,10 @@ icon = root / "build" / "assets" / "app.ico"
 build_time = root / "build" / "assets" / "build_time.txt"
 version_file = root / "build" / "assets" / "version.txt"
 version_info = root / "build" / "assets" / "version_info.txt"
+variant_file = root / "build" / "assets" / "variant.txt"
+# 构建脚本通过环境变量声明变体：debug 版本换文件名，其余完全一致。
+variant = os.environ.get("JY_BUILD_VARIANT", "release").strip().lower()
+exe_name = "JiYuAttackNext_Debug" if variant == "debug" else "JiYuAttackNext"
 
 a = Analysis(
     [str(root / "app" / "__main__.py")],
@@ -17,6 +23,7 @@ a = Analysis(
     datas=[(str(root / "assets" / "app.svg"), "assets")]
           + ([(str(build_time), ".")] if build_time.exists() else [])
           + ([(str(version_file), ".")] if version_file.exists() else [])
+          + ([(str(variant_file), ".")] if variant_file.exists() else [])
           + copy_metadata("PySide6")
           + copy_metadata("PySide6-Fluent-Widgets")
           + copy_metadata("av"),
@@ -64,7 +71,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="JiYuAttackNext",
+    name=exe_name,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

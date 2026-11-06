@@ -888,21 +888,23 @@ class CoreTests(unittest.TestCase):
         )
         self.assertEqual(args.file, ["a.txt", "文件夹", "b.bin"])
 
-    def test_cli_log_keeps_own_file_and_debug_level(self):
+    def test_cli_log_follows_build_variant_level(self):
+        # 正常版本只记 WARNING 及以上，DEBUG 与 INFO 都不落盘。
         log_path = self.test_root / "cli-log" / "cli.log"
         shutil.rmtree(log_path.parent, ignore_errors=True)
         log = core.cli_log.configure(log_path)
         try:
             log.debug("调试细节", "测试", "附加：值")
             log.info("关键节点", "测试")
+            log.warning("参数不合法", "测试", "附加：值")
         finally:
             core.cli_log.close()
         text = log_path.read_text(encoding="utf-8")
-        self.assertIn("DEBUG", text)
-        self.assertIn("[测试] 调试细节", text)
+        self.assertIn("WARNING", text)
+        self.assertIn("[测试] 参数不合法", text)
         self.assertIn("\n    附加：值", text)
-        self.assertIn("INFO", text)
-        self.assertNotIn("WARNING", text)
+        self.assertNotIn("DEBUG", text)
+        self.assertNotIn("关键节点", text)
         self.assertIsNone(log._handle)
 
     def test_cli_main_writes_log_next_to_data_directory(self):
@@ -911,6 +913,9 @@ class CoreTests(unittest.TestCase):
         outcome = SimpleNamespace(deliveries=[], failed=[])
         buffer = io.StringIO()
         with (
+            # 正常版本只写 WARNING 及以上，这条用例验证的是日志写在数据目录旁，
+            # 因此临时放开 CLI 日志的等级过滤。
+            patch.object(core.cli_log, "allows", lambda level: True),
             patch.object(cli, "portable_cli_log_path", return_value=log_path),
             patch.object(cli, "send_tracked", return_value=outcome),
             redirect_stdout(buffer),
@@ -950,6 +955,8 @@ class CoreTests(unittest.TestCase):
         shutil.rmtree(log_path.parent, ignore_errors=True)
         buffer = io.StringIO()
         with (
+            # 正常版本只记 WARNING 及以上，这里验证的是参数落到了日志里。
+            patch.object(core.cli_log, "allows", lambda level: True),
             patch.object(cli, "portable_cli_log_path", return_value=log_path),
             patch.object(cli, "transfer_file", return_value=result) as transfer,
             redirect_stdout(buffer),

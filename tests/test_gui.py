@@ -83,6 +83,13 @@ class GuiTests(unittest.TestCase):
         self.data_dir = self.temp_root / "JiYuAttackNextData"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.settings_path = str(self.data_dir / "settings.json")
+        # 正常构建只写 WARNING 及以上，而这些用例验证 INFO 记录的内容与联动，
+        # 所以整个用例期间把默认阈值放宽到 INFO。必须在建窗口之前换掉，
+        # LogStore 在构造时读取该常量；发版阈值由
+        # test_log_level_is_fixed_by_build_variant 单独校验。
+        level_patch = patch.object(models, "DEFAULT_LOG_LEVEL", models.LogLevel.INFO)
+        self.default_log_level = level_patch.start()
+        self.addCleanup(level_patch.stop)
         self.alias_store = gui.DeviceAliasStore(
             settings=models.portable_settings(self.data_dir)
         )
@@ -1617,7 +1624,8 @@ class GuiTests(unittest.TestCase):
         self.window.show_page("settings")
         QTest.qWait(120)
         settings = self.window.pages["settings"]
-        self.assertTrue(settings.log_level_box.isVisible())
+        # 等级由构建变体固定，设置页不再提供切换控件。
+        self.assertFalse(hasattr(settings, "log_level_box"))
         hints = [label.text() for label in settings.findChildren(CaptionLabel)]
         self.assertNotIn(
             "选择本次运行写入的最低日志等级，低于该等级的记录不会出现在日志页和日志文件中。",
@@ -1656,7 +1664,8 @@ class GuiTests(unittest.TestCase):
         self.assertFalse(page.delete_button.isEnabled())
         self.assertEqual(page.export_button.toolTip(), "导出选中日志")
         self.assertEqual(page.delete_button.toolTip(), "删除选中日志")
-        page.level_filter.setCurrentIndex(3)
+        # 只认文案不认序号：可选等级随构建变体变化，序号会跟着漂。
+        page.level_filter.setCurrentIndex(page.level_filter.findText("WARNING"))
         self.assertTrue(page.table.isRowHidden(0))
         self.assertFalse(page.table.isRowHidden(1))
         self.assertTrue(page.table.isRowHidden(2))
@@ -1698,23 +1707,20 @@ class GuiTests(unittest.TestCase):
         page.select_all_checkbox.click()
         self.assertEqual(page.selected_uids(), [])
 
-    def test_runtime_log_level_filters_new_entries_and_syncs_page(self):
-        store = self.window.logs
-        store.clear()
-        settings_page = self.window.pages["settings"]
-        settings_page.log_level_box.setCurrentIndex(2)
-        self.assertEqual(store.minimum_level, models.LogLevel.WARNING)
+    def test_log_level_is_fixed_by_build_variant(self):
+        # 正常版本只写 WARNING 及以上，debug 版本从 DEBUG 起；两者都不可切换。
+        # 用例为了验证 INFO 记录把默认阈值放宽了，这里直接看构建变体给出的阈值。
+        self.assertEqual(core.loglevel.MINIMUM_LEVEL, "WARNING")
+        self.assertEqual(
+            [str(level) for level in models.LOG_LEVELS], ["WARNING", "ERROR"]
+        )
+        self.assertFalse(core.loglevel.allows("DEBUG"))
+        self.assertFalse(core.loglevel.allows("INFO"))
+        self.assertTrue(core.loglevel.allows("WARNING"))
+        store = models.LogStore(minimum_level="WARNING")
         self.assertIsNone(store.info("应用", "被过滤"))
-        store.warning("应用", "保留警告")
-        self.assertEqual(settings_page.log_level_box.currentText(), "WARNING")
-        self.assertEqual(store.entries[-1].message, "保留警告")
-        self.assertTrue(self.window.pages["logs"].table.rowCount() >= 1)
-
-    def test_settings_log_level_syncs_when_store_changes(self):
-        settings_page = self.window.pages["settings"]
-        self.window.logs.set_level(models.LogLevel.DEBUG)
-        self.assertEqual(settings_page.log_level_box.currentText(), "DEBUG")
-        self.window.logs.set_level(models.LogLevel.INFO)
+        self.assertIsNotNone(store.warning("应用", "保留警告"))
+        self.assertFalse(hasattr(models.LogStore, "set_level"))
 
     def test_cancelled_file_selection_is_logged(self):
         store = self.window.logs
@@ -1740,14 +1746,14 @@ class GuiTests(unittest.TestCase):
     def test_background_worker_records_debug_trace(self):
         store = self.window.logs
         store.clear()
-        store.set_level(models.LogLevel.DEBUG)
+        store._minimum_level = models.LogLevel.DEBUG
         try:
             worker = gui.TaskWorker(
                 lambda report=None: 42, logs=store, category="本机信息"
             )
             worker.run()
         finally:
-            store.set_level(models.LogLevel.INFO)
+            store._minimum_level = models.LogLevel.INFO
         messages = [entry.message for entry in store.entries]
         self.assertIn("后台任务开始执行", messages)
         self.assertIn("后台任务执行完成", messages)
@@ -1874,7 +1880,7 @@ class GuiTests(unittest.TestCase):
                 label = row.itemAt(0).widget()
                 if isinstance(label, BodyLabel):
                     labels.append(label.text())
-        self.assertEqual(labels, ["关闭时最小化到托盘", "运行日志等级"])
+        self.assertEqual(labels, ["关闭时最小化到托盘"])
         self.assertTrue(settings_page.close_behavior_switch.label.isHidden())
         self.assertEqual(settings_page.close_behavior_switch.label.text(), "")
         self.assertEqual(settings_page.data_card.objectName(), "settingsDataCard")

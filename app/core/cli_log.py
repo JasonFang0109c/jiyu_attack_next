@@ -1,8 +1,9 @@
 """命令行模式的运行日志。
 
-命令行没有界面，排查问题时只能靠终端回滚，日志文件保留完整过程。等级固定
-为 ``DEBUG``：命令行做的事比界面少，全部记录也不会淹没信息，同时不必再加
-一个等级开关。文件与界面的 ``runtime.log`` 分开，两者可以同时运行。
+命令行没有界面，排查问题时只能靠终端回滚，日志文件保留完整过程。写入阈值
+与界面共用 :mod:`app.core.loglevel`：正常版本只记 ``WARNING`` 及以上，debug
+版本从 ``DEBUG`` 起全量记录，运行时不可更改。文件与界面的 ``runtime.log``
+分开，两者可以同时运行。
 
 本模块只依赖标准库：``app/cli/`` 不允许引入 ``PySide6``。
 """
@@ -12,6 +13,8 @@ import threading
 from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
+
+from .loglevel import allows
 
 LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
 DEFAULT_CATEGORY = "命令行"
@@ -84,6 +87,8 @@ class CliLog:
         level = str(level).upper()
         if level not in LEVELS:
             level = "DEBUG"
+        if not allows(level):
+            return
         category = str(category or self._category)
         logger_name, line_number = self._caller_location(skip + 1)
         text = self._format(

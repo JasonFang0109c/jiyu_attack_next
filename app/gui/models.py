@@ -24,6 +24,7 @@ from ..core import (  # noqa: F401
     portable_data_dir,
     portable_log_path,
 )
+from ..core.loglevel import MINIMUM_LEVEL
 from .settings_store import STATUS_NO_ERROR, SettingsStore
 
 SETTINGS_FILE_NAME = "settings.json"
@@ -436,9 +437,13 @@ class LogLevel(StrEnum):
         return LOG_LEVEL_RANK[self]
 
 
-LOG_LEVELS = tuple(LogLevel)
-LOG_LEVEL_RANK = {level: index for index, level in enumerate(LOG_LEVELS)}
-DEFAULT_LOG_LEVEL = LogLevel.INFO
+LOG_LEVEL_RANK = {level: index for index, level in enumerate(LogLevel)}
+# 等级由构建变体固定：正常版本只写 WARNING 及以上，debug 版本从 DEBUG 起。
+# 枚举保留四个值用于解析历史日志，可选集合随变体收缩。
+LOG_LEVELS = tuple(
+    level for level in LogLevel if level.rank >= LogLevel(MINIMUM_LEVEL).rank
+)
+DEFAULT_LOG_LEVEL = LogLevel(MINIMUM_LEVEL)
 _LEVEL_ALIASES = {
     "DEBUG": LogLevel.DEBUG,
     "调试": LogLevel.DEBUG,
@@ -573,18 +578,21 @@ class LogStore(QObject):
     added = Signal(object)
     removed = Signal(object)
     cleared = Signal()
-    levelChanged = Signal(str)
 
-    def __init__(
-        self, parent=None, limit=2000, log_path=None, minimum_level=DEFAULT_LOG_LEVEL
-    ):
+    def __init__(self, parent=None, limit=2000, log_path=None, minimum_level=None):
         super().__init__(parent)
         self._log_path = None
         self._file_handle = None
         self.log_path = log_path
         self.storage_error = ""
         self.entries = deque(maxlen=limit)
-        self._minimum_level = normalize_log_level(minimum_level)
+        # 阈值默认跟随构建变体；显式传入只供测试验证更低等级的记录格式，
+        # 界面与命令行都没有修改入口。
+        self._minimum_level = (
+            DEFAULT_LOG_LEVEL
+            if minimum_level is None
+            else normalize_log_level(minimum_level)
+        )
         self._next_uid = 1
         self._load()
 
@@ -799,14 +807,6 @@ class LogStore(QObject):
     def error(self, category, message, details=""):
         """写入错误记录，用于任务失败与异常。"""
         return self._emit(category, message, LogLevel.ERROR, details, skip=3)
-
-    def set_level(self, level):
-        """修改写入阈值；等级未变化时不发信号。"""
-        normalized = normalize_log_level(level)
-        if normalized == self._minimum_level:
-            return
-        self._minimum_level = normalized
-        self.levelChanged.emit(str(normalized))
 
     def remove_entries(self, uids):
         """按 uid 删除记录并重写文件，返回实际删除的条目。"""

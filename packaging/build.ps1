@@ -2,6 +2,9 @@
 param(
     [string]$Python = ".\.venv\Scripts\python.exe",
     [string]$Version = "",
+    # 默认同时产出正常版本与 debug 版本：两个 EXE 只差日志等级，源码同一份。
+    [ValidateSet("both", "release", "debug")]
+    [string]$Variant = "both",
     [switch]$Clean
 )
 
@@ -15,12 +18,22 @@ try {
     $pythonExe = (Resolve-Path -LiteralPath $Python).Path
     $buildRoot = Join-Path $projectRoot "build"
     $outputRoot = Join-Path $projectRoot "output"
-    $exePath = Join-Path $outputRoot "JiYuAttackNext.exe"
+    # 两个变体产出不同文件名，共用同一个 output 目录与数据目录。
+    $targets = @(
+        @{ Variant = "release"; Name = "JiYuAttackNext" },
+        @{ Variant = "debug"; Name = "JiYuAttackNext_Debug" }
+    )
+    if ($Variant -ne "both") {
+        $targets = @($targets | Where-Object { $_.Variant -eq $Variant })
+    }
     # 进程名不含扩展名；带 .exe 会让 -Name 匹配不到任何进程，导致保护形同虚设。
-    $runningApp = Get-Process -Name "JiYuAttackNext" -ErrorAction SilentlyContinue |
-        Where-Object { $_.Path -eq $exePath }
-    if ($runningApp) {
-        throw "请关闭正在运行的 JiYuAttackNext.exe 后再构建。"
+    foreach ($target in $targets) {
+        $runningPath = Join-Path $outputRoot ($target.Name + ".exe")
+        $runningApp = Get-Process -Name $target.Name -ErrorAction SilentlyContinue |
+            Where-Object { $_.Path -eq $runningPath }
+        if ($runningApp) {
+            throw ("请关闭正在运行的 " + $target.Name + ".exe 后再构建。")
+        }
     }
     & $pythonExe -X utf8 -c "import PySide6.QtWidgets, qfluentwidgets, PyInstaller"
     if ($LASTEXITCODE -ne 0) {
@@ -61,21 +74,34 @@ try {
         throw "版本资源生成失败，退出码：$LASTEXITCODE"
     }
 
-    $buildArguments = @(
-        "-m", "PyInstaller", "--noconfirm",
-        "--distpath", $outputRoot, "--workpath", $buildRoot
-    )
-    if ($Clean) {
-        $buildArguments += "--clean"
+    $variantPath = Join-Path $buildRoot "assets\variant.txt"
+    foreach ($target in $targets) {
+        # 变体标记随产物一起打包，运行时据此决定日志等级；不带 BOM，
+        # 免得读回来的文本多出不可见字符导致判定失败。
+        [System.IO.File]::WriteAllText($variantPath, $target.Variant)
+        $env:JY_BUILD_VARIANT = $target.Variant
+        # 每个变体用独立 workpath：共用会命中上一次的缓存，产物名字与变体对不上。
+        $buildArguments = @(
+            "-m", "PyInstaller", "--noconfirm",
+            "--distpath", $outputRoot,
+            "--workpath", (Join-Path $buildRoot $target.Variant)
+        )
+        if ($Clean) {
+            $buildArguments += "--clean"
+        }
+        $buildArguments += (Join-Path $PSScriptRoot "JiYuAttackNext.spec")
+        & $pythonExe @buildArguments
+        if ($LASTEXITCODE -ne 0) {
+            throw ("PyInstaller 构建 " + $target.Variant + " 版本失败，退出码：" + $LASTEXITCODE)
+        }
+        $exePath = Join-Path $outputRoot ($target.Name + ".exe")
+        if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
+            throw "未找到构建产物：$exePath"
+        }
+        Write-Host ("构建完成：" + $exePath + "（版本 " + $Version + "，" + $target.Variant + "）") -ForegroundColor Green
     }
-    $buildArguments += (Join-Path $PSScriptRoot "JiYuAttackNext.spec")
-    & $pythonExe @buildArguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "PyInstaller 构建失败，退出码：$LASTEXITCODE"
-    }
-    if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
-        throw "未找到构建产物：$exePath"
-    }
+    Remove-Item Env:\JY_BUILD_VARIANT -ErrorAction SilentlyContinue
+
     $legacyPath = Join-Path $outputRoot "JiyuUdpTest.exe"
     if (Test-Path -LiteralPath $legacyPath -PathType Leaf) {
         try {
@@ -84,8 +110,8 @@ try {
             Write-Warning "旧版 JiyuUdpTest.exe 正在运行，无法移除；新版本已构建完成。"
         }
     }
-    Write-Host ("构建完成：" + $exePath + "（版本 " + $Version + "）") -ForegroundColor Green
 }
 finally {
+    Remove-Item Env:\JY_BUILD_VARIANT -ErrorAction SilentlyContinue
     Pop-Location
 }
