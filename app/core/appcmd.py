@@ -30,6 +30,20 @@ COM_MAGIC = 0x434F4D44
 LCMD_MAGIC = 0x4C434D44
 COM_VERSION = 0x00010000
 LPNT_MAGIC = 0x544E504C
+SRNT_MAGIC = 0x544E5253
+TRMC_MAGIC = 0x434D5254
+TRNT_MAGIC = 0x544E5254
+DENT_MAGIC = 0x544E4544
+LANT_MAGIC = 0x544E414C
+KACA_MAGIC = 0x4143414B
+ANNO_MAGIC = 0x4F4E4E41
+UMSP_SELECT_MAGIC = 0x4F434853
+UMSP_DATA_MAGIC = 0x43504B54
+DESKTOP_H264_MAGIC = 0x46524848
+DESKTOP_JPEG_MAGIC = 0x46524A48
+DESKTOP_HMRF_MAGIC = 0x46524D48
+INPUT_MAGIC = 0x2321347C
+DESKTOP_CHANNEL = 10
 
 APP_CATEGORY = 0x200
 APP_COMMAND_CODE = 0x80000010
@@ -63,8 +77,26 @@ REPORT_KINDS = {
 # 学生端按包头里的长度从 body+0xC 复制负载，会把末尾 4 字节当保留字段吃掉，
 # 所以每个应用命令的 body 后面都要多补 4 个 0。
 TRUNCATION_PADDING = b"\x00" * 4
+# 远控鼠标动作对应学生端的窗口消息，键是小写动作名。
+MOUSE_MESSAGES = {
+    "move": 0x0200,
+    "leftdown": 0x0201,
+    "leftup": 0x0202,
+    "rightdown": 0x0204,
+    "rightup": 0x0205,
+    "middledown": 0x0207,
+    "middleup": 0x0208,
+    "wheel": 0x020A,
+}
+
 # LPNT 的策略体固定 20 字节：版本、启用标志、宽、高、刷新秒数。
 _LPNT_POLICY_LENGTH = 20
+# 缩略图分片、桌面记录与远控输入各自的固定头长度。
+_PREVIEW_HEADER_LENGTH = 48
+_DESKTOP_HEADER_LENGTH = 64
+_INPUT_LENGTH = 20
+_MCMD_LENGTH = 53
+_LPNT_GUID = bytes.fromhex("aa3a8dbe2b906645908ea29526218540")
 
 _BLACKSCREEN_PADDING = b"\xa0\x05\x20"
 _STUDENT_INFO_LENGTH = 0x2E0
@@ -508,3 +540,335 @@ def parse_message(data):
 def looks_like_login(data):
     """判断收到的报文是否是学生端登录握手 ``LOGI``。"""
     return len(data) >= 4 and struct.unpack("<I", data[:4])[0] == LOGI_MAGIC
+
+
+def srnt_packet(frame_sequence, complete=True, missing_parts=None):
+    """构造缩略图重传应答 ``SRNT``。
+
+    ``missing_parts`` 为 None 表示整帧都不要了，让学生端从头重发；否则按缺失
+    的 1KB 分片编号请求补齐。
+
+    Args:
+        frame_sequence: 学生端给的帧序号。
+        complete: 帧是否已经完整收到。
+        missing_parts: 缺失的分片编号，None 表示请求整帧重发。
+
+    Returns:
+        bytes: 完整报文。
+    """
+    if missing_parts is None:
+        body = struct.pack("<III", frame_sequence, 0, 0xFFFFFFFF)
+    else:
+        parts = tuple(missing_parts)
+        body = struct.pack("<III", frame_sequence, int(complete), len(parts))
+        if parts:
+            body += struct.pack("<%dH" % len(parts), *parts)
+    # 学生端的解析实现要求负载至少 14 字节，末尾两位不参与解析。
+    body += b"\x00\x00"
+    return struct.pack("<III", SRNT_MAGIC, COM_VERSION, len(body)) + _LPNT_GUID + body
+
+
+def parse_preview_fragment(data):
+    """解析 ``LANT`` 缩略图分片。
+
+    Args:
+        data: 收到的完整报文。
+
+    Returns:
+        dict: 含 ``frame``、``total``、``offset``、``payload``。
+
+    Raises:
+        ValueError: 长度不足或字段非法。
+    """
+    if len(data) < _PREVIEW_HEADER_LENGTH:
+        raise ValueError("缩略图分片过短")
+    if struct.unpack("<I", data[:4])[0] != LANT_MAGIC:
+        raise ValueError("不是缩略图分片")
+    frame, total, offset, length = struct.unpack("<IIII", data[32:48])
+    if total <= 0 or offset >= total:
+        raise ValueError("缩略图分片字段非法")
+    fragment = data[48 : 48 + length]
+    if not fragment:
+        raise ValueError("缩略图分片没有内容")
+    # 学生端偶尔会把分片长度写大，按剩余空间截断比直接丢弃更实用。
+    return {
+        "frame": frame,
+        "total": total,
+        "offset": offset,
+        "payload": fragment[: total - offset],
+    }
+
+
+def dent_frame_sequence(data):
+    """取出 ``DENT`` 里的帧序号，用于回答 ``SRNT``。"""
+    if len(data) < 40:
+        raise ValueError("DENT 报文过短")
+    return struct.unpack("<I", data[36:40])[0]
+
+
+class PreviewAssembler:
+    """按帧序号重组缩略图分片。
+
+    学生端把一张 JPEG 切成多个 ``LANT`` 分片发送，同一帧的分片可能乱序或重复，
+    这里按偏移写入并按已写入的字节数判断是否收齐。
+    """
+
+    def __init__(self, max_frames=4):
+        self.max_frames = max_frames
+        self._frames = {}
+
+    def feed(self, data):
+        """写入一个分片，收齐时返回完整图像字节，否则返回 None。
+
+        Args:
+            data: 收到的 ``LANT`` 报文。
+
+        Returns:
+            bytes | None: 收齐的完整负载。
+        """
+        fragment = parse_preview_fragment(data)
+        frame = fragment["frame"]
+        total = fragment["total"]
+        state = self._frames.get(frame)
+        if state is None or state["total"] != total:
+            state = {
+                "total": total,
+                "buffer": bytearray(total),
+                "seen": bytearray(total),
+                "received": 0,
+            }
+            self._frames[frame] = state
+            while len(self._frames) > self.max_frames:
+                self._frames.pop(next(iter(self._frames)))
+        offset = fragment["offset"]
+        payload = fragment["payload"]
+        end = offset + len(payload)
+        added = len(payload) - sum(state["seen"][offset:end])
+        state["buffer"][offset:end] = payload
+        state["seen"][offset:end] = b"\x01" * len(payload)
+        state["received"] += added
+        if state["received"] < total:
+            return None
+        self._frames.pop(frame, None)
+        return bytes(state["buffer"])
+
+    def missing_parts(self, frame):
+        """返回某帧尚未收到的分片编号，帧不在重组中时返回 None。"""
+        state = self._frames.get(frame)
+        if state is None:
+            return None
+        return [
+            index
+            for index in range((state["total"] + 1023) // 1024)
+            if not state["seen"][index * 1024]
+        ]
+
+    def reset(self):
+        """丢弃所有未完成的帧。"""
+        self._frames.clear()
+
+
+def screen_start_payload(host, local_port, peer_port):
+    """构造开始屏幕传输的 ``MESS`` 负载（feature 8，617 字节）。
+
+    Args:
+        host: 学生机地址，同时作为接收端写进参数块。
+        local_port: 教师端接收端口。
+        peer_port: 学生端发送端口。
+
+    Returns:
+        bytes: 617 字节的负载。
+    """
+    params = bytearray(604)
+    struct.pack_into("<I", params, 0, 0)
+    params[4:8] = _address(host)
+    # 这里填的是教师侧会话端点，不是学生端的 TCP 服务端口。
+    struct.pack_into("<H", params, 8, local_port & 0xFFFF)
+    params[10:14] = _address(host)
+    struct.pack_into("<H", params, 14, peer_port & 0xFFFF)
+    struct.pack_into(
+        "<IIIIIIII",
+        params,
+        36,
+        1,  # 网络类型
+        1,  # 显示控制提示
+        20480,  # 最大发送速度
+        1,  # 修复模式
+        1440,  # 单包上限
+        25,  # 帧率上限
+        75,  # 采集质量
+        1,  # TCP 通信模式
+    )
+    params[68:72] = _address(host)
+    struct.pack_into("<III", params, 72, 5, 12, 16)
+    payload = struct.pack("<III", 617, 8, 0x80000000) + bytes(params) + b"\x00"
+    if len(payload) != 617:
+        raise AssertionError("屏幕传输负载长度错误")
+    return payload
+
+
+def screen_stop_payload():
+    """构造停止屏幕传输的 ``MESS`` 负载。"""
+    return struct.pack("<III", 13, 0, 0) + b"\x00"
+
+
+def umsp_hello_payload(channel=10):
+    """构造 UMSP 建链包 ``SHCO``，订阅指定频道。"""
+    return struct.pack("<IIIII", COM_VERSION, UMSP_SELECT_MAGIC, 8, 1, channel)
+
+
+def parse_umsp_header(data):
+    """解析 UMSP 报文头，返回 (magic, 负载)。
+
+    Raises:
+        ValueError: 长度不足 12 字节。
+    """
+    if len(data) < 12:
+        raise ValueError("UMSP 报文过短")
+    version, magic, length = struct.unpack("<III", data[:12])
+    if version != COM_VERSION:
+        raise ValueError("UMSP 版本不匹配：%#x" % version)
+    return magic, data[12 : 12 + length]
+
+
+def parse_desktop_fragment(data):
+    """解析 UMSP 里的桌面分片，返回 (帧序号, 偏移, 总长, 分片)。"""
+    if len(data) < 12:
+        raise ValueError("桌面分片过短")
+    frame, offset, total = struct.unpack("<III", data[:12])
+    if total <= 0 or offset > total or len(data) - 12 > total - offset:
+        raise ValueError("桌面分片字段非法")
+    return frame, offset, total, data[12:]
+
+
+def parse_desktop_record(record):
+    """解析一帧完整的桌面记录。
+
+    Args:
+        record: 重组后的记录字节。
+
+    Returns:
+        dict: ``kind`` 为 ``h264``/``jpeg``/``cursor``/``unknown``，附带尺寸与负载。
+    """
+    if len(record) < _DESKTOP_HEADER_LENGTH:
+        if len(record) >= 16 and record[:4] == b"SPUC":
+            _size, timestamp, packed = struct.unpack_from("<III", record, 4)
+            return {
+                "kind": "cursor",
+                "x": packed & 0xFFFF,
+                "y": (packed >> 16) & 0xFFFF,
+                "timestamp": timestamp,
+            }
+        return {"kind": "unknown", "payload": record}
+    magic, _size, timestamp = struct.unpack("<III", record[:12])
+    encoded = struct.unpack("<iiii", record[12:28])
+    visible = struct.unpack("<iiii", record[28:44])
+    frame_type = struct.unpack("<I", record[44:48])[0]
+    payload = record[_DESKTOP_HEADER_LENGTH:]
+    width = abs(encoded[2] - encoded[0]) or abs(visible[2] - visible[0])
+    height = abs(encoded[3] - encoded[1]) or abs(visible[3] - visible[1])
+    result = {
+        "width": width,
+        "height": height,
+        "frame_type": frame_type,
+        "timestamp": timestamp,
+        "payload": payload,
+        "magic": magic,
+    }
+    if magic == DESKTOP_H264_MAGIC:
+        result["kind"] = "h264"
+    elif magic == DESKTOP_JPEG_MAGIC:
+        start = payload.find(b"\xff\xd8")
+        result["kind"] = "jpeg"
+        result["payload"] = payload[start:] if start >= 0 else payload
+    elif magic == DESKTOP_HMRF_MAGIC:
+        result["kind"] = "unknown"
+    else:
+        result["kind"] = "unknown"
+    return result
+
+
+def remote_control_payload(mode=2, port=0):
+    """构造远控请求负载 ``MCMD``。
+
+    Args:
+        mode: 0 双方可操作、1 停止、2 仅教师操作并锁定学生输入。
+        port: 学生端回传输入的 UDP 端口。
+    """
+    payload = bytearray(_MCMD_LENGTH)
+    struct.pack_into("<III", payload, 0, _MCMD_LENGTH, 8, 0)
+    payload[12:16] = b"MCMD"
+    struct.pack_into("<I", payload, 16, mode)
+    payload[20:24] = _address("0.0.0.0")
+    struct.pack_into("<H", payload, 24, port & 0xFFFF)
+    return bytes(payload)
+
+
+def remote_control_payload_for(host, mode=2, port=0):
+    """构造带目标地址的 ``MCMD`` 负载。"""
+    payload = bytearray(remote_control_payload(mode, port))
+    payload[20:24] = _address(host)
+    return bytes(payload)
+
+
+def input_packet(kind, payload):
+    """把 20 字节的输入负载封成远控 UDP 报文。
+
+    Args:
+        kind: 1 鼠标、16 键盘。
+        payload: 20 字节输入负载。
+
+    Returns:
+        bytes: 完整报文。
+    """
+    if len(payload) != _INPUT_LENGTH:
+        raise ValueError("输入负载必须是 %d 字节" % _INPUT_LENGTH)
+    return struct.pack("<II", INPUT_MAGIC, kind) + payload
+
+
+def mouse_input_payload(action, x, y, data=0, swapped=0):
+    """构造鼠标输入负载，坐标为 0..65535 的归一化值。"""
+    try:
+        message = MOUSE_MESSAGES[action.lower()]
+    except KeyError as error:
+        raise ValueError("未知鼠标动作：%s" % action) from error
+    if not (0 <= x <= 0xFFFF and 0 <= y <= 0xFFFF):
+        raise ValueError("鼠标坐标必须在 0 到 65535 之间")
+    return struct.pack("<IIIII", message, x, y, data & 0xFFFFFFFF, swapped & 0xFFFFFFFF)
+
+
+def key_input_payload(scan_code, virtual_key, key_up=False, extended=False):
+    """构造键盘输入负载。"""
+    if not (0 <= virtual_key <= 0xFFFF and 0 <= scan_code <= 0xFFFF):
+        raise ValueError("键码必须在 0 到 65535 之间")
+    flags = (1 if extended else 0) | (0x80 if key_up else 0)
+    return struct.pack("<HHI", scan_code, virtual_key, flags) + bytes(12)
+
+
+def command_transaction_packet(payload, local_ip):
+    """把 ``MCMD`` 负载封成 ``COMD`` 命令事务。
+
+    远控请求走的是命令事务而不是应用命令，外层结构与 :func:`comd_packet`
+    不同：事务头带 16 字节事务号与发送方地址。
+
+    Args:
+        payload: ``MCMD`` 负载。
+        local_ip: 教师端地址，写进事务头。
+
+    Returns:
+        bytes: 完整报文。
+
+    Raises:
+        ValueError: 负载超过 2048 字节。
+    """
+    if len(payload) > 0x800:
+        raise ValueError("命令事务负载不能超过 2048 字节")
+    return (
+        struct.pack("<III", COM_MAGIC, COM_VERSION, len(payload) + 13)
+        + uuid.uuid4().bytes_le
+        + struct.pack("<I", 20000)
+        + _address(local_ip)
+        + struct.pack("<I", len(payload))
+        + payload
+        + b"\x00"
+    )

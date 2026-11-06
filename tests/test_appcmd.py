@@ -8,6 +8,20 @@ from unittest.mock import patch
 
 from app import core
 from app.cli import main as cli
+from app.core import appcmd
+
+# JPEG 的起始标记，测试里用来确认记录里保留了原始图片数据。
+JPEG_SOI = bytes([0xFF, 0xD8])
+
+
+def lant_fragment(frame, total, offset, payload):
+    """拼一个 LANT 缩略图分片：4 字节魔数 + 28 字节保留 + 16 字节字段。"""
+    return (
+        struct.pack("<I", appcmd.LANT_MAGIC)
+        + bytes(28)
+        + struct.pack("<IIII", frame, total, offset, len(payload))
+        + payload
+    )
 
 
 def build_message(host, payload):
@@ -296,6 +310,151 @@ class AppCommandCliTests(unittest.TestCase):
     def test_announce_and_students_defaults(self):
         self.assertEqual(self.parse("--announce").announce, 10)
         self.assertEqual(self.parse("--students").students, 8)
+
+
+class ScreenProtocolTests(unittest.TestCase):
+    """屏幕观看相关报文的逐字节测试。"""
+
+    def test_srnt_packet_requests_whole_frame(self):
+        packet = appcmd.srnt_packet(7)
+        self.assertEqual(len(packet), 42)
+        self.assertEqual(struct.unpack_from("<I", packet, 0)[0], appcmd.SRNT_MAGIC)
+        self.assertEqual(struct.unpack_from("<I", packet, 28)[0], 7)
+
+    def test_srnt_packet_lists_missing_parts(self):
+        packet = appcmd.srnt_packet(3, complete=False, missing_parts=[1, 2])
+        body = struct.unpack_from("<III", packet, 28)
+        self.assertEqual(body[0], 3)
+        self.assertEqual(body[1], 0)
+        self.assertEqual(body[2], 2)
+        self.assertEqual(struct.unpack_from("<2H", packet, 40), (1, 2))
+
+    def test_preview_assembler_waits_for_all_fragments(self):
+        assembler = appcmd.PreviewAssembler()
+        total = 6
+        first = lant_fragment(1, total, 0, b"abc")
+        second = lant_fragment(1, total, 3, b"def")
+        self.assertIsNone(assembler.feed(first))
+        self.assertEqual(assembler.feed(second), b"abcdef")
+
+    def test_preview_assembler_reports_missing_parts(self):
+        assembler = appcmd.PreviewAssembler()
+        total = 2048
+        data = lant_fragment(5, total, 0, bytes(1024))
+        assembler.feed(data)
+        self.assertEqual(assembler.missing_parts(5), [1])
+        self.assertIsNone(assembler.missing_parts(6))
+
+    def test_dent_frame_sequence_reads_offset(self):
+        data = bytes(36) + struct.pack("<I", 9)
+        self.assertEqual(appcmd.dent_frame_sequence(data), 9)
+
+    def test_screen_payloads_match_declared_lengths(self):
+        start = appcmd.screen_start_payload("10.1.1.5", 5512, 5512)
+        self.assertEqual(len(start), 617)
+        self.assertEqual(struct.unpack_from("<III", start, 0), (617, 8, 0x80000000))
+        self.assertEqual(len(appcmd.screen_stop_payload()), 13)
+
+    def test_umsp_hello_subscribes_desktop_channel(self):
+        hello = appcmd.umsp_hello_payload()
+        self.assertEqual(len(hello), 20)
+        self.assertEqual(
+            struct.unpack_from("<I", hello, 4)[0], appcmd.UMSP_SELECT_MAGIC
+        )
+        self.assertEqual(struct.unpack_from("<I", hello, 16)[0], 10)
+
+    def test_parse_umsp_header_rejects_other_versions(self):
+        body = struct.pack("<III", 0x00020000, 1, 0)
+        with self.assertRaises(ValueError):
+            appcmd.parse_umsp_header(body)
+
+    def test_parse_desktop_record_recognises_jpeg_and_cursor(self):
+        payload = JPEG_SOI + b"frame"
+        record = (
+            struct.pack("<III", appcmd.DESKTOP_JPEG_MAGIC, 0, 1)
+            + struct.pack("<iiii", 0, 0, 100, 50)
+            + struct.pack("<iiii", 0, 0, 100, 50)
+            + struct.pack("<I", 1)
+            + bytes(16)
+            + payload
+        )
+        parsed = appcmd.parse_desktop_record(record)
+        self.assertEqual(parsed["kind"], "jpeg")
+        self.assertTrue(parsed["payload"].startswith(JPEG_SOI))
+        cursor = b"SPUC" + struct.pack("<III", 8, 2, (30 << 16) | 10)
+        self.assertEqual(appcmd.parse_desktop_record(cursor)["x"], 10)
+
+    def test_remote_control_payload_keeps_target_and_mode(self):
+        payload = appcmd.remote_control_payload_for("10.1.1.5", 2, 4806)
+        self.assertEqual(len(payload), 53)
+        self.assertEqual(payload[12:16], b"MCMD")
+        self.assertEqual(struct.unpack_from("<I", payload, 16)[0], 2)
+        self.assertEqual(socket.inet_ntoa(payload[20:24]), "10.1.1.5")
+        self.assertEqual(struct.unpack_from("<H", payload, 24)[0], 4806)
+
+    def test_command_transaction_wraps_mcmd(self):
+        payload = appcmd.remote_control_payload(2, 4806)
+        packet = appcmd.command_transaction_packet(payload, "10.1.1.5")
+        self.assertEqual(len(packet), len(payload) + 41)
+        self.assertEqual(struct.unpack_from("<I", packet, 0)[0], appcmd.COM_MAGIC)
+
+    def test_mouse_and_key_input_round_trip(self):
+        mouse = appcmd.mouse_input_payload("leftdown", 100, 200)
+        self.assertEqual(struct.unpack_from("<I", mouse, 0)[0], 0x0201)
+        packet = appcmd.input_packet(1, mouse)
+        self.assertEqual(struct.unpack_from("<II", packet, 0), (appcmd.INPUT_MAGIC, 1))
+        key = appcmd.key_input_payload(0x1E, 0x41, key_up=True, extended=False)
+        self.assertEqual(len(key), 20)
+        self.assertEqual(struct.unpack_from("<I", key, 4)[0], 0x80)
+        with self.assertRaises(ValueError):
+            appcmd.input_packet(1, b"short")
+
+
+class ScreenSessionTests(unittest.TestCase):
+    """屏幕会话的分片重组与记录回调。"""
+
+    def make_session(self):
+        records = []
+        session = core.screen.ScreenSession(
+            "10.1.1.5", on_record=records.append, on_log=lambda _message: None
+        )
+        return session, records
+
+    def feed_fragment(self, session, frame, offset, total, fragment):
+        session._handle_fragment(struct.pack("<III", frame, offset, total) + fragment)
+
+    def test_fragments_reassemble_into_record(self):
+        session, records = self.make_session()
+        body = (
+            struct.pack("<III", appcmd.DESKTOP_JPEG_MAGIC, 0, 1)
+            + struct.pack("<iiii", 0, 0, 64, 32)
+            + struct.pack("<iiii", 0, 0, 64, 32)
+            + struct.pack("<I", 1)
+            + bytes(16)
+            + JPEG_SOI
+            + b"body"
+        )
+        half = len(body) // 2
+        self.feed_fragment(session, 1, 0, len(body), body[:half])
+        self.assertEqual(records, [])
+        self.feed_fragment(session, 1, half, len(body), body[half:])
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["kind"], "jpeg")
+
+    def test_duplicate_fragment_does_not_double_count(self):
+        session, records = self.make_session()
+        body = (
+            struct.pack("<III", appcmd.DESKTOP_JPEG_MAGIC, 0, 1)
+            + struct.pack("<iiii", 0, 0, 8, 8)
+            + struct.pack("<iiii", 0, 0, 8, 8)
+            + struct.pack("<I", 1)
+            + bytes(16)
+            + JPEG_SOI
+            + b"xy"
+        )
+        self.feed_fragment(session, 2, 0, len(body), body)
+        self.feed_fragment(session, 2, 0, len(body), body)
+        self.assertEqual(len(records), 1)
 
 
 if __name__ == "__main__":

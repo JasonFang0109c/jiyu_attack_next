@@ -90,6 +90,7 @@ from .pages import (
     SettingsPage,
     StudentsPage,
 )
+from .screen_window import ScreenWindow
 from .settings_store import STATUS_NO_ERROR
 from .splash import create_splash
 from .window_effect import apply_acrylic, apply_mica, clear_material
@@ -706,6 +707,8 @@ class MainWindow(FluentWindow):
         self.pages["students"].footer.requested.connect(self.start_student_scan)
         self.pages["students"].refreshRequested.connect(self.refresh_students)
         self.pages["students"].killRequested.connect(self.kill_student_process)
+        self.pages["students"].previewRequested.connect(self.refresh_preview)
+        self.pages["students"].viewRequested.connect(self.watch_screen)
         for page in self.task_pages:
             page.footer.cancelled.connect(self.cancel_task)
             page.footer.viewLogs.connect(lambda: self.show_page("logs"))
@@ -1276,6 +1279,66 @@ class MainWindow(FluentWindow):
             self._local_failed,
         )
 
+    def refresh_preview(self):
+        """拉取所选学生的屏幕缩略图。"""
+        if self.thread is not None:
+            self.logs.warning("学生信息", "已有任务在运行，缩略图未开始")
+            return
+        page = self.pages["students"]
+        host = page.selected_address()
+        if not host:
+            self._notify("请选择学生", "先在列表里选一台学生机", "警告")
+            return
+        self.logs.info("学生信息", "拉取屏幕缩略图", "目标：%s" % host)
+        cancel_event = Event()
+        self._begin_task(
+            "students",
+            TaskWorker(
+                collect_preview,
+                host,
+                PREVIEW_SECONDS,
+                page.channel_input.value(),
+                page.teacher_input.text().strip() or "1",
+                self.connection_state.values["port"],
+                cancel_event=cancel_event,
+            ),
+            self._preview_finished,
+            self._local_failed,
+        )
+
+    def watch_screen(self):
+        """打开屏幕观看窗口，按需请求接管键鼠。"""
+        page = self.pages["students"]
+        host = page.selected_address()
+        if not host:
+            self._notify("请选择学生", "先在列表里选一台学生机", "警告")
+            return
+        window = ScreenWindow(
+            host,
+            self.connection_state.values["port"],
+            page.channel_input.value(),
+            self,
+        )
+        window.show()
+        self.logs.info("学生信息", "打开屏幕观看", "目标：%s" % host)
+
+    @Slot(object)
+    def _preview_finished(self, result):
+        page = self.pages["students"]
+        address = result.get("address")
+        image = result.get("preview")
+        if image:
+            for record in page.records:
+                if record.get("address") == address:
+                    record["preview"] = image
+                    break
+            page._refresh_preview()
+            message = "已刷新 %s 的缩略图" % address
+        else:
+            message = "%s 未返回缩略图" % address
+        page.footer.set_status(message)
+        self.logs.info("学生信息", message, "目标：%s" % address)
+
     @Slot(object)
     def _appcmd_finished(self, result):
         page = self.pages["appcmd"]
@@ -1368,6 +1431,8 @@ class MainWindow(FluentWindow):
             self.pages[key].footer.set_busy(busy)
         self.pages["students"].refresh_button.setEnabled(not busy)
         self.pages["students"].kill_button.setEnabled(not busy)
+        self.pages["students"].preview_button.setEnabled(not busy)
+        self.pages["students"].view_button.setEnabled(not busy)
         self.pages["firewall"].action_box.setEnabled(not busy)
         self.pages["settings"].clear_data_button.setEnabled(not busy)
         self.pages["logs"].cancel_button.setEnabled(
@@ -1982,6 +2047,8 @@ class MainWindow(FluentWindow):
 
 # 发现学生时监听多久；太短收不到登录，太长会让人以为卡住。
 STUDENT_SCAN_SECONDS = 8.0
+# 缩略图监听时长：学生端按 LPNT 策略每 5 秒推一帧，留够两帧的余量。
+PREVIEW_SECONDS = 8.0
 
 
 def run_app_operation(
@@ -2025,6 +2092,31 @@ def refresh_student(
     merged.update({key: value for key, value in fresh.items() if value})
     merged["address"] = host
     return [merged]
+
+
+def collect_preview(
+    host,
+    seconds=PREVIEW_SECONDS,
+    channel=1,
+    teacher_name="1",
+    port=4705,
+    report=None,
+    cancel_event=None,
+):
+    """拉取单台学生的缩略图，返回 ``{"address", "preview"}``。"""
+    records = core.collect_previews(
+        [host],
+        duration=seconds,
+        channel=channel,
+        teacher_name=teacher_name,
+        port=port,
+        report=report,
+        cancel_event=cancel_event,
+    )
+    if not records:
+        return {"address": host, "preview": None}
+    record = records[0]
+    return {"address": record.get("address", host), "preview": record.get("preview")}
 
 
 def terminate_process(host, process_id, channel=1, port=4705, report=None):

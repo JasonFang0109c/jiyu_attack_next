@@ -17,6 +17,7 @@ os.environ.setdefault(
 )
 
 from PySide6.QtCore import (
+    QBuffer,
     QCoreApplication,
     QEvent,
     QPoint,
@@ -25,7 +26,7 @@ from PySide6.QtCore import (
     Qt,
     QTimer,
 )
-from PySide6.QtGui import QMouseEvent
+from PySide6.QtGui import QColor, QImage, QMouseEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QApplication,
@@ -438,6 +439,39 @@ class GuiTests(unittest.TestCase):
         self.window.show_page("appcmd")
         self.assertTrue(group.isExpanded)
         self.assertEqual(self.window.current_page(), "appcmd")
+
+    def test_students_page_shows_preview_and_enables_actions(self):
+        page = self.window.pages["students"]
+        page.set_students([{"address": "10.1.1.5", "preview": self.png_bytes()}])
+        self.assertEqual(page.students.rowCount(), 1)
+        page.students.selectRow(0)
+        self.assertFalse(page.preview_label.pixmap().isNull())
+        self.assertTrue(page.preview_button.isEnabled())
+        self.assertTrue(page.view_button.isEnabled())
+        # 没有缩略图时回到提示文案，按钮也不该保持可点。
+        page.set_students([{"address": "10.1.1.5"}])
+        page.students.selectRow(0)
+        self.assertIn("暂无缩略图", page.preview_label.text())
+        page.students.clearSelection()
+        self.assertFalse(page.preview_button.isEnabled())
+
+    def test_students_page_opens_screen_window_for_selected_host(self):
+        page = self.window.pages["students"]
+        page.set_students([{"address": "10.1.1.5"}])
+        page.students.selectRow(0)
+        with patch.object(gui, "ScreenWindow") as window_class:
+            page.viewRequested.emit()
+        window_class.assert_called_once()
+        self.assertEqual(window_class.call_args.args[0], "10.1.1.5")
+
+    def png_bytes(self):
+        """生成一张最小的 PNG，用来验证缩略图能真正解析成图片。"""
+        image = QImage(8, 8, QImage.Format.Format_RGB32)
+        image.fill(QColor("#0f6cbd"))
+        buffer = QBuffer()
+        buffer.open(QBuffer.OpenModeFlag.WriteOnly)
+        image.save(buffer, "PNG")
+        return bytes(buffer.data())
 
     def test_home_page_lists_shortcuts_and_function_cards(self):
         home = self.window.pages["home"]

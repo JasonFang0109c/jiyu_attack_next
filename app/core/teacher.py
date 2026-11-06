@@ -6,6 +6,8 @@
 """
 
 import socket
+import struct
+import time
 from threading import Lock
 from time import monotonic, sleep
 
@@ -71,6 +73,7 @@ class TeacherSession:
         self._main = None
         self._session = None
         self._sequence = 0
+        self._previews = appcmd.PreviewAssembler()
 
     def __enter__(self):
         self.open()
@@ -140,17 +143,23 @@ class TeacherSession:
             report("宣告结束，共发送 %d 个报文" % sent)
         return sent
 
+    @staticmethod
+    def _blank_student(host):
+        """返回一条空白学生记录，字段固定便于界面直接读取。"""
+        return {
+            "address": host,
+            "info": {},
+            "processes": [],
+            "windows": [],
+            "preview": None,
+        }
+
     def _register(self, host, report=None):
         """登记学生并回会话应答，返回是否为新登录。"""
         with self._lock:
             if host in self.students:
                 return False
-            self.students[host] = {
-                "address": host,
-                "info": {},
-                "processes": [],
-                "windows": [],
-            }
+            self.students[host] = self._blank_student(host)
         for packet in appcmd.session_replies(host):
             self._session.sendto(packet, (host, self.session_port))
             sleep(0.05)
@@ -190,10 +199,60 @@ class TeacherSession:
                     if self._register(host, report) and host not in found:
                         found.append(host)
                     continue
+                self._serve(data, host)
                 self._absorb(data, host)
         if report:
             report("监听结束，本次发现 %d 台学生机" % len(found))
         return found
+
+    def _serve(self, data, host):
+        """处理学生端主动发起的心跳、缩略图与重传请求。
+
+        这些报文都需要教师端回包，否则学生端不会继续上报缩略图，所以在
+        ``listen`` 的收包循环里一并处理。
+
+        Args:
+            data: 收到的报文。
+            host: 发送方地址。
+        """
+        if len(data) < 4:
+            return
+        magic = struct.unpack("<I", data[:4])[0]
+        if magic == appcmd.KACA_MAGIC:
+            self._main.sendto(
+                appcmd.waca_packet(self.local_ip, self.channel), (host, self.port)
+            )
+        elif magic == appcmd.TRMC_MAGIC:
+            for packet in appcmd.thumbnail_packets():
+                self._main.sendto(packet, (host, self.port))
+            self._main.sendto(appcmd.dmoc_packet(self.local_ip), (host, self.port))
+        elif magic == appcmd.DENT_MAGIC:
+            self._answer_retransmit(data, host)
+        elif magic == appcmd.LANT_MAGIC:
+            self._store_preview(data, host)
+
+    def _answer_retransmit(self, data, host):
+        """按缺失分片回答 ``SRNT``，让学生端只补发缺的部分。"""
+        try:
+            frame = appcmd.dent_frame_sequence(data)
+        except ValueError:
+            return
+        missing = self._previews.missing_parts(frame)
+        packet = appcmd.srnt_packet(frame, complete=not missing, missing_parts=missing)
+        self._main.sendto(packet, (host, self.port))
+
+    def _store_preview(self, data, host):
+        """把收齐的缩略图写进学生记录，并对重传请求及时应答。"""
+        try:
+            image = self._previews.feed(data)
+        except ValueError:
+            return
+        if image is None:
+            return
+        with self._lock:
+            student = self.students.get(host)
+            if student is not None:
+                student["preview"] = image
 
     def _absorb(self, data, host):
         """把收到的信息上报并入对应学生记录。"""
@@ -202,9 +261,7 @@ class TeacherSession:
         except ValueError:
             return
         with self._lock:
-            student = self.students.setdefault(
-                host, {"address": host, "info": {}, "processes": [], "windows": []}
-            )
+            student = self.students.setdefault(host, self._blank_student(host))
             kind = message.get("kind")
             if kind == "info":
                 student["info"] = message["info"]
@@ -216,6 +273,15 @@ class TeacherSession:
                 student[key].extend(
                     entry for entry in message["entries"] if entry[0] not in known
                 )
+
+    def request_preview(self, host):
+        """向学生端下发缩略图策略，让它开始推送画面缩略图。
+
+        Args:
+            host: 学生地址。
+        """
+        for packet in appcmd.thumbnail_packets():
+            self._main.sendto(packet, (host, self.port))
 
     def request_info(self, host, report=appcmd.REPORT_ALL, wait=_INFO_WAIT):
         """向学生请求信息上报并等一会儿，让回复有时间回来。
@@ -561,10 +627,183 @@ def fetch_students_info(
         return [dict(session.students[host]) for host in hosts]
 
 
+def start_screen(host, channel=1, local_ip=None, report=None):
+    """请学生端开始向本机推送桌面画面。
+
+    学生端只有在收到这条 ``feature 8`` 报文后才会去连本机的 TCP 端口，所以
+    必须先发报文再建立 :class:`app.core.screen.ScreenSession`。
+
+    Args:
+        host: 学生地址。
+        channel: 会话频道号。
+        local_ip: 教师端地址，写进参数块。
+        report: 进度回调。
+
+    Returns:
+        int: 发送的字节数。
+    """
+    _address, port = appcmd.session_endpoint(channel)
+    payload = appcmd.screen_start_payload(local_ip or detect_local_ip(), port, port)
+    return send_mess_command(host, payload, channel, local_ip, "屏幕传输", report)
+
+
+def stop_screen(host, channel=1, local_ip=None, report=None):
+    """通知学生端停止推送桌面画面。"""
+    return send_mess_command(
+        host, appcmd.screen_stop_payload(), channel, local_ip, "停止屏幕传输", report
+    )
+
+
+def remote_control(
+    host, local_ip, mode=2, port=0, udp_port=4705, report=None, cancel_event=None
+):
+    """请求接管学生端的输入，返回本机接收输入的端口。
+
+    Args:
+        host: 学生地址。
+        local_ip: 教师端地址，写进命令事务头。
+        mode: 0 双方可操作、1 停止、2 仅教师操作并锁定学生输入。
+        port: 本机接收输入的 UDP 端口，0 表示让系统分配。
+        udp_port: 学生端 UDP 端口。
+        report: 进度回调。
+        cancel_event: 取消信号（保留以便与其他操作统一调用）。
+
+    Returns:
+        int: 本机接收输入的端口。
+    """
+    if cancel_event is not None and cancel_event.is_set():
+        raise RuntimeError("操作已取消")
+    receiver = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        receiver.bind((local_ip, port))
+        actual = receiver.getsockname()[1]
+        payload = appcmd.remote_control_payload_for(host, mode, actual)
+        packet = appcmd.command_transaction_packet(payload, local_ip)
+        sent = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sent.sendto(packet, (host, udp_port))
+        finally:
+            sent.close()
+    finally:
+        receiver.close()
+    if report:
+        report(
+            "远控请求 → %s（模式 %d，输入端口 %d，%d 字节）"
+            % (host, mode, actual, len(packet))
+        )
+    return actual
+
+
+def collect_previews(
+    hosts,
+    duration=8.0,
+    channel=1,
+    teacher_name="1",
+    port=4705,
+    local_ip=None,
+    report=None,
+    cancel_event=None,
+):
+    """让指定学生持续上报缩略图，返回带 ``preview`` 字节的学生记录。
+
+    学生端只有在收到 ``LPNT`` 策略包后才会推缩略图，所以先宣告再逐个下发策略。
+
+    Args:
+        hosts: 学生地址列表。
+        duration: 监听时长。
+        channel: 频道号。
+        teacher_name: 学生端显示的教师名。
+        port: 学生端 UDP 端口。
+        local_ip: 组播出口地址，可省略。
+        report: 进度回调。
+        cancel_event: 取消信号。
+
+    Returns:
+        list[dict]: 每台学生机的记录，``preview`` 为收齐的原始图片字节。
+    """
+    targets = [address for address in hosts if address]
+    if not targets:
+        raise ValueError("请先指定目标地址")
+    with TeacherSession(channel, teacher_name, port, local_ip) as session:
+        session.announce(rounds=1, report=report, cancel_event=cancel_event)
+        for host in targets:
+            session.request_preview(host)
+        session.listen(duration, report=report, cancel_event=cancel_event)
+        records = []
+        for host in targets:
+            student = session.students.get(host)
+            if student is None:
+                student = {
+                    "address": host,
+                    "info": {},
+                    "processes": [],
+                    "windows": [],
+                    "preview": None,
+                }
+            records.append(dict(student))
+        return records
+
+
+def view_screen(
+    host,
+    seconds=15.0,
+    tcp_port=appcmd.TCP_COMM_PORT,
+    channel=1,
+    local_ip=None,
+    report=None,
+    cancel_event=None,
+    on_record=None,
+):
+    """请求学生端推桌面画面，并在指定时长内持续回调收到的记录。
+
+    Args:
+        host: 学生地址。
+        seconds: 观看时长。
+        tcp_port: 学生端屏幕传输 TCP 端口。
+        channel: 会话频道号。
+        local_ip: 教师端地址，可省略。
+        report: 进度回调。
+        cancel_event: 取消信号。
+        on_record: 每收到一条完整记录时回调，参数是解析后的记录字典。
+
+    Returns:
+        dict: ``{"records": 记录数, "latest": 最后一条记录}``。
+    """
+    from .screen import ScreenSession
+
+    start_screen(host, channel, local_ip, report)
+    time.sleep(0.2)
+    counter = {"count": 0}
+
+    def handle(record):
+        counter["count"] += 1
+        if on_record:
+            on_record(record)
+
+    session = ScreenSession(
+        host, tcp_port, appcmd.DESKTOP_CHANNEL, on_record=handle, on_log=report
+    )
+    try:
+        session.open()
+        deadline = time.monotonic() + max(0.0, float(seconds))
+        while time.monotonic() < deadline:
+            if cancel_event is not None and cancel_event.is_set():
+                break
+            time.sleep(0.1)
+    finally:
+        session.close()
+        stop_screen(host, channel, local_ip, report)
+    if report:
+        report("观看结束：%s，共 %d 条记录" % (host, counter["count"]))
+    return {"records": counter["count"], "latest": session.latest}
+
+
 __all__ = [
     "TeacherSession",
+    "collect_previews",
     "collect_students",
     "fetch_students_info",
+    "remote_control",
     "run_app_operation",
     "send_app_command",
     "send_app_commands",
@@ -572,4 +811,7 @@ __all__ = [
     "send_mess_command",
     "send_session_broadcast",
     "send_unlocks",
+    "start_screen",
+    "stop_screen",
+    "view_screen",
 ]

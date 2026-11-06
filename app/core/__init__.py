@@ -9,6 +9,7 @@ from . import (
     local_info,
     paths,
     protocol,
+    screen,
     teacher,
     transport,
 )
@@ -59,10 +60,13 @@ from .protocol import (
     split_message,
     validate_options,
 )
+from .screen import ScreenSession, fix_thumbnail
 from .teacher import (
     TeacherSession,
+    collect_previews,
     collect_students,
     fetch_students_info,
+    remote_control,
     run_app_operation,
     send_app_command,
     send_app_commands,
@@ -70,6 +74,9 @@ from .teacher import (
     send_mess_command,
     send_session_broadcast,
     send_unlocks,
+    start_screen,
+    stop_screen,
+    view_screen,
 )
 from .transport import (
     Delivery,
@@ -105,6 +112,7 @@ __all__ = [
     "Delivery",
     "DeliveryState",
     "FileTransferServer",
+    "ScreenSession",
     "SendOptions",
     "SendOutcome",
     "TeacherSession",
@@ -115,6 +123,7 @@ __all__ = [
     "build_items_bootstrap_script",
     "build_transfer_command",
     "cli_log",
+    "collect_previews",
     "collect_students",
     "collect_transfer_items",
     "config",
@@ -125,6 +134,7 @@ __all__ = [
     "execute_send_report",
     "fetch_students_info",
     "firewall",
+    "fix_thumbnail",
     "format_b4_send",
     "format_size",
     "get_ip",
@@ -141,10 +151,12 @@ __all__ = [
     "prepare_packets",
     "protocol",
     "read_message",
+    "remote_control",
     "request_firewall_rule",
     "run_app_operation",
     "run_firewall_helper",
     "run_windows_command",
+    "screen",
     "send",
     "send_app_command",
     "send_app_commands",
@@ -155,6 +167,8 @@ __all__ = [
     "send_unlocks",
     "set_firewall_rule",
     "split_message",
+    "start_screen",
+    "stop_screen",
     "store",
     "teacher",
     "transfer_file",
@@ -162,4 +176,5 @@ __all__ = [
     "validate_file_transfer",
     "validate_listen_ip",
     "validate_options",
+    "view_screen",
 ]

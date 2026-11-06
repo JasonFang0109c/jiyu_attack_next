@@ -13,19 +13,23 @@ from ..core import (
     appcmd,
     basicCMD,
     cli_log,
+    collect_previews,
     collect_students,
+    fix_thumbnail,
     format_size,
     get_ip,
     local_ip_and_ports,
     pkg_sendlist,
     portable_cli_log_path,
     read_message,
+    remote_control,
     request_firewall_rule,
     run_app_operation,
     run_firewall_helper,
     send_tracked,
     split_message,
     transfer_file,
+    view_screen,
 )
 
 
@@ -126,6 +130,22 @@ def build_parser():
         metavar="SECONDS",
         help="发现学生机并拉取信息、进程与窗口，默认监听 8 秒",
     )
+    action_group.add_argument(
+        "--preview",
+        nargs="?",
+        const=8,
+        type=int,
+        metavar="SECONDS",
+        help="拉取并修正目标电脑的屏幕缩略图，默认监听 8 秒",
+    )
+    action_group.add_argument(
+        "--view",
+        nargs="?",
+        const=15,
+        type=int,
+        metavar="SECONDS",
+        help="观看目标电脑的实时画面，默认 15 秒",
+    )
     parser.add_argument(
         "--run-args", type=str, default="", metavar="TEXT", help="--run 的启动参数"
     )
@@ -136,6 +156,11 @@ def build_parser():
         choices=[0, 1, 2],
         metavar="MODE",
         help="--run 的窗口状态：0 正常、1 最小化、2 最大化",
+    )
+    parser.add_argument(
+        "--control",
+        action="store_true",
+        help="配合 --view 请求接管目标电脑的键盘鼠标",
     )
     parser.add_argument(
         "--no-lock",
@@ -162,6 +187,20 @@ def build_parser():
         default="1",
         metavar="NAME",
         help="学生端显示的教师名",
+    )
+    parser.add_argument(
+        "--tcp-port",
+        type=int,
+        default=4806,
+        metavar="PORT",
+        help="学生端屏幕传输的 TCP 端口，默认 4806",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="",
+        metavar="DIR",
+        help="--preview 与 --view 保存图片的目录，默认当前目录下的 preview",
     )
     return parser
 
@@ -423,6 +462,105 @@ def build_action_payload(arguments):
     return None
 
 
+def preview_directory(arguments):
+    """返回保存画面的目录，不存在时创建。"""
+    target = Path(arguments.output_dir) if arguments.output_dir else Path("preview")
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
+
+def save_thumbnail(record, directory):
+    """把一台学生的缩略图落盘，尽量同时写一份修正后的版本。"""
+    data = record.get("preview")
+    if not data:
+        return None
+    address = record.get("address", "unknown").replace(":", "_")
+    raw = directory / ("%s.jpg" % address)
+    raw.write_bytes(data)
+    try:
+        fixed = fix_thumbnail(data)
+    except Exception as error:
+        print("  %s 缩略图修正失败：%s（原始图片已保存）" % (address, error))
+        return raw
+    fixed_path = directory / ("%s_fixed.jpg" % address)
+    fixed_path.write_bytes(fixed)
+    return fixed_path
+
+
+def run_preview(arguments):
+    """拉取目标电脑的屏幕缩略图并保存到磁盘。"""
+    log = cli_log.LOG
+    hosts = get_ip(arguments.ip)
+    directory = preview_directory(arguments)
+    print(
+        "正在拉取 %d 台设备的缩略图，监听 %d 秒…" % (len(hosts), arguments.preview),
+        flush=True,
+    )
+    records = collect_previews(
+        hosts,
+        duration=arguments.preview,
+        channel=arguments.channel,
+        teacher_name=arguments.teacher_name,
+        port=arguments.p,
+        report=print,
+    )
+    saved = 0
+    for record in records:
+        path = save_thumbnail(record, directory)
+        if path is not None:
+            saved += 1
+            print("  已保存 %s" % path)
+    print(
+        "缩略图完成：%d 台收到画面，保存 %d 张到 %s" % (len(records), saved, directory)
+    )
+    log.info("缩略图拉取完成", "屏幕", "学生数：%d；保存：%d" % (len(records), saved))
+    return True
+
+
+def run_view(arguments):
+    """观看目标电脑的实时画面，按需请求远控并保存收到的帧。"""
+    log = cli_log.LOG
+    hosts = get_ip(arguments.ip)
+    directory = preview_directory(arguments)
+    for host in hosts:
+        print("正在观看 %s，时长 %d 秒…" % (host, arguments.view), flush=True)
+        counter = {"index": 0}
+
+        def handle(record, address=host, counter=counter):
+            """把每条桌面记录按类型落盘。"""
+            counter["index"] += 1
+            sequence = counter["index"]
+            if record.get("kind") == "jpeg":
+                path = directory / ("%s_%03d.jpg" % (address, sequence))
+            elif record.get("kind") == "h264":
+                path = directory / ("%s_%03d.h264" % (address, sequence))
+            else:
+                return
+            path.write_bytes(record.get("payload") or b"")
+            print("  %s → %s" % (record.get("kind"), path.name))
+
+        if arguments.control:
+            port = remote_control(
+                host,
+                local_ip_and_ports()[0],
+                mode=2,
+                udp_port=arguments.p,
+                report=print,
+            )
+            print("  已请求接管键鼠，输入端口 %d" % port)
+        result = view_screen(
+            host,
+            seconds=arguments.view,
+            tcp_port=arguments.tcp_port,
+            channel=arguments.channel,
+            report=print,
+            on_record=handle,
+        )
+        print("  %s 收到 %d 条记录" % (host, result["records"]))
+    log.info("屏幕观看结束", "屏幕", "目标：%d 台" % len(hosts))
+    return True
+
+
 def run_action(arguments):
     """执行应用命令、宣告或学生信息查询，返回是否已处理本次调用。"""
     log = cli_log.LOG
@@ -466,6 +604,11 @@ def run_action(arguments):
                     print("    %-10s %s" % (identifier, name))
         log.info("教师端模拟查询完成", "教师端模拟", "学生数：%d" % len(records))
         return True
+
+    if arguments.preview is not None:
+        return run_preview(arguments)
+    if arguments.view is not None:
+        return run_view(arguments)
 
     action = build_action_payload(arguments)
     if action is None:
