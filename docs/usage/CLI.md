@@ -128,6 +128,11 @@ start /wait JiYuAttackNext.exe -ip 10.49.151.29 -msg "Hello"
 | `--teacher-name NAME` | 字符串 | `1` | 宣告里携带的教师名，也是学生端屏幕上显示的名称 |
 | `--announce [SECONDS]` | 整数 | `10` | 以教师端模拟身份发送在线宣告并监听登录，超时后打印发现的路由信息 |
 | `--students [SECONDS]` | 整数 | `8` | 发现学生机后拉取并打印其系统信息、进程与窗口 |
+| `--preview [SECONDS]` | 整数 | `8` | 向目标请求一帧屏幕缩略图并保存到 `--output-dir` |
+| `--view [SECONDS]` | 整数 | `15` | 连上目标 `--tcp-port` 连续接收桌面画面，按帧保存 |
+| `--control` | 开关 | 关 | 与 `--view` 配合，先申请接管键鼠再观看 |
+| `--tcp-port PORT` | 整数 | `4806` | 屏幕观看使用的学生端 TCP 端口 |
+| `--output-dir DIR` | 路径 | `preview` | 缩略图与画面帧的保存目录，不存在时自动创建 |
 
 `--blackscreen` 与 `--unlock` 必须让 `--channel` 与学生端所在频道一致：这两条报文只在会话组播上被处理，单播不生效。锁键鼠的解除不能靠再发一次黑屏并把锁参数去掉，学生端只把 `lock_input=1` 当作上锁。
 
@@ -307,6 +312,18 @@ JiYuAttackNext.exe --announce 15 --channel 2 --teacher-name "实验教师"
 ```
 
 宣告不需要 `-ip`：报文发到会话组播地址，学生端收到后主动登录。发现阶段会先回会话应答与缩略图策略，再请求一次全量上报，因此终端里能直接看到计算机名、登录用户、系统、CPU、内存以及进程与窗口列表。没有任何学生登录时，命令会提示确认网段与频道是否一致。
+
+### 缩略图与屏幕观看
+
+```powershell
+JiYuAttackNext.exe -ip 10.49.151.29 --preview 8
+JiYuAttackNext.exe -ip 10.49.151.29 --view 20 --output-dir D:	mprames
+JiYuAttackNext.exe -ip 10.49.151.29 --view 20 --control
+```
+
+`--preview` 请一帧缩略图，原图存成 `<地址>.jpg`，色度还原后的版本存成 `<地址>_fixed.jpg`。学生端给的是自下而上的 DIB 且色度通道被取反，直接打开会上下颠倒、颜色发绿，因此两个文件都要留一份方便对比；Pillow 不可用时只写原图并在终端提示无法修正。
+
+`--view` 会先把屏幕传输指令发给学生端，再连接 `--tcp-port`（默认 4806）连续接收桌面分片。屏幕内容按 1 KB 分片到达，接收侧按偏移重组，缺片时回一条重传应答补齐。JPEG 帧存成 `<地址>_NNN.jpg`，H.264 帧存成 `<地址>_NNN.h264`——仓库不内置解码器，H.264 只保证协议解析与字节落盘正确。加 `--control` 会先申请接管键鼠，学生端的输入只在观看端转动；不加则只观看。
 
 ## 行为与限制
 
