@@ -535,10 +535,11 @@ class MainWindow(FluentWindow):
         self._sync_navigation_mode()
 
     def _sync_navigation_mode(self):
-        """按窗口高度决定侧边栏是否展开。
+        """窗口高度跨过阈值时调整分组的展开状态。
 
         导航项占用的高度超过窗口时，库会把子项压成同一条高度，分组标题与
-        子项就会互相压字；这里只在高度够时展开，变矮时收回图标模式。
+        子项就会互相压字；所以矮窗口只保留分组标题，点开某个分组再看它的
+        子项。侧边栏本身始终可用，不做整体收起。
         """
         # 无边框窗口在基类构造里就会触发 resizeEvent，此时导航栏还不存在。
         if not hasattr(self, "navigationInterface"):
@@ -547,11 +548,6 @@ class MainWindow(FluentWindow):
         if tall == getattr(self, "_navigation_tall", None):
             return
         self._navigation_tall = tall
-        panel = self.navigationInterface.panel
-        if tall:
-            self.navigationInterface.expand(useAni=False)
-        elif not panel.isCollapsed():
-            panel.collapse()
         self._fit_navigation_groups()
 
     def _onThemeChangedFinished(self):
@@ -718,18 +714,21 @@ class MainWindow(FluentWindow):
         # 分组展开与否跟着侧边栏的展开状态走：面板收起时分组也要收起来，
         # 只按 node.isExpanded 判断会拿到过期状态，子项留在画面上互相压字。
         panel = self.navigationInterface.panel
-        # 收起动画进行中宽度仍在变化，这时按展开处理会把分组撑开却挤在 48 像素里。
-        expanded = not panel.isCollapsed() and panel.width() >= panel.expandWidth
+        # 分组展开要同时满足两个条件：侧边栏是展开的，且窗口高度装得下所有子项。
+        expanded = (
+            not panel.isCollapsed()
+            and panel.width() >= panel.expandWidth
+            and self.height() >= NAVIGATION_EXPAND_HEIGHT
+        )
         for route, _icon, _title, _children in NAVIGATION_GROUPS:
-            node = self.navigationInterface.panel.widget(route)
+            node = panel.widget(route)
             node.setExpanded(expanded, ani=False)
             node.vBoxLayout.activate()
-            if expanded:
-                node.setFixedSize(node.sizeHint())
-            else:
-                # 收起成图标模式时回到库的紧凑尺寸，否则分组仍留着展开时的
-                # 两百像素宽，文字会从图标右侧露出来。
-                node.setCompacted(True)
+            # 只调高度，宽度交给布局：临时固定宽度会让分组在展开后留着旧尺寸，
+            # 表现为父项没有文字、点开也看不到子项。
+            node.setFixedHeight(
+                node.sizeHint().height() if expanded else node.itemWidget.height()
+            )
         self._apply_navigation_minimum_height()
 
     def _apply_navigation_minimum_height(self):
