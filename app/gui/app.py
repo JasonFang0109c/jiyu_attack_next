@@ -731,6 +731,43 @@ class MainWindow(FluentWindow):
             )
         self._apply_navigation_minimum_height()
 
+    def _relayout_navigation(self, route):
+        """分组展开或收起后重排导航，矮窗口下只保留一个分组展开。
+
+        导航项总高度超过窗口时库会把子项压成同一条高度而互相压字，
+        所以窗口不够高时改成手风琴：打开一个分组就收起其它分组。
+        """
+        # expanded 在展开动画的每一帧都会发出，这里用标志位挡住重入。
+        if getattr(self, "_relaying_navigation", False):
+            return
+        self._relaying_navigation = True
+        try:
+            panel = self.navigationInterface.panel
+            node = panel.widget(route)
+            if (
+                node is not None
+                and node.isExpanded
+                and self.height() < NAVIGATION_EXPAND_HEIGHT
+            ):
+                for other_route, _icon, _title, _children in NAVIGATION_GROUPS:
+                    if other_route == route:
+                        continue
+                    other = panel.widget(other_route)
+                    if other is not None and other.isExpanded:
+                        other.setExpanded(False, ani=False)
+            for group_route, _icon, _title, _children in NAVIGATION_GROUPS:
+                group = panel.widget(group_route)
+                if group is None:
+                    continue
+                group.vBoxLayout.activate()
+                group.setFixedHeight(
+                    group.sizeHint().height()
+                    if group.isExpanded
+                    else group.itemWidget.height()
+                )
+        finally:
+            self._relaying_navigation = False
+
     def _apply_navigation_minimum_height(self):
         """按导航内容设置侧边栏最小高度，但不让它把窗口顶高。
 
@@ -761,6 +798,11 @@ class MainWindow(FluentWindow):
         node.setRememberExpandState(True)
         for key, child_icon, child_title in children:
             self.addSubInterface(self.pages[key], child_icon, child_title, parent=route)
+        # 用户点分组后要让后面的项重新排列，否则子项会压到下一个分组标题上。
+        # setExpanded 默认不走动画、不会发 expanded 信号，只能挂点击信号。
+        node.itemWidget.itemClicked.connect(
+            lambda *_ignored, group=route: self._relayout_navigation(group)
+        )
         self._apply_navigation_minimum_height()
         return node
 
