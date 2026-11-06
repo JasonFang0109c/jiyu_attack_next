@@ -187,6 +187,11 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1
 
 当前仓库的具体行为以本项目代码和文档为准。
 
+## 贡献者
+
+- [JasonFang0109c](https://github.com/JasonFang0109c)
+- [仙道领域绝巅](https://github.com/suiyuanlixin)
+
 ## 许可证
 
 本项目使用 [GNU General Public License v3.0](LICENSE)（GPL-3.0-or-later）发布，允许使用、修改与再分发，衍生作品需以同一许可证开源。
