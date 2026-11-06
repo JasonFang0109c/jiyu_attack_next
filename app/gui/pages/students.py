@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QTableWidgetItem,
 )
-from qfluentwidgets import BodyLabel, ComboBox
+from qfluentwidgets import BodyLabel, ComboBox, PushButton
 from qfluentwidgets import FluentIcon as FIF
 
 from ..components import (
@@ -88,14 +88,14 @@ class StudentsPage(Page):
         self.kill_button = tool_button(
             FIF.DELETE, "结束所选进程", self.content_card, self.killRequested.emit
         )
-        self.preview_button = tool_button(
-            FIF.CAMERA, "刷新缩略图", self.content_card, self.previewRequested.emit
-        )
-        self.view_button = tool_button(
-            FIF.VIDEO, "观看屏幕", self.content_card, self.viewRequested.emit
-        )
+        # 这两个是这一页新增的入口，按钮直接写文字，免得只有图标认不出来。
+        self.preview_button = PushButton(FIF.CAMERA, "刷新缩略图", self.content_card)
+        self.preview_button.clicked.connect(self.previewRequested.emit)
+        self.view_button = PushButton(FIF.VIDEO, "观看屏幕", self.content_card)
+        self.view_button.clicked.connect(self.viewRequested.emit)
         detail_row.addWidget(self.preview_button)
         detail_row.addWidget(self.view_button)
+        detail_row.addSpacing(8)
         detail_row.addWidget(self.refresh_button)
         detail_row.addWidget(self.kill_button)
         self.content_card.body.addLayout(detail_row)
