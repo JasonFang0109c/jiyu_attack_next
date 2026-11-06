@@ -46,8 +46,13 @@ class NightlyWorkflowTests(unittest.TestCase):
     def test_shared_build_produces_unified_exe(self):
         self.assertIn("runs-on: windows-latest", self.build)
         self.assertIn("packaging\\build.ps1 -Clean", self.build)
-        self.assertIn("dist\\JiYuAttackNext.exe", self.build)
+        # 一次构建产出正常版本与 _Debug 版本，两版一起上传。
+        self.assertIn("-Variant both", self.build)
+        self.assertIn(
+            '$names = @("JiYuAttackNext", "JiYuAttackNext_Debug")', self.build
+        )
         self.assertIn("name: JiYuAttackNext-build", self.build)
+        self.assertIn("path: dist/*.exe", self.build)
         self.assertNotIn("cli\\main.py", self.build)
         self.assertNotIn("JiYuAttackNext-cli", self.build)
 
@@ -93,8 +98,8 @@ class NightlyWorkflowTests(unittest.TestCase):
         self.assertIn("/commit/%H", self.workflow)
         self.assertNotIn("--pretty=format:'- `%h` %s'", self.workflow)
 
-    def test_workflow_message_lists_every_commit(self):
-        # 说明小节收录范围内全部提交的完整信息，而不是只放最新一条。
+    def test_workflow_message_lists_single_build_commit(self):
+        # tip 可能只是文档提交，发布说明只记最新一个真正影响构建的提交。
         self.assertIn("## Message", self.workflow)
         self.assertIn("commit-messages.md", self.workflow)
         self.assertLess(
@@ -102,12 +107,20 @@ class NightlyWorkflowTests(unittest.TestCase):
             self.workflow.index("## Message"),
         )
         self.assertNotIn("git log -1 --pretty=%B", self.workflow)
+        # 按 workflow 的 paths 过滤逐个回查，取范围内最新一个影响构建的提交。
+        self.assertIn("build_paths=", self.workflow)
+        self.assertIn("for sha in $(git log --format=%H", self.workflow)
+        self.assertIn("--name-only", self.workflow)
+        self.assertIn('build_commit="${sha}"', self.workflow)
+        self.assertIn("git log -1", self.workflow)
 
     def test_workflow_publishes_unified_exe(self):
         self.assertIn("files: |", self.workflow)
         self.assertIn("JiYuAttackNext.exe", self.workflow)
+        self.assertIn("JiYuAttackNext_Debug.exe", self.workflow)
         self.assertIn("EXE:", self.workflow)
         self.assertIn("${exe_sha256}", self.workflow)
+        self.assertIn("${debug_sha256}", self.workflow)
         self.assertNotIn("CLI:", self.workflow)
         self.assertNotIn("cli_sha256", self.workflow)
 

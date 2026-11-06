@@ -40,8 +40,8 @@ jobs:
       - name: Checkout repository metadata
         uses: actions/checkout@v7
         with:
-          # 需要完整历史才能列出本次 push 范围内（before..head）的全部提交；
-          # 只取 1 个提交时，文档提交排在代码提交之后会让发布说明看起来像只构建了文档。
+          # 需要完整历史才能看出本次 push（before..head）里哪个提交真正影响了构建：
+          # 深度为 1 时只能拿到 tip，文档提交排在代码提交之后会认错对象。
           fetch-depth: 0
           persist-credentials: false
 
@@ -55,44 +55,55 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          short_sha="${GITHUB_SHA::7}"
           version="${{ needs.build.outputs.version }}"
           exe_sha256="$(sha256sum dist/JiYuAttackNext.exe | awk '{print $1}')"
+          debug_sha256="$(sha256sum dist/JiYuAttackNext_Debug.exe | awk '{print $1}')"
           built_at="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-          # paths 过滤按整个 push 的 before..head 判定，tip 提交是文档也可能
-          # 带着代码提交一起构建；列出范围内全部提交说明本次构建立足于哪些改动。
+          # paths 过滤按整个 push 判定，tip 可能只是一个文档提交，
+          # 真正的改动排在它前面：发布说明只记最新一个影响构建的提交。
           before="${{ github.event.before }}"
           # 提交范围：push 事件取 before..head，手动触发或首次推送退化为最后一次提交。
           range=(-1 "${GITHUB_SHA}")
-          if [[ -n "${before}" && "${before}" != "0000000000000000000000000000000000000000" ]] \
-            && git cat-file -e "${before}^{commit}" 2>/dev/null; then
+          if [[ -n "${before}" && "${before}" != "0000000000000000000000000000000000000000" ]] && git cat-file -e "${before}^{commit}" 2>/dev/null; then
             range=("${before}..${GITHUB_SHA}")
           fi
-          # 每条提交都带 commit 链接，点缩写哈希可以跳到对应改动。
-          commit_list="$(git log \
-            --pretty=format:"- [\`%h\`](https://github.com/${GITHUB_REPOSITORY}/commit/%H) %s" \
-            "${range[@]}" || true)"
-          # 说明小节收录范围内每个提交的完整提交信息，标题同样带链接。
-          git log --pretty=format:'### [`%h`](https://github.com/'"${GITHUB_REPOSITORY}"'/commit/%H) %s%n%n%b%n' \
-            "${range[@]}" > commit-messages.md || true
+          # 与 workflow 的 paths 过滤保持一致：只有改动这些路径的提交才会影响构建。
+          build_paths='^(app/|packaging/|scripts/|assets/|requirements\.txt|\.github/workflows/)'
+          build_commit=""
+          for sha in $(git log --format=%H "${range[@]}" || true); do
+            if git show --pretty=format: --name-only "${sha}" | grep -Eq "${build_paths}"; then
+              build_commit="${sha}"
+              break
+            fi
+          done
+          if [[ -z "${build_commit}" ]]; then
+            build_commit="${GITHUB_SHA}"
+          fi
+          short_sha="${build_commit::7}"
+          # 这一条提交带链接，点缩写哈希可以直接跳到对应改动。
+          commit_list="$(git log -1 --pretty=format:"- [\`%h\`](https://github.com/${GITHUB_REPOSITORY}/commit/%H) %s" "${build_commit}")"
+          # 说明小节收录这条提交的完整提交信息，标题同样带链接。
+          git log -1 --pretty=format:'### [`%h`](https://github.com/'"${GITHUB_REPOSITORY}"'/commit/%H) %s%n%n%b%n' "${build_commit}" > commit-messages.md || true
           if [[ ! -s commit-messages.md ]]; then
-            printf '本次构建没有可展示的提交信息。\n' > commit-messages.md
+            echo '本次构建没有可展示的提交信息。' > commit-messages.md
           fi
           cat > release-notes.md <<EOF
           # Nightly Build ${version}
 
           - **Version:** \`${version}\`
           - **Built at:** \`${built_at}\`
-          - **Commit:** [\`${short_sha}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA})
+          - **Commit:** [\`${short_sha}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${build_commit})
           - **Workflow run:** [#${GITHUB_RUN_NUMBER}](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})
 
           ## Assets
 
           - \`JiYuAttackNext.exe\`
+          - \`JiYuAttackNext_Debug.exe\`
 
           ## SHA256
 
           - EXE: \`${exe_sha256}\`
+          - EXE (Debug): \`${debug_sha256}\`
 
           ## Commits
 

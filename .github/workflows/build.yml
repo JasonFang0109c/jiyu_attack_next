@@ -76,28 +76,30 @@ jobs:
       - name: Build EXE
         shell: pwsh
         run: |
+          # 一次构建同时产出正常版本与 _Debug 版本，两者只差日志等级。
           powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Clean `
-            -Version "${{ steps.version.outputs.version }}"
+            -Variant both -Version "${{ steps.version.outputs.version }}"
 
       - name: Prepare release assets
         shell: pwsh
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          $exeSource = "output\JiYuAttackNext.exe"
-          if (-not (Test-Path -LiteralPath $exeSource -PathType Leaf)) {
-            throw "未找到构建产物：$exeSource"
-          }
+          $names = @("JiYuAttackNext", "JiYuAttackNext_Debug")
           New-Item -ItemType Directory -Path "dist" -Force | Out-Null
-          Copy-Item -LiteralPath $exeSource -Destination "dist\JiYuAttackNext.exe" -Force
-          Copy-Item -LiteralPath $exeSource -Destination "dist\JiYuAttackNext-$env:VERSION.exe" -Force
+          foreach ($name in $names) {
+            $exeSource = "output\$name.exe"
+            if (-not (Test-Path -LiteralPath $exeSource -PathType Leaf)) {
+              throw "未找到构建产物：$exeSource"
+            }
+            Copy-Item -LiteralPath $exeSource -Destination "dist\$name.exe" -Force
+            Copy-Item -LiteralPath $exeSource -Destination "dist\$name-$env:VERSION.exe" -Force
+          }
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
         with:
           name: JiYuAttackNext-build
-          path: |
-            dist/JiYuAttackNext.exe
-            dist/JiYuAttackNext-*.exe
+          path: dist/*.exe
           if-no-files-found: error
           retention-days: 7
