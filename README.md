@@ -100,7 +100,7 @@
       <h3 style="margin: 0 0 10px 0;">⚙️ 设置与关于</h3>
       <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
         <li>切换主题、窗口材质与关闭行为</li>
-        <li>调整日志等级、确认后清除本地数据</li>
+        <li>确认后清除本地数据</li>
         <li>查看作者、仓库与构建信息</li>
       </ul>
     </td>

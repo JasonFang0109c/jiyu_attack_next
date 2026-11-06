@@ -41,11 +41,14 @@ python -m pip install -r requirements.txt
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1
 powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Clean
+powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Variant debug
 powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Version 0.1.1
 powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python "C:\Python313\python.exe"
 ```
 
 - 无参数时增量构建，`-Clean` 清理 PyInstaller 缓存后重建，`-Python` 指定其他解释器。
+- `-Variant` 取 `both`、`release` 或 `debug`，默认 `both`：一次产出 `JiYuAttackNext.exe` 与 `JiYuAttackNext_Debug.exe`，两份代码完全相同，只有构建变体标记不同。`-Variant debug` 只重建调试版本，调试时不必等两份都打包完。
+- 两个变体使用独立的 `--workpath`（`build/release` 与 `build/debug`），避免 PyInstaller 复用另一份变体的分析缓存。
 - `-Version` 覆盖版本号；省略时读取 `app/core/constants.py` 的 `__version__`。版本号须符合语义化版本格式，规则见[版本规范](VERSIONING.md)。
 - 脚本根据自身路径定位项目根目录，也可从其他目录通过绝对路径调用，默认使用项目虚拟环境。
 - 读取 [packaging/JiYuAttackNext.spec](../../packaging/JiYuAttackNext.spec)，并收集 Fluent Widgets 的运行时资源与包元数据。
@@ -56,8 +59,10 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python "C:\Pytho
 
 | 路径 | 内容 | 是否保留 |
 | --- | --- | --- |
-| `output/JiYuAttackNext.exe` | 单文件程序，GUI 与 CLI 共用 | 保留用于运行和分发 |
-| `build/JiYuAttackNext/` | 打包中间文件与分析结果 | 构建后可删除 |
+| `output/JiYuAttackNext.exe` | 单文件程序，GUI 与 CLI 共用；只写 `WARNING` 及以上的日志 | 保留用于运行和分发 |
+| `output/JiYuAttackNext_Debug.exe` | 同上，但日志从 `DEBUG` 起记录 | 保留，供排查问题使用 |
+| `build/release/`、`build/debug/` | 两个变体各自的打包中间文件与分析结果 | 构建后可删除 |
+| `build/assets/variant.txt` | 本次打包的变体标记，运行时打进 EXE | 构建后可删除 |
 | `build/assets/app.ico` | 从 SVG 转换的构建图标 | 构建后可删除 |
 | `build/assets/build_time.txt` | 本次构建时间，打包进 EXE | 构建后可删除 |
 | `build/assets/version.txt` | 本次构建版本号，打包进 EXE | 构建后可删除 |
@@ -68,7 +73,7 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python "C:\Pytho
 
 ## 运行数据
 
-EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json` 保存设备备注（`core` 组）与界面设置（`gui` 组，含关闭窗口行为、窗口材质和主窗口位置），`runtime.log` 保存界面运行日志，`cli.log` 保存命令行模式的运行日志（固定 `DEBUG` 等级）。`settings.json` 使用 JSON with comments，允许手写 `//`、`/* */` 注释与尾逗号，程序保存时会重写整个文件。该目录由 `.gitignore` 排除，源码运行时位于项目根目录。
+EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json` 保存设备备注（`core` 组）与界面设置（`gui` 组，含关闭窗口行为、窗口材质和主窗口位置），`runtime.log` 保存界面运行日志，`cli.log` 保存命令行模式的运行日志。日志等级由构建变体决定：正常版本只写 `WARNING` 与 `ERROR`，`JiYuAttackNext_Debug.exe` 从 `DEBUG` 起记录。两个 EXE 放在同一目录时共用这个文件夹，调试版本产生的记录与正常版本写进同一份日志。`settings.json` 使用 JSON with comments，允许手写 `//`、`/* */` 注释与尾逗号，程序保存时会重写整个文件。该目录由 `.gitignore` 排除，源码运行时位于项目根目录。
 
 - 日志包含毫秒时间、规范级别、线程、输出位置、功能分类、消息与异常详情，便于从用户环境回传排查。
 - 只移动 EXE 而不移动该文件夹时，新位置按默认配置启动。
