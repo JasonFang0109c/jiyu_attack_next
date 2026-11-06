@@ -447,8 +447,35 @@ class GuiTests(unittest.TestCase):
         ]
         self.assertEqual(headers, [])
 
+    def test_sidebar_starts_collapsed_and_remembers_expanded_state(self):
+        # 首次使用保持图标模式；展开后写进设置，下次启动按它恢复。
+        panel = self.window.navigationInterface.panel
+        self.assertTrue(panel.isCollapsed())
+        # 走带动画的展开路径，库才会发 displayModeChanged，窗口据此保存状态。
+        self.window.navigationInterface.expand()
+        self.assertFalse(panel.isCollapsed())
+        self.assertTrue(
+            self.window.settings.value(models.NAVIGATION_EXPANDED_SETTINGS_KEY, False)
+        )
+        another = gui.MainWindow(
+            alias_store=gui.DeviceAliasStore(
+                settings=models.portable_settings(self.data_dir)
+            ),
+            data_dir=self.data_dir,
+            enable_tray=False,
+        )
+        try:
+            self.assertFalse(another.navigationInterface.panel.isCollapsed())
+        finally:
+            another.close()
+            another.deleteLater()
+            QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+            self.application.processEvents()
+
     def test_switching_to_child_page_expands_its_group(self):
         panel = self.window.navigationInterface.panel
+        # 侧边栏首次使用是收起的，先展开才能看到分组里的子项。
+        self.window.navigationInterface.expand(useAni=False)
         group = panel.widget("group_teacher")
         group.setExpanded(False, ani=False)
         self.window.show_page("appcmd")
@@ -1624,12 +1651,14 @@ class GuiTests(unittest.TestCase):
         self.window.show_page("settings")
         QTest.qWait(120)
         settings = self.window.pages["settings"]
-        # 等级由构建变体固定，设置页不再提供切换控件。
-        self.assertFalse(hasattr(settings, "log_level_box"))
-        hints = [label.text() for label in settings.findChildren(CaptionLabel)]
-        self.assertNotIn(
-            "选择本次运行写入的最低日志等级，低于该等级的记录不会出现在日志页和日志文件中。",
-            hints,
+        # 正常版本可以调低到 INFO，DEBUG 不在可选集合里。
+        self.assertTrue(settings.log_level_box.isEnabled())
+        self.assertEqual(
+            [
+                settings.log_level_box.itemText(index)
+                for index in range(settings.log_level_box.count())
+            ],
+            ["INFO", "WARNING", "ERROR"],
         )
 
     def test_uncaught_exception_is_written_to_runtime_log(self):
@@ -1707,12 +1736,12 @@ class GuiTests(unittest.TestCase):
         page.select_all_checkbox.click()
         self.assertEqual(page.selected_uids(), [])
 
-    def test_log_level_is_fixed_by_build_variant(self):
-        # 正常版本只写 WARNING 及以上，debug 版本从 DEBUG 起；两者都不可切换。
-        # 用例为了验证 INFO 记录把默认阈值放宽了，这里直接看构建变体给出的阈值。
+    def test_log_level_options_follow_build_variant(self):
+        # 正常版本不提供 DEBUG，默认 WARNING；用例为了验证 INFO 记录放宽了默认值，
+        # 这里只看构建变体给出的取值。
         self.assertEqual(core.loglevel.MINIMUM_LEVEL, "WARNING")
         self.assertEqual(
-            [str(level) for level in models.LOG_LEVELS], ["WARNING", "ERROR"]
+            [str(level) for level in models.LOG_LEVELS], ["INFO", "WARNING", "ERROR"]
         )
         self.assertFalse(core.loglevel.allows("DEBUG"))
         self.assertFalse(core.loglevel.allows("INFO"))
@@ -1720,7 +1749,11 @@ class GuiTests(unittest.TestCase):
         store = models.LogStore(minimum_level="WARNING")
         self.assertIsNone(store.info("应用", "被过滤"))
         self.assertIsNotNone(store.warning("应用", "保留警告"))
-        self.assertFalse(hasattr(models.LogStore, "set_level"))
+        store.set_level("DEBUG")
+        # 正常版本里 DEBUG 不在可选集合内，请求按最低可选等级处理。
+        self.assertEqual(store.minimum_level, models.LogLevel.INFO)
+        store.set_level("ERROR")
+        self.assertEqual(store.minimum_level, models.LogLevel.ERROR)
 
     def test_cancelled_file_selection_is_logged(self):
         store = self.window.logs
@@ -1880,7 +1913,7 @@ class GuiTests(unittest.TestCase):
                 label = row.itemAt(0).widget()
                 if isinstance(label, BodyLabel):
                     labels.append(label.text())
-        self.assertEqual(labels, ["关闭时最小化到托盘"])
+        self.assertEqual(labels, ["关闭时最小化到托盘", "运行日志等级"])
         self.assertTrue(settings_page.close_behavior_switch.label.isHidden())
         self.assertEqual(settings_page.close_behavior_switch.label.text(), "")
         self.assertEqual(settings_page.data_card.objectName(), "settingsDataCard")

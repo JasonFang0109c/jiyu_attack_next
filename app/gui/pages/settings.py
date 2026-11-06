@@ -1,6 +1,6 @@
-"""设置页：界面主题、窗口材质、关闭行为与数据清理。"""
+"""设置页：界面主题、窗口材质、日志等级、关闭行为与数据清理。"""
 
-from PySide6.QtCore import QSignalBlocker, Qt, Signal
+from PySide6.QtCore import QSignalBlocker, Qt, Signal, Slot
 from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout
 from qfluentwidgets import (
     BodyLabel,
@@ -18,8 +18,11 @@ from qfluentwidgets import (
 
 from ..components import SectionCard, page_heading
 from ..models import (
+    FORCED_LEVEL,
+    LOG_LEVELS,
     WINDOW_MATERIAL_LABELS,
     WINDOW_MATERIALS,
+    normalize_log_level,
     normalize_window_material,
     window_material_available,
 )
@@ -60,6 +63,7 @@ class SettingsPage(Page):
     themeRequested = Signal(object)
     materialRequested = Signal(str)
     closeBehaviorRequested = Signal(str)
+    logLevelRequested = Signal(str)
     clearDataRequested = Signal()
 
     def __init__(self, log_store, close_behavior, window_material, parent=None):
@@ -130,7 +134,29 @@ class SettingsPage(Page):
         close_row.addWidget(self.close_behavior_switch)
         settings_card.body.addLayout(close_row)
 
+        log_row = QHBoxLayout()
+        log_row.addWidget(setting_label("运行日志等级", self))
+        log_row.addStretch()
+        self.log_level_box = ComboBox(self)
+        levels = [str(level) for level in LOG_LEVELS]
+        self.log_level_box.addItems(levels)
+        current = str(self.log_store.minimum_level)
+        self.log_level_box.setCurrentIndex(
+            levels.index(current) if current in levels else 0
+        )
+        self.log_level_box.setMinimumWidth(160)
+        if FORCED_LEVEL:
+            # 调试版本固定记录全部等级，下拉框留着只会让人以为能改。
+            self.log_level_box.setEnabled(False)
+            self.log_level_box.setToolTip(
+                "调试版本固定记录 DEBUG 及以上的全部日志，无法调整"
+            )
+        self.log_level_box.currentIndexChanged.connect(self._select_log_level)
+        log_row.addWidget(self.log_level_box)
+        settings_card.body.addLayout(log_row)
+
         self.vbox.addWidget(settings_card)
+        self.log_store.levelChanged.connect(self._log_level_changed)
 
         self.data_card = SectionCard(self, spacing=12, margins=(18, 12, 18, 12))
         data_card = self.data_card
@@ -188,3 +214,16 @@ class SettingsPage(Page):
         """
         with QSignalBlocker(self.close_behavior_switch):
             self.close_behavior_switch.setChecked(behavior == "tray")
+
+    def _select_log_level(self, index):
+        if 0 <= index < len(LOG_LEVELS):
+            self.logLevelRequested.emit(str(LOG_LEVELS[index]))
+
+    @Slot(str)
+    def _log_level_changed(self, level):
+        normalized = str(normalize_log_level(level))
+        levels = [str(level) for level in LOG_LEVELS]
+        if normalized not in levels:
+            return
+        with QSignalBlocker(self.log_level_box):
+            self.log_level_box.setCurrentIndex(levels.index(normalized))

@@ -1,13 +1,18 @@
-"""日志写入阈值：由构建变体固定，运行时不可更改。
+"""日志等级：正常版本不记录 ``DEBUG``，调试版本固定全量记录。
 
-正常版本只保留 ``WARNING`` 及以上，debug 版本从 ``DEBUG`` 起全量记录。
-界面上不再提供切换入口：等级写进产物，避免用户误调导致问题记录缺失。
+正常版本的下拉框只给 ``INFO``、``WARNING``、``ERROR``；调试版本强制从
+``DEBUG`` 起，界面与设置文件都改不动它。命令行共用这里的阈值。
 """
 
 from .buildvariant import IS_DEBUG
 
 LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
-MINIMUM_LEVEL = "DEBUG" if IS_DEBUG else "WARNING"
+# 正常版本不产出 DEBUG 记录，下拉框里也就不给这个选项。
+SELECTABLE_LEVELS = LEVELS if IS_DEBUG else ("INFO", "WARNING", "ERROR")
+DEFAULT_LEVEL = "DEBUG" if IS_DEBUG else "WARNING"
+MINIMUM_LEVEL = DEFAULT_LEVEL
+# 调试版本固定阈值：设置文件里的默认等级不参与判断，界面也不给改。
+FORCED_LEVEL = "DEBUG" if IS_DEBUG else None
 
 
 def allows(level):

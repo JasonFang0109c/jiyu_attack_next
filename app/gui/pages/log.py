@@ -115,6 +115,7 @@ class LogPage(Page):
         store.added.connect(self._append_entry)
         store.removed.connect(self._remove_entries)
         store.cleared.connect(self._clear_entries)
+        store.levelChanged.connect(self._level_changed)
         self._scroll_timer = QTimer(self)
         self._scroll_timer.setSingleShot(True)
         self._scroll_timer.setInterval(0)
@@ -198,6 +199,10 @@ class LogPage(Page):
         # 被删行之后的记录整体前移一行。
         for index in range(row, len(self._uid_by_row)):
             self._row_by_uid[self._uid_by_row[index]] = index
+
+    @Slot(str)
+    def _level_changed(self, _level):
+        self.apply_filter()
 
     def _matches(self, uid):
         """判断一条记录是否满足当前的关键字、功能与级别条件。"""

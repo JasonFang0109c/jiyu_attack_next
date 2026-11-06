@@ -24,7 +24,7 @@ from ..core import (  # noqa: F401
     portable_data_dir,
     portable_log_path,
 )
-from ..core.loglevel import MINIMUM_LEVEL
+from ..core.loglevel import DEFAULT_LEVEL, FORCED_LEVEL, SELECTABLE_LEVELS
 from .settings_store import STATUS_NO_ERROR, SettingsStore
 
 SETTINGS_FILE_NAME = "settings.json"
@@ -32,6 +32,9 @@ DEVICE_ALIAS_SETTINGS_KEY = "core/device_aliases"
 CLOSE_BEHAVIOR_SETTINGS_KEY = "gui/window/close_behavior"
 FIRST_CLOSE_PROMPT_SETTINGS_KEY = "gui/window/first_close_prompt_shown"
 WINDOW_GEOMETRY_SETTINGS_KEY = "gui/window/geometry"
+NAVIGATION_EXPANDED_SETTINGS_KEY = "gui/window/navigation_expanded"
+# 首次使用保持图标模式，之后按上次的展开状态恢复。
+DEFAULT_NAVIGATION_EXPANDED = False
 WINDOW_MATERIAL_SETTINGS_KEY = "gui/window/material"
 # 旧版本只有“背景模糊”开关，保留键名用于把老配置换算成窗口材质。
 MICA_SETTINGS_KEY = "gui/window/mica_enabled"
@@ -438,12 +441,10 @@ class LogLevel(StrEnum):
 
 
 LOG_LEVEL_RANK = {level: index for index, level in enumerate(LogLevel)}
-# 等级由构建变体固定：正常版本只写 WARNING 及以上，debug 版本从 DEBUG 起。
-# 枚举保留四个值用于解析历史日志，可选集合随变体收缩。
-LOG_LEVELS = tuple(
-    level for level in LogLevel if level.rank >= LogLevel(MINIMUM_LEVEL).rank
-)
-DEFAULT_LOG_LEVEL = LogLevel(MINIMUM_LEVEL)
+# 枚举保留四个值用于解析历史日志，可选集合随构建变体收缩：
+# 正常版本从 INFO 起，DEBUG 只存在于调试版本。
+LOG_LEVELS = tuple(LogLevel(name) for name in SELECTABLE_LEVELS)
+DEFAULT_LOG_LEVEL = LogLevel(DEFAULT_LEVEL)
 _LEVEL_ALIASES = {
     "DEBUG": LogLevel.DEBUG,
     "调试": LogLevel.DEBUG,
@@ -578,6 +579,7 @@ class LogStore(QObject):
     added = Signal(object)
     removed = Signal(object)
     cleared = Signal()
+    levelChanged = Signal(str)
 
     def __init__(self, parent=None, limit=2000, log_path=None, minimum_level=None):
         super().__init__(parent)
@@ -586,13 +588,14 @@ class LogStore(QObject):
         self.log_path = log_path
         self.storage_error = ""
         self.entries = deque(maxlen=limit)
-        # 阈值默认跟随构建变体；显式传入只供测试验证更低等级的记录格式，
-        # 界面与命令行都没有修改入口。
-        self._minimum_level = (
-            DEFAULT_LOG_LEVEL
-            if minimum_level is None
-            else normalize_log_level(minimum_level)
-        )
+        # 调试版本固定记录全部等级，传入的等级与设置文件里的默认值都不作数；
+        # 正常版本用默认等级，显式传入只供测试验证更低等级的记录格式。
+        if FORCED_LEVEL:
+            self._minimum_level = LogLevel(FORCED_LEVEL)
+        elif minimum_level is None:
+            self._minimum_level = DEFAULT_LOG_LEVEL
+        else:
+            self._minimum_level = normalize_log_level(minimum_level)
         self._next_uid = 1
         self._load()
 
@@ -807,6 +810,22 @@ class LogStore(QObject):
     def error(self, category, message, details=""):
         """写入错误记录，用于任务失败与异常。"""
         return self._emit(category, message, LogLevel.ERROR, details, skip=3)
+
+    def set_level(self, level):
+        """修改写入阈值；等级未变化时不发信号。
+
+        调试版本固定记录全部等级，任何改动都不生效；正常版本低于
+        ``INFO`` 的请求按 ``INFO`` 处理。
+        """
+        if FORCED_LEVEL:
+            return
+        normalized = normalize_log_level(level)
+        if normalized.rank < LOG_LEVELS[0].rank:
+            normalized = LOG_LEVELS[0]
+        if normalized == self._minimum_level:
+            return
+        self._minimum_level = normalized
+        self.levelChanged.emit(str(normalized))
 
     def remove_entries(self, uids):
         """按 uid 删除记录并重写文件，返回实际删除的条目。"""

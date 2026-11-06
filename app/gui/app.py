@@ -53,11 +53,13 @@ from .models import (
     CLOSE_BEHAVIOR_SETTINGS_KEY,
     CLOSE_BEHAVIOR_TRAY,
     DEFAULT_CLOSE_BEHAVIOR,
+    DEFAULT_NAVIGATION_EXPANDED,
     DEFAULT_WINDOW_MATERIAL,
     FIRST_CLOSE_PROMPT_SETTINGS_KEY,
     MATERIAL_ACRYLIC,
     MATERIAL_SOLID,
     MICA_SETTINGS_KEY,
+    NAVIGATION_EXPANDED_SETTINGS_KEY,
     WINDOW_GEOMETRY_SETTINGS_KEY,
     WINDOW_MATERIAL_LABELS,
     WINDOW_MATERIAL_SETTINGS_KEY,
@@ -67,6 +69,7 @@ from .models import (
     LogLevel,
     LogStore,
     normalize_close_behavior,
+    normalize_log_level,
     normalize_switch,
     normalize_window_material,
     portable_data_dir,
@@ -703,14 +706,35 @@ class MainWindow(FluentWindow):
         self.addSubInterface(
             self.pages["about"], FIF.INFO, "关于", NavigationItemPosition.BOTTOM
         )
-        # 分组放在可滚动区域里，窗口再矮也只是出现滚动条，不会挤压子项，
-        # 所以不管窗口多高都直接展开。
-        self.navigationInterface.expand(useAni=False)
+        # 首次使用保持图标模式，之后按上次留下的展开状态恢复。
+        if normalize_switch(
+            self.settings.value(NAVIGATION_EXPANDED_SETTINGS_KEY, None),
+            DEFAULT_NAVIGATION_EXPANDED,
+        ):
+            self.navigationInterface.expand(useAni=False)
+            # expand(useAni=False) 不发 displayModeChanged，这里补一次记录。
+            self._save_navigation_expanded()
         self._fit_navigation_groups()
         # 侧边栏收起再展开时库会重设每个分组的高度，这里补一次，避免子项叠在一起。
         self.navigationInterface.panel.displayModeChanged.connect(
-            lambda _mode: self._refresh_navigation()
+            self._navigation_mode_changed
         )
+
+    def _navigation_mode_changed(self, _mode):
+        """记住侧边栏的展开状态，并按新的宽度重算分组高度。"""
+        self._refresh_navigation()
+        self._save_navigation_expanded()
+
+    def _save_navigation_expanded(self):
+        """把侧边栏是否展开写进设置，下次启动据此恢复。
+
+        首次使用没有这个键，默认保持图标模式。
+        """
+        self.settings.set_value(
+            NAVIGATION_EXPANDED_SETTINGS_KEY,
+            not self.navigationInterface.panel.isCollapsed(),
+        )
+        self.settings.sync()
 
     def _fit_navigation_groups(self):
         """让分组高度与其子项数量一致。
@@ -837,6 +861,7 @@ class MainWindow(FluentWindow):
         self.pages["settings"].themeRequested.connect(self.set_theme)
         self.pages["settings"].materialRequested.connect(self.set_window_material)
         self.pages["settings"].closeBehaviorRequested.connect(self.set_close_behavior)
+        self.pages["settings"].logLevelRequested.connect(self.set_log_level)
         self.pages["settings"].clearDataRequested.connect(self.clear_data)
         self.pages["home"].pageRequested.connect(self._open_home_link)
 
@@ -1959,6 +1984,18 @@ class MainWindow(FluentWindow):
             return
         removed = self.logs.remove_entries(uids)
         self.logs.info("运行日志", "已删除选中日志", "删除记录数：%d" % len(removed))
+
+    @Slot(str)
+    def set_log_level(self, level):
+        """切换运行日志等级，低于该等级的记录不再写入。"""
+        previous = self.logs.minimum_level
+        normalized = normalize_log_level(level)
+        self.logs.set_level(normalized)
+        self.logs.warning(
+            "运行日志",
+            "运行日志等级已调整",
+            "原等级：%s；新等级：%s" % (previous, normalized),
+        )
 
     def _save_text(self, filename, text):
         """写出 UTF-8（带 BOM）文本，失败时提示并记录日志。"""
