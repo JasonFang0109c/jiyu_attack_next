@@ -101,8 +101,8 @@ jiyu_attack_next/
 ## 模块关系
 
 - `app/__main__.py` 是唯一入口：无参数时启动 GUI，带参数时调用 `app/cli/main.py`；`--firewall-helper` 由隐藏提权助手直接执行，不显示控制台。打包产物是窗口化子系统，`_show_cli_console()` 负责在 CLI 模式下把标准流接回调用方的终端或重定向目标，不新建控制台窗口。PyInstaller 也从此文件打包。
-- `app/core/` 只依赖标准库，提供报文常量、协议构造、UDP 与文件传送、防火墙规则、本机信息探测，以及应用命令与教师端模拟会话。CLI 与 GUI 都通过 `from .. import core` 使用这些接口。
-- `app/core/appcmd.py` 只拼装和解析字节：应用命令、会话通报文、黑屏与解锁、学生信息。`app/core/teacher.py` 负责套接字：宣告、登录应答、监听上报与按通道投递命令；`comd` 单播应用命令，`mess` 单播会话报文，`session` 发到会话组播（黑屏与解锁只有这条生效）。`app/core/screen.py` 负责 4806 端口的 UMSP 会话：切包、按偏移重组桌面分片、把记录交给回调；它不解码 H.264，JPEG 帧由界面直接显示。
+- `app/core/` 除 `av` 之外只依赖标准库，提供报文常量、协议构造、UDP 与文件传送、防火墙规则、本机信息探测，以及应用命令与教师端模拟会话。CLI 与 GUI 都通过 `from .. import core` 使用这些接口。
+- `app/core/appcmd.py` 只拼装和解析字节：应用命令、会话通报文、黑屏与解锁、学生信息。`app/core/teacher.py` 负责套接字：宣告、登录应答、监听上报与按通道投递命令；`comd` 单播应用命令，`mess` 单播会话报文，`session` 发到会话组播（黑屏与解锁只有这条生效）。`app/core/screen.py` 负责 4806 端口的 UMSP 会话：切包、按偏移重组桌面分片、把记录交给回调；H.264 记录交给 `app/core/video.py` 用 PyAV 解成 RGB 位图，JPEG 帧由界面直接显示。
 - `app/cli/main.py` 负责 argparse、参数校验、单条命令、文件传送、防火墙命令与终端输出；不再作为可单独复制的单文件脚本维护。
 - `app/gui/app.py` 基于 `FluentWindow` 实现侧边导航、任务调度、单实例运行与页面联动。导航按“远程操作／教师端模拟／本机工具”三个可折叠分组组织，分组由 `NAVIGATION_GROUPS` 描述，`_add_navigation_group` 建节点并在创建后重算高度（库把树项压成单行高，必须在 `expand()` 之后 `_fit_navigation_groups()`）。
 - `app/gui/pages/` 按首页、消息、命令、设备、文件传送、设备备注、应用命令、学生信息、本机信息、防火墙、日志、设置和关于拆分页面；文件传送页使用带复选框与全选的文件树，公共控件集中在 `common.py`。

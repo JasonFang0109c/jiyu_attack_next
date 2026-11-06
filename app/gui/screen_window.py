@@ -1,8 +1,8 @@
 """屏幕观看窗口：连上学生端拿桌面画面，并把键鼠事件送回去。
 
-学生端把桌面切成 H.264 或 JPEG 记录推上来，H.264 需要解码器才能显示，这里
-只保证 JPEG 帧能直接看，H.264 帧先计数并提示需要外部解码器。远控请求与输入
-发送都走核心层，窗口本身只负责把鼠标键盘事件翻译成报文。
+学生端把桌面切成 H.264 或 JPEG 记录推上来：JPEG 帧直接交给 Qt 显示，H.264
+帧交给核心层的解码器解成位图再画。远控请求与输入发送都走核心层，窗口本身只
+负责把鼠标键盘事件翻译成报文。
 """
 
 import time
@@ -10,7 +10,7 @@ from contextlib import suppress
 from threading import Event, Thread
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 from qfluentwidgets import BodyLabel, CaptionLabel, PushButton, TitleLabel
 from qfluentwidgets import FluentIcon as FIF
@@ -47,6 +47,8 @@ class ScreenWindow(QWidget):
         self.control_port = 0
         self._last_image = None
         self._frames = 0
+        # 位图缓冲区要一直被引用，QImage 不会复制传入的内存。
+        self._buffer = None
         self._stop = Event()
         self._pump = Thread(target=self._pump_loop, daemon=True)
 
@@ -59,7 +61,7 @@ class ScreenWindow(QWidget):
         header = SectionCard(self)
         header.body.addWidget(TitleLabel("屏幕观看 · %s" % host, header))
         self.hint = CaptionLabel(
-            "画面来自学生端的桌面推送；H.264 帧需要外部解码器，JPEG 帧可直接显示。",
+            "画面来自学生端的桌面推送；JPEG 帧直接显示，H.264 帧解码后显示。",
             header,
         )
         header.body.addWidget(self.hint)
@@ -103,6 +105,7 @@ class ScreenWindow(QWidget):
                 appcmd.DESKTOP_CHANNEL,
                 on_record=self._on_record,
                 on_log=self.statusChanged.emit,
+                on_frame=self.show_frame,
             )
             self.session.open()
         except OSError as error:
@@ -128,7 +131,7 @@ class ScreenWindow(QWidget):
         self.statusChanged.emit("已接管键鼠，输入端口 %d" % self.control_port)
 
     def _on_record(self, record):
-        """收到一条桌面记录：JPEG 直接显示，其余只统计。"""
+        """收到一条桌面记录：JPEG 直接显示，H.264 等解码回调。"""
         self._frames += 1
         kind = record.get("kind")
         if kind == "jpeg" and record.get("payload"):
@@ -136,9 +139,20 @@ class ScreenWindow(QWidget):
             self._show_image()
             return
         if kind == "h264":
-            self.statusChanged.emit(
-                "已收到第 %d 条记录（H.264 编码，需外部解码器）" % self._frames
+            self.statusChanged.emit("已收到第 %d 条记录（H.264）" % self._frames)
+
+    def show_frame(self, width, height, pixels):
+        """把解码得到的 RGB 位图画到画面上。"""
+        self._buffer = pixels
+        image = QImage(pixels, width, height, width * 3, QImage.Format.Format_RGB888)
+        self.view.setPixmap(
+            QPixmap.fromImage(image).scaled(
+                self.view.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
             )
+        )
+        self.statusChanged.emit("已收到 %d 条记录" % self._frames)
 
     def _show_image(self):
         """把最近一帧 JPEG 画到标签上。"""

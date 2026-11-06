@@ -60,7 +60,7 @@
 
 ## 代码约定
 
-- Python 3.13；GUI 使用 PySide6；`app/core/` 与 `app/cli/` 只依赖标准库。
+- Python 3.13；GUI 使用 PySide6；`app/core/` 与 `app/cli/` 除 H.264 解码用的 `av`（PyAV）外只依赖标准库。
 - 保持目录职责与模块边界，参考 [项目结构](docs/dev/STRUCTURE.md)。
 - 改动前检查 `git status`，不回退或提交与任务无关的改动。
 - 行为变更补充或更新对应测试；纯文档、注释或格式改动不需要新增测试。

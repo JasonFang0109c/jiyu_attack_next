@@ -96,6 +96,7 @@ from .transport import (
     transfer_file,
     validate_file_transfer,
 )
+from .video import H264Decoder
 
 __all__ = [
     "CLI_LOG_FILE_NAME",
@@ -112,6 +113,7 @@ __all__ = [
     "Delivery",
     "DeliveryState",
     "FileTransferServer",
+    "H264Decoder",
     "ScreenSession",
     "SendOptions",
     "SendOutcome",

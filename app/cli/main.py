@@ -9,6 +9,7 @@ from time import sleep
 from ..core import (
     FIREWALL_HELPER_ARGUMENT,
     LOGOFF_COMMAND,
+    H264Decoder,
     __version__,
     appcmd,
     basicCMD,
@@ -469,6 +470,21 @@ def preview_directory(arguments):
     return target
 
 
+def save_frame(width, height, pixels, path):
+    """把解码得到的 RGB 像素存成 PNG。
+
+    Args:
+        width: 图像宽度。
+        height: 图像高度。
+        pixels: RGB 三通道字节。
+        path: 目标路径。
+    """
+    from PIL import Image
+
+    image = Image.frombytes("RGB", (width, height), pixels)
+    image.save(path)
+
+
 def save_thumbnail(record, directory):
     """把一台学生的缩略图落盘，尽量同时写一份修正后的版本。"""
     data = record.get("preview")
@@ -524,20 +540,30 @@ def run_view(arguments):
     directory = preview_directory(arguments)
     for host in hosts:
         print("正在观看 %s，时长 %d 秒…" % (host, arguments.view), flush=True)
-        counter = {"index": 0}
+        counter = {"index": 0, "frame": 0}
+        decoder = H264Decoder()
 
-        def handle(record, address=host, counter=counter):
-            """把每条桌面记录按类型落盘。"""
+        def handle(record, address=host, counter=counter, decoder=decoder):
+            """把收到的记录落盘：JPEG 原样保存，H.264 解码后存成图片。"""
             counter["index"] += 1
             sequence = counter["index"]
-            if record.get("kind") == "jpeg":
+            kind = record.get("kind")
+            payload = record.get("payload") or b""
+            if kind == "jpeg":
                 path = directory / ("%s_%03d.jpg" % (address, sequence))
-            elif record.get("kind") == "h264":
+                path.write_bytes(payload)
+                print("  jpeg → %s" % path.name)
+            elif kind == "h264":
+                # 码流本身也留一份，方便用播放器复核解码结果。
                 path = directory / ("%s_%03d.h264" % (address, sequence))
-            else:
-                return
-            path.write_bytes(record.get("payload") or b"")
-            print("  %s → %s" % (record.get("kind"), path.name))
+                path.write_bytes(payload)
+                for width, height, pixels in decoder.decode(payload):
+                    counter["frame"] += 1
+                    image = directory / (
+                        "%s_%03d_%03d.png" % (address, sequence, counter["frame"])
+                    )
+                    save_frame(width, height, pixels, image)
+                    print("  h264 → %s" % image.name)
 
         if arguments.control:
             port = remote_control(

@@ -1,8 +1,8 @@
 """屏幕观看会话：连上学生端的 4806 端口，收桌面分片并还原成帧。
 
 学生端只在收到屏幕传输指令后才会开放 TCP 连接，因此这里只管连接、切包与
-分片重组，把还原出来的记录交给调用方。H.264 需要解码器，这里不碰，只给出
-Annex-B 字节；JPEG 帧本身就是完整图片，可以直接显示。
+分片重组，把还原出来的记录交给调用方。JPEG 帧本身就是完整图片，可以直接
+显示；H.264 记录交给 :mod:`app.core.video` 解码成位图再回调出去。
 """
 
 import socket
@@ -11,7 +11,7 @@ import threading
 from collections import deque
 from contextlib import suppress
 
-from . import appcmd
+from . import appcmd, video
 
 MAX_FRAME_SIZE = 0x241800
 MAX_FRAME_COUNT = 4
@@ -38,6 +38,7 @@ class ScreenSession:
         timeout=5.0,
         on_record=None,
         on_log=None,
+        on_frame=None,
     ):
         self.host = host
         self.port = port
@@ -45,7 +46,10 @@ class ScreenSession:
         self.timeout = timeout
         self.on_record = on_record
         self.on_log = on_log
+        # 解出来的位图通过 on_frame 交给界面，参数是 (宽, 高, RGB 字节)。
+        self.on_frame = on_frame
         self.latest = None
+        self.decoder = video.H264Decoder()
         self._sock = None
         self._thread = None
         self._stop = threading.Event()
@@ -199,6 +203,18 @@ class ScreenSession:
         self.latest = parsed
         if self.on_record:
             self.on_record(parsed)
+        if parsed.get("kind") == "h264" and self.on_frame:
+            self._decode(parsed.get("payload") or b"")
+
+    def _decode(self, data):
+        """把 H.264 记录解成位图，解不出来就只记日志。"""
+        try:
+            frames = self.decoder.decode(data)
+        except RuntimeError as error:
+            self._log(str(error))
+            return
+        for width, height, pixels in frames:
+            self.on_frame(width, height, pixels)
 
 
 def _covered(seen, total):

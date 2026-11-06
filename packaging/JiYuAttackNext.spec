@@ -17,7 +17,9 @@ a = Analysis(
     datas=[(str(root / "assets" / "app.svg"), "assets")]
           + ([(str(build_time), ".")] if build_time.exists() else [])
           + ([(str(version_file), ".")] if version_file.exists() else [])
-          + copy_metadata("PySide6") + copy_metadata("PySide6-Fluent-Widgets"),
+          + copy_metadata("PySide6")
+          + copy_metadata("PySide6-Fluent-Widgets")
+          + copy_metadata("av"),
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
