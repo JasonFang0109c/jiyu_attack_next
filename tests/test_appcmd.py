@@ -440,6 +440,110 @@ class NameMatchTests(unittest.TestCase):
             core.close_windows([NAME_RECORD], "不存在的窗口")
 
 
+class TeacherChannelTests(unittest.TestCase):
+    """0x05/0x0A/0x0B 与轻量通道 LCMD 的报文布局。"""
+
+    def test_rename_payload_layout(self):
+        payload = appcmd.rename_payload("2-01")
+        self.assertEqual(payload[8:12], struct.pack("<I", 0x05))
+        self.assertEqual(payload[12:16], b"\x00" * 4)
+        self.assertEqual(payload[16:24].decode("utf-16-le"), "2-01")
+        self.assertEqual(payload[24:26], b"\x00\x00")
+
+    def test_rename_payload_rejects_blank_name(self):
+        with self.assertRaises(ValueError):
+            appcmd.rename_payload("   ")
+
+    def test_lock_screen_payload_carries_state(self):
+        locked = appcmd.lock_screen_payload(True)
+        self.assertEqual(locked[8:12], struct.pack("<I", 0x0A))
+        self.assertEqual(locked[12:16], struct.pack("<I", 1))
+        released = appcmd.lock_screen_payload(False)
+        self.assertEqual(released[8:12], struct.pack("<I", 0x0A))
+        self.assertEqual(released[12:16], struct.pack("<I", 0))
+
+    def test_password_payload_follows_text_shape(self):
+        payload = appcmd.unlock_password_payload("1234")
+        self.assertEqual(payload[8:12], struct.pack("<I", 0x0B))
+        self.assertEqual(payload[12:16], b"\x00" * 4)
+        self.assertEqual(payload[16:24].decode("utf-16-le"), "1234")
+        self.assertEqual(payload[24:26], b"\x00\x00")
+
+    def test_lcmd_packet_has_no_transaction_section(self):
+        body = appcmd.close_apps_payload()
+        packet = appcmd.lcmd_packet(body)
+        self.assertEqual(packet[:4], struct.pack("<I", 0x4C434D44))
+        self.assertEqual(packet[4:8], struct.pack("<I", appcmd.COM_VERSION))
+        self.assertEqual(packet[8:12], struct.pack("<I", len(body)))
+        self.assertEqual(packet[12:28], appcmd.TEACHER_GUID.bytes_le)
+        self.assertEqual(packet[28:], body)
+
+    def test_run_app_operation_supports_lcmd_channel(self):
+        body = appcmd.close_apps_payload()
+        with patch.object(core.teacher, "send_lcmd_command", return_value=7) as sender:
+            result = core.run_app_operation(
+                ["10.1.1.8", "10.1.1.9"], body, channel="lcmd", port=4705
+            )
+        self.assertEqual(result["sent"], 14)
+        self.assertEqual(sender.call_count, 2)
+
+    def test_collect_students_forwards_report_kind(self):
+        session = unittest.mock.MagicMock()
+        session.students = {"10.1.1.8": {"address": "10.1.1.8"}}
+        session.__enter__.return_value = session
+        with patch.object(core.teacher, "TeacherSession", return_value=session):
+            core.collect_students(duration=0.1, report_kind=appcmd.REPORT_PROCESSES)
+        session.request_info.assert_called_once_with(
+            "10.1.1.8", appcmd.REPORT_PROCESSES
+        )
+
+    def test_cli_parses_new_actions(self):
+        parser = cli.build_parser()
+        rename = parser.parse_args(["-ip", "10.0.0.1", "--rename", "2-01", "--lcmd"])
+        self.assertEqual(rename.rename, "2-01")
+        self.assertTrue(rename.lcmd)
+        screen = parser.parse_args(["-ip", "10.0.0.1", "--lock-screen"])
+        self.assertTrue(screen.lock_screen)
+        released = parser.parse_args(["-ip", "10.0.0.1", "--unlock-screen"])
+        self.assertTrue(released.unlock_screen)
+        password = parser.parse_args(["-ip", "10.0.0.1", "--screen-password", "1234"])
+        self.assertEqual(password.screen_password, "1234")
+        report = parser.parse_args(["-ip", "10.0.0.1", "--students", "--report", "2"])
+        self.assertEqual(report.report, 2)
+        everything = parser.parse_args(["-ip", "10.0.0.1", "--all-preview", "5"])
+        self.assertEqual(everything.all_preview, 5)
+        with self.assertRaises(SystemExit):
+            parser.parse_args(["-ip", "10.0.0.1", "--report", "9"])
+
+    def test_cli_all_previews_discovers_then_collects(self):
+        arguments = cli.build_parser().parse_args(["--all-preview", "4"])
+        with (
+            patch.object(
+                cli, "collect_students", return_value=[{"address": "10.1.1.8"}]
+            ) as discover,
+            patch.object(cli, "collect_previews", return_value=[]) as collect,
+            patch.object(cli, "save_thumbnail", return_value=None),
+            patch.object(
+                cli, "preview_directory", return_value=unittest.mock.MagicMock()
+            ),
+        ):
+            self.assertTrue(cli.run_all_previews(arguments))
+        discover.assert_called_once()
+        collect.assert_called_once()
+        self.assertEqual(collect.call_args.args[0], ["10.1.1.8"])
+
+    def test_cli_action_payload_uses_lcmd_channel(self):
+        parser = cli.build_parser()
+        arguments = parser.parse_args(["-ip", "10.0.0.1", "--rename", "2-01", "--lcmd"])
+        name, payload, channel, lock = cli.build_action_payload(arguments)
+        self.assertEqual(name, "修改显示名")
+        self.assertEqual(channel, "lcmd")
+        self.assertIsNone(lock)
+        self.assertEqual(payload[8:12], struct.pack("<I", 0x05))
+        plain = parser.parse_args(["-ip", "10.0.0.1", "--rename", "2-01"])
+        self.assertEqual(cli.build_action_payload(plain)[2], "comd")
+
+
 class ScreenProtocolTests(unittest.TestCase):
     """屏幕观看相关报文的逐字节测试。"""
 

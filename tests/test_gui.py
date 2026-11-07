@@ -933,6 +933,32 @@ class GuiTests(unittest.TestCase):
             worker.run()
         collect.assert_called_once()
 
+    def test_app_command_page_covers_new_operations(self):
+        page = self.window.pages["appcmd"]
+        codes = [
+            page.operation_box.itemData(index)
+            for index in range(page.operation_box.count())
+        ]
+        self.assertEqual(page.forms.count(), len(codes))
+        page.operation_box.setCurrentIndex(codes.index("rename"))
+        page.rename_input.setText("2-01")
+        delivery = page.delivery()
+        self.assertEqual(delivery["name"], "修改显示名")
+        self.assertEqual(delivery["channel"], "comd")
+        page.lcmd_input.setChecked(True)
+        self.assertEqual(page.delivery()["channel"], "lcmd")
+        page.operation_box.setCurrentIndex(codes.index("lock"))
+        self.assertEqual(page.delivery()["payload"][8:12], bytes([10, 0, 0, 0]))
+        page.operation_box.setCurrentIndex(codes.index("unlock-screen"))
+        self.assertEqual(page.delivery()["payload"][12:16], bytes(4))
+        page.operation_box.setCurrentIndex(codes.index("password"))
+        page.password_input.setText("1234")
+        self.assertEqual(page.delivery()["payload"][8:12], bytes([11, 0, 0, 0]))
+        page.operation_box.setCurrentIndex(codes.index("rename"))
+        page.rename_input.setText("   ")
+        with self.assertRaises(ValueError):
+            page.delivery()
+
     def test_screen_view_maps_click_into_remote_coordinates(self):
         from PySide6.QtCore import QPoint
         from PySide6.QtGui import QPixmap as Pixmap

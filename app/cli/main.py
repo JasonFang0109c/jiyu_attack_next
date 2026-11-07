@@ -179,6 +179,27 @@ def build_parser():
         "--close-apps", action="store_true", help="关闭目标电脑上的所有程序"
     )
     action_group.add_argument(
+        "--rename",
+        metavar="NAME",
+        help="修改目标电脑上显示的计算机名（应用命令 0x05）",
+    )
+    action_group.add_argument(
+        "--lock-screen", action="store_true", help="锁定目标电脑的屏幕（应用命令 0x0A）"
+    )
+    action_group.add_argument(
+        "--unlock-screen",
+        action="store_true",
+        help="解除目标电脑的锁屏（应用命令 0x0A，状态 0）",
+    )
+    action_group.add_argument(
+        "--all-preview",
+        nargs="?",
+        const=8,
+        type=int,
+        metavar="SECONDS",
+        help="对发现到的全部学生拉取缩略图，默认监听 8 秒",
+    )
+    action_group.add_argument(
         "--announce",
         nargs="?",
         const=10,
@@ -272,6 +293,26 @@ def build_parser():
         default="",
         metavar="TEXT",
         help="黑屏中间显示的提示",
+    )
+    parser.add_argument(
+        "--screen-password",
+        type=str,
+        default=None,
+        metavar="PASSWORD",
+        help="设置目标电脑的锁屏解锁密码（应用命令 0x0B），传空字符串表示清除",
+    )
+    parser.add_argument(
+        "--lcmd",
+        action="store_true",
+        help="应用命令改走不带事务应答的轻量通道 LCMD",
+    )
+    parser.add_argument(
+        "--report",
+        type=int,
+        default=0,
+        choices=[0, 1, 2],
+        metavar="KIND",
+        help="--students 请求的上报类型：0 全部、1 窗口、2 进程，默认 0",
     )
     parser.add_argument(
         "--channel",
@@ -550,7 +591,7 @@ def log_arguments(arguments):
         "命令行参数",
         "命令行",
         "ip=%s；port=%s；msg=%s；msg_file=%s；file=%s；c=%s；l=%s；t=%s；e=%s；"
-        "file_ip=%s；file_timeout=%s"
+        "file_ip=%s；file_timeout=%s；channel=%s；report=%s；lcmd=%s"
         % (
             arguments.ip,
             arguments.p,
@@ -563,6 +604,9 @@ def log_arguments(arguments):
             arguments.e,
             arguments.file_ip,
             arguments.file_timeout,
+            arguments.channel,
+            arguments.report,
+            arguments.lcmd,
         ),
     )
 
@@ -583,12 +627,12 @@ def build_action_payload(arguments):
             appcmd.run_program_payload(
                 arguments.run, arguments.run_args, arguments.run_show
             ),
-            "comd",
+            _app_channel(arguments),
             None,
         )
     if arguments.url:
         url = appcmd.normalize_url(arguments.url)
-        return "打开网址", appcmd.open_url_payload(url), "comd", None
+        return "打开网址", appcmd.open_url_payload(url), _app_channel(arguments), None
     if arguments.kill is not None and str(arguments.kill).strip().isdigit():
         return (
             "终止进程",
@@ -608,11 +652,54 @@ def build_action_payload(arguments):
         )
     if arguments.unlock:
         return "解除黑屏", appcmd.unlock_payload(), "session", None
+    if arguments.rename is not None:
+        return (
+            "修改显示名",
+            appcmd.rename_payload(arguments.rename),
+            _app_channel(arguments),
+            None,
+        )
+    if arguments.lock_screen:
+        return (
+            "锁定屏幕",
+            appcmd.lock_screen_payload(True),
+            _app_channel(arguments),
+            None,
+        )
+    if arguments.unlock_screen:
+        return (
+            "解除锁屏",
+            appcmd.lock_screen_payload(False),
+            _app_channel(arguments),
+            None,
+        )
+    if arguments.screen_password is not None:
+        return (
+            "设置解锁密码",
+            appcmd.unlock_password_payload(arguments.screen_password),
+            _app_channel(arguments),
+            None,
+        )
     if arguments.exit_student:
-        return "退出学生端", appcmd.exit_student_payload(), "comd", None
+        return (
+            "退出学生端",
+            appcmd.exit_student_payload(),
+            _app_channel(arguments),
+            None,
+        )
     if arguments.close_apps:
-        return "关闭所有程序", appcmd.close_apps_payload(), "comd", None
+        return (
+            "关闭所有程序",
+            appcmd.close_apps_payload(),
+            _app_channel(arguments),
+            None,
+        )
     return None
+
+
+def _app_channel(arguments):
+    """按 ``--lcmd`` 选择应用命令通道。"""
+    return "lcmd" if arguments.lcmd else "comd"
 
 
 def preview_directory(arguments):
@@ -682,6 +769,61 @@ def run_preview(arguments):
         "缩略图完成：%d 台收到画面，保存 %d 张到 %s" % (len(records), saved, directory)
     )
     log.info("缩略图拉取完成", "屏幕", "学生数：%d；保存：%d" % (len(records), saved))
+    return True
+
+
+def run_all_previews(arguments):
+    """对发现到的全部学生拉取缩略图并保存。
+
+    没有 ``-ip`` 时先宣告发现学生机，再逐个请求缩略图，等价于来源项目的
+    ``all`` 命令。
+
+    Returns:
+        bool: 执行完成返回 True。
+
+    Raises:
+        ValueError: 一台学生机都没发现。
+    """
+    log = cli_log.LOG
+    duration = arguments.all_preview
+    if arguments.ip:
+        hosts = get_ip(arguments.ip)
+    else:
+        print("正在发现学生机，监听 %d 秒…" % DISCOVERY_SECONDS, flush=True)
+        found = collect_students(
+            duration=DISCOVERY_SECONDS,
+            channel=arguments.channel,
+            teacher_name=arguments.teacher_name,
+            port=arguments.p,
+            report=print,
+            peers=arguments.peer,
+        )
+        hosts = [record["address"] for record in found if record.get("address")]
+        if not hosts:
+            raise ValueError("没有发现任何学生机，请确认与学生端在同一网段且频道一致")
+        print("已发现 %d 台学生机：%s" % (len(hosts), "、".join(hosts)), flush=True)
+    directory = preview_directory(arguments)
+    print(
+        "正在拉取 %d 台设备的缩略图，监听 %d 秒…" % (len(hosts), duration), flush=True
+    )
+    records = collect_previews(
+        hosts,
+        duration=duration,
+        channel=arguments.channel,
+        teacher_name=arguments.teacher_name,
+        port=arguments.p,
+        report=print,
+    )
+    saved = 0
+    for record in records:
+        path = save_thumbnail(record, directory)
+        if path is not None:
+            saved += 1
+            print("  已保存 %s" % path)
+    print(
+        "缩略图完成：%d 台收到画面，保存 %d 张到 %s" % (len(records), saved, directory)
+    )
+    log.info("全员缩略图完成", "屏幕", "学生数：%d；保存：%d" % (len(records), saved))
     return True
 
 
@@ -926,6 +1068,7 @@ def run_action(arguments):
             port=arguments.p,
             report=print,
             peers=arguments.peer,
+            report_kind=arguments.report,
         )
         if not records:
             print("未发现学生机；请确认与学生端在同一网段，且频道一致")
@@ -956,6 +1099,8 @@ def run_action(arguments):
         log.info("教师端模拟查询完成", "教师端模拟", "学生数：%d" % len(records))
         return True
 
+    if arguments.all_preview is not None:
+        return run_all_previews(arguments)
     if arguments.preview is not None:
         return run_preview(arguments)
     if arguments.view is not None:

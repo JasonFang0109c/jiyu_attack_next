@@ -53,7 +53,10 @@ MESS_CHAT_TYPE = 0x800
 TCP_COMM_PORT = 4806
 
 CMD_CLOSE_APPS = 0x02
+CMD_RENAME = 0x05
 CMD_BLACKSCREEN = 0x06
+CMD_LOCK_SCREEN = 0x0A
+CMD_SET_PASSWORD = 0x0B
 CMD_RUN = 0x0F
 CMD_TERMINATE = 0x12
 CMD_REBOOT = 0x13
@@ -275,6 +278,26 @@ def comd_packet(payload, magic=COM_MAGIC, command_code=APP_COMMAND_CODE, transac
     )
 
 
+def lcmd_packet(payload):
+    """把应用命令负载封装成轻量 ``LCMD`` 报文。
+
+    ``LCMD`` 与 ``COMD`` 用同一套魔数和 GUID，区别是轻量通道不带
+    20000 毫秒超时与事务号，学生端也不回事务应答。
+
+    Args:
+        payload: :func:`app_payload` 生成的负载。
+
+    Returns:
+        bytes: 完整报文。
+    """
+    return (
+        struct.pack("<II", LCMD_MAGIC, COM_VERSION)
+        + struct.pack("<I", len(payload))
+        + TEACHER_GUID.bytes_le
+        + payload
+    )
+
+
 def app_payload(body):
     """给应用命令体补上类别、标志与截断补偿。"""
     return (
@@ -369,6 +392,64 @@ def exit_student_payload():
 def close_apps_payload():
     """关闭学生机上所有应用（cmdId 0x02）。"""
     return app_payload(struct.pack("<I", CMD_CLOSE_APPS))
+
+
+def rename_payload(name):
+    """修改学生端的显示名（cmdId 0x05）。
+
+    学生端把这个名字显示在教师端列表里，体格式与打开网址一致：命令号、保留
+    字段、UTF-16LE 文本加双字节结束符。
+
+    Args:
+        name: 新的显示名。
+
+    Returns:
+        bytes: 应用命令负载。
+
+    Raises:
+        ValueError: 显示名为空。
+    """
+    value = str(name or "").strip()
+    if not value:
+        raise ValueError("请填写要显示的计算机名")
+    body = (
+        struct.pack("<I", CMD_RENAME)
+        + struct.pack("<I", 0)
+        + value.encode("utf-16-le")
+        + b"\x00\x00"
+    )
+    return app_payload(body)
+
+
+def lock_screen_payload(locked=True):
+    """锁定或解除学生机的屏幕（cmdId 0x0A）。
+
+    Args:
+        locked: True 锁定，False 解除。
+
+    Returns:
+        bytes: 应用命令负载。
+    """
+    body = struct.pack("<I", CMD_LOCK_SCREEN) + struct.pack("<I", int(bool(locked)))
+    return app_payload(body)
+
+
+def unlock_password_payload(password):
+    """设置学生机锁屏的解锁密码（cmdId 0x0B）。
+
+    Args:
+        password: 解锁密码，空字符串表示清除密码。
+
+    Returns:
+        bytes: 应用命令负载。
+    """
+    body = (
+        struct.pack("<I", CMD_SET_PASSWORD)
+        + struct.pack("<I", 0)
+        + str(password or "").encode("utf-16-le")
+        + b"\x00\x00"
+    )
+    return app_payload(body)
 
 
 def blackscreen_payload(lock_input=True, timeout=10):

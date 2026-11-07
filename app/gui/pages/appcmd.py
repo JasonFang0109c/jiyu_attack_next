@@ -24,6 +24,10 @@ BLACKSCREEN = "blackscreen"
 UNLOCK = "unlock"
 EXIT_STUDENT = "exit"
 CLOSE_APPS = "close"
+RENAME = "rename"
+LOCK_SCREEN = "lock"
+UNLOCK_SCREEN = "unlock-screen"
+PASSWORD = "password"
 
 OPERATIONS = (
     (RUN, "远程运行程序"),
@@ -31,6 +35,10 @@ OPERATIONS = (
     (TERMINATE, "终止进程"),
     (BLACKSCREEN, "黑屏并锁定键鼠"),
     (UNLOCK, "解除黑屏"),
+    (RENAME, "修改显示名"),
+    (LOCK_SCREEN, "锁定屏幕"),
+    (UNLOCK_SCREEN, "解除锁屏"),
+    (PASSWORD, "设置解锁密码"),
     (EXIT_STUDENT, "退出学生端"),
     (CLOSE_APPS, "关闭所有程序"),
 )
@@ -60,6 +68,12 @@ class AppCommandPage(NetworkPage):
             "黑屏与解除黑屏只在会话频道上生效，需与学生端所在频道一致"
         )
         row.addWidget(self.channel_input)
+        self.lcmd_input = QCheckBox("走轻量通道 LCMD", self)
+        self.lcmd_input.setToolTip(
+            "LCMD 不带 20000 毫秒超时与事务号，学生端也不回事务应答；默认走 COMD"
+        )
+        row.addSpacing(12)
+        row.addWidget(self.lcmd_input)
         row.addStretch()
         self.body.addLayout(row)
 
@@ -69,6 +83,16 @@ class AppCommandPage(NetworkPage):
         self.forms.addWidget(self._build_terminate_form())
         self.forms.addWidget(self._build_blackscreen_form())
         self.forms.addWidget(self._build_empty_form("解除黑屏不需要额外参数"))
+        self.forms.addWidget(
+            self._build_text_form("显示名", "rename_input", "例如 1-01 号机")
+        )
+        self.forms.addWidget(self._build_empty_form("锁定屏幕不需要额外参数"))
+        self.forms.addWidget(self._build_empty_form("解除锁屏不需要额外参数"))
+        self.forms.addWidget(
+            self._build_text_form(
+                "解锁密码", "password_input", "留空表示清除已设置的解锁密码"
+            )
+        )
         self.forms.addWidget(self._build_empty_form("退出学生端不需要额外参数"))
         self.forms.addWidget(self._build_empty_form("关闭所有程序不需要额外参数"))
         self.body.addWidget(self.forms)
@@ -182,6 +206,21 @@ class AppCommandPage(NetworkPage):
         layout.addLayout(text_row)
         return host
 
+    def _build_text_form(self, label, attribute, placeholder):
+        """带一个单行输入的参数表单。"""
+        host = QWidget(self)
+        layout = QVBoxLayout(host)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
+        row = QHBoxLayout()
+        row.addWidget(BodyLabel(label, host))
+        field = QLineEdit(host)
+        field.setPlaceholderText(placeholder)
+        setattr(self, attribute, field)
+        row.addWidget(field, 1)
+        layout.addLayout(row)
+        return host
+
     def _build_empty_form(self, text):
         """无参数操作的占位说明。"""
         host = QWidget(self)
@@ -282,6 +321,22 @@ class AppCommandPage(NetworkPage):
             )
         if operation == UNLOCK:
             return "解除黑屏", core.appcmd.unlock_payload(), True
+        if operation == RENAME:
+            return (
+                "修改显示名",
+                core.appcmd.rename_payload(self.rename_input.text()),
+                False,
+            )
+        if operation == LOCK_SCREEN:
+            return "锁定屏幕", core.appcmd.lock_screen_payload(True), False
+        if operation == UNLOCK_SCREEN:
+            return "解除锁屏", core.appcmd.lock_screen_payload(False), False
+        if operation == PASSWORD:
+            return (
+                "设置解锁密码",
+                core.appcmd.unlock_password_payload(self.password_input.text()),
+                False,
+            )
         if operation == EXIT_STUDENT:
             return "退出学生端", core.appcmd.exit_student_payload(), False
         return "关闭所有程序", core.appcmd.close_apps_payload(), False
@@ -328,6 +383,8 @@ class AppCommandPage(NetworkPage):
         return {
             "name": name,
             "payload": payload,
-            "channel": "mess" if session else "comd",
+            "channel": "mess"
+            if session
+            else ("lcmd" if self.lcmd_input.isChecked() else "comd"),
             "lock": None,
         }

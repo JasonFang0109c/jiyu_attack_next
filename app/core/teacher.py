@@ -457,6 +457,39 @@ def send_app_command(
     return sent
 
 
+def send_lcmd_command(
+    host, payload, port=4705, local_ip=None, label="轻量命令", report=None
+):
+    """用不带事务应答的轻量通道发一条应用命令。
+
+    ``LCMD`` 与 ``COMD`` 承载同样的负载，只是少了超时与事务号，适合一次性、
+    不需要确认的指令。
+
+    Args:
+        host: 学生地址。
+        payload: :mod:`app.core.appcmd` 生成的负载。
+        port: 学生端 UDP 端口。
+        local_ip: 组播出口地址，可省略。
+        label: 日志里显示的动作名。
+        report: 进度回调。
+
+    Returns:
+        int: 发送的字节数。
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        if local_ip:
+            sock.setsockopt(
+                socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(local_ip)
+            )
+        sent = sock.sendto(appcmd.lcmd_packet(payload), (host, port))
+    finally:
+        sock.close()
+    if report:
+        report("%s → %s（%d 字节）" % (label, host, sent))
+    return sent
+
+
 def send_mess_command(
     host, payload, channel=1, local_ip=None, label="MESS", report=None
 ):
@@ -546,7 +579,7 @@ def run_app_operation(
     Args:
         hosts: 学生地址列表。
         payload: 主负载。
-        channel: 通道代码，``comd``/``mess``/``session``。
+        channel: 通道代码，``comd``/``lcmd``/``mess``/``session``。
         port: 学生端 UDP 端口。
         session_channel: 会话频道号。
         local_ip: 组播出口地址，可省略。
@@ -572,6 +605,10 @@ def run_app_operation(
             if channel == "mess":
                 sent += send_mess_command(
                     host, payload, session_channel, local_ip, "会话报文", report
+                )
+            elif channel == "lcmd":
+                sent += send_lcmd_command(
+                    host, payload, port, local_ip, "轻量命令", report
                 )
             else:
                 sent += send_app_command(
@@ -656,6 +693,7 @@ def collect_students(
     report=None,
     cancel_event=None,
     peers=None,
+    report_kind=appcmd.REPORT_ALL,
 ):
     """发一轮宣告后监听，返回带信息的学生记录列表。
 
@@ -667,6 +705,7 @@ def collect_students(
         report: 进度回调。
         cancel_event: 取消信号。
         peers: 额外定向宣告的地址，可为 None。
+        report_kind: 登录后请求的上报类型，默认全部。
 
     Returns:
         list[dict]: 每台学生机的地址与已收集到的信息。
@@ -679,7 +718,7 @@ def collect_students(
         for host in list(session.students):
             if cancel_event is not None and cancel_event.is_set():
                 break
-            session.request_info(host)
+            session.request_info(host, report_kind)
         return [dict(session.students[host]) for host in session.students]
 
 
@@ -1296,6 +1335,7 @@ __all__ = [
     "send_app_command",
     "send_app_commands",
     "send_blackscreens",
+    "send_lcmd_command",
     "send_mess_command",
     "send_payloads_to_logged_students",
     "send_session_broadcast",

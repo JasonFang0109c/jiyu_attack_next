@@ -1357,6 +1357,7 @@ class MainWindow(FluentWindow):
             "退出学生端",
             "关闭所有程序",
             "黑屏并锁定键鼠",
+            "锁定屏幕",
         } and not self._confirm(
             "确认发送 %s" % delivery["name"],
             "目标：%s\n设备数量：%d\n该操作会立即在目标设备上执行，是否继续？"
