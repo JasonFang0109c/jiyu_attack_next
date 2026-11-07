@@ -98,14 +98,11 @@ class NightlyWorkflowTests(unittest.TestCase):
         self.assertIn("/commit/%H", self.workflow)
         self.assertNotIn("--pretty=format:'- `%h` %s'", self.workflow)
 
-    def test_workflow_message_lists_single_build_commit(self):
+    def test_workflow_records_single_build_commit(self):
         # tip 可能只是文档提交，发布说明只记最新一个真正影响构建的提交。
-        self.assertIn("## Message", self.workflow)
-        self.assertIn("commit-messages.md", self.workflow)
-        self.assertLess(
-            self.workflow.index("## Commits"),
-            self.workflow.index("## Message"),
-        )
+        # 说明里只保留一行带链接的提交标题，不再附完整提交信息。
+        self.assertNotIn("## Message", self.workflow)
+        self.assertNotIn("commit-messages.md", self.workflow)
         self.assertNotIn("git log -1 --pretty=%B", self.workflow)
         # 按 workflow 的 paths 过滤逐个回查，取范围内最新一个影响构建的提交。
         self.assertIn("build_paths=", self.workflow)
@@ -118,6 +115,14 @@ class NightlyWorkflowTests(unittest.TestCase):
         self.assertIn("files: |", self.workflow)
         self.assertIn("JiYuAttackNext.exe", self.workflow)
         self.assertIn("JiYuAttackNext_Debug.exe", self.workflow)
+        # 运行版与调试版都同时提供固定名与带版本号的副本，下载链接才稳定。
+        self.assertIn(
+            "dist/JiYuAttackNext-${{ needs.build.outputs.version }}.exe", self.workflow
+        )
+        self.assertIn(
+            "dist/JiYuAttackNext_Debug-${{ needs.build.outputs.version }}.exe",
+            self.workflow,
+        )
         self.assertIn("EXE:", self.workflow)
         self.assertIn("${exe_sha256}", self.workflow)
         self.assertIn("${debug_sha256}", self.workflow)

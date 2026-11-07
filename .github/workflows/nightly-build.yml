@@ -82,11 +82,6 @@ jobs:
           short_sha="${build_commit::7}"
           # 这一条提交带链接，点缩写哈希可以直接跳到对应改动。
           commit_list="$(git log -1 --pretty=format:"- [\`%h\`](https://github.com/${GITHUB_REPOSITORY}/commit/%H) %s" "${build_commit}")"
-          # 说明小节收录这条提交的完整提交信息，标题同样带链接。
-          git log -1 --pretty=format:'### [`%h`](https://github.com/'"${GITHUB_REPOSITORY}"'/commit/%H) %s%n%n%b%n' "${build_commit}" > commit-messages.md || true
-          if [[ ! -s commit-messages.md ]]; then
-            echo '本次构建没有可展示的提交信息。' > commit-messages.md
-          fi
           cat > release-notes.md <<EOF
           # Nightly Build ${version}
 
@@ -97,8 +92,10 @@ jobs:
 
           ## Assets
 
-          - \`JiYuAttackNext.exe\`
-          - \`JiYuAttackNext_Debug.exe\`
+          - \`JiYuAttackNext.exe\`（正常版本，只记录警告与错误）
+          - \`JiYuAttackNext-${version}.exe\`
+          - \`JiYuAttackNext_Debug.exe\`（调试版本，记录完整日志）
+          - \`JiYuAttackNext_Debug-${version}.exe\`
 
           ## SHA256
 
@@ -109,9 +106,6 @@ jobs:
 
           ${commit_list}
 
-          ## Message
-
-          $(cat commit-messages.md)
           EOF
 
       # 同一天只更新同一个预发布，跨天才删除重建：删除重建会触发一次新的
@@ -170,6 +164,9 @@ jobs:
           make_latest: false
           files: |
             dist/JiYuAttackNext.exe
+            dist/JiYuAttackNext-${{ needs.build.outputs.version }}.exe
+            dist/JiYuAttackNext_Debug.exe
+            dist/JiYuAttackNext_Debug-${{ needs.build.outputs.version }}.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

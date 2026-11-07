@@ -98,13 +98,13 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json`
 - 也可在 Actions 页面选择该工作流并点击 `Run workflow` 手动运行，手动运行需选择 `main` 分支才会发布；手动运行不受路径过滤限制。
 - 工作流文件首次进入默认分支后，Actions 页面才会显示手动运行入口。
 - 在 `windows-latest` 上使用 Python 3.13 安装依赖、执行离线测试并运行 `packaging/build.ps1 -Clean`。
-- 构建成功后更新标签为 `nightly`、标题为 `Nightly Build <版本>` 的预发布版本，资产只有 `JiYuAttackNext.exe`（GUI 与 CLI 共用）。
-- 发布说明包含版本号、构建时间、工作流运行记录、该资产的 SHA256，`Commits` 章节列出本次推送范围内的全部提交，末尾的英文 `Message` 章节列出最新提交的完整提交信息。
+- 构建成功后更新标签为 `nightly`、标题为 `Nightly Build <版本>` 的预发布版本，资产为 `JiYuAttackNext.exe`、`JiYuAttackNext_Debug.exe` 以及各自带版本号的副本，与正式版一致（GUI 与 CLI 共用同一个 EXE，调试版只差日志等级）。
+- 发布说明包含版本号、构建时间、工作流运行记录、两个资产的 SHA256，`Commits` 章节列出本次构建对应的那条提交。
 - 路径过滤按整个推送的 `before..head` 判定，因此把文档提交与代码提交一起推送时仍会构建；`Commits` 章节据此说明本次构建实际包含哪些改动。
 - 同一天内重复构建不新建发布：先比对现有 `nightly` 预发布的标题是否含本次的日期后缀，相同就原地更新资产与说明，标签 `nightly` 与下载地址 `https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly` 都保持不变。
 - 只有日期变了（例如旧的是 `-nightly.20261103`、新的是 `-nightly.20261104`）才删除旧预发布与 `nightly` 标签再重新创建，保证每天最多一次新的发布通知，不让关注者的动态被每次推送刷屏。
 - 日期取自构建版本号的 `-nightly.YYYYMMDD` 后缀，与产物里记录的日期同源；后缀按 UTC 计日，不受运行器时区与本地时区影响。
-- 原地更新依赖 `overwrite_files: true` 替换同名资产；同一天内发布维护的历史说明由本次构建的说明整体覆盖，资产始终只有 `JiYuAttackNext.exe`。
+- 原地更新依赖 `overwrite_files: true` 替换同名资产；同一天内发布维护的历史说明由本次构建的说明整体覆盖，资产始终是四个文件。
 - 使用 `nightly-build` 并发组，新的运行会取消尚未完成的旧运行。
 
 ### Release
