@@ -40,8 +40,8 @@ from .. import core
 
 # 滚动条出现后停留的时长：滚动停下后过一会儿就消失。
 SCROLL_BAR_FADE_MS = 900
-# 滑块宽度固定成 3 像素，组件库默认会随悬停动画涨到 6 像素。
-SCROLL_BAR_HANDLE_SIZE = 3
+# 滑块宽度固定成 2 像素，组件库默认会随悬停动画涨到 6 像素。
+SCROLL_BAR_HANDLE_SIZE = 2
 
 
 def _keep_thin(bar):

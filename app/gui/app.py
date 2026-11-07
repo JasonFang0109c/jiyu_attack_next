@@ -12,6 +12,7 @@ from pathlib import Path
 from threading import Event
 
 from PySide6.QtCore import (
+    QAbstractAnimation,
     QByteArray,
     QCoreApplication,
     QEvent,
@@ -535,7 +536,14 @@ class MainWindow(FluentWindow):
         QTimer.singleShot(0, self._refresh_navigation)
 
     def _refresh_navigation(self):
-        """把当前页面所在的导航项滚进可见区域。"""
+        """把当前页面所在的导航项滚进可见区域。
+
+        切换页面会让选中的子项重新布局，分组宽度有可能被挤窄几像素，
+        所以顺手把分组尺寸对回侧边栏宽度，再滚动到当前项。
+        """
+        self._apply_navigation_groups_if_expanded()
+        # 选中子项引发的重排排在本次事件之后，再补一次把分组宽度对回去。
+        QTimer.singleShot(0, self._apply_navigation_groups_if_expanded)
         current = self.stackedWidget.currentWidget()
         if current is not None:
             self._reveal_navigation_item(current.objectName())
@@ -705,7 +713,8 @@ class MainWindow(FluentWindow):
         panel = self.navigationInterface.panel
         panel.displayModeChanged.connect(self._navigation_mode_changed)
         # 库在展开动画里会把分组压成单行，动画结束后按记住的状态重新摊开。
-        panel.expandAni.finished.connect(self._navigation_animation_finished)
+        # 库的展开动画会把分组压成单行，动画结束或被中途打断时都重新摊开一次。
+        panel.expandAni.stateChanged.connect(self._navigation_animation_finished)
 
     def _tune_scroll_bars(self):
         """侧边栏滚动条永不显示，内容区滚动条调细、调淡且悬停才出现。"""
@@ -731,8 +740,14 @@ class MainWindow(FluentWindow):
         # 展开动画结束后滚动区才有新的高度，等这一轮事件走完再定位。
         QTimer.singleShot(0, self._refresh_navigation)
 
-    def _navigation_animation_finished(self):
-        """展开动画结束后按记住的状态摊开分组。"""
+    def _navigation_animation_finished(self, state):
+        """展开动画结束后按记住的状态摊开分组。
+
+        动画被中途打断时不会发出 finished，只会切到停止状态；这里一并处理，
+        否则分组会停在动画途中的窄宽度上，图标看着就是往左挪了一截。
+        """
+        if state != QAbstractAnimation.State.Stopped:
+            return
         if self.navigationInterface.panel.isCollapsed():
             return
         self._apply_navigation_groups()
@@ -747,6 +762,11 @@ class MainWindow(FluentWindow):
         self.settings.set_value("gui/window/navigation_%s" % route, node.isExpanded)
         self.settings.sync()
 
+    def _apply_navigation_groups_if_expanded(self):
+        """侧边栏展开时才整理分组尺寸，收起时保持图标模式不动。"""
+        if not self.navigationInterface.panel.isCollapsed():
+            self._apply_navigation_groups()
+
     def _apply_navigation_groups(self):
         """按记住的状态摊开分组，首次默认全部展开。"""
         panel = self.navigationInterface.panel
@@ -755,16 +775,20 @@ class MainWindow(FluentWindow):
             if node is None:
                 continue
             expanded = self._navigation_groups.get(route, True)
+            # 分组自己的收展动画还在跑的话，它结束时会用动画中途的尺寸再钉一次，
+            # 把下面设好的宽度覆盖回去，所以先停掉它。
+            node.expandAni.stop()
             node.setExpanded(expanded, ani=False)
             # setExpanded 遇到相同状态会直接返回，而收起动画留下的单行高度还在，
             # 这里按当前布局重新量一次，避免子项虽然可见却被压在 36 像素里。
             for child in node.treeChildren:
                 child.setVisible(expanded)
             node.vBoxLayout.activate()
-            # 展开动画会同时钉住宽高，只解除高度不够：宽度留着上次的值，
-            # 每次展开都比侧边栏窄一点，图标和文字就一步步往左缩。
-            node.setMinimumWidth(0)
-            node.setMaximumWidth(16777215)
+            # 展开动画会顺手把宽度钉成动画中途的值，之后就一直沿用，
+            # 分组于是比侧边栏窄一截、图标跟着左移。这里按侧边栏宽度重新钉死，
+            # 条目宽度同样对回库的常量，不留给动画留下的旧尺寸。
+            node.setFixedWidth(panel.expandWidth)
+            node.itemWidget.setFixedWidth(panel.expandWidth - NAVIGATION_ITEM_INSET)
             node.setFixedHeight(node.sizeHint().height())
 
     def _save_navigation_expanded(self):
@@ -894,7 +918,12 @@ class MainWindow(FluentWindow):
         item = panel.widget(key)
         if item is None:
             return
-        panel.scrollArea.ensureWidgetVisible(item, 0, 12)
+        area = panel.scrollArea
+        # 导航内容比视口宽十来个像素，横向留白如果只给 0，ensureWidgetVisible
+        # 会顺手把视图横向滚出去，整列图标跟着左移；给足横向余量让它只滚纵向，
+        # 再把横向位置复位。
+        area.ensureWidgetVisible(item, area.viewport().width(), 12)
+        area.horizontalScrollBar().setValue(0)
 
     def current_page(self):
         """返回当前页面名。"""
@@ -2334,6 +2363,8 @@ PREVIEW_SECONDS = 8.0
 PROBE_TIMEOUT = 1.0
 # 侧边栏最小高度的上限：导航项再多也不该把整个窗口顶到超出屏幕。
 NAVIGATION_MAX_HEIGHT = 680
+# 分组条目比侧边栏窄这么多像素，与组件库的 NavigationWidget.EXPAND_WIDTH 对齐。
+NAVIGATION_ITEM_INSET = 10
 # 侧边栏顶部菜单按钮那一行的高度，算进导航项需要的空间里。
 NAVIGATION_HEADER_HEIGHT = 36
 
