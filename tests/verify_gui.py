@@ -102,7 +102,7 @@ def main():
     def capture():
         # 侧边栏的折叠状态跟窗口宽度走，上一次窄窗口运行会把状态留在配置里，
         # 截图前显式展开，画面才是用户默认看到的样子。
-        window.navigationInterface.expand(useAni=False)
+        window.expand_navigation()
         app.processEvents()
         image = window.grab()
         ok = image.save(args.screenshot, "PNG")
