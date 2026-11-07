@@ -107,24 +107,32 @@
 
 ## 验证
 
-按改动范围选择检查，不必每次都跑全套：
+验证跟着改动走：只做这次改动真正能打断的检查，不为“稳妥”跑与改动无关的全套流程。
 
-| 改动范围 | 检查 |
-| --- | --- |
-| 只改 Markdown | 校验链接与命令可用性，不需要跑测试 |
-| 改 `app/`、`packaging/` 或 `scripts/` | 离线测试 + `compileall` |
-| 改 GUI 界面或交互 | 上述检查，并按需截图确认 |
-| 改构建脚本或工作流 | 上述检查，并实际执行一次构建 |
+| 改动内容 | 需要做的事 | 不需要做的事 |
+| --- | --- | --- |
+| 只改 Markdown、注释、docstring | 通读一遍，确认示例命令与路径没有写错 | 测试、`compileall`、构建、截图 |
+| 只改测试文件 | 跑被改的那个测试文件 | 全量测试、`compileall`、构建 |
+| 改 `app/core/`、`app/cli/` | 跑相关测试文件；改动跨模块或涉及报文字节布局时跑全量测试 | 截图、构建 |
+| 改 `app/gui/` 的逻辑（线程、任务分发、信号） | 跑 `tests.test_gui` + 相关测试文件 | 截图（除非外观也变了） |
+| 改 GUI 外观、布局、文案或交互 | 跑 `tests.test_gui`，并按需截图确认 | 全量测试 |
+| 改 `packaging/`、`scripts/`、依赖清单、构建配置 | 实际执行一次构建，并用构建出的 EXE 冒烟 | 全量测试（除非同时改了 `app/`） |
+| 同时涉及多类 | 取并集，但每一项只做一次 | — |
 
 ```powershell
-.\.venv\Scripts\python.exe -B -m unittest discover -s tests -v
-.\.venv\Scripts\python.exe -X utf8 -m compileall -q app tests
-.\.venv\Scripts\python.exe -B -m tests.verify_gui --screenshot <截图路径>
+# 单个文件
+.\.venv\Scripts\python.exe -B -m unittest tests.test_appcmd -v
+
+# 全量
+.\.venv\Scripts\python.exe -B -m unittest discover -s tests
 ```
 
-测试结果不稳定时先确认是否与本次改动相关；与改动无关的既有失败如实报告，不要反复重跑掩盖问题。只报告实际执行过的验证，未执行的检查要说明。
+- 语法检查用 `compileall` 只在无法运行测试时才有意义（例如改的是入口脚本或打包钩子）；测试能跑起来就不必再单独跑一遍。
+- 截图验证只在意外观时做，命令是 `.\.venv\Scripts\python.exe -B -m tests.verify_gui --screenshot <截图路径>`。
+- 测试结果不稳定时先确认是否与本次改动相关；与改动无关的既有失败如实报告，不要反复重跑掩盖问题。
+- 只报告实际执行过的验证，未执行的检查要说明为什么不需要。
 
-测试、`compileall` 与截图验证结束后按“构建 → 残留清理”收尾。
+只有在跑过测试、`compileall` 或截图验证时才需要按“构建 → 残留清理”收尾；纯文档改动没有残留要清。
 
 ## 构建
 
