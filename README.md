@@ -61,14 +61,14 @@
       <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
         <li><b>应用命令</b>：运行程序、打开网址、黑屏锁键鼠</li>
         <li><b>学生信息</b>：宣告发现、系统信息与进程窗口</li>
-        <li><b>关闭窗口</b>：按句柄关闭目标窗口</li>
+        <li><b>关闭窗口</b>：按句柄或标题关闭目标窗口</li>
       </ul>
     </td>
     <td width="33%" valign="middle" style="padding: 12px 14px;">
       <h3 style="margin: 0 0 10px 0;">📦 文件与设备</h3>
       <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
         <li><b>文件传送</b>：勾选文件树下载到桌面</li>
-        <li><b>设备操作</b>：重启、关机或注销前预览</li>
+        <li><b>设备操作</b>：重启关机带倒计时与提示文字</li>
         <li><b>设备备注</b>：IPv4 映射易读名称</li>
       </ul>
     </td>

@@ -52,6 +52,7 @@ jiyu_attack_next/
 |       |-- components.py         # 共用目标参数与任务栏
 |       |-- navigation.py         # 侧边栏宽度动画、分组状态与可见性
 |       |-- models.py             # 连接状态、设备备注与结构化运行日志
+|       |-- preview_window.py     # 全员缩略图窗口：三列卡片与缩略图汇总
 |       |-- screen_window.py      # 屏幕连接生命周期与画面窗口
 |       |-- splash.py             # 启动遮罩
 |       |-- window_effect.py      # 窗口背景材质
@@ -124,6 +125,7 @@ jiyu_attack_next/
 - `app/gui/components.py` 提供跨页面同步的连接参数和统一任务栏。
 - `app/gui/splash.py` 提供启动遮罩：主窗口显示后用项目图标、应用名、版本号与不确定进度条盖住界面，跟随窗口尺寸，最短停留一段时间后自动关闭。
 - `app/gui/models.py` 保存连接状态、持久化设备备注，并提供带等级、线程、输出位置和异常详情的结构化日志存储；日志写入、快照与文件切换使用同一把锁，状态变更通知按顺序在对象所属线程发送，回调在锁外执行。
+- `app/gui/preview_window.py` 只负责展示：主窗口把 `all_student_previews` 的结果交给它，卡片按三列排布并标出未收到或解析失败的缩略图，自己不发任何报文。
 - `app/gui/screen_window.py` 在后台建立与清理屏幕连接，通过排队信号在 GUI 线程渲染画面；主窗口按目标地址与频道复用观看窗口，立即重开时等待旧连接停止后再重连，退出时等待后台清理完成。
 - `app/gui/workers.py` 执行后台发送、本机工具与屏幕端口检测任务，通过信号更新界面。
 - `packaging/` 存放 PyInstaller 配置、构建脚本与版本资源生成器；EXE 以普通用户权限启动，防火墙操作在需要时通过 UAC 启动隐藏助手。

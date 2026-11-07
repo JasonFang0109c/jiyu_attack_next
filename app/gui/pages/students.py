@@ -30,6 +30,7 @@ class StudentsPage(Page):
     discoverRequested = Signal()
     refreshRequested = Signal()
     killRequested = Signal()
+    previewAllRequested = Signal()
 
     def __init__(self, parent=None):
         super().__init__("students", parent)
@@ -51,6 +52,10 @@ class StudentsPage(Page):
         self.teacher_input.setMaximumWidth(220)
         config_row.addWidget(self.teacher_input)
         config_row.addStretch()
+        self.preview_all_button = tool_button(
+            FIF.PHOTO, "全员缩略图", self, self.previewAllRequested.emit
+        )
+        config_row.addWidget(self.preview_all_button)
         self.vbox.addLayout(config_row)
 
         self.content_card = SectionCard(self)
@@ -97,6 +102,15 @@ class StudentsPage(Page):
         self.details.horizontalHeader().setStretchLastSection(True)
         self.content_card.body.addWidget(self.details, 1)
 
+        kill_row = QHBoxLayout()
+        kill_row.addWidget(BodyLabel("结束目标", self.content_card))
+        self.kill_input = QLineEdit(self.content_card)
+        self.kill_input.setPlaceholderText(
+            "可填进程名批量结束；留空则结束详情表里选中的进程"
+        )
+        kill_row.addWidget(self.kill_input, 1)
+        self.content_card.body.addLayout(kill_row)
+
         self.vbox.addWidget(self.content_card, 1)
 
         self.footer_card = SectionCard(self, spacing=0, margins=(8, 8, 8, 8))
@@ -107,6 +121,7 @@ class StudentsPage(Page):
 
         self.records = []
         self.students.itemSelectionChanged.connect(self._selection_changed)
+        self.kill_input.textChanged.connect(lambda _text: self._update_kill_button())
         self.detail_box.currentIndexChanged.connect(
             lambda _index: self._refresh_details()
         )
@@ -176,7 +191,19 @@ class StudentsPage(Page):
             self.details.setItem(row, 0, QTableWidgetItem(str(identifier)))
             self.details.setItem(row, 1, QTableWidgetItem(name))
             self.details.setRowHeight(row, 34)
-        self.kill_button.setEnabled(bool(entries) and self.detail_kind() == "processes")
+        self._update_kill_button()
+
+    def _update_kill_button(self):
+        """只有拿到进程列表并且正处于进程视图时才允许结束进程。"""
+        record = self.selected_record()
+        processes = (record or {}).get("processes") or []
+        self.kill_button.setEnabled(
+            bool(processes) and self.detail_kind() == "processes"
+        )
+
+    def kill_target(self):
+        """返回填写的进程名，未填写时为空字符串。"""
+        return self.kill_input.text().strip()
 
     def selected_detail_id(self):
         """返回详情表当前行的编号，未选中时为 None。"""

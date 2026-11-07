@@ -835,6 +835,194 @@ def close_window(
     )
 
 
+def match_entries(entries, keyword):
+    """在 ``(编号, 名称)`` 列表里按名称查找。
+
+    先做忽略大小写的精确匹配，没有命中再退化成包含匹配。这一分层与来源项目
+    的 ``kill``、``closeapp`` 一致：填完整进程名不会误伤同名子串。
+
+    Args:
+        entries: ``(编号, 名称)`` 序列，来自学生信息上报。
+        keyword: 进程名或窗口标题关键字。
+
+    Returns:
+        list[tuple]: 命中的 ``(编号, 名称)``。
+    """
+    text = str(keyword or "").strip().casefold()
+    if not text:
+        return []
+    exact = [item for item in entries if str(item[1]).strip().casefold() == text]
+    if exact:
+        return exact
+    return [item for item in entries if text in str(item[1]).casefold()]
+
+
+def send_payloads_to_logged_students(
+    payloads_for,
+    hosts,
+    channel=1,
+    teacher_name="1",
+    port=4705,
+    login_wait=_LOGIN_WAIT,
+    label="MESS",
+    report=None,
+    cancel_event=None,
+):
+    """先宣告等登录，再向目标逐个单播多条 ``MESS`` 负载。
+
+    按名称结束进程、按标题关闭窗口会先在本地匹配出多个编号，每个编号都是一
+    条独立报文，因此这里允许一台学生对应多条负载。
+
+    Args:
+        payloads_for: 接收学生地址、返回负载列表的可调用对象。
+        hosts: 目标地址列表。
+        channel: 频道号。
+        teacher_name: 学生端显示的教师名。
+        port: 学生端 UDP 端口。
+        login_wait: 等待登录的秒数。
+        label: 进度回调里显示的动作名。
+        report: 进度回调。
+        cancel_event: 取消信号。
+
+    Returns:
+        list[tuple[str, int]]: 每台学生的地址与实际发送条数。
+
+    Raises:
+        ValueError: 目标列表为空，或没有任何目标完成登录。
+    """
+    targets = [address for address in hosts if address]
+    if not targets:
+        raise ValueError("请先指定目标地址")
+    sent = []
+    with TeacherSession(channel, teacher_name, port) as session:
+        session.announce(
+            rounds=1, peers=targets, report=report, cancel_event=cancel_event
+        )
+        session.listen(login_wait, report=report, cancel_event=cancel_event)
+        logged = [host for host in targets if host in session.students]
+        if not logged:
+            raise ValueError("目标没有登录教师会话，先确认学生端在线且频道一致")
+        for host in logged:
+            payloads = list(payloads_for(host) or [])
+            for payload in payloads:
+                session.send_mess(host, payload, report, label)
+            sent.append((host, len(payloads)))
+    return sent
+
+
+def kill_processes(
+    records,
+    keyword,
+    channel=1,
+    teacher_name="1",
+    port=4705,
+    report=None,
+    cancel_event=None,
+    force=True,
+):
+    """按进程名结束学生机进程，返回每台命中的进程。
+
+    Args:
+        records: 已收集的学生记录，需带 ``processes`` 列表。
+        keyword: 进程名，先精确匹配再包含匹配。
+        channel: 频道号。
+        teacher_name: 学生端显示的教师名。
+        port: 学生端 UDP 端口。
+        report: 进度回调。
+        cancel_event: 取消信号。
+        force: True 强杀，False 先尝试正常关闭。
+
+    Returns:
+        dict[str, list[tuple]]: 地址 → 命中的 ``(进程号, 名称)``。
+
+    Raises:
+        ValueError: 学生记录里没有匹配的进程，或目标未登录。
+    """
+    matched = {}
+    for record in records or []:
+        address = record.get("address")
+        hits = match_entries(record.get("processes") or [], keyword)
+        if address and hits:
+            matched[address] = hits
+    if not matched:
+        raise ValueError("进程列表里没有匹配“%s”的进程，先刷新学生信息" % keyword)
+    payloads = {
+        address: [
+            appcmd.kill_payload(process_id=identifier, force=force)
+            for identifier, _name in hits
+        ]
+        for address, hits in matched.items()
+    }
+    send_payloads_to_logged_students(
+        lambda host: payloads.get(host, []),
+        list(matched),
+        channel=channel,
+        teacher_name=teacher_name,
+        port=port,
+        label="结束进程",
+        report=report,
+        cancel_event=cancel_event,
+    )
+    return matched
+
+
+def close_windows(
+    records,
+    keyword,
+    channel=1,
+    teacher_name="1",
+    port=4705,
+    report=None,
+    cancel_event=None,
+):
+    """按窗口标题关键字关闭学生机窗口，返回每台命中的窗口。
+
+    与 :func:`close_window` 的区别是这里先按标题匹配出句柄，可以一次关掉多个
+    命中窗口；仍然只发 ``WM_CLOSE``，不结束进程。
+
+    Args:
+        records: 已收集的学生记录，需带 ``windows`` 列表。
+        keyword: 窗口标题关键字。
+        channel: 频道号。
+        teacher_name: 学生端显示的教师名。
+        port: 学生端 UDP 端口。
+        report: 进度回调。
+        cancel_event: 取消信号。
+
+    Returns:
+        dict[str, list[tuple]]: 地址 → 命中的 ``(句柄, 标题)``。
+
+    Raises:
+        ValueError: 学生记录里没有匹配的窗口，或目标未登录。
+    """
+    matched = {}
+    for record in records or []:
+        address = record.get("address")
+        hits = match_entries(record.get("windows") or [], keyword)
+        if address and hits:
+            matched[address] = hits
+    if not matched:
+        raise ValueError("窗口列表里没有标题含“%s”的窗口，先刷新学生信息" % keyword)
+    payloads = {
+        address: [
+            appcmd.kill_payload(window=identifier, force=False)
+            for identifier, _title in hits
+        ]
+        for address, hits in matched.items()
+    }
+    send_payloads_to_logged_students(
+        lambda host: payloads.get(host, []),
+        list(matched),
+        channel=channel,
+        teacher_name=teacher_name,
+        port=port,
+        label="关闭应用窗口",
+        report=report,
+        cancel_event=cancel_event,
+    )
+    return matched
+
+
 def start_screen(host, channel=1, local_ip=None, report=None):
     """请学生端开始向本机推送桌面画面。
 
@@ -1097,15 +1285,19 @@ def view_screen(
 __all__ = [
     "RemoteControl",
     "TeacherSession",
+    "close_windows",
     "collect_previews",
     "collect_students",
     "fetch_students_info",
+    "kill_processes",
+    "match_entries",
     "remote_control",
     "run_app_operation",
     "send_app_command",
     "send_app_commands",
     "send_blackscreens",
     "send_mess_command",
+    "send_payloads_to_logged_students",
     "send_session_broadcast",
     "send_unlocks",
     "start_screen",

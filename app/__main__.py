@@ -19,14 +19,15 @@ def _console_encoding():
     return "cp%d" % codepage if codepage else locale.getpreferredencoding(False)
 
 
-def _stream_from_handle(handle):
-    """把标准句柄包装成文本流，句柄不可写时返回 None。"""
+def _stream_from_handle(handle, mode="w"):
+    """把标准句柄包装成文本流，句柄不可用时返回 None。"""
     import ctypes
     import msvcrt
     import os
 
+    flags = os.O_RDONLY if mode == "r" else os.O_WRONLY
     try:
-        descriptor = msvcrt.open_osfhandle(handle, os.O_WRONLY)
+        descriptor = msvcrt.open_osfhandle(handle, flags)
         # 控制台句柄按当前代码页输出，重定向到文件或管道时与系统命令提示符一致。
         file_type = ctypes.windll.kernel32.GetFileType(handle)
         encoding = (
@@ -36,13 +37,14 @@ def _stream_from_handle(handle):
         )
         stream = os.fdopen(
             descriptor,
-            "w",
+            mode,
             encoding=encoding,
             errors="replace",
             buffering=1,
         )
-        stream.write("")
-        stream.flush()
+        if mode != "r":
+            stream.write("")
+            stream.flush()
     except OSError:
         return None
     return stream
@@ -61,14 +63,18 @@ def _rebind_inherited_streams():
     kernel32.GetStdHandle.restype = ctypes.c_void_p
     invalid = ctypes.c_void_p(-1).value
     rebound = False
-    for std_id, name in ((-11, "stdout"), (-12, "stderr")):
+    for std_id, name, mode in (
+        (-10, "stdin", "r"),
+        (-11, "stdout", "w"),
+        (-12, "stderr", "w"),
+    ):
         if getattr(sys, name) is not None:
             continue
         handle = kernel32.GetStdHandle(std_id)
         # 0 与 INVALID_HANDLE_VALUE 都表示没有可用的标准句柄。
         if not handle or handle == invalid:
             continue
-        stream = _stream_from_handle(handle)
+        stream = _stream_from_handle(handle, mode)
         if stream is None:
             continue
         setattr(sys, name, stream)
@@ -77,8 +83,12 @@ def _rebind_inherited_streams():
 
 
 def _rebind_console_streams():
-    """挂上控制台后重新打开输出设备。"""
-    for name in ("stdout", "stderr"):
+    """挂上控制台后重新打开标准输入输出设备。"""
+    for name, device, mode in (
+        ("stdin", "CONIN$", "r"),
+        ("stdout", "CONOUT$", "w"),
+        ("stderr", "CONOUT$", "w"),
+    ):
         if getattr(sys, name) is not None:
             continue
         # 控制台可能已断开，重新打开失败时保持空流即可，不影响后续逻辑。
@@ -86,10 +96,10 @@ def _rebind_console_streams():
             setattr(
                 sys,
                 name,
-                # 输出流必须一直可用，不能交给 with 在退出时关闭。
+                # 标准流必须一直可用，不能交给 with 在退出时关闭。
                 open(  # noqa: SIM115
-                    "CONOUT$",
-                    "w",
+                    device,
+                    mode,
                     encoding=_console_encoding(),
                     errors="replace",
                     buffering=1,
@@ -120,7 +130,7 @@ def _show_cli_console():
     """
     if sys.platform != "win32":
         return
-    if sys.stdout is not None and sys.stderr is not None:
+    if sys.stdout is not None and sys.stderr is not None and sys.stdin is not None:
         return
     try:
         import ctypes
@@ -132,7 +142,7 @@ def _show_cli_console():
         # 调用方传进来的句柄。
         if not kernel32.GetConsoleWindow() and kernel32.AttachConsole(-1):
             _rebind_console_streams()
-        if sys.stdout is None or sys.stderr is None:
+        if sys.stdout is None or sys.stderr is None or sys.stdin is None:
             _rebind_inherited_streams()
     except Exception:
         # 取不到终端时不能让命令本身失败：输出丢失比进程崩溃更容易排查。

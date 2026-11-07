@@ -165,9 +165,12 @@ class AppCommandPage(NetworkPage):
         timeout_row = QHBoxLayout()
         timeout_row.addWidget(BodyLabel("自动解除秒数", host))
         self.blackout_timeout = ReadableSpinBox(host)
-        self.blackout_timeout.setRange(1, 3600)
+        self.blackout_timeout.setRange(0, 3600)
         self.blackout_timeout.setValue(10)
         self.blackout_timeout.setMinimumWidth(120)
+        self.blackout_timeout.setToolTip(
+            "0 表示不自动解除：黑屏会一直保持，直到手动发送解除黑屏"
+        )
         timeout_row.addWidget(self.blackout_timeout)
         timeout_row.addStretch()
         layout.addLayout(timeout_row)
@@ -251,9 +254,11 @@ class AppCommandPage(NetworkPage):
             url = self.url_input.text().strip()
             if not url:
                 raise ValueError("请填写要打开的网址")
-            if "://" not in url:
-                url = "http://" + url
-            return "打开网址", core.appcmd.open_url_payload(url), False
+            return (
+                "打开网址",
+                core.appcmd.open_url_payload(core.appcmd.normalize_url(url)),
+                False,
+            )
         if operation == TERMINATE:
             text = self.process_input.text().strip()
             if not text.isdigit():
@@ -305,6 +310,9 @@ class AppCommandPage(NetworkPage):
                 "payload": payload,
                 "channel": "session",
                 "lock": lock,
+                "timeout": (
+                    self.blackout_timeout.value() if name == "黑屏并锁定键鼠" else 0
+                ),
             }
         if name == "终止进程":
             # 结束进程走 MESS 的 0x100000 请求，不是应用命令。

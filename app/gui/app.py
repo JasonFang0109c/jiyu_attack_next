@@ -98,6 +98,7 @@ from .pages import (
     ShellPage,
     StudentsPage,
 )
+from .preview_window import PreviewGridWindow
 from .screen_window import ScreenWindow
 from .settings_store import STATUS_NO_ERROR
 from .splash import create_splash
@@ -380,6 +381,15 @@ class MainWindow(FluentWindow):
         self._task_dispatch_timer = QTimer(self)
         self._task_dispatch_timer.setSingleShot(True)
         self._task_dispatch_timer.timeout.connect(self._dispatch_after_task)
+        # 黑屏的自动解除由本机排定，学生端只按报文里的毫秒字段自己计时，
+        # 两边都排一份才能保证教师端主动收尾。
+        self._blackscreen_timer = QTimer(self)
+        self._blackscreen_timer.setSingleShot(True)
+        self._blackscreen_timer.timeout.connect(self._auto_unlock_blackscreen)
+        self._blackscreen_targets = []
+        self._blackscreen_channel = 1
+        self._pending_blackscreen = None
+        self._preview_window = None
         self._closing_screen_windows = set()
         self._screen_windows = {}
         self._first_close_dialog_open = False
@@ -790,6 +800,7 @@ class MainWindow(FluentWindow):
         self.pages["students"].footer.requested.connect(self.start_student_scan)
         self.pages["students"].refreshRequested.connect(self.refresh_students)
         self.pages["students"].killRequested.connect(self.kill_student_process)
+        self.pages["students"].previewAllRequested.connect(self.preview_all_students)
         self.pages["chat"].footer.requested.connect(self.start_chat)
         self.pages["closewindow"].footer.requested.connect(self.start_close_window)
         self.pages["screen"].previewRequested.connect(self.refresh_preview)
@@ -910,6 +921,11 @@ class MainWindow(FluentWindow):
     def start_send(self, kind):
         """校验参数、确认设备操作后把发送任务加入队列。"""
         page = self.pages[kind]
+        # 重启与关机走应用命令，能带上倒计时、提示文字与强制关闭；
+        # 注销没有对应命令号，仍然走远程命令通道。
+        if kind == "device" and page.action() != "l":
+            self.start_power()
+            return
         options = self._options_for_page(kind)
         try:
             hosts = core.get_ip(options.target)
@@ -990,6 +1006,85 @@ class MainWindow(FluentWindow):
             SendWorker(options, core.execute_send_report),
             self._send_finished,
             self._send_failed,
+        )
+
+    def start_power(self):
+        """把重启或关机作为应用命令下发，可带去倒计时与提示文字。"""
+        page = self.pages["device"]
+        target = self.connection_state.values["target"].strip()
+        try:
+            hosts = core.get_ip(self.connection_state.resolve_target(target))
+        except ValueError as error:
+            page.targets.target_input.setError(True)
+            page.targets.target_input.setFocus()
+            self._validation_error(
+                "device", str(error), "输入目标：%s" % (target or "（空）")
+            )
+            return
+        settings = page.power()
+        try:
+            payload = core.appcmd.power_payload(
+                reboot=settings["reboot"],
+                delay=settings["delay"],
+                force=settings["force"],
+                text=settings["text"],
+            )
+        except (ValueError, UnicodeError) as error:
+            self._validation_error("device", str(error), "设备操作参数校验失败")
+            return
+        action = "重启" if settings["reboot"] else "关机"
+        method = []
+        if settings["delay"]:
+            method.append("倒计时 %d 秒" % settings["delay"])
+        else:
+            method.append("立即执行")
+        method.append("强制关闭程序" if settings["force"] else "等待程序自行退出")
+        if settings["text"]:
+            method.append("提示文字：%s" % settings["text"])
+        if not self._confirm(
+            "确认%s" % action,
+            "目标：%s\nUDP 端口：%d\n设备数量：%d\n操作：%s\n方式：%s"
+            % (
+                self.connection_state.format_target(),
+                self.connection_state.values["port"],
+                len(hosts),
+                action,
+                "；".join(method),
+            ),
+        ):
+            self.logs.info(
+                "设备操作",
+                "用户取消了%s确认" % action,
+                "目标：%s；设备数量：%d" % (target or "（空）", len(hosts)),
+            )
+            return
+        details = (
+            "功能：设备操作；目标：%s；设备数：%d；端口：%d；操作：%s；"
+            "倒计时：%d 秒；强制：%s；提示文字长度：%d"
+            % (
+                target,
+                len(hosts),
+                self.connection_state.values["port"],
+                action,
+                settings["delay"],
+                settings["force"],
+                0 if not settings["text"] else len(settings["text"]),
+            )
+        )
+        self.logs.info("设备操作", "开始%s：%s" % (action, target), details)
+        cancel_event = Event()
+        self._begin_task(
+            "device",
+            TaskWorker(
+                run_app_operation,
+                hosts,
+                payload,
+                channel="comd",
+                port=self.connection_state.values["port"],
+                cancel_event=cancel_event,
+            ),
+            self._power_finished,
+            self._local_failed,
         )
 
     def _validation_error(self, kind, message, details=""):
@@ -1269,6 +1364,19 @@ class MainWindow(FluentWindow):
         ):
             self.logs.info("应用命令", "用户取消了操作", "操作：%s" % delivery["name"])
             return
+        # 黑屏的自动解除由本机排定；明确发送解除黑屏时顺手取消旧排定。
+        self._pending_blackscreen = None
+        if delivery["name"].startswith("黑屏"):
+            timeout = int(delivery.get("timeout") or 0)
+            if timeout > 0:
+                self._pending_blackscreen = (
+                    list(hosts),
+                    page.channel_input.value(),
+                    timeout,
+                )
+        elif delivery["name"] == "解除黑屏":
+            self._blackscreen_timer.stop()
+            self._blackscreen_targets = []
         self.logs.info(
             "应用命令",
             "开始发送：%s" % delivery["name"],
@@ -1335,7 +1443,7 @@ class MainWindow(FluentWindow):
         )
 
     def start_close_window(self):
-        """按句柄关闭学生机上的应用窗口。"""
+        """按句柄或窗口标题关键字关闭学生机上的应用窗口。"""
         if self.thread is not None:
             self.logs.warning("关闭窗口", "已有任务在运行，关闭请求未发送")
             return
@@ -1351,27 +1459,53 @@ class MainWindow(FluentWindow):
             )
             return
         try:
-            window = page.window_handle()
+            kind, value = page.window_target()
         except ValueError as error:
             page.window_input.setError(True)
             page.window_input.setFocus()
-            self._validation_error("closewindow", str(error), "窗口句柄解析失败")
+            self._validation_error("closewindow", str(error), "窗口目标解析失败")
             return
+        port = self.connection_state.values["port"]
+        cancel_event = Event()
+        if kind == "handle":
+            self.logs.info(
+                "关闭窗口",
+                "发送关闭请求",
+                "目标：%s；设备数：%d；句柄：%d" % (target, len(hosts), value),
+            )
+            self._begin_task(
+                "closewindow",
+                TaskWorker(
+                    close_remote_window,
+                    hosts,
+                    value,
+                    channel=page.channel(),
+                    teacher_name="1",
+                    port=port,
+                    cancel_event=cancel_event,
+                ),
+                self._mess_finished,
+                self._local_failed,
+            )
+            return
+        # 关键字路径要先把窗口列表拉回来才能匹配句柄，直接用「学生信息」页
+        # 已经收集到的记录，缺的再现场发现。
+        cached = list(self.pages["students"].records)
         self.logs.info(
             "关闭窗口",
-            "发送关闭请求",
-            "目标：%s；设备数：%d；句柄：%d" % (target, len(hosts), window),
+            "按标题关闭窗口",
+            "目标：%s；设备数：%d；标题关键字：%s" % (target, len(hosts), value),
         )
-        cancel_event = Event()
         self._begin_task(
             "closewindow",
             TaskWorker(
-                close_remote_window,
+                close_remote_windows,
                 hosts,
-                window,
+                value,
                 channel=page.channel(),
                 teacher_name="1",
-                port=self.connection_state.values["port"],
+                port=port,
+                records=cached,
                 cancel_event=cancel_event,
             ),
             self._mess_finished,
@@ -1434,16 +1568,109 @@ class MainWindow(FluentWindow):
             self._local_failed,
         )
 
+    def preview_all_students(self):
+        """拉取列表里每台学生的缩略图，集中在一个窗口里看。"""
+        if self.thread is not None:
+            self.logs.warning("学生信息", "已有任务在运行，全员缩略图未开始")
+            return
+        page = self.pages["students"]
+        port = self.connection_state.values["port"]
+        records = [dict(record) for record in page.records]
+        hosts = [record.get("address") for record in records if record.get("address")]
+        self.logs.info(
+            "学生信息",
+            "开始拉取全员缩略图",
+            "已知学生：%d 台；频道：%d" % (len(hosts), page.channel_input.value()),
+        )
+        self._begin_task(
+            "students",
+            TaskWorker(
+                all_student_previews,
+                hosts,
+                PREVIEW_SECONDS,
+                page.channel_input.value(),
+                page.teacher_input.text().strip() or "1",
+                port,
+                records=records,
+                cancel_event=Event(),
+            ),
+            self._all_previews_finished,
+            self._local_failed,
+        )
+
+    @Slot(object)
+    def _all_previews_finished(self, result):
+        """把全员缩略图结果交给缩略图窗口。"""
+        page = self.pages["students"]
+        records = result.get("records") or []
+        received = result.get("received") or 0
+        if self._preview_window is None:
+            self._preview_window = PreviewGridWindow(self)
+        self._preview_window.set_records(records)
+        self._preview_window.show()
+        self._preview_window.raise_()
+        self._preview_window.activateWindow()
+        message = "已刷新 %d 台学生的缩略图，收到 %d 张" % (len(records), received)
+        page.footer.set_status(message)
+        self.logs.info("学生信息", message, "目标：%d 台" % len(records))
+        self._notify("全员缩略图", message, "成功")
+
     def kill_student_process(self):
-        """结束所选学生机上的所选进程。"""
+        """结束学生机上的进程：填进程名批量结束，或结束详情表选中的进程。"""
         if self.thread is not None:
             self.logs.warning("学生信息", "已有任务在运行，结束进程未开始")
             return
         page = self.pages["students"]
-        host = page.selected_address()
+        record = page.selected_record()
+        if record is None or page.detail_kind() != "processes":
+            self._notify("请选择进程", "先选一台学生机，并把详细信息切到“进程”", "警告")
+            return
+        host = record.get("address", "")
+        channel = page.channel_input.value()
+        teacher_name = page.teacher_input.text().strip() or "1"
+        port = self.connection_state.values["port"]
+        keyword = page.kill_target()
+        if keyword:
+            hits = core.match_entries(record.get("processes") or [], keyword)
+            if not hits:
+                self._validation_error(
+                    "students",
+                    "进程列表里没有匹配“%s”的进程，先刷新学生信息" % keyword,
+                    "进程名匹配失败",
+                )
+                return
+            listed = "\n".join(
+                "%d  %s" % (identifier, name) for identifier, name in hits[:8]
+            )
+            if not self._confirm(
+                "确认结束进程",
+                "目标：%s\n匹配 %d 个进程：\n%s\n是否全部结束？"
+                % (host, len(hits), listed),
+            ):
+                self.logs.info("学生信息", "用户取消了操作", "进程名：%s" % keyword)
+                return
+            self.logs.info(
+                "学生信息",
+                "按进程名结束进程",
+                "目标：%s；进程名：%s；命中：%d" % (host, keyword, len(hits)),
+            )
+            self._begin_task(
+                "students",
+                TaskWorker(
+                    kill_student_processes,
+                    [record],
+                    keyword,
+                    channel=channel,
+                    teacher_name=teacher_name,
+                    port=port,
+                ),
+                self._students_action_finished,
+                self._local_failed,
+            )
+            return
         process_id = page.selected_detail_id()
-        if not host or process_id is None or page.detail_kind() != "processes":
-            self._notify("请选择进程", "先选一台学生机，再在进程列表里选一行", "警告")
+        if process_id is None:
+            self._notify("请选择进程", "在进程列表里选一行，或在上方填写进程名", "警告")
             return
         if not self._confirm(
             "确认结束进程",
@@ -1459,8 +1686,8 @@ class MainWindow(FluentWindow):
                 terminate_process,
                 host,
                 process_id,
-                page.channel_input.value(),
-                self.connection_state.values["port"],
+                channel,
+                port,
             ),
             self._students_action_finished,
             self._local_failed,
@@ -1608,6 +1835,18 @@ class MainWindow(FluentWindow):
         self.logs.info("屏幕画面", message, "目标：%s" % address)
 
     @Slot(object)
+    def _power_finished(self, result):
+        page = self.pages["device"]
+        message = "已发送 %d 个字节给 %d 台设备" % (result["sent"], result["hosts"])
+        page.footer.set_status(message)
+        self.logs.info(
+            "设备操作",
+            message,
+            "耗时：%.3f 秒" % (time.monotonic() - self.active_started_at),
+        )
+        self._notify("设备操作", message, "成功")
+
+    @Slot(object)
     def _appcmd_finished(self, result):
         page = self.pages["appcmd"]
         message = "已发送 %d 个字节给 %d 台设备" % (result["sent"], result["hosts"])
@@ -1618,6 +1857,64 @@ class MainWindow(FluentWindow):
             "耗时：%.3f 秒" % (time.monotonic() - self.active_started_at),
         )
         self._notify("应用命令", message, "成功")
+        pending = self._pending_blackscreen
+        self._pending_blackscreen = None
+        if pending:
+            hosts, channel, timeout = pending
+            self._blackscreen_targets = hosts
+            self._blackscreen_channel = channel
+            self._blackscreen_timer.start(timeout * 1000)
+            self.logs.info(
+                "应用命令",
+                "已排定自动解除黑屏",
+                "目标：%d 台；%d 秒后" % (len(hosts), timeout),
+            )
+
+    def apply_launch_request(self, page_key, target=None, channel=None):
+        """按命令行给的页面与目标做一次定位，方便一键进到对应功能。"""
+        if page_key:
+            self.show_page(page_key)
+        page = self.pages.get(page_key) if page_key else None
+        if page is None:
+            return
+        if target:
+            widget = getattr(page, "host_input", None)
+            if widget is not None and hasattr(widget, "setText"):
+                widget.setText(target)
+            else:
+                self.connection_state.set_value("target", target)
+        if channel:
+            widget = getattr(page, "channel_input", None)
+            if widget is not None and hasattr(widget, "setValue"):
+                widget.setValue(int(channel))
+        if page_key == "control" and target:
+            self.start_remote_control()
+        self.logs.info(
+            "应用",
+            "按命令行请求打开页面",
+            "页面：%s；目标：%s；频道：%s"
+            % (page_key, target or "无", channel or "默认"),
+        )
+
+    @Slot()
+    def _auto_unlock_blackscreen(self):
+        """到点后主动解除本机排定的黑屏。"""
+        hosts = list(self._blackscreen_targets)
+        self._blackscreen_targets = []
+        if not hosts:
+            return
+        try:
+            sent = core.send_unlocks(hosts, channel=self._blackscreen_channel)
+        except OSError as error:
+            # 定时任务失败只记日志，不能再弹窗打断用户手上的操作。
+            self.logs.error("应用命令", "自动解除黑屏失败", "异常：%s" % error)
+            return
+        self.logs.info(
+            "应用命令",
+            "已自动解除黑屏",
+            "目标：%d 台；字节：%d" % (len(hosts), sent),
+        )
+        self._notify("自动解除黑屏", "已向 %d 台设备发送解除指令" % len(hosts), "成功")
 
     @Slot(object)
     def _students_finished(self, records):
@@ -2343,6 +2640,7 @@ class MainWindow(FluentWindow):
         self._navigation_closed = True
         self._navigation_refresh_timer.stop()
         self._task_dispatch_timer.stop()
+        self._blackscreen_timer.stop()
         super().closeEvent(event)
         if not event.isAccepted():
             return
@@ -2447,6 +2745,54 @@ def refresh_student(
     return [merged]
 
 
+def all_student_previews(
+    hosts,
+    seconds=PREVIEW_SECONDS,
+    channel=1,
+    teacher_name="1",
+    port=4705,
+    records=None,
+    report=None,
+    cancel_event=None,
+):
+    """后台线程入口：收集全员缩略图，返回带 ``preview`` 的记录。
+
+    手上没有学生地址时先发现一轮，避免用户还要手动点一次“发现学生”。
+    """
+    known = {record.get("address"): record for record in (records or [])}
+    targets = [host for host in hosts if host]
+    if not targets:
+        if report:
+            report("还没有学生地址，先发现一轮")
+        found = core.collect_students(
+            duration=STUDENT_SCAN_SECONDS,
+            channel=channel,
+            teacher_name=teacher_name,
+            port=port,
+            report=report,
+            cancel_event=cancel_event,
+        )
+        known.update({record.get("address"): record for record in found})
+        targets = [record.get("address") for record in found if record.get("address")]
+    if not targets:
+        raise ValueError("没有发现任何学生机，请确认与学生端在同一网段且频道一致")
+    collected = core.collect_previews(
+        targets,
+        duration=seconds,
+        channel=channel,
+        teacher_name=teacher_name,
+        port=port,
+        report=report,
+        cancel_event=cancel_event,
+    )
+    merged = []
+    for record in collected:
+        address = record.get("address")
+        merged.append({**known.get(address, {}), **record})
+    received = sum(1 for record in merged if record.get("preview"))
+    return {"records": merged, "received": received, "hosts": len(targets)}
+
+
 def collect_preview(
     host,
     seconds=PREVIEW_SECONDS,
@@ -2470,6 +2816,81 @@ def collect_preview(
         return {"address": host, "preview": None}
     record = records[0]
     return {"address": record.get("address", host), "preview": record.get("preview")}
+
+
+def close_remote_windows(
+    hosts,
+    keyword,
+    channel=1,
+    teacher_name="1",
+    port=4705,
+    records=None,
+    seconds=STUDENT_SCAN_SECONDS,
+    report=None,
+    cancel_event=None,
+):
+    """后台线程入口：按窗口标题关键字关闭窗口。
+
+    窗口列表来自学生信息上报，手上没有记录时先发现一轮再匹配，因此这一步
+    比按句柄关闭慢，进度里会说明正在等窗口列表。
+    """
+    known = {record.get("address"): record for record in (records or [])}
+    missing = [host for host in hosts if not (known.get(host) or {}).get("windows")]
+    if missing:
+        if report:
+            report("正在发现 %d 台学生并拉取窗口列表" % len(missing))
+        found = core.collect_students(
+            duration=seconds,
+            channel=channel,
+            teacher_name=teacher_name,
+            port=port,
+            report=report,
+            cancel_event=cancel_event,
+            peers=missing,
+        )
+        known.update({record.get("address"): record for record in found})
+    targets = [known[host] for host in hosts if host in known]
+    if not targets:
+        raise ValueError("没有发现任何学生机，请确认与学生端在同一网段且频道一致")
+    matched = core.close_windows(
+        targets,
+        keyword,
+        channel=channel,
+        teacher_name=teacher_name,
+        port=port,
+        report=report,
+        cancel_event=cancel_event,
+    )
+    return list(matched)
+
+
+def kill_student_processes(
+    records,
+    keyword,
+    channel=1,
+    teacher_name="1",
+    port=4705,
+    report=None,
+    cancel_event=None,
+):
+    """后台线程入口：按进程名结束学生机进程。"""
+    if report:
+        report("正在按进程名结束进程：%s" % keyword)
+    matched = core.kill_processes(
+        records,
+        keyword,
+        channel=channel,
+        teacher_name=teacher_name,
+        port=port,
+        report=report,
+        cancel_event=cancel_event,
+    )
+    count = sum(len(hits) for hits in matched.values())
+    return {
+        "sent": count,
+        "matched": matched,
+        "message": "已请求结束 %d 个进程" % count,
+    }
 
 
 def terminate_process(host, process_id, channel=1, port=4705, report=None):
@@ -2528,8 +2949,17 @@ def confirm_usage_notice(parent=None):
     return bool(dialog.exec())
 
 
-def main():
-    """启动图形界面，返回进程退出码。"""
+def main(page=None, target=None, channel=None):
+    """启动图形界面，返回进程退出码。
+
+    Args:
+        page: 启动后直接打开的页面标识，例如 ``control``。
+        target: 打开页面时预填的目标地址。
+        channel: 打开页面时预填的会话频道。
+
+    Returns:
+        int: 进程退出码。
+    """
     QApplication.setApplicationName(APP_NAME)
     QApplication.setOrganizationName("JiYuAttackNext")
     application = QApplication(sys.argv)
@@ -2556,6 +2986,8 @@ def main():
     window.show()
     if splash is not None:
         splash.start()
+    if page:
+        window.apply_launch_request(page, target, channel)
     window.logs.info(
         "应用",
         "主窗口已显示，进入事件循环",

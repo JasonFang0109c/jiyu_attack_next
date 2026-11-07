@@ -819,9 +819,12 @@ class GuiTests(unittest.TestCase):
 
     def test_student_refresh_and_process_workers_accept_their_arguments(self):
         page = self.window.pages["students"]
+        record = {"address": "10.1.1.8", "processes": [(4321, "notepad.exe")]}
         with (
+            patch.object(page, "selected_record", return_value=record),
             patch.object(page, "selected_address", return_value="10.1.1.8"),
             patch.object(page, "selected_detail_id", return_value=4321),
+            patch.object(page, "kill_target", return_value=""),
             patch.object(page, "detail_kind", return_value="processes"),
             patch.object(self.window, "_begin_task") as begin_task,
             patch.object(core, "fetch_students_info", return_value=[]) as fetch,
@@ -877,6 +880,58 @@ class GuiTests(unittest.TestCase):
         page.window_input.setText("0")
         with self.assertRaises(ValueError):
             page.window_handle()
+
+    def test_close_window_page_accepts_title_keywords(self):
+        page = self.window.pages["closewindow"]
+        page.window_input.setText("记事本")
+        self.assertEqual(page.window_target(), ("title", "记事本"))
+        page.window_input.setText("0x00120A3C")
+        self.assertEqual(page.window_target(), ("handle", 0x00120A3C))
+        page.window_input.setText("")
+        with self.assertRaises(ValueError):
+            page.window_target()
+
+    def test_device_power_uses_app_command(self):
+        page = self.window.pages["device"]
+        page.shutdown.setChecked(True)
+        page.delay_input.setValue(30)
+        page.force_input.setChecked(False)
+        page.text_input.setText("请保存作业")
+        self.assertEqual(
+            page.power(),
+            {"reboot": False, "delay": 30, "force": False, "text": "请保存作业"},
+        )
+        with (
+            patch.object(self.window, "start_power") as start_power,
+            patch.object(self.window, "_begin_task") as begin_task,
+        ):
+            self.window.start_send("device")
+        start_power.assert_called_once_with()
+        begin_task.assert_not_called()
+        page.logoff.setChecked(True)
+        self.assertFalse(page.delay_input.isEnabled())
+
+    def test_black_screen_timer_sends_unlock(self):
+        self.window._blackscreen_targets = ["10.1.1.8"]
+        self.window._blackscreen_channel = 3
+        with patch.object(core, "send_unlocks", return_value=13) as send:
+            self.window._auto_unlock_blackscreen()
+        self.assertEqual(send.call_args.args[0], ["10.1.1.8"])
+        self.assertEqual(send.call_args.kwargs["channel"], 3)
+        self.assertEqual(self.window._blackscreen_targets, [])
+
+    def test_student_preview_all_dispatches_worker(self):
+        page = self.window.pages["students"]
+        page.set_students([{"address": "10.1.1.8", "computer": "PC-01"}])
+        self.window.thread = None
+        with patch.object(self.window, "_begin_task") as begin_task:
+            page.previewAllRequested.emit()
+        worker = begin_task.call_args.args[1]
+        self.assertIsInstance(worker, gui.TaskWorker)
+        self.assertEqual(begin_task.call_args.args[0], "students")
+        with patch.object(core, "collect_previews", return_value={}) as collect:
+            worker.run()
+        collect.assert_called_once()
 
     def test_screen_view_maps_click_into_remote_coordinates(self):
         from PySide6.QtCore import QPoint

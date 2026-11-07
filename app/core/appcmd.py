@@ -304,6 +304,45 @@ def run_program_payload(path, arguments="", show=0, fallback=1):
     return app_payload(body)
 
 
+def normalize_url(text):
+    """补全省略的协议头，返回可以直接下发的目标。
+
+    只有看起来像域名或主机名的输入才补 ``http://``：已经带 ``://`` 的原样
+    返回，本地路径（``C:\\x``、``\\\\host\\share``、``/home/x``）也保持原样，
+    否则学生端的 ShellExecuteW 会把路径当成网址去打开。
+
+    Args:
+        text: 用户填写的网址或路径。
+
+    Returns:
+        str: 规范后的目标。
+
+    Raises:
+        ValueError: 输入为空。
+    """
+    value = str(text or "").strip()
+    if not value:
+        raise ValueError("请填写网址或路径")
+    if "://" in value or looks_like_path(value):
+        return value
+    return "http://" + value
+
+
+def looks_like_path(value):
+    """判断输入是本地路径而不是网址。
+
+    Args:
+        value: 用户填写的目标。
+
+    Returns:
+        bool: 是路径时为 True。
+    """
+    if value.startswith(("\\\\", "/", "./", ".\\")):
+        return True
+    # Windows 盘符路径：C:\dir\a.txt 与 C:/dir/a.txt
+    return len(value) > 2 and value[1] == ":" and value[2] in "\\/"
+
+
 def open_url_payload(url):
     """打开网址或学生机上的文件（cmdId 0x18）。"""
     body = (

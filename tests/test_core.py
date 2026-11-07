@@ -998,8 +998,10 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(args.e, "r")
         args = parser.parse_args(["-ip", "192.168.1.10", "-e", "l"])
         self.assertEqual(args.e, "l")
+        args = parser.parse_args(["-ip", "192.168.1.10", "-e", "nc"])
+        self.assertEqual(args.e, "nc")
         with self.assertRaises(SystemExit):
-            parser.parse_args(["-ip", "192.168.1.10", "-e", "nc"])
+            parser.parse_args(["-ip", "192.168.1.10", "-e", "unknown"])
 
 
 class ConfigFileTests(unittest.TestCase):

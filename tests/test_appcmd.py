@@ -313,6 +313,133 @@ class AppCommandCliTests(unittest.TestCase):
         self.assertEqual(self.parse("--students").students, 8)
 
 
+class PowerCommandTests(unittest.TestCase):
+    """关机重启改走应用命令后的负载、URL 归一化与命令行参数。"""
+
+    def parse(self, *arguments):
+        return cli.build_parser().parse_args(["-ip", "10.0.0.1", *arguments])
+
+    def test_power_payload_carries_command_delay_and_text(self):
+        payload = core.appcmd.power_payload(
+            reboot=True, delay=30, force=False, text="请保存作业"
+        )
+        self.assertEqual(struct.unpack("<I", payload[8:12])[0], core.appcmd.CMD_REBOOT)
+        self.assertEqual(struct.unpack("<I", payload[12:16])[0], 30)
+        self.assertIn("请保存作业".encode("utf-16-le"), payload)
+
+    def test_power_payload_force_flag(self):
+        payload = core.appcmd.power_payload(reboot=False, delay=0, force=True)
+        command = struct.unpack("<I", payload[8:12])[0]
+        self.assertEqual(command, core.appcmd.CMD_SHUTDOWN | core.appcmd.CMD_FORCE)
+
+    def test_cli_power_arguments_reach_run_app_operation(self):
+        arguments = self.parse(
+            "-e",
+            "r",
+            "--power-delay",
+            "45",
+            "--power-text",
+            "请保存",
+            "--power-no-force",
+        )
+        with patch.object(
+            cli, "run_app_operation", return_value={"hosts": 1, "sent": 8}
+        ) as run:
+            self.assertTrue(cli.run_power(arguments))
+        payload = run.call_args.args[1]
+        self.assertEqual(struct.unpack("<I", payload[8:12])[0], core.appcmd.CMD_REBOOT)
+        self.assertEqual(struct.unpack("<I", payload[12:16])[0], 45)
+        self.assertEqual(run.call_args.kwargs["channel"], "comd")
+
+    def test_normalize_url_keeps_paths_and_schemes(self):
+        self.assertEqual(core.appcmd.normalize_url("example.com"), "http://example.com")
+        self.assertEqual(
+            core.appcmd.normalize_url("https://example.com"), "https://example.com"
+        )
+        windows_path = "C:" + chr(92) + "Tools" + chr(92) + "a.exe"
+        self.assertEqual(core.appcmd.normalize_url(windows_path), windows_path)
+        unc_path = chr(92) * 2 + "server" + chr(92) + "share"
+        self.assertEqual(core.appcmd.normalize_url(unc_path), unc_path)
+        with self.assertRaises(ValueError):
+            core.appcmd.normalize_url("   ")
+
+    def test_url_action_keeps_local_paths(self):
+        _name, payload, channel, _lock = cli.build_action_payload(
+            self.parse("--url", "C:" + chr(92) + "Tools" + chr(92) + "a.exe")
+        )
+        self.assertEqual(channel, "comd")
+        self.assertNotIn("http://".encode("utf-16-le"), payload)
+
+    def test_shell_and_interactive_arguments_parse(self):
+        arguments = self.parse("--shell", "--shell-port", "0", "--shell-ip", "10.0.0.2")
+        self.assertTrue(arguments.shell)
+        self.assertEqual(arguments.shell_port, 0)
+        self.assertEqual(arguments.shell_ip, "10.0.0.2")
+        self.assertTrue(self.parse("--mouse").mouse)
+        self.assertTrue(self.parse("--control").control)
+
+    def test_kill_accepts_pid_or_name(self):
+        self.assertEqual(self.parse("--kill", "4321").kill, "4321")
+        self.assertEqual(self.parse("--kill", "chrome.exe").kill, "chrome.exe")
+        self.assertEqual(self.parse("--kill-window", "记事本").kill_window, "记事本")
+
+
+NAME_RECORD = {
+    "address": "10.1.1.8",
+    "processes": [(4321, "chrome.exe"), (4322, "chrome.exe"), (9, "notepad.exe")],
+    "windows": [(0x120A3C, "无标题 - 记事本"), (0x120A3D, "命令提示符")],
+}
+
+
+class NameMatchTests(unittest.TestCase):
+    """按进程名与窗口标题在本地已收集的列表里匹配。"""
+
+    def test_match_entries_prefers_exact_then_substring(self):
+        hits = core.match_entries(NAME_RECORD["processes"], "chrome.exe")
+        self.assertEqual(len(hits), 2)
+        self.assertEqual(
+            core.match_entries(NAME_RECORD["processes"], "CHROME"),
+            [(4321, "chrome.exe"), (4322, "chrome.exe")],
+        )
+        self.assertEqual(
+            core.match_entries(NAME_RECORD["processes"], "note"), [(9, "notepad.exe")]
+        )
+        self.assertEqual(core.match_entries(NAME_RECORD["processes"], "nope"), [])
+
+    def test_kill_processes_sends_one_payload_per_match(self):
+        with patch.object(
+            core.teacher,
+            "send_payloads_to_logged_students",
+            return_value=[("10.1.1.8", 2)],
+        ) as send:
+            matched = core.kill_processes([NAME_RECORD], "chrome.exe")
+        self.assertEqual(
+            matched, {"10.1.1.8": [(4321, "chrome.exe"), (4322, "chrome.exe")]}
+        )
+        payloads = send.call_args.args[0]("10.1.1.8")
+        self.assertEqual(len(payloads), 2)
+        self.assertEqual(struct.unpack("<I", payloads[0][12:16])[0], 4)
+
+    def test_kill_processes_reports_missing_match(self):
+        with self.assertRaises(ValueError):
+            core.kill_processes([NAME_RECORD], "nothing.exe")
+
+    def test_close_windows_matches_titles_without_killing(self):
+        with patch.object(
+            core.teacher,
+            "send_payloads_to_logged_students",
+            return_value=[("10.1.1.8", 1)],
+        ) as send:
+            matched = core.close_windows([NAME_RECORD], "记事本")
+        self.assertEqual(matched, {"10.1.1.8": [(0x120A3C, "无标题 - 记事本")]})
+        payloads = send.call_args.args[0]("10.1.1.8")
+        self.assertEqual(struct.unpack("<I", payloads[0][12:16])[0], 3)
+
+    def test_close_windows_reports_missing_match(self):
+        with self.assertRaises(ValueError):
+            core.close_windows([NAME_RECORD], "不存在的窗口")
+
+
 class ScreenProtocolTests(unittest.TestCase):
     """屏幕观看相关报文的逐字节测试。"""
 
