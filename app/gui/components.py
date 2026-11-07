@@ -12,7 +12,7 @@ from PySide6.QtCore import (
     Signal,
     Slot,
 )
-from PySide6.QtGui import QIntValidator, QRegularExpressionValidator, QScreen
+from PySide6.QtGui import QColor, QIntValidator, QRegularExpressionValidator, QScreen
 from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import (
     BodyLabel,
@@ -25,6 +25,8 @@ from qfluentwidgets import (
     LineEdit,
     PrimaryPushButton,
     PushButton,
+    ScrollBar,
+    ScrollBarHandleDisplayMode,
     SimpleCardWidget,
     SpinBox,
     SubtitleLabel,
@@ -34,6 +36,18 @@ from qfluentwidgets import (
 )
 
 from .. import core
+
+
+def soften_scroll_bars(widget):
+    """把区域内所有滚动条调细、调淡，并且不悬停时自动隐藏。
+
+    组件库的滚动条带一块比页面更深的凹槽底色，常驻显示很抢眼；这里把
+    凹槽底色清空、滑块调成半透明，并改用悬停才出现的显示模式。
+    """
+    for bar in widget.findChildren(ScrollBar):
+        bar.setHandleDisplayMode(ScrollBarHandleDisplayMode.ON_HOVER)
+        bar.setHandleColor(QColor(0, 0, 0, 60), QColor(255, 255, 255, 50))
+        bar.setGrooveColor(QColor(0, 0, 0, 0), QColor(255, 255, 255, 0))
 
 
 def tool_button(icon, text, parent, callback):

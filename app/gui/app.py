@@ -47,7 +47,7 @@ from qfluentwidgets import (
 
 from .. import core
 from .build_info import version_text
-from .components import center_dialog
+from .components import center_dialog, soften_scroll_bars
 from .models import (
     CLOSE_BEHAVIOR_QUIT,
     CLOSE_BEHAVIOR_SETTINGS_KEY,
@@ -436,6 +436,7 @@ class MainWindow(FluentWindow):
         ]
         self._build_navigation()
         self._connect_actions()
+        self._tune_scroll_bars()
         self.logs.info(
             "应用",
             "界面已就绪",
@@ -706,6 +707,14 @@ class MainWindow(FluentWindow):
         # 库在展开动画里会把分组压成单行，动画结束后按记住的状态重新摊开。
         panel.expandAni.finished.connect(self._navigation_animation_finished)
 
+    def _tune_scroll_bars(self):
+        """侧边栏滚动条永不显示，内容区滚动条调细、调淡且悬停才出现。"""
+        panel = self.navigationInterface.panel
+        panel.scrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        panel.scrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        for page in self.pages.values():
+            soften_scroll_bars(page)
+
     def expand_navigation(self):
         """直接展开侧边栏并按记住的状态摊开分组。
 
@@ -752,7 +761,9 @@ class MainWindow(FluentWindow):
             for child in node.treeChildren:
                 child.setVisible(expanded)
             node.vBoxLayout.activate()
-            node.setFixedSize(node.sizeHint())
+            # 只调高度，宽度交给布局：把宽度也钉死会让分组比侧边栏窄，
+            # 图标随之左移，展开几次之后越缩越靠左。
+            node.setFixedHeight(node.sizeHint().height())
 
     def _save_navigation_expanded(self):
         """把侧边栏是否展开写进设置，下次启动据此恢复。
