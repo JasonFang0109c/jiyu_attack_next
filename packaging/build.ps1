@@ -2,6 +2,8 @@
 param(
     [string]$Python = ".\.venv\Scripts\python.exe",
     [string]$Version = "",
+    # 提交哈希：测试版的版本号后要带它，正式版不带；留空时自动取当前提交。
+    [string]$Commit = "",
     # 默认同时产出正常版本与 debug 版本：两个 EXE 只差日志等级，源码同一份。
     [ValidateSet("both", "release", "debug")]
     [string]$Variant = "both",
@@ -51,6 +53,23 @@ try {
         throw "版本号不符合语义化版本格式（如 0.4.0 或 0.4.0-nightly.20261029）：$Version"
     }
 
+    # 测试版（带预发布后缀）在版本号后追加提交哈希，正式版保持纯版本号。
+    $isTestVersion = $Version.Contains("-")
+    if ($isTestVersion -and -not $Commit) {
+        $Commit = (& git rev-parse --short=7 HEAD 2>$null)
+        if ($LASTEXITCODE -ne 0 -or -not $Commit) {
+            throw "测试版需要在版本号后追加提交哈希，请在仓库内构建或使用 -Commit 指定。"
+        }
+        $Commit = $Commit.Trim()
+    }
+    if ($Commit -and $Commit -notmatch '^[0-9A-Za-z]+$') {
+        throw "提交哈希只能包含字母与数字：$Commit"
+    }
+    $displayVersion = $Version
+    if ($isTestVersion) {
+        $displayVersion = "$Version-$Commit"
+    }
+
     New-Item -ItemType Directory -Path (Join-Path $buildRoot "assets") -Force | Out-Null
     $iconScript = "from PySide6.QtGui import QGuiApplication, QIcon; from PySide6.QtCore import QSize; app = QGuiApplication([]); icon = QIcon('assets/app.svg'); ok = icon.pixmap(QSize(256, 256)).save('build/assets/app.ico', 'ICO'); raise SystemExit(0 if ok else 1)"
     & $pythonExe -X utf8 -c $iconScript
@@ -62,14 +81,14 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "构建时间写入失败，退出码：$LASTEXITCODE"
     }
-    $versionScript = "from app.gui.build_info import write_version; write_version('build/assets/version.txt', '$Version')"
+    $versionScript = "from app.gui.build_info import write_version; write_version('build/assets/version.txt', '$displayVersion')"
     & $pythonExe -X utf8 -c $versionScript
     if ($LASTEXITCODE -ne 0) {
         throw "版本号写入失败，退出码：$LASTEXITCODE"
     }
 
     # 生成 PyInstaller 的 Windows 版本资源，使 EXE 属性中显示版本号。
-    & $pythonExe -X utf8 (Join-Path $PSScriptRoot "gen_version_info.py") $Version (Join-Path $buildRoot "assets\version_info.txt")
+    & $pythonExe -X utf8 (Join-Path $PSScriptRoot "gen_version_info.py") $displayVersion (Join-Path $buildRoot "assets\version_info.txt")
     if ($LASTEXITCODE -ne 0) {
         throw "版本资源生成失败，退出码：$LASTEXITCODE"
     }
@@ -98,7 +117,7 @@ try {
         if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
             throw "未找到构建产物：$exePath"
         }
-        Write-Host ("构建完成：" + $exePath + "（版本 " + $Version + "，" + $target.Variant + "）") -ForegroundColor Green
+        Write-Host ("构建完成：" + $exePath + "（版本 " + $displayVersion + "，" + $target.Variant + "）") -ForegroundColor Green
     }
     Remove-Item Env:\JY_BUILD_VARIANT -ErrorAction SilentlyContinue
 

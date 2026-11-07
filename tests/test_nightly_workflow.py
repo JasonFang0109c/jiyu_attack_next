@@ -62,6 +62,26 @@ class NightlyWorkflowTests(unittest.TestCase):
         self.assertIn('$env:INPUT_CHANNEL -eq "nightly"', self.build)
         self.assertIn("version=$version", self.build)
 
+    def test_shared_build_appends_commit_hash_to_test_versions(self):
+        # 测试版在版本号后追加提交哈希，正式版保持纯版本号；
+        # 发布说明用带日期的版本号，产物与界面用带哈希的显示版本。
+        self.assertIn("$commit = $env:GITHUB_SHA.Substring(0, 7)", self.build)
+        self.assertIn('$display = "$version-$commit"', self.build)
+        self.assertIn("commit=$commit", self.build)
+        self.assertIn("display=$display", self.build)
+        self.assertIn("value: ${{ jobs.build.outputs.display }}", self.build)
+        self.assertIn('-Commit "${{ steps.version.outputs.commit }}"', self.build)
+        self.assertIn("VERSION: ${{ steps.version.outputs.display }}", self.build)
+
+    def test_workflow_notes_keep_date_version_without_commit_hash(self):
+        # 发布说明只写带日期的版本号，标题里也不出现提交哈希。
+        self.assertIn('version="${{ needs.build.outputs.version }}"', self.workflow)
+        self.assertIn('display="${{ needs.build.outputs.display }}"', self.workflow)
+        self.assertIn("- \\`JiYuAttackNext-${display}.exe\\`", self.workflow)
+        self.assertIn(
+            "name: Nightly Build ${{ needs.build.outputs.version }}", self.workflow
+        )
+
     def test_workflow_notes_list_version_build_time_commit_and_run(self):
         # 顺序固定为版本号、构建时间、提交、工作流运行，便于开工单时逐项抄录。
         order = [
@@ -116,11 +136,13 @@ class NightlyWorkflowTests(unittest.TestCase):
         self.assertIn("JiYuAttackNext.exe", self.workflow)
         self.assertIn("JiYuAttackNext_Debug.exe", self.workflow)
         # 运行版与调试版都同时提供固定名与带版本号的副本，下载链接才稳定。
+        # 测试版的副本名带提交哈希，与 EXE 里显示的版本一致。
         self.assertIn(
-            "dist/JiYuAttackNext-${{ needs.build.outputs.version }}.exe", self.workflow
+            "dist/JiYuAttackNext-${{ needs.build.outputs.display }}.exe",
+            self.workflow,
         )
         self.assertIn(
-            "dist/JiYuAttackNext_Debug-${{ needs.build.outputs.version }}.exe",
+            "dist/JiYuAttackNext_Debug-${{ needs.build.outputs.display }}.exe",
             self.workflow,
         )
         self.assertIn("EXE:", self.workflow)

@@ -13,6 +13,7 @@ from . import (
     shell,
     teacher,
     transport,
+    version,
 )
 from .appcmd import (
     parse_message,
@@ -109,6 +110,7 @@ from .transport import (
     transfer_file,
     validate_file_transfer,
 )
+from .version import display_version, runtime_version, write_version
 from .video import H264Decoder
 
 __all__ = [
@@ -151,6 +153,7 @@ __all__ = [
     "constants",
     "count_targets",
     "detect_local_ip",
+    "display_version",
     "execute_send",
     "execute_send_report",
     "fetch_students_info",
@@ -182,6 +185,7 @@ __all__ = [
     "run_app_operation",
     "run_firewall_helper",
     "run_windows_command",
+    "runtime_version",
     "screen",
     "send",
     "send_app_command",
@@ -208,5 +212,7 @@ __all__ = [
     "validate_file_transfer",
     "validate_listen_ip",
     "validate_options",
+    "version",
     "view_screen",
+    "write_version",
 ]

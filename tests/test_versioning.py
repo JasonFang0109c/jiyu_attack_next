@@ -45,6 +45,31 @@ class VersionTests(unittest.TestCase):
         with patch.object(sys, "_MEIPASS", str(target.parent), create=True):
             self.assertEqual(build_info.version_text(), "9.9.9")
 
+    def test_display_version_appends_commit_once(self):
+        # 测试版在版本号后拼 7 位提交哈希，重复调用不会叠加。
+        self.assertEqual(
+            core.display_version("0.1.0-nightly.20261029", "1a8ede3"),
+            "0.1.0-nightly.20261029-1a8ede3",
+        )
+        self.assertEqual(
+            core.display_version("0.1.0-nightly.20261029-1a8ede3", "1a8ede3"),
+            "0.1.0-nightly.20261029-1a8ede3",
+        )
+        self.assertEqual(core.display_version("0.1.0", ""), "0.1.0")
+
+    def test_runtime_version_uses_bundled_display_version(self):
+        # 打包后界面与命令行都读同一份 version.txt，因此都会带上提交哈希。
+        target = (
+            Path("build") / "test-versioning" / "display" / build_info.VERSION_FILE_NAME
+        )
+        core.write_version(target, "0.1.0-nightly.20261029-1a8ede3")
+        self.addCleanup(lambda: target.unlink(missing_ok=True))
+        with patch.object(sys, "_MEIPASS", str(target.parent), create=True):
+            self.assertEqual(core.runtime_version(), "0.1.0-nightly.20261029-1a8ede3")
+            self.assertEqual(
+                build_info.version_text(), "0.1.0-nightly.20261029-1a8ede3"
+            )
+
     def test_build_does_not_force_admin_on_startup(self):
         project_root = Path(__file__).resolve().parents[1]
         spec = (project_root / "packaging" / "JiYuAttackNext.spec").read_text(

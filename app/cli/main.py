@@ -13,7 +13,6 @@ from ..core import (
     LOGOFF_COMMAND,
     H264Decoder,
     ShellServer,
-    __version__,
     appcmd,
     cli_log,
     close_window,
@@ -33,6 +32,7 @@ from ..core import (
     request_firewall_rule,
     run_app_operation,
     run_firewall_helper,
+    runtime_version,
     send_chat,
     send_command,
     send_tracked,
@@ -55,7 +55,7 @@ def build_parser():
         "-V",
         "--version",
         action="version",
-        version=__version__,
+        version=runtime_version(),
         help="显示版本号并退出",
     )
     parser.add_argument("-ip", type=str, help="ip 指定目标IP地址")

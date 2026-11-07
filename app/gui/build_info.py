@@ -1,47 +1,23 @@
 """打包构建时间与版本信息。"""
 
-import sys
 from datetime import datetime
 from pathlib import Path
 
+from ..core import version as core_version
+
 BUILD_TIME_FILE_NAME = "build_time.txt"
-VERSION_FILE_NAME = "version.txt"
+VERSION_FILE_NAME = core_version.VERSION_FILE_NAME
 UNKNOWN_BUILD_TIME = "源码运行"
-
-
-def _bundle_file(name):
-    """返回打包资源路径；源码运行时返回 None。"""
-    bundle_root = getattr(sys, "_MEIPASS", None)
-    if not bundle_root:
-        return None
-    return Path(bundle_root) / name
-
-
-def _read_bundle_text(name):
-    """读取打包资源中的单行文本；缺失或为空时返回 None。"""
-    path = _bundle_file(name)
-    if path is None:
-        return None
-    try:
-        value = path.read_text(encoding="utf-8").strip()
-    except OSError:
-        return None
-    return value or None
 
 
 def build_time_text():
     """读取打包时间；无法读取时返回源码运行提示。"""
-    return _read_bundle_text(BUILD_TIME_FILE_NAME) or UNKNOWN_BUILD_TIME
+    return core_version.bundled_text(BUILD_TIME_FILE_NAME) or UNKNOWN_BUILD_TIME
 
 
 def version_text():
     """读取版本号；打包时优先取构建写入的版本，源码运行时取包版本。"""
-    bundled = _read_bundle_text(VERSION_FILE_NAME)
-    if bundled:
-        return bundled
-    from .. import __version__
-
-    return __version__
+    return core_version.runtime_version()
 
 
 def write_build_time(path, moment=None):
@@ -55,7 +31,4 @@ def write_build_time(path, moment=None):
 
 def write_version(path, version):
     """写入版本号，供打包脚本生成数据文件。"""
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(str(version).strip(), encoding="utf-8")
-    return target
+    return core_version.write_version(path, version)

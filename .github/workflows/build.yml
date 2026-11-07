@@ -16,8 +16,11 @@ on:
         default: ""
     outputs:
       version:
-        description: 本次打包使用的版本号
+        description: 本次打包使用的版本号，不含提交哈希
         value: ${{ jobs.build.outputs.version }}
+      display:
+        description: 产物与界面显示的版本号，测试版带提交哈希
+        value: ${{ jobs.build.outputs.display }}
 
 permissions:
   contents: read
@@ -31,6 +34,7 @@ jobs:
       QT_QPA_PLATFORM: offscreen
     outputs:
       version: ${{ steps.version.outputs.version }}
+      display: ${{ steps.version.outputs.display }}
 
     steps:
       - name: Checkout repository
@@ -64,8 +68,18 @@ jobs:
             $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMdd')
             $version = "$version-nightly.$stamp"
           }
+          # 测试版在版本号后追加提交哈希：产物文件名、EXE 版本资源与界面都带它，
+          # 发布说明只写带日期的版本号，免得每次推送都像换了一个版本。
+          $display = $version
+          $commit = ""
+          if ($env:INPUT_CHANNEL -eq "nightly") {
+            $commit = $env:GITHUB_SHA.Substring(0, 7)
+            $display = "$version-$commit"
+          }
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          Write-Host "打包版本：$version"
+          "commit=$commit" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "display=$display" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "打包版本：$display"
 
       - name: Run offline checks
         shell: pwsh
@@ -78,12 +92,13 @@ jobs:
         run: |
           # 一次构建同时产出正常版本与 _Debug 版本，两者只差日志等级。
           powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Clean `
-            -Variant both -Version "${{ steps.version.outputs.version }}"
+            -Variant both -Version "${{ steps.version.outputs.version }}" `
+            -Commit "${{ steps.version.outputs.commit }}"
 
       - name: Prepare release assets
         shell: pwsh
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ steps.version.outputs.display }}
         run: |
           $names = @("JiYuAttackNext", "JiYuAttackNext_Debug")
           New-Item -ItemType Directory -Path "dist" -Force | Out-Null
