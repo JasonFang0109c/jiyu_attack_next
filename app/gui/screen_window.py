@@ -5,11 +5,10 @@
 负责把鼠标键盘事件翻译成报文。
 """
 
-import time
 from contextlib import suppress
 from threading import Event, Thread
 
-from PySide6.QtCore import QRect, Qt, Signal
+from PySide6.QtCore import QObject, QRect, Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 from qfluentwidgets import BodyLabel, CaptionLabel, PushButton, TitleLabel
@@ -122,6 +121,75 @@ class ScreenView(QLabel):
         super().keyReleaseEvent(event)
 
 
+class _ScreenSignals(QObject):
+    ready = Signal(object, object)
+    record = Signal(object, object)
+    frame = Signal(object, int, int, object)
+    log = Signal(object, str)
+    finished = Signal(object, str)
+
+
+class _ScreenConnection(Thread):
+    """在同一后台线程内建立并清理会话，避免关闭与连接同时操作套接字。"""
+
+    def __init__(self, host, channel, signals):
+        super().__init__(name="screen-%s" % host, daemon=True)
+        self.host = host
+        self.channel = channel
+        self.signals = signals
+        self.cancelled = Event()
+        self.session = None
+
+    def _emit(self, signal, *args):
+        if not self.cancelled.is_set():
+            with suppress(RuntimeError):
+                signal.emit(self, *args)
+
+    def run(self):
+        requested = False
+        error_message = ""
+        try:
+            if self.cancelled.is_set():
+                return
+            requested = True
+            start_screen(
+                self.host,
+                self.channel,
+                report=lambda message: self._emit(self.signals.log, message),
+            )
+            if self.cancelled.wait(0.2):
+                return
+            self.session = ScreenSession(
+                self.host,
+                appcmd.TCP_COMM_PORT,
+                appcmd.DESKTOP_CHANNEL,
+                on_record=lambda record: self._emit(self.signals.record, record),
+                on_log=lambda message: self._emit(self.signals.log, message),
+                on_frame=lambda width, height, pixels: self._emit(
+                    self.signals.frame, width, height, bytes(pixels)
+                ),
+            )
+            self.session.open()
+            self._emit(self.signals.ready, self.session)
+            # 等待取消只负责安排清理，不循环占用线程，也不在 GUI 中等待网络。
+            self.cancelled.wait()
+        except (OSError, RuntimeError) as error:
+            error_message = "连接失败：%s" % error
+        finally:
+            control = getattr(self, "control", None)
+            if control is not None:
+                with suppress(OSError):
+                    control.close()
+            if self.session is not None:
+                with suppress(OSError, RuntimeError):
+                    self.session.close()
+            if requested:
+                with suppress(OSError):
+                    stop_screen(self.host, self.channel)
+            with suppress(RuntimeError):
+                self.signals.finished.emit(self, error_message)
+
+
 class ScreenWindow(QWidget):
     """独立窗口，持续显示一台学生的屏幕。
 
@@ -134,20 +202,32 @@ class ScreenWindow(QWidget):
     """
 
     statusChanged = Signal(str)
+    shutdownFinished = Signal()
 
     def __init__(self, host, port=4705, channel=1, parent=None):
-        super().__init__(parent)
+        super().__init__(parent, Qt.WindowType.Window)
         self.host = host
         self.port = port
         self.channel = channel
         self.session = None
         self.control = None
-        self._last_image = None
         self._frames = 0
-        # 位图缓冲区要一直被引用，QImage 不会复制传入的内存。
-        self._buffer = None
-        self._stop = Event()
-        self._pump = Thread(target=self._pump_loop, daemon=True)
+        self._closed = False
+        self._connected = False
+        self._has_frame = False
+        self._control_requested = False
+        self._connection = None
+        self._pending_finish = None
+        self._finish_timer = QTimer(self)
+        self._finish_timer.setInterval(10)
+        self._finish_timer.timeout.connect(self._finalize_connection)
+        self._signals = _ScreenSignals(self)
+        queued = Qt.ConnectionType.QueuedConnection
+        self._signals.ready.connect(self._connection_ready, queued)
+        self._signals.record.connect(self._on_record, queued)
+        self._signals.frame.connect(self._render_frame, queued)
+        self._signals.log.connect(self._connection_log, queued)
+        self._signals.finished.connect(self._connection_finished, queued)
 
         self.setWindowTitle("观看 %s" % host)
         self.resize(960, 620)
@@ -184,39 +264,110 @@ class ScreenWindow(QWidget):
         self.statusChanged.connect(self.status.setText)
 
     def showEvent(self, event):
-        """窗口首次显示时建立连接，避免构造期间就开线程。"""
+        """窗口显示时建立连接，关闭后再次显示会重新连接。"""
         super().showEvent(event)
-        if self.session is None:
-            self.start()
+        self._closed = False
+        self.start()
 
     def start(self):
-        """请求学生端推送画面并打开 TCP 会话。"""
-        try:
-            start_screen(self.host, self.channel, report=self.statusChanged.emit)
-            time.sleep(0.2)
-            self.session = ScreenSession(
-                self.host,
-                appcmd.TCP_COMM_PORT,
-                appcmd.DESKTOP_CHANNEL,
-                on_record=self._on_record,
-                on_log=self.statusChanged.emit,
-                on_frame=self.show_frame,
-            )
-            self.session.open()
-        except OSError as error:
-            self.statusChanged.emit("连接失败：%s" % error)
+        """在后台请求画面并连接，连接失败后可再次调用重试。"""
+        if self._closed or self._connection is not None:
             return
-        self._stop.clear()
-        self._pump.start()
-        self.statusChanged.emit("已连接，等待画面…")
+        self._connected = False
+        self._has_frame = False
+        self._frames = 0
+        self.view.clear()
+        self.view.setText("等待第一帧…")
+        self.control_button.setEnabled(False)
+        self.statusChanged.emit("正在连接…")
+        connection = _ScreenConnection(self.host, self.channel, self._signals)
+        self._connection = connection
+        self.destroyed.connect(connection.cancelled.set)
+        connection.start()
+
+    def _active(self, connection):
+        return (
+            connection is self._connection
+            and not self._closed
+            and not connection.cancelled.is_set()
+        )
+
+    @Slot(object, object)
+    def _connection_ready(self, connection, session):
+        if not self._active(connection):
+            return
+        self.session = session
+        self._connected = True
+        if not self._has_frame:
+            self.statusChanged.emit("已连接，等待画面…")
+        self._apply_control_request()
+
+    @Slot(object, str)
+    def _connection_log(self, connection, message):
+        if self._active(connection):
+            self.statusChanged.emit(message)
+
+    @Slot(object, str)
+    def _connection_finished(self, connection, error_message):
+        if connection is not self._connection:
+            return
+        self._pending_finish = (connection, error_message)
+        self._finalize_connection()
+
+    @Slot()
+    def _finalize_connection(self):
+        if self._pending_finish is None:
+            return
+        connection, error_message = self._pending_finish
+        # queued 通知到达时，工作线程可能仍在 finished.emit 内部；
+        # 等线程退出后再允许重连或删除窗口，保留信号对象的完整生命周期。
+        if connection.is_alive():
+            self._finish_timer.start()
+            return
+        self._finish_timer.stop()
+        self._pending_finish = None
+        self._connection = None
+        with suppress(RuntimeError):
+            self.destroyed.disconnect(connection.cancelled.set)
+        self.session = None
+        self._connected = False
+        self.control_button.setEnabled(False)
+        if self._closed:
+            self.shutdownFinished.emit()
+            return
+        if connection.cancelled.is_set():
+            self.start()
+        elif error_message:
+            self._control_requested = False
+            self.statusChanged.emit(error_message)
+
+    def request_control(self):
+        """记住接管请求，等本轮连接与首帧就绪后执行；关窗会取消请求。"""
+        if self._closed or self.control is not None:
+            return
+        self._control_requested = True
+        self._apply_control_request()
+
+    def _apply_control_request(self):
+        ready = self._connected and self._has_frame and not self._closed
+        self.control_button.setEnabled(ready)
+        if ready and self._control_requested:
+            self._control_requested = False
+            self.take_control()
 
     def take_control(self):
         """请求接管学生端键鼠，再次点击则解除。"""
+        if self._closed:
+            return
         if self.control is not None:
-            self.control.close()
+            with suppress(OSError):
+                self.control.close()
             self.control = None
             self.control_button.setText("接管键鼠")
             self.statusChanged.emit("已解除接管")
+            return
+        if not (self._connected and self._has_frame):
+            self.request_control()
             return
         try:
             self.control = remote_control(
@@ -252,35 +403,38 @@ class ScreenWindow(QWidget):
                 extended=extended,
             )
 
-    def _on_record(self, record):
-        """收到一条桌面记录：JPEG 直接显示，H.264 等解码回调。"""
+    @Slot(object, object)
+    def _on_record(self, connection, record):
+        """在 GUI 线程处理记录，忽略已经关闭的连接。"""
+        if not self._active(connection):
+            return
         self._frames += 1
         kind = record.get("kind")
         if kind == "jpeg" and record.get("payload"):
-            self._last_image = record["payload"]
-            self._show_image()
-            return
-        if kind == "h264":
+            pixmap = QPixmap()
+            if pixmap.loadFromData(record["payload"]):
+                self._present_pixmap(pixmap)
+            else:
+                self.statusChanged.emit("JPEG 帧无法解析")
+        elif kind == "h264":
             self.statusChanged.emit("已收到第 %d 条记录（H.264）" % self._frames)
 
-    def show_frame(self, width, height, pixels):
-        """把解码得到的 RGB 位图画到画面上。"""
-        self._buffer = pixels
-        image = QImage(pixels, width, height, width * 3, QImage.Format.Format_RGB888)
-        self.view.setPixmap(
-            QPixmap.fromImage(image).scaled(
-                self.view.size(),
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-        )
-        self.statusChanged.emit("已收到 %d 条记录" % self._frames)
+    @Slot(object, int, int, object)
+    def _render_frame(self, connection, width, height, pixels):
+        if self._active(connection):
+            self.show_frame(width, height, pixels)
 
-    def _show_image(self):
-        """把最近一帧 JPEG 画到标签上。"""
-        pixmap = QPixmap()
-        if not pixmap.loadFromData(self._last_image):
-            self.statusChanged.emit("JPEG 帧无法解析")
+    def show_frame(self, width, height, pixels):
+        """在 GUI 线程把解码得到的 RGB 位图画到画面上。"""
+        if self._closed or width <= 0 or height <= 0:
+            return
+        if len(pixels) < width * height * 3:
+            return
+        image = QImage(pixels, width, height, width * 3, QImage.Format.Format_RGB888)
+        self._present_pixmap(QPixmap.fromImage(image))
+
+    def _present_pixmap(self, pixmap):
+        if pixmap.isNull():
             return
         self.view.setPixmap(
             pixmap.scaled(
@@ -289,22 +443,41 @@ class ScreenWindow(QWidget):
                 Qt.TransformationMode.SmoothTransformation,
             )
         )
+        self._has_frame = True
         self.statusChanged.emit("已收到 %d 条记录" % self._frames)
+        self._apply_control_request()
 
-    def _pump_loop(self):
-        """后台保持会话存活，直到窗口关闭。"""
-        while not self._stop.is_set():
-            time.sleep(0.2)
+    @property
+    def is_shutdown_complete(self):
+        """返回后台连接是否已经释放全部会话资源。"""
+        return self._connection is None
+
+    @property
+    def shutdown_complete(self):
+        """返回后台连接是否已经释放全部会话资源。"""
+        return self.is_shutdown_complete
 
     def closeEvent(self, event):
-        """关窗时断开连接并通知学生端停止推送。"""
-        self._stop.set()
-        if self.control is not None:
-            self.control.close()
+        """立即取消当前显示，后台完成清理后发出 shutdownFinished。"""
+        if self._closed:
+            super().closeEvent(event)
+            return
+        self._closed = True
+        self._connected = False
+        self._has_frame = False
+        self._control_requested = False
+        self.control_button.setEnabled(False)
+        self.control_button.setText("接管键鼠")
+        connection = self._connection
+        if connection is not None:
+            connection.control = self.control
             self.control = None
-        if self.session is not None:
-            self.session.close()
             self.session = None
-        with suppress(OSError):
-            stop_screen(self.host, self.channel)
+            connection.cancelled.set()
+        else:
+            if self.control is not None:
+                with suppress(OSError):
+                    self.control.close()
+                self.control = None
+            self.shutdownFinished.emit()
         super().closeEvent(event)

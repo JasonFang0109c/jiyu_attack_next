@@ -2,7 +2,7 @@
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit
+from PySide6.QtWidgets import QHBoxLayout, QLineEdit
 from qfluentwidgets import BodyLabel, PushButton
 from qfluentwidgets import FluentIcon as FIF
 
@@ -74,7 +74,7 @@ class ScreenPage(Page):
         self.footer = StatusFooter(self.set_status)
 
         # 缩略图整张交给 Qt 缩放，控件本身不缩放像素，避免失真。
-        self.preview_label = QLabel("填好学生地址后点“刷新缩略图”拉取一次画面", card)
+        self.preview_label = BodyLabel("填好学生地址后点“刷新缩略图”拉取一次画面", card)
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setMinimumHeight(240)
         self.preview_label.setScaledContents(False)

@@ -56,6 +56,8 @@ def _keep_thin(bar):
 
 def _fade_scroll_bar(bar):
     """让滚动条只在滚动时短暂出现，且始终是一条很细的淡色滑块。"""
+    if getattr(bar, "_transient_scroll_timer", None) is not None:
+        return
     bar.setGrooveColor(QColor(0, 0, 0, 0), QColor(255, 255, 255, 0))
     bar.setHandleColor(QColor(0, 0, 0, 70), QColor(255, 255, 255, 60))
     bar.setHandleDisplayMode(ScrollBarHandleDisplayMode.ALWAYS)
@@ -63,6 +65,7 @@ def _fade_scroll_bar(bar):
     bar.handle.setOpacity(0)
 
     timer = QTimer(bar)
+    bar._transient_scroll_timer = timer
     timer.setSingleShot(True)
     timer.setInterval(SCROLL_BAR_FADE_MS)
     timer.timeout.connect(lambda: bar.handle.setOpacity(0))
@@ -284,9 +287,8 @@ class Ipv4TargetInput(QWidget):
         for edit, part in zip(self.segments, parts, strict=True):
             if edit.text() == part:
                 continue
-            edit.blockSignals(True)
-            edit.setText(part)
-            edit.blockSignals(False)
+            with QSignalBlocker(edit):
+                edit.setText(part)
             changed = True
         if changed:
             self.textChanged.emit(self.text())
@@ -556,8 +558,7 @@ class StatusFooter:
         self._setter(text)
 
     def finish_status(self):
-        """任务结束时清空状态文字。"""
-        self._setter("")
+        """保留任务结果，供用户在后台任务结束后查看。"""
 
     def set_busy(self, busy):
         """状态行没有按钮，忙碌与否都不需要改动。"""

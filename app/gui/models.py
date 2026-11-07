@@ -13,7 +13,7 @@ from enum import StrEnum
 from pathlib import Path
 from types import MappingProxyType
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, QThread, Signal, Slot
 
 from .. import core
 
@@ -580,11 +580,16 @@ class LogStore(QObject):
     removed = Signal(object)
     cleared = Signal()
     levelChanged = Signal(str)
+    _notificationReady = Signal()
 
     def __init__(self, parent=None, limit=2000, log_path=None, minimum_level=None):
         super().__init__(parent)
         self._log_path = None
         self._file_handle = None
+        self._lock = threading.RLock()
+        self._pending_notifications = deque()
+        self._draining_notifications = False
+        self._notificationReady.connect(self._drain_notifications)
         self.log_path = log_path
         self.storage_error = ""
         self.entries = deque(maxlen=limit)
@@ -602,21 +607,25 @@ class LogStore(QObject):
     @property
     def minimum_level(self):
         """返回当前写入阈值。"""
-        return self._minimum_level
+        with self._lock:
+            return self._minimum_level
 
     @property
     def log_path(self):
         """日志文件路径；改为 ``None`` 时关闭已打开的文件。"""
-        return self._log_path
+        with self._lock:
+            return self._log_path
 
     @log_path.setter
     def log_path(self, value):
-        self._close_file()
-        self._log_path = Path(value) if value is not None else None
+        with self._lock:
+            self._close_file()
+            self._log_path = Path(value) if value is not None else None
 
     def close(self):
         """释放日志文件句柄；每行都已刷盘，关闭只影响句柄占用。"""
-        self._close_file()
+        with self._lock:
+            self._close_file()
 
     def _close_file(self):
         """关闭持久写入句柄；下次写日志时按需重新打开。"""
@@ -708,43 +717,73 @@ class LogStore(QObject):
         句柄跨条复用并在每条之后刷盘：重新打开文件比写一行本身贵两个数量级，
         逐条刷盘仍能保证进程异常退出时已写入的记录不会丢。
         """
-        if self.log_path is None:
-            return
-        try:
-            handle = self._file_handle
-            if handle is None:
-                self.log_path.parent.mkdir(parents=True, exist_ok=True)
-                handle = self.log_path.open("a", encoding="utf-8", newline="\n")
-                self._file_handle = handle
-            handle.write(entry.as_text() + "\n")
-            handle.flush()
-        except OSError as error:
-            self.storage_error = "运行日志保存失败：%s" % error
-            self._close_file()
+        with self._lock:
+            if self._log_path is None:
+                return
+            try:
+                handle = self._file_handle
+                if handle is None:
+                    self._log_path.parent.mkdir(parents=True, exist_ok=True)
+                    handle = self._log_path.open("a", encoding="utf-8", newline="\n")
+                    self._file_handle = handle
+                handle.write(entry.as_text() + "\n")
+                handle.flush()
+            except OSError as error:
+                self.storage_error = "运行日志保存失败：%s" % error
+                self._close_file()
 
     def _rewrite_file(self):
         """用当前记录整体覆盖日志文件；先写临时文件再替换，避免写坏原文件。"""
-        if self.log_path is None:
-            return
-        # Windows 上被打开的文件无法整体替换，重写前先释放句柄。
-        self._close_file()
-        temp_path = Path(str(self.log_path) + ".tmp")
-        try:
-            self.log_path.parent.mkdir(parents=True, exist_ok=True)
-            text = "\n".join(entry.as_text() for entry in self.entries)
-            content = text + ("\n" if text else "")
-            temp_path.write_text(content, encoding="utf-8")
+        with self._lock:
+            if self._log_path is None:
+                return
+            # Windows 上被打开的文件无法整体替换，重写前先释放句柄。
+            self._close_file()
+            temp_path = Path(str(self._log_path) + ".tmp")
             try:
-                temp_path.replace(self.log_path)
-            except OSError:
-                # 别的实例可能仍持有该文件的追加句柄，整体替换会失败；
-                # 退回原地覆盖，追加句柄之后的写入依旧落在文件末尾。
-                self.log_path.write_text(content, encoding="utf-8")
-                temp_path.unlink(missing_ok=True)
-        except OSError as error:
-            self.storage_error = "运行日志更新失败：%s" % error
-            with suppress(OSError):
-                temp_path.unlink(missing_ok=True)
+                self._log_path.parent.mkdir(parents=True, exist_ok=True)
+                text = "\n".join(entry.as_text() for entry in self.entries)
+                content = text + ("\n" if text else "")
+                temp_path.write_text(content, encoding="utf-8")
+                try:
+                    temp_path.replace(self._log_path)
+                except OSError:
+                    # 别的实例可能仍持有该文件的追加句柄，整体替换会失败；
+                    # 退回原地覆盖，追加句柄之后的写入依旧落在文件末尾。
+                    self._log_path.write_text(content, encoding="utf-8")
+                    temp_path.unlink(missing_ok=True)
+            except OSError as error:
+                self.storage_error = "运行日志更新失败：%s" % error
+                with suppress(OSError):
+                    temp_path.unlink(missing_ok=True)
+
+    def _notify_changes(self):
+        """请求在对象所属线程排空通知；调用方已在锁内登记变更。"""
+        if QThread.currentThread() == self.thread():
+            self._drain_notifications()
+        else:
+            self._notificationReady.emit()
+
+    @Slot()
+    def _drain_notifications(self):
+        """在对象所属线程排空待发送的日志变更。"""
+        if self._draining_notifications:
+            return
+        self._draining_notifications = True
+        try:
+            while True:
+                with self._lock:
+                    if not self._pending_notifications:
+                        return
+                    kind, payload = self._pending_notifications.popleft()
+                if kind == "added":
+                    self.added.emit(payload)
+                elif kind == "removed":
+                    self.removed.emit(payload)
+                else:
+                    self.cleared.emit()
+        finally:
+            self._draining_notifications = False
 
     def _emit(
         self,
@@ -757,27 +796,29 @@ class LogStore(QObject):
         skip=3,
     ):
         normalized = normalize_log_level(level)
-        if normalized.rank < self._minimum_level.rank:
-            return None
         if logger_name is None:
             logger_name, captured_line = self._caller_location(skip)
             line_number = captured_line
-        entry = LogEntry(
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
-            str(category),
-            normalized,
-            str(message),
-            threading.get_ident(),
-            threading.current_thread().name,
-            str(logger_name or "app.gui"),
-            int(line_number or 0),
-            str(details or ""),
-            self._next_uid,
-        )
-        self._next_uid += 1
-        self.entries.append(entry)
-        self._append_to_file(entry)
-        self.added.emit(entry)
+        with self._lock:
+            if normalized.rank < self._minimum_level.rank:
+                return None
+            entry = LogEntry(
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
+                str(category),
+                normalized,
+                str(message),
+                threading.get_ident(),
+                threading.current_thread().name,
+                str(logger_name or "app.gui"),
+                int(line_number or 0),
+                str(details or ""),
+                self._next_uid,
+            )
+            self._next_uid += 1
+            self.entries.append(entry)
+            self._append_to_file(entry)
+            self._pending_notifications.append(("added", entry))
+        self._notify_changes()
         return entry
 
     def add(
@@ -822,34 +863,45 @@ class LogStore(QObject):
         normalized = normalize_log_level(level)
         if normalized.rank < LOG_LEVELS[0].rank:
             normalized = LOG_LEVELS[0]
-        if normalized == self._minimum_level:
-            return
-        self._minimum_level = normalized
+        with self._lock:
+            if normalized == self._minimum_level:
+                return
+            self._minimum_level = normalized
         self.levelChanged.emit(str(normalized))
 
     def remove_entries(self, uids):
         """按 uid 删除记录并重写文件，返回实际删除的条目。"""
         selected = {int(uid) for uid in uids}
-        removed = [entry for entry in self.entries if entry.uid in selected]
-        if not removed:
-            return []
-        self.entries = deque(
-            (entry for entry in self.entries if entry.uid not in selected),
-            maxlen=self.entries.maxlen,
-        )
-        self._rewrite_file()
-        self.removed.emit(removed)
+        with self._lock:
+            removed = [entry for entry in self.entries if entry.uid in selected]
+            if not removed:
+                return []
+            self.entries = deque(
+                (entry for entry in self.entries if entry.uid not in selected),
+                maxlen=self.entries.maxlen,
+            )
+            self._rewrite_file()
+            self._pending_notifications.append(("removed", removed))
+        self._notify_changes()
         return removed
+
+    def snapshot_entries(self):
+        """在线程安全的快照中返回当前日志记录。"""
+        with self._lock:
+            return tuple(self.entries)
 
     def export_text(self, entries=None):
         """导出为文本；不传参数时导出全部记录。"""
-        source = self.entries if entries is None else entries
-        return "\n".join(entry.as_text() for entry in source)
+        if entries is None or entries is self.entries:
+            entries = self.snapshot_entries()
+        return "\n".join(entry.as_text() for entry in entries)
 
     def clear(self, persist=True):
         """清空全部记录，``persist`` 为真时同步清空日志文件。"""
-        self.entries.clear()
-        self.storage_error = ""
-        if persist:
-            self._rewrite_file()
-        self.cleared.emit()
+        with self._lock:
+            self.entries.clear()
+            self.storage_error = ""
+            if persist:
+                self._rewrite_file()
+            self._pending_notifications.append(("cleared", None))
+        self._notify_changes()

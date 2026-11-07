@@ -67,7 +67,7 @@ class AppSplashScreen(SplashScreen):
         self.title_label = TitleLabel(title or APP_NAME, self)
         self.version_label = BodyLabel(version or version_text(), self)
         self.status_label = BodyLabel("正在准备界面…", self)
-        self.progress = IndeterminateProgressBar(self)
+        self.progress = IndeterminateProgressBar(self, start=False)
         self.progress.setFixedWidth(self.PROGRESS_WIDTH)
 
         self._minimum_duration = max(0, int(minimum_duration))

@@ -54,7 +54,7 @@ from qfluentwidgets import (
 
 from app import core
 from app.gui import app as gui
-from app.gui import components, models, splash, window_effect
+from app.gui import components, models, screen_window, splash, window_effect
 from app.gui.navigation import SidebarTreeWidget
 from app.gui.pages.common import (
     CompactHeaderCheckBox,
@@ -146,13 +146,16 @@ class GuiTests(unittest.TestCase):
 
     def dispose_window(self):
         self.window.close()
-        if self.window.thread is not None:
-            self.wait_for(
-                lambda: self.window.thread is None and not self.window.isVisible()
-            )
+        if not self.window._quit_finished:
+            self.wait_for(lambda: self.window._quit_finished)
         self.window.deleteLater()
-        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+        QCoreApplication.sendPostedEvents(self.window, QEvent.Type.DeferredDelete)
         self.application.processEvents()
+
+    def dispose_widget(self, widget):
+        widget.close()
+        widget.deleteLater()
+        QCoreApplication.sendPostedEvents(widget, QEvent.Type.DeferredDelete)
 
     def test_fluent_window_has_all_function_pages(self):
         self.assertIsInstance(self.window, FluentWindow)
@@ -678,6 +681,7 @@ class GuiTests(unittest.TestCase):
 
     def test_screen_page_shows_preview_and_placeholder(self):
         page = self.window.pages["screen"]
+        self.assertIsInstance(page.preview_label, BodyLabel)
         page.set_preview(self.png_bytes())
         self.assertFalse(page.preview_label.pixmap().isNull())
         page.set_preview(None)
@@ -693,17 +697,165 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(window_class.call_args.args[0], "10.1.1.7")
         self.assertEqual(window_class.call_args.args[2], 3)
 
+    def test_screen_probe_keeps_event_loop_responsive_and_preserves_target(self):
+        page = self.window.pages["screen"]
+        for reachable, detail in ((True, ""), (False, "模拟超时")):
+            with self.subTest(reachable=reachable):
+                entered, release = Event(), Event()
+
+                def blocked_probe(
+                    host,
+                    timeout,
+                    _entered=entered,
+                    _release=release,
+                    _reachable=reachable,
+                    _detail=detail,
+                ):
+                    _entered.set()
+                    if not _release.wait(3):
+                        raise TimeoutError("测试未及时释放端口检查")
+                    return _reachable, _detail
+
+                page.host_input.setText("10.1.1.7")
+                with patch.object(core, "probe", side_effect=blocked_probe) as probe:
+                    try:
+                        self.window.probe_screen_port()
+                        self.wait_for(entered.is_set)
+                        self.assertFalse(page.probe_button.isEnabled())
+                        page.host_input.setText("10.1.1.9")
+                        ticks = []
+                        QTimer.singleShot(0, lambda target=ticks: target.append(True))
+                        self.wait_for(lambda target=ticks: bool(target))
+                        self.window.probe_screen_port()
+                        self.assertEqual(probe.call_count, 1)
+                    finally:
+                        release.set()
+                        self.wait_for(lambda: self.window.thread is None)
+                    probe.assert_called_once_with("10.1.1.7", timeout=gui.PROBE_TIMEOUT)
+                self.assertTrue(page.probe_button.isEnabled())
+                self.assertIn("10.1.1.7", page.status.text())
+                self.assertIn("可连" if reachable else "模拟超时", page.status.text())
+
+    def test_screen_window_reuse_waits_for_cleanup_and_updates_control_port(self):
+        entered, release = Event(), Event()
+        sessions = []
+        order = []
+
+        def make_session(*args, **kwargs):
+            session = MagicMock()
+            if not sessions:
+
+                def slow_close():
+                    entered.set()
+                    if not release.wait(5):
+                        raise RuntimeError("测试未释放旧屏幕连接")
+
+                session.close.side_effect = slow_close
+            sessions.append(session)
+            return session
+
+        with (
+            patch.object(
+                screen_window,
+                "start_screen",
+                side_effect=lambda *a, **k: order.append("start"),
+            ),
+            patch.object(
+                screen_window,
+                "stop_screen",
+                side_effect=lambda *a, **k: order.append("stop"),
+            ),
+            patch.object(screen_window, "ScreenSession", side_effect=make_session),
+        ):
+            try:
+                self.window._open_screen_window("10.1.1.7", 3, False)
+                window = self.window._screen_windows[("10.1.1.7", 3)]
+                self.wait_for(lambda: window.session is not None)
+                self.window._open_screen_window("10.1.1.7", 3, False)
+                self.assertEqual(len(sessions), 1)
+                window.control = MagicMock()
+                old_control = window.control
+                self.window.connection_state.values["port"] = 4706
+                self.window._open_screen_window("10.1.1.7", 3, False)
+                self.assertIs(self.window._screen_windows[("10.1.1.7", 3)], window)
+                self.assertEqual(window.port, 4706)
+                old_control.close.assert_called_once()
+                self.assertIsNone(window.control)
+                window.close()
+                self.wait_for(entered.is_set)
+                self.window._open_screen_window("10.1.1.7", 3, True)
+                self.assertIs(self.window._screen_windows[("10.1.1.7", 3)], window)
+                self.assertEqual(order, ["start"])
+                release.set()
+                self.wait_for(
+                    lambda: len(sessions) == 2 and window.session is sessions[1]
+                )
+                self.assertEqual(order[:3], ["start", "stop", "start"])
+                window.close()
+                self.wait_for(lambda: window.shutdown_complete)
+                window.deleteLater()
+                QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+                self.application.processEvents()
+                self.assertNotIn(("10.1.1.7", 3), self.window._screen_windows)
+            finally:
+                release.set()
+                for window in self.window.findChildren(gui.ScreenWindow):
+                    window.close()
+                    self.wait_for(lambda current=window: current.shutdown_complete)
+
     def test_control_page_starts_with_takeover(self):
         page = self.window.pages["control"]
         page.host_input.setText("10.1.1.8")
-        with (
-            patch.object(gui, "ScreenWindow") as window_class,
-            patch.object(gui.QTimer, "singleShot") as single_shot,
-        ):
+        with patch.object(gui, "ScreenWindow") as window_class:
             page.controlRequested.emit()
         window_class.assert_called_once()
         self.assertEqual(window_class.call_args.args[0], "10.1.1.8")
-        single_shot.assert_called_once()
+        window_class.return_value.request_control.assert_called_once_with()
+
+    def test_app_command_log_button_connects_once(self):
+        with patch.object(self.window, "show_page") as show_page:
+            self.window.pages["appcmd"].footer.viewLogs.emit()
+        show_page.assert_called_once_with("logs")
+
+    def test_student_refresh_and_process_workers_accept_their_arguments(self):
+        page = self.window.pages["students"]
+        with (
+            patch.object(page, "selected_address", return_value="10.1.1.8"),
+            patch.object(page, "selected_detail_id", return_value=4321),
+            patch.object(page, "detail_kind", return_value="processes"),
+            patch.object(self.window, "_begin_task") as begin_task,
+            patch.object(core, "fetch_students_info", return_value=[]) as fetch,
+            patch.object(core, "send_mess_command", return_value=1) as send,
+        ):
+            for start in (
+                self.window.refresh_students,
+                self.window.kill_student_process,
+            ):
+                begin_task.reset_mock()
+                start()
+                worker = begin_task.call_args.args[1]
+                results, errors = [], []
+                worker.completed.connect(results.append)
+                worker.failed.connect(
+                    lambda message, details, target=errors: target.append(message)
+                )
+                worker.run()
+                self.assertEqual(errors, [])
+                self.assertEqual(len(results), 1)
+            fetch.assert_called_once()
+            send.assert_called_once()
+
+    def test_ipv4_assignment_preserves_existing_signal_block(self):
+        target = self.message.targets.target_input
+        segment = target.segments[0]
+        segment.blockSignals(True)
+        try:
+            target.setText("10.2.3.4")
+            self.assertTrue(segment.signalsBlocked())
+            self.assertEqual(target.text(), "10.2.3.4")
+            self.assertFalse(target.segments[1].signalsBlocked())
+        finally:
+            segment.blockSignals(False)
 
     def test_chat_page_requires_message_text(self):
         page = self.window.pages["chat"]
@@ -767,6 +919,7 @@ class GuiTests(unittest.TestCase):
         from app.gui.screen_window import ScreenWindow
 
         window = ScreenWindow("10.1.1.5")
+        self.addCleanup(self.dispose_widget, window)
         window.control = None
         window.send_mouse("move", 1, 1)
         self.assertIsNone(window.control)
@@ -2019,15 +2172,16 @@ class GuiTests(unittest.TestCase):
             json.dumps(legacy, ensure_ascii=False) + "\n", encoding="utf-8"
         )
         store = models.LogStore(log_path=log_path)
+        self.addCleanup(store.close)
         self.assertEqual(store.entries[0].level, models.LogLevel.WARNING)
         store.info("应用", "新格式记录")
         text = log_path.read_text(encoding="utf-8")
         self.assertIn("WARNING", text)
         self.assertIn("INFO", text)
         self.assertIn("旧格式记录", text)
-        self.assertEqual(
-            models.LogStore(log_path=log_path).entries[0].level, models.LogLevel.WARNING
-        )
+        reloaded = models.LogStore(log_path=log_path)
+        self.addCleanup(reloaded.close)
+        self.assertEqual(reloaded.entries[0].level, models.LogLevel.WARNING)
 
     def test_log_file_keeps_one_handle_and_flushes_each_line(self):
         log_path = self.data_dir / models.LOG_FILE_NAME
@@ -2276,6 +2430,33 @@ class GuiTests(unittest.TestCase):
         )
         self.assertEqual(self.window.logs.entries[-1].message, "应用退出")
 
+    def test_close_without_available_tray_exits_and_stops_listener(self):
+        self.window.close_behavior = models.CLOSE_BEHAVIOR_TRAY
+        with patch.object(self.window.pages["shell"], "stop_listen") as stop:
+            self.assertTrue(self.window.close())
+        stop.assert_called_once_with()
+        self.assertTrue(self.window._quit_finished)
+
+    def test_close_waits_for_screen_shutdown_before_quit(self):
+        from app.gui.screen_window import ScreenWindow
+
+        screen = ScreenWindow("10.1.1.8", parent=self.window)
+        connection = MagicMock()
+        connection.is_alive.return_value = False
+        screen._connection = connection
+        screen.destroyed.connect(connection.cancelled.set)
+        quitting = []
+        self.window.quitRequested.connect(lambda: quitting.append(True))
+        self.window.show()
+        self.assertFalse(self.window.close())
+        self.assertFalse(self.window._quit_finished)
+        self.assertEqual(quitting, [])
+        self.assertTrue(screen._closed)
+        connection.cancelled.set.assert_called_once_with()
+        screen._connection_finished(connection, "")
+        self.wait_for(lambda: self.window._quit_finished)
+        self.assertEqual(quitting, [True])
+
     def test_close_hides_to_tray_when_tray_mode_is_enabled(self):
         window = gui.MainWindow(
             alias_store=gui.DeviceAliasStore(
@@ -2471,6 +2652,7 @@ class UsageNoticeTests(unittest.TestCase):
     def test_startup_stops_when_notice_is_declined(self):
         with (
             patch.object(gui, "QApplication"),
+            patch.object(gui, "configure_application"),
             patch.object(gui, "SingleInstance") as instance_class,
             patch.object(gui, "confirm_usage_notice", return_value=False) as notice,
             patch.object(gui, "MainWindow") as window_class,
@@ -2521,11 +2703,25 @@ class SplashScreenTests(unittest.TestCase):
         self.parent = QWidget()
         self.parent.resize(1180, 780)
         self.parent.show()
-        self.addCleanup(self.parent.deleteLater)
+        self.addCleanup(self.dispose_parent)
+
+    def dispose_parent(self):
+        """在本用例内完成父窗口销毁，不把待删除对象留给后续测试。"""
+        self.parent.close()
+        self.parent.deleteLater()
+        QCoreApplication.sendPostedEvents(self.parent, QEvent.Type.DeferredDelete)
+
+    def dispose_splash(self, screen):
+        """先停止循环动画与计时器，再完成遮罩的延迟删除。"""
+        screen.finish()
+        self.assertFalse(screen.progress.isStarted())
+        self.assertFalse(screen._timer.isActive())
+        screen.deleteLater()
+        QCoreApplication.sendPostedEvents(screen, QEvent.Type.DeferredDelete)
 
     def create(self, **kwargs):
         screen = splash.create_splash(self.parent, **kwargs)
-        self.addCleanup(screen.deleteLater)
+        self.addCleanup(self.dispose_splash, screen)
         return screen
 
     def test_splash_uses_project_icon_and_hides_title_bar(self):
@@ -2610,8 +2806,12 @@ class SingleInstanceTests(unittest.TestCase):
         finally:
             primary.close()
             secondary.close()
-            # 本地套接字的延迟删除要在这里跑完，否则后续用例的 processEvents
-            # 会处理到已被回收对象的信号，偶发崩在 Qt 内部。
+            # 普通 processEvents 不处理 DeferredDelete；在所属 GUI 线程
+            # 销毁实例及其子服务，避免网络对象跨用例残留。
+            primary.deleteLater()
+            secondary.deleteLater()
+            QCoreApplication.sendPostedEvents(primary, QEvent.Type.DeferredDelete)
+            QCoreApplication.sendPostedEvents(secondary, QEvent.Type.DeferredDelete)
             self.application.processEvents()
 
     def test_single_instance_key_is_user_specific(self):

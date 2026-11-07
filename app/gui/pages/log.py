@@ -124,7 +124,7 @@ class LogPage(Page):
         # 回填历史日志时先关闭重绘，整批插完再统一刷新一次。
         self.table.setUpdatesEnabled(False)
         try:
-            for entry in self.store.entries:
+            for entry in self.store.snapshot_entries():
                 self._append_entry(entry)
         finally:
             self.table.setUpdatesEnabled(True)
@@ -134,6 +134,8 @@ class LogPage(Page):
 
     @Slot(object)
     def _append_entry(self, entry):
+        if self.category.findText(entry.category) < 0:
+            self.category.addItem(entry.category)
         if self.table.rowCount() >= self.store.entries.maxlen:
             self._drop_row(0)
         row = self.table.rowCount()
@@ -226,13 +228,17 @@ class LogPage(Page):
     def selected_entries(self):
         """按日志顺序返回勾选的记录。"""
         return [
-            entry for entry in self.store.entries if entry.uid in self._checked_uids
+            entry
+            for entry in self.store.snapshot_entries()
+            if entry.uid in self._checked_uids
         ]
 
     def selected_uids(self):
         """按日志顺序返回勾选记录的 uid。"""
         return [
-            entry.uid for entry in self.store.entries if entry.uid in self._checked_uids
+            entry.uid
+            for entry in self.store.snapshot_entries()
+            if entry.uid in self._checked_uids
         ]
 
     def _update_selection_controls(self):
@@ -320,8 +326,8 @@ class LogPage(Page):
             self._meta_by_uid.pop(uid, None)
             self._checked_uids.discard(uid)
             self._visible_uids.discard(uid)
-        # 从后往前删除时，保留行自己的行号没有变化、隐藏状态也随之搬移，
-        # 因此不必重建映射或重跑整表筛选。
+        # 删除行会让后续行前移，必须同步更新剩余记录的行号。
+        self._row_by_uid = {uid: row for row, uid in enumerate(self._uid_by_row)}
         self._update_selection_controls()
 
     def _clear_entries(self):
@@ -363,5 +369,4 @@ class LogPage(Page):
         Returns:
             str: 可直接写入文件的文本。
         """
-        source = self.store.entries if entries is None else entries
-        return self.store.export_text(source)
+        return self.store.export_text(entries)

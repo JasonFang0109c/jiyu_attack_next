@@ -52,6 +52,9 @@ jiyu_attack_next/
 |       |-- components.py         # 共用目标参数与任务栏
 |       |-- navigation.py         # 侧边栏宽度动画、分组状态与可见性
 |       |-- models.py             # 连接状态、设备备注与结构化运行日志
+|       |-- screen_window.py      # 屏幕连接生命周期与画面窗口
+|       |-- splash.py             # 启动遮罩
+|       |-- window_effect.py      # 窗口背景材质
 |       |-- settings_store.py     # settings.json 的 core/gui 分组读写
 |       |-- workers.py            # 后台任务
 |       `-- pages/
@@ -74,7 +77,6 @@ jiyu_attack_next/
 |           |-- chat.py           # 聊天消息页
 |           |-- closewindow.py    # 关闭窗口页
 |           |-- shell.py          # 反弹终端页
-|           |-- screen_window.py  # 屏幕观看窗口
 |           `-- about.py          # 关于页
 |-- packaging/
 |   |-- build.ps1                 # EXE 构建脚本
@@ -89,6 +91,9 @@ jiyu_attack_next/
 |   |-- test_core.py              # 核心协议、传输与防火墙测试
 |   |-- test_entry.py             # 统一入口与命令行启动测试
 |   |-- test_gui.py               # 界面与线程生命周期测试
+|   |-- test_log_page_gui.py      # 日志筛选、选择与删除回归
+|   |-- test_log_store_concurrency.py # 日志并发与通知顺序回归
+|   |-- test_screen_window_gui.py # 屏幕窗口离线生命周期回归
 |   |-- test_nightly_workflow.py  # Nightly 与 Release 工作流配置测试
 |   |-- test_versioning.py        # 版本号一致性与读取测试
 |   `-- verify_gui.py             # 界面截图检查工具
@@ -118,8 +123,9 @@ jiyu_attack_next/
 - `app/gui/build_info.py` 从打包资源读取构建时间与版本号，源码运行时分别显示“源码运行”和 `app.__version__`。
 - `app/gui/components.py` 提供跨页面同步的连接参数和统一任务栏。
 - `app/gui/splash.py` 提供启动遮罩：主窗口显示后用项目图标、应用名、版本号与不确定进度条盖住界面，跟随窗口尺寸，最短停留一段时间后自动关闭。
-- `app/gui/models.py` 保存连接状态、持久化设备备注，并提供带等级、线程、输出位置和异常详情的结构化日志存储。
-- `app/gui/workers.py` 执行后台发送和本机工具任务，通过信号更新界面。
+- `app/gui/models.py` 保存连接状态、持久化设备备注，并提供带等级、线程、输出位置和异常详情的结构化日志存储；日志写入、快照与文件切换使用同一把锁，状态变更通知按顺序在对象所属线程发送，回调在锁外执行。
+- `app/gui/screen_window.py` 在后台建立与清理屏幕连接，通过排队信号在 GUI 线程渲染画面；主窗口按目标地址与频道复用观看窗口，立即重开时等待旧连接停止后再重连，退出时等待后台清理完成。
+- `app/gui/workers.py` 执行后台发送、本机工具与屏幕端口检测任务，通过信号更新界面。
 - `packaging/` 存放 PyInstaller 配置、构建脚本与版本资源生成器；EXE 以普通用户权限启动，防火墙操作在需要时通过 UAC 启动隐藏助手。
 - `.github/workflows/build.yml` 提供可复用的打包流程，`nightly-build.yml` 与 `release.yml` 分别以 nightly、stable 通道调用它。
 - `.github/workflows/nightly-build.yml` 在推送到 `main` 且改动涉及 `app/`、`packaging/`、`scripts/`、`assets/`、依赖清单或工作流文件时构建 EXE，并滚动更新 `nightly` 预发布；纯文档改动不触发。

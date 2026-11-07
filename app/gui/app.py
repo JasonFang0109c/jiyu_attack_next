@@ -377,6 +377,11 @@ class MainWindow(FluentWindow):
         self._navigation_refresh_timer = QTimer(self)
         self._navigation_refresh_timer.setSingleShot(True)
         self._navigation_refresh_timer.timeout.connect(self._refresh_navigation)
+        self._task_dispatch_timer = QTimer(self)
+        self._task_dispatch_timer.setSingleShot(True)
+        self._task_dispatch_timer.timeout.connect(self._dispatch_after_task)
+        self._closing_screen_windows = set()
+        self._screen_windows = {}
         self._first_close_dialog_open = False
         self.tray_icon = None
         self.tray_menu = None
@@ -436,7 +441,6 @@ class MainWindow(FluentWindow):
             self.pages["file"],
             self.pages["local"],
             self.pages["firewall"],
-            self.pages["appcmd"],
             self.pages["students"],
         ]
         self._build_navigation()
@@ -819,8 +823,7 @@ class MainWindow(FluentWindow):
 
     def show_page(self, key):
         """切换到指定页面，并展开它所属的父级导航项。"""
-        # 应用命令挂在学生信息下面，直接切过去时父项仍是收起的，
-        # 侧边栏看不出当前位置，所以先把父项展开。
+        # 页面可能从首页快捷入口打开，先恢复所属分组，保持导航位置可见。
         page = self.pages[key]
         parent_key = getattr(page, "parentRouteKey", None) or getattr(
             self.navigationInterface.panel.items.get(key), "parentRouteKey", None
@@ -1417,7 +1420,6 @@ class MainWindow(FluentWindow):
             self._notify("请选择学生", "先在列表里选一台学生机", "警告")
             return
         records = {item.get("address"): item for item in page.records}
-        cancel_event = Event()
         self._begin_task(
             "students",
             TaskWorker(
@@ -1427,7 +1429,6 @@ class MainWindow(FluentWindow):
                 page.teacher_input.text().strip() or "1",
                 self.connection_state.values["port"],
                 records,
-                cancel_event=cancel_event,
             ),
             self._students_finished,
             self._local_failed,
@@ -1452,7 +1453,6 @@ class MainWindow(FluentWindow):
         self.logs.info(
             "学生信息", "结束进程", "目标：%s；进程号：%d" % (host, process_id)
         )
-        cancel_event = Event()
         self._begin_task(
             "students",
             TaskWorker(
@@ -1461,7 +1461,6 @@ class MainWindow(FluentWindow):
                 process_id,
                 page.channel_input.value(),
                 self.connection_state.values["port"],
-                cancel_event=cancel_event,
             ),
             self._students_action_finished,
             self._local_failed,
@@ -1496,14 +1495,28 @@ class MainWindow(FluentWindow):
         )
 
     def probe_screen_port(self):
-        """只探测学生端画面端口能否连上，不请求任何画面内容。"""
+        """在后台探测学生端画面端口，不请求画面内容。"""
+        if self.thread is not None:
+            self.logs.warning("屏幕画面", "已有任务在运行，端口检查未开始")
+            return
         page = self.pages["screen"]
         host = page.host()
         if not host:
             self._notify("请填写地址", "先填写要检查的学生地址", "警告")
             return
+        self.logs.info("屏幕画面", "开始检查画面端口", "目标：%s" % host)
+        self._begin_task(
+            "screen",
+            TaskWorker(probe_screen, host),
+            self._screen_probe_finished,
+            self._local_failed,
+        )
         page.set_status("正在检查 %s 的画面端口…" % host)
-        reachable, detail = core.probe(host, timeout=PROBE_TIMEOUT)
+
+    @Slot(object)
+    def _screen_probe_finished(self, result):
+        host, reachable, detail = result
+        page = self.pages["screen"]
         if reachable:
             page.set_status("%s 的画面端口可连，可以点“观看画面”" % host)
             self.logs.info("屏幕画面", "画面端口可连", "目标：%s" % host)
@@ -1536,17 +1549,38 @@ class MainWindow(FluentWindow):
         page.set_status("已打开 %s 的画面窗口，正在接管" % host)
 
     def _open_screen_window(self, host, channel, take_control):
-        """创建画面窗口，需要接管时等窗口画出第一帧再发远控请求。"""
-        window = ScreenWindow(host, self.connection_state.values["port"], channel, self)
+        """复用同目标画面窗口，重开时等待旧连接完成清理。"""
+        key = (host, channel)
+        port = self.connection_state.values["port"]
+        window = self._screen_windows.get(key)
+        if window is None:
+            window = ScreenWindow(host, port, channel, self)
+            self._screen_windows[key] = window
+            identity = id(window)
+            window.destroyed.connect(
+                lambda _object=None, key=key, identity=identity: (
+                    self._forget_screen_window(key, identity)
+                )
+            )
+        elif window.port != port:
+            if window.control is not None:
+                window.take_control()
+            window.port = port
         window.show()
+        window.raise_()
+        window.activateWindow()
         if take_control:
-            # 接管请求要等窗口先把画面画出来，否则用户看不到自己接管的是哪一台。
-            QTimer.singleShot(600, window.take_control)
+            window.request_control()
         self.logs.info(
             "屏幕画面",
             "打开屏幕观看",
             "目标：%s；自动接管：%s" % (host, "是" if take_control else "否"),
         )
+
+    def _forget_screen_window(self, key, identity):
+        window = self._screen_windows.get(key)
+        if window is not None and id(window) == identity:
+            self._screen_windows.pop(key)
 
     @Slot(object)
     def _mess_finished(self, result):
@@ -1834,7 +1868,7 @@ class MainWindow(FluentWindow):
         self.active_started_at = None
         if self.close_after_task:
             self._task_queue.clear()
-            QTimer.singleShot(0, self.close)
+            self._task_dispatch_timer.start(0)
         else:
             self._set_busy(False)
         self.active_kind = ""
@@ -1850,7 +1884,22 @@ class MainWindow(FluentWindow):
                 ),
             )
         if self._task_queue and not self.close_after_task:
-            QTimer.singleShot(0, self._start_next_task)
+            self._task_dispatch_timer.start(0)
+
+    def _dispatch_after_task(self):
+        if self._navigation_closed:
+            return
+        if self.close_after_task:
+            self.close()
+        else:
+            self._start_next_task()
+
+    def _screen_shutdown_finished(self):
+        if self._closing_screen_windows and all(
+            window.shutdown_complete for window in self._closing_screen_windows
+        ):
+            self._closing_screen_windows.clear()
+            self._task_dispatch_timer.start(0)
 
     def _start_next_task(self):
         """取出队首任务继续执行。"""
@@ -2244,9 +2293,12 @@ class MainWindow(FluentWindow):
                 self._quit_requested = True
 
         effective_behavior = selected_behavior or self.close_behavior
-        if not self._quit_requested and effective_behavior == CLOSE_BEHAVIOR_TRAY:
+        if (
+            not self._quit_requested
+            and effective_behavior == CLOSE_BEHAVIOR_TRAY
+            and self._hide_to_tray()
+        ):
             event.ignore()
-            self._hide_to_tray()
             return
 
         if self.thread is not None and self.thread.isRunning():
@@ -2265,6 +2317,22 @@ class MainWindow(FluentWindow):
             self.cancel_task()
             event.ignore()
             return
+        self._quit_requested = True
+        self.close_after_task = True
+        self.pages["shell"].stop_listen()
+        screen_windows = self.findChildren(ScreenWindow)
+        for window in screen_windows:
+            if (
+                window not in self._closing_screen_windows
+                and not window.shutdown_complete
+            ):
+                self._closing_screen_windows.add(window)
+                window.shutdownFinished.connect(self._screen_shutdown_finished)
+            window.close()
+        if any(not window.shutdown_complete for window in screen_windows):
+            event.ignore()
+            return
+        self._closing_screen_windows.clear()
         for page in self.task_pages:
             page.footer.ring.stop()
         self.logs.info("应用", "应用退出", "关闭行为：%s" % self.close_behavior)
@@ -2274,6 +2342,7 @@ class MainWindow(FluentWindow):
             instance.close()
         self._navigation_closed = True
         self._navigation_refresh_timer.stop()
+        self._task_dispatch_timer.stop()
         super().closeEvent(event)
         if not event.isAccepted():
             return
@@ -2416,6 +2485,12 @@ def terminate_process(host, process_id, channel=1, port=4705, report=None):
         report,
     )
     return {"sent": sent, "message": "已请求结束进程 %d" % process_id}
+
+
+def probe_screen(host, report=None):
+    """在后台检查画面端口，返回原目标地址及探测结果。"""
+    reachable, detail = core.probe(host, timeout=PROBE_TIMEOUT)
+    return host, reachable, detail
 
 
 def probe_local(report=None):
