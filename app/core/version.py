@@ -1,7 +1,7 @@
 """版本号与打包提交后缀的读取。
 
 打包时 `packaging/build.ps1` 把显示版本写入 `version.txt` 并随 EXE 一起打包，
-测试版会在版本号后拼上提交哈希（如 `0.1.0-nightly.20261029-1a8ede3`），
+测试版会在基础版本号后拼上提交哈希（如 `0.1.0-1a8ede3`），
 正式版不带。源码运行时回落到 `app/core/constants.py` 的 `__version__`。
 """
 

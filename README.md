@@ -131,7 +131,7 @@ EXE 无需安装 Python；从源码运行 CLI 需要按 `requirements.txt` 安�
 
 | 通道 | 说明 | 下载 |
 | --- | --- | --- |
-| nightly | 版本号形如 `0.1.0-nightly.20261029-1a8ede3`（末尾是提交哈希），随 `main` 更新 | [Nightly Build](https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly) |
+| nightly | 版本号形如 `0.1.0-1a8ede3`（末尾是提交哈希），随 `main` 更新 | [Nightly Build](https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly) |
 | 正式版 | 版本号形如 `v0.1.0`，标记为 Latest；暂无发布 | [最新正式版](https://github.com/JasonFang0109c/jiyu_attack_next/releases/latest) |
 
 - EXE：`JiYuAttackNext.exe`，同一个文件支持 GUI 与 CLI，无需安装 Python

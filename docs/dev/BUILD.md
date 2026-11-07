@@ -90,7 +90,7 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json`
 | `nightly-build.yml` | `Nightly Build` | 推送到 `main` 且改动影响产物，或手动运行 | 构建 nightly 并滚动更新 `nightly` 预发布 |
 | `release.yml` | `Release` | 仅在 Actions 页面手动运行 | 构建正式版并创建 `vX.Y.Z` 正式发布 |
 
-`build.yml` 通过 `channel` 输入决定版本号：`stable` 使用源码版本，`nightly` 追加 `-nightly.YYYYMMDD`（UTC 日期）；`version` 输入可显式覆盖。nightly 还会把 7 位提交哈希拼到版本号后面作为显示版本（例如 `0.1.0-nightly.20261029-1a8ede3`），产物文件名、EXE 版本资源与界面都用这个显示版本，发布说明只用带日期的版本号。`packaging/build.ps1` 收到的 `-Commit` 由工作流传入；本地手工构建测试版时留空，脚本会自己取当前提交的前 7 位。
+`build.yml` 通过 `channel` 输入决定版本号：`stable` 使用源码版本，`nightly` 追加 `-nightly.YYYYMMDD`（UTC 日期）；`version` 输入可显式覆盖。nightly 另有一个显示版本，由基础版本号加 7 位提交哈希拼成（例如 `0.1.0-1a8ede3`），产物文件名、EXE 版本资源与界面都用它，发布说明与标签只用带日期的版本号。`packaging/build.ps1` 收到的 `-Commit` 由工作流传入；本地手工构建测试版时留空，脚本会自己取当前提交的前 7 位。
 
 ### Nightly Build
 
@@ -98,20 +98,20 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json`
 - 也可在 Actions 页面选择该工作流并点击 `Run workflow` 手动运行，手动运行需选择 `main` 分支才会发布；手动运行不受路径过滤限制。
 - 工作流文件首次进入默认分支后，Actions 页面才会显示手动运行入口。
 - 在 `windows-latest` 上使用 Python 3.13 安装依赖、执行离线测试并运行 `packaging/build.ps1 -Clean`。
-- 构建成功后更新标签为 `nightly`、标题为 `Nightly Build <版本>` 的预发布版本，资产为 `JiYuAttackNext.exe`、`JiYuAttackNext_Debug.exe` 以及各自带显示版本（含提交哈希）的副本，与正式版一致（GUI 与 CLI 共用同一个 EXE，调试版只差日志等级）。
+- 构建成功后更新标签为 `nightly`、标题为 `Nightly Build <版本>` 的预发布版本，资产只有两个：`JiYuAttackNext-<显示版本>.exe` 与 `JiYuAttackNext_Debug-<显示版本>.exe`，显示版本是基础版本号加提交哈希（如 `0.1.0-1a8ede3`）。不再发布固定名副本，免得每次推送都在发布页多堆两个文件（GUI 与 CLI 共用同一个 EXE，调试版只差日志等级）。
 - 发布说明包含版本号、构建时间、工作流运行记录、两个资产的 SHA256，`Commits` 章节列出本次构建对应的那条提交。
 - 路径过滤按整个推送的 `before..head` 判定，因此把文档提交与代码提交一起推送时仍会构建；`Commits` 章节据此说明本次构建实际包含哪些改动。
 - 同一天内重复构建不新建发布：先比对现有 `nightly` 预发布的标题是否含本次的日期后缀，相同就原地更新资产与说明，标签 `nightly` 与下载地址 `https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly` 都保持不变。
 - 只有日期变了（例如旧的是 `-nightly.20261103`、新的是 `-nightly.20261104`）才删除旧预发布与 `nightly` 标签再重新创建，保证每天最多一次新的发布通知，不让关注者的动态被每次推送刷屏。
 - 日期取自构建版本号的 `-nightly.YYYYMMDD` 后缀，与产物里记录的日期同源；后缀按 UTC 计日，不受运行器时区与本地时区影响。
-- 原地更新依赖 `overwrite_files: true` 替换同名资产；同一天内发布维护的历史说明由本次构建的说明整体覆盖，资产始终是四个文件。
+- 资产名带提交哈希，每次构建都是新名字，`overwrite_files` 覆盖不到旧名字，因此复用当天的预发布前会先删掉全部已有资产；同一天内发布维护的历史说明由本次构建的说明整体覆盖，资产始终是两个文件。
 - 使用 `nightly-build` 并发组，新的运行会取消尚未完成的旧运行。
 
 ### Release
 
 - 只支持手动触发，不随推送自动运行；不会自动递增版本号，需先修改 `app/core/constants.py` 的 `__version__` 并提交。
 - 发布前校验版本号与源码一致、正式版不带预发布后缀、标签 `vX.Y.Z` 尚不存在，任一不满足即失败。
-- 资产为固定名 `JiYuAttackNext.exe`，另附带版本号的 `JiYuAttackNext-X.Y.Z.exe`；同一文件同时提供 GUI 与 CLI。正式版不带提交哈希，`packaging/build.ps1` 只对带预发布后缀的版本号追加哈希。
+- 资产为固定名 `JiYuAttackNext.exe`，另附带版本号的 `JiYuAttackNext-X.Y.Z.exe`；同一文件同时提供 GUI 与 CLI。正式版不带提交哈希，`packaging/build.ps1` 只在给了提交哈希时追加。
 - 发布说明的 `Changes` 章节列出上一个 `v*` 标签以来的提交标题；`make_latest: true` 使正式版成为最新版本，nightly 不受影响。
 - 可选择以草稿（`draft`）创建，确认后再在 Releases 页面发布；`overwrite_files: false` 保证不会覆盖已发布资产。
 - 使用 `release` 并发组且不取消进行中的运行，避免两次发布互相干扰。

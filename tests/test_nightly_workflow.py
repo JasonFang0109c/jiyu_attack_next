@@ -63,15 +63,18 @@ class NightlyWorkflowTests(unittest.TestCase):
         self.assertIn("version=$version", self.build)
 
     def test_shared_build_appends_commit_hash_to_test_versions(self):
-        # 测试版在版本号后追加提交哈希，正式版保持纯版本号；
-        # 发布说明用带日期的版本号，产物与界面用带哈希的显示版本。
+        # 测试版在基础版本号后追加提交哈希，正式版保持纯版本号；
+        # 发布说明用带日期的版本号，产物与界面用不带日期的显示版本。
+        self.assertIn("$base = $version", self.build)
         self.assertIn("$commit = $env:GITHUB_SHA.Substring(0, 7)", self.build)
-        self.assertIn('$display = "$version-$commit"', self.build)
+        self.assertIn('$display = "$base-$commit"', self.build)
+        self.assertIn("base=$base", self.build)
         self.assertIn("commit=$commit", self.build)
         self.assertIn("display=$display", self.build)
         self.assertIn("value: ${{ jobs.build.outputs.display }}", self.build)
         self.assertIn('-Commit "${{ steps.version.outputs.commit }}"', self.build)
         self.assertIn("VERSION: ${{ steps.version.outputs.display }}", self.build)
+        self.assertIn('-Version "${{ steps.version.outputs.base }}"', self.build)
 
     def test_workflow_notes_keep_date_version_without_commit_hash(self):
         # 发布说明只写带日期的版本号，标题里也不出现提交哈希。
@@ -95,7 +98,8 @@ class NightlyWorkflowTests(unittest.TestCase):
 
     def test_workflow_notes_keep_assets_line_plain(self):
         # 资产行只留文件名，产物说明交给文档，发布说明不再重复解释。
-        self.assertIn("- \\`JiYuAttackNext.exe\\`", self.workflow)
+        self.assertIn("- \\`JiYuAttackNext-${display}.exe\\`", self.workflow)
+        self.assertNotIn("- \\`JiYuAttackNext.exe\\`", self.workflow)
         self.assertNotIn("图形界面与命令行共用", self.workflow)
         self.assertNotIn("${commit_message}", self.workflow)
         self.assertNotIn("git log -1 --pretty=%B", self.workflow)
@@ -133,10 +137,7 @@ class NightlyWorkflowTests(unittest.TestCase):
 
     def test_workflow_publishes_unified_exe(self):
         self.assertIn("files: |", self.workflow)
-        self.assertIn("JiYuAttackNext.exe", self.workflow)
-        self.assertIn("JiYuAttackNext_Debug.exe", self.workflow)
-        # 运行版与调试版都同时提供固定名与带版本号的副本，下载链接才稳定。
-        # 测试版的副本名带提交哈希，与 EXE 里显示的版本一致。
+        # 只发布两个带提交哈希的产物：固定名副本会让发布页堆出四个资产。
         self.assertIn(
             "dist/JiYuAttackNext-${{ needs.build.outputs.display }}.exe",
             self.workflow,
@@ -145,6 +146,9 @@ class NightlyWorkflowTests(unittest.TestCase):
             "dist/JiYuAttackNext_Debug-${{ needs.build.outputs.display }}.exe",
             self.workflow,
         )
+        files_block = self.workflow.split("files: |", 1)[1]
+        self.assertNotIn("dist/JiYuAttackNext.exe", files_block)
+        self.assertNotIn("dist/JiYuAttackNext_Debug.exe", files_block)
         self.assertIn("EXE:", self.workflow)
         self.assertIn("${exe_sha256}", self.workflow)
         self.assertIn("${debug_sha256}", self.workflow)
@@ -172,6 +176,20 @@ class NightlyWorkflowTests(unittest.TestCase):
         )
         self.assertIn("gh release delete nightly --yes --cleanup-tag", self.workflow)
         self.assertIn("overwrite_files: true", self.workflow)
+
+    def test_workflow_clears_stale_assets_before_reusing(self):
+        # 资产名带提交哈希，复用当天预发布时旧名字的资产不会被覆盖，
+        # 必须先删掉，否则发布页会越堆越多。
+        self.assertIn("Remove stale nightly assets", self.workflow)
+        self.assertIn(
+            "gh release view nightly --json assets --jq '.assets[].name'",
+            self.workflow,
+        )
+        self.assertIn("gh release delete-asset nightly", self.workflow)
+        self.assertLess(
+            self.workflow.index("Remove stale nightly assets"),
+            self.workflow.index("Publish Nightly Build pre-release"),
+        )
 
     def test_workflow_compares_release_date_from_version_stamp(self):
         # 日期取自构建版本号的 -nightly.YYYYMMDD 后缀，

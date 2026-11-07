@@ -53,8 +53,9 @@ try {
         throw "版本号不符合语义化版本格式（如 0.4.0 或 0.4.0-nightly.20261029）：$Version"
     }
 
-    # 测试版（带预发布后缀）在版本号后追加提交哈希，正式版保持纯版本号。
-    $isTestVersion = $Version.Contains("-")
+    # 测试版在版本号后追加提交哈希，正式版保持纯版本号。
+    # 判定同时看预发布后缀与 -Commit：工作流传 0.1.0 加 -Commit 也按测试版处理。
+    $isTestVersion = $Version.Contains("-") -or [bool]$Commit
     if ($isTestVersion -and -not $Commit) {
         $Commit = (& git rev-parse --short=7 HEAD 2>$null)
         if ($LASTEXITCODE -ne 0 -or -not $Commit) {
@@ -66,7 +67,7 @@ try {
         throw "提交哈希只能包含字母与数字：$Commit"
     }
     $displayVersion = $Version
-    if ($isTestVersion) {
+    if ($Commit -and -not $Version.EndsWith("-" + $Commit)) {
         $displayVersion = "$Version-$Commit"
     }
 

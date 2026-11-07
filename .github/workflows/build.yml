@@ -16,8 +16,11 @@ on:
         default: ""
     outputs:
       version:
-        description: 本次打包使用的版本号，不含提交哈希
+        description: 本次打包使用的版本号，含 nightly 日期、不含提交哈希
         value: ${{ jobs.build.outputs.version }}
+      base:
+        description: 不带 nightly 日期的基础版本号，测试版的显示版本从它拼出
+        value: ${{ jobs.build.outputs.base }}
       display:
         description: 产物与界面显示的版本号，测试版带提交哈希
         value: ${{ jobs.build.outputs.display }}
@@ -34,6 +37,7 @@ jobs:
       QT_QPA_PLATFORM: offscreen
     outputs:
       version: ${{ steps.version.outputs.version }}
+      base: ${{ steps.version.outputs.base }}
       display: ${{ steps.version.outputs.display }}
 
     steps:
@@ -64,19 +68,22 @@ jobs:
           if (-not $version) {
             $version = (& .\.venv\Scripts\python.exe -X utf8 -c "import app; print(app.__version__)").Trim()
           }
+          # 基础版本号用于产物名与界面显示；带日期的版本号只进标签、标题与发布说明。
+          $base = $version
           if ($env:INPUT_CHANNEL -eq "nightly") {
             $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMdd')
             $version = "$version-nightly.$stamp"
           }
-          # 测试版在版本号后追加提交哈希：产物文件名、EXE 版本资源与界面都带它，
-          # 发布说明只写带日期的版本号，免得每次推送都像换了一个版本。
-          $display = $version
+          # 测试版在基础版本号后追加提交哈希，得到 0.1.0-1a8ede3 这样的显示版本；
+          # 产物文件名、EXE 版本资源与界面都用它，发布说明只写带日期的版本号。
           $commit = ""
+          $display = $version
           if ($env:INPUT_CHANNEL -eq "nightly") {
             $commit = $env:GITHUB_SHA.Substring(0, 7)
-            $display = "$version-$commit"
+            $display = "$base-$commit"
           }
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "base=$base" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "commit=$commit" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "display=$display" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "打包版本：$display"
@@ -92,7 +99,7 @@ jobs:
         run: |
           # 一次构建同时产出正常版本与 _Debug 版本，两者只差日志等级。
           powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Clean `
-            -Variant both -Version "${{ steps.version.outputs.version }}" `
+            -Variant both -Version "${{ steps.version.outputs.base }}" `
             -Commit "${{ steps.version.outputs.commit }}"
 
       - name: Prepare release assets
