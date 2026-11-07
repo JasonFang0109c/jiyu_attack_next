@@ -17,11 +17,13 @@ os.environ.setdefault(
 )
 
 from PySide6.QtCore import (
+    QAbstractAnimation,
     QBuffer,
     QCoreApplication,
     QEvent,
     QPoint,
     QPointF,
+    QRect,
     QSize,
     Qt,
     QTimer,
@@ -41,6 +43,7 @@ from qfluentwidgets import (
     Dialog,
     FluentWindow,
     HyperlinkButton,
+    NavigationDisplayMode,
     NavigationItemHeader,
     SmoothScrollArea,
     StrongBodyLabel,
@@ -52,6 +55,7 @@ from qfluentwidgets import (
 from app import core
 from app.gui import app as gui
 from app.gui import components, models, splash, window_effect
+from app.gui.navigation import SidebarTreeWidget
 from app.gui.pages.common import (
     CompactHeaderCheckBox,
     CompactTreeItemDelegate,
@@ -451,7 +455,7 @@ class GuiTests(unittest.TestCase):
         # 首次使用保持图标模式；展开后写进设置，下次启动按它恢复。
         panel = self.window.navigationInterface.panel
         self.assertTrue(panel.isCollapsed())
-        # 走带动画的展开路径，库才会发 displayModeChanged，窗口据此保存状态。
+        # 收展请求立即保存，不依赖动画是否完整播放。
         self.window.navigationInterface.expand()
         self.assertFalse(panel.isCollapsed())
         self.assertTrue(
@@ -481,6 +485,184 @@ class GuiTests(unittest.TestCase):
         self.window.show_page("appcmd")
         self.assertTrue(group.isExpanded)
         self.assertEqual(self.window.current_page(), "appcmd")
+
+    def test_selected_children_do_not_leak_into_collapsed_sidebar(self):
+        self.window.apply_window_material(gui.MATERIAL_SOLID)
+        self.window.show()
+        panel = self.window.navigationInterface.panel
+        for route in ("message", "appcmd", "firewall"):
+            with self.subTest(route=route):
+                self.window.expand_navigation()
+                self.window.show_page("home")
+                self.window._reveal_navigation_item(route)
+                self.application.processEvents()
+                leaf = panel.widget(route)
+                group = leaf.treeParent
+                QTest.mouseClick(leaf.itemWidget, Qt.LeftButton)
+                panel.collapse()
+                for delay in (0, 30):
+                    QTest.qWait(delay)
+                    self.assertTrue(leaf.isHidden())
+                    self.assertEqual(group.height(), 36)
+                    self.assertTrue(panel.indicator.isHidden())
+                self.wait_for(
+                    lambda: panel.expandAni.state() == QAbstractAnimation.State.Stopped
+                )
+                self.assertEqual(panel.width(), 48)
+                self.assertTrue(group.itemWidget._canDrawIndicator())
+                # 检查实际绘制的蓝色像素，避免只验父节点尺寸而漏掉选中条残影。
+                image = panel.grab().toImage()
+                ratio = image.devicePixelRatio()
+                origin = group.itemWidget.mapTo(panel, QPoint())
+                expected = QRect(origin.x(), origin.y() + 9, 5, 19)
+                colored = []
+                for y in range(image.height()):
+                    for x in range(image.width()):
+                        color = image.pixelColor(x, y)
+                        if (
+                            color.blue() > color.red() + 60
+                            and color.green() > color.red() + 20
+                        ):
+                            point = QPoint(int(x / ratio), int(y / ratio))
+                            colored.append(point)
+                            self.assertTrue(expected.contains(point), (route, point))
+                self.assertTrue(colored, "选中标记应该画在当前父项左侧")
+                panel.expand(useAni=False)
+                self.application.processEvents()
+                self.assertFalse(leaf.isHidden())
+                self.assertEqual(self.window.current_page(), route)
+                self.assertEqual(group.itemWidget.width(), 190)
+                for item in panel.items.values():
+                    self.assertEqual(
+                        item.widget.expandAni.state(), QAbstractAnimation.State.Stopped
+                    )
+
+    def test_sidebar_animation_reverses_and_preserves_window_height(self):
+        self.window.show()
+        self.application.processEvents()
+        panel = self.window.navigationInterface.panel
+        self.window.show_page("message")
+        for _ in range(3):
+            panel.expand()
+            QTest.qWait(25)
+            panel.collapse()
+            self.assertTrue(panel.widget("message").isHidden())
+            QTest.qWait(20)
+            panel.expand()
+            self.window.resize(1200, self.window.height() - 15)
+            self.wait_for(
+                lambda: panel.expandAni.state() == QAbstractAnimation.State.Stopped
+            )
+            self.assertFalse(panel.isCollapsed())
+            self.assertEqual(panel.width(), 200)
+            self.assertEqual(panel.height(), self.window.navigationInterface.height())
+            self.assertFalse(panel.widget("message").isHidden())
+        panel.collapse()
+        self.wait_for(
+            lambda: panel.expandAni.state() == QAbstractAnimation.State.Stopped
+        )
+        self.assertEqual(panel.width(), 48)
+        self.assertEqual(self.window.navigationInterface.width(), 48)
+
+    def test_group_state_survives_compact_mode_and_programmatic_navigation(self):
+        panel = self.window.navigationInterface.panel
+        self.window.expand_navigation()
+        teacher = panel.widget("group_teacher")
+        teacher.setExpanded(False)
+        attack = panel.widget("message").treeParent
+        panel.collapse()
+        self.wait_for(
+            lambda: panel.expandAni.state() == QAbstractAnimation.State.Stopped
+        )
+        self.assertFalse(teacher.isExpanded)
+        self.assertTrue(attack.isExpanded)
+        self.window.show_page("appcmd")
+        self.assertTrue(teacher.isExpanded)
+        self.assertTrue(panel.widget("appcmd").isHidden())
+        self.assertEqual(teacher.height(), 36)
+        panel.expand(useAni=False)
+        self.assertFalse(panel.widget("appcmd").isHidden())
+        self.assertTrue(attack.isExpanded)
+        self.assertTrue(
+            self.window.settings.value("gui/window/navigation_group_teacher", False)
+        )
+
+    def test_sidebar_narrow_overlay_returns_to_interface(self):
+        self.window.show()
+        panel = self.window.navigationInterface.panel
+        for width in (960, 1049, 1050, 1200):
+            with self.subTest(width=width):
+                self.window.resize(width, 760)
+                self.application.processEvents()
+                panel.expand(useAni=False)
+                if width < panel.minimumExpandWidth:
+                    self.assertEqual(panel.displayMode, NavigationDisplayMode.MENU)
+                    self.assertIs(panel.parent(), self.window)
+                    self.assertEqual(self.window.navigationInterface.width(), 48)
+                else:
+                    self.assertEqual(panel.displayMode, NavigationDisplayMode.EXPAND)
+                    self.assertIs(panel.parent(), self.window.navigationInterface)
+                panel.collapse()
+                self.wait_for(
+                    lambda: panel.expandAni.state() == QAbstractAnimation.State.Stopped
+                )
+                self.assertIs(panel.parent(), self.window.navigationInterface)
+                self.assertEqual(panel.width(), 48)
+        self.window.resize(1300, 820)
+        self.application.processEvents()
+        self.assertTrue(panel.isCollapsed())
+
+    def test_sidebar_overlay_can_become_inline_without_collapsing(self):
+        self.window.show()
+        panel = self.window.navigationInterface.panel
+        self.window.resize(960, 760)
+        self.application.processEvents()
+        panel.expand(useAni=False)
+        self.assertEqual(self.window.navigationInterface.width(), 48)
+        self.window.resize(1200, 760)
+        self.application.processEvents()
+        panel.expand(useAni=False)
+        self.assertIs(panel.parent(), self.window.navigationInterface)
+        self.assertEqual(self.window.navigationInterface.width(), 200)
+        self.window.resize(960, 760)
+        self.application.processEvents()
+        panel.expand(useAni=False)
+        self.assertEqual(panel.displayMode, NavigationDisplayMode.MENU)
+        self.assertEqual(self.window.navigationInterface.width(), 48)
+
+    def test_compact_sidebar_updates_parent_marker_when_switching_groups(self):
+        self.window.show()
+        panel = self.window.navigationInterface.panel
+        first = panel.widget("message").treeParent
+        second = panel.widget("appcmd").treeParent
+        self.window.show_page("message")
+        self.application.processEvents()
+        self.assertTrue(first.itemWidget._canDrawIndicator())
+        self.assertFalse(second.itemWidget._canDrawIndicator())
+        with (
+            patch.object(first.itemWidget, "update") as first_update,
+            patch.object(second.itemWidget, "update") as second_update,
+        ):
+            self.window.show_page("appcmd")
+            first_update.assert_called()
+            second_update.assert_called()
+        self.assertFalse(first.itemWidget._canDrawIndicator())
+        self.assertTrue(second.itemWidget._canDrawIndicator())
+        self.assertTrue(panel.widget("appcmd").isHidden())
+
+    def test_sidebar_flyout_clone_keeps_leaf_clicks_free_of_geometry_animation(self):
+        panel = self.window.navigationInterface.panel
+        original = panel.widget("message")
+        clone = original.clone()
+        self.addCleanup(clone.deleteLater)
+        self.assertIsInstance(clone, SidebarTreeWidget)
+        clone.setCompacted(False)
+        clone._onClicked(True, False)
+        self.assertEqual(self.window.current_page(), "message")
+        self.assertEqual(clone.expandAni.state(), QAbstractAnimation.State.Stopped)
+        self.assertEqual(original.expandAni.state(), QAbstractAnimation.State.Stopped)
+        self.assertTrue(original.isHidden())
+        self.assertTrue(panel.isCollapsed())
 
     def test_students_page_lists_discovered_records(self):
         page = self.window.pages["students"]

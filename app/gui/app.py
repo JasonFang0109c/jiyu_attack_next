@@ -12,7 +12,6 @@ from pathlib import Path
 from threading import Event
 
 from PySide6.QtCore import (
-    QAbstractAnimation,
     QByteArray,
     QCoreApplication,
     QEvent,
@@ -78,6 +77,7 @@ from .models import (
     portable_settings,
     window_material_available,
 )
+from .navigation import install_sidebar
 from .pages import (
     AboutPage,
     AliasPage,
@@ -373,6 +373,10 @@ class MainWindow(FluentWindow):
         self.first_close_prompt_shown = self._load_first_close_prompt_shown()
         self._quit_requested = False
         self._quit_finished = False
+        self._navigation_closed = False
+        self._navigation_refresh_timer = QTimer(self)
+        self._navigation_refresh_timer.setSingleShot(True)
+        self._navigation_refresh_timer.timeout.connect(self._refresh_navigation)
         self._first_close_dialog_open = False
         self.tray_icon = None
         self.tray_menu = None
@@ -533,17 +537,12 @@ class MainWindow(FluentWindow):
         super().showEvent(event)
         self._refresh_background_effect()
         # 滚动区要等窗口真正显示才有尺寸，等这一轮事件走完再滚到当前页面。
-        QTimer.singleShot(0, self._refresh_navigation)
+        self._navigation_refresh_timer.start()
 
     def _refresh_navigation(self):
-        """把当前页面所在的导航项滚进可见区域。
-
-        切换页面会让选中的子项重新布局，分组宽度有可能被挤窄几像素，
-        所以顺手把分组尺寸对回侧边栏宽度，再滚动到当前项。
-        """
-        self._apply_navigation_groups_if_expanded()
-        # 选中子项引发的重排排在本次事件之后，再补一次把分组宽度对回去。
-        QTimer.singleShot(0, self._apply_navigation_groups_if_expanded)
+        """把当前页面所在的可见导航项滚进视口。"""
+        if getattr(self, "_navigation_closed", False):
+            return
         current = self.stackedWidget.currentWidget()
         if current is not None:
             self._reveal_navigation_item(current.objectName())
@@ -672,6 +671,7 @@ class MainWindow(FluentWindow):
 
     def _build_navigation(self):
         """按功能分组装配左侧导航，底部放日志、设置与关于。"""
+        panel = install_sidebar(self.navigationInterface)
         self.navigationInterface.setExpandWidth(200)
         self.navigationInterface.setMinimumExpandWidth(1050)
         self.navigationInterface.setReturnButtonVisible(False)
@@ -697,27 +697,16 @@ class MainWindow(FluentWindow):
         self.addSubInterface(
             self.pages["about"], FIF.INFO, "关于", NavigationItemPosition.BOTTOM
         )
-        # 分组状态先读进内存：收起时库会把分组一起收起来，事后读不到用户的选择。
-        self._navigation_groups = {
-            route: normalize_switch(
-                self.settings.value("gui/window/navigation_%s" % route, None), True
-            )
-            for route, _icon, _title, _children in NAVIGATION_GROUPS
-        }
-        # 首次使用保持图标模式，之后按上次留下的展开状态恢复。
+        panel.expandedChanged.connect(self._save_navigation_expanded)
+        panel.layoutSettled.connect(self._refresh_navigation)
         if normalize_switch(
             self.settings.value(NAVIGATION_EXPANDED_SETTINGS_KEY, None),
             DEFAULT_NAVIGATION_EXPANDED,
         ):
             self.expand_navigation()
-        panel = self.navigationInterface.panel
-        panel.displayModeChanged.connect(self._navigation_mode_changed)
-        # 库在展开动画里会把分组压成单行，动画结束后按记住的状态重新摊开。
-        # 库的展开动画会把分组压成单行，动画结束或被中途打断时都重新摊开一次。
-        panel.expandAni.stateChanged.connect(self._navigation_animation_finished)
 
     def _tune_scroll_bars(self):
-        """侧边栏滚动条永不显示，内容区滚动条调细、调淡且悬停才出现。"""
+        """侧边栏滚动条永不显示，内容区滚动条调细、调淡且滚动时出现。"""
         panel = self.navigationInterface.panel
         panel.scrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         panel.scrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -725,81 +714,17 @@ class MainWindow(FluentWindow):
             soften_scroll_bars(page)
 
     def expand_navigation(self):
-        """直接展开侧边栏并按记住的状态摊开分组。
-
-        程序化展开不会触发 displayModeChanged，分组也不会自己恢复，
-        启动与截图都走这里，画面才和用户点开时一致。
-        """
+        """直接展开侧边栏，供启动恢复与截图共用。"""
         self.navigationInterface.expand(useAni=False)
-        self._save_navigation_expanded()
-        self._apply_navigation_groups()
 
-    def _navigation_mode_changed(self, _mode):
-        """记住侧边栏的展开状态，并把当前页面滚进可见区域。"""
-        self._save_navigation_expanded()
-        # 展开动画结束后滚动区才有新的高度，等这一轮事件走完再定位。
-        QTimer.singleShot(0, self._refresh_navigation)
-
-    def _navigation_animation_finished(self, state):
-        """展开动画结束后按记住的状态摊开分组。
-
-        动画被中途打断时不会发出 finished，只会切到停止状态；这里一并处理，
-        否则分组会停在动画途中的窄宽度上，图标看着就是往左挪了一截。
-        """
-        if state != QAbstractAnimation.State.Stopped:
-            return
-        if self.navigationInterface.panel.isCollapsed():
-            return
-        self._apply_navigation_groups()
-        self._refresh_navigation()
-
-    def _remember_navigation_group(self, route):
-        """记下某个分组当前的展开状态，供下次展开侧边栏时恢复。"""
-        node = self.navigationInterface.panel.widget(route)
-        if node is None:
-            return
-        self._navigation_groups[route] = node.isExpanded
-        self.settings.set_value("gui/window/navigation_%s" % route, node.isExpanded)
+    def _remember_navigation_group(self, route, expanded):
+        """保存用户选择的分组状态，显示模式变化不改写它。"""
+        self.settings.set_value("gui/window/navigation_%s" % route, expanded)
         self.settings.sync()
 
-    def _apply_navigation_groups_if_expanded(self):
-        """侧边栏展开时才整理分组尺寸，收起时保持图标模式不动。"""
-        if not self.navigationInterface.panel.isCollapsed():
-            self._apply_navigation_groups()
-
-    def _apply_navigation_groups(self):
-        """按记住的状态摊开分组，首次默认全部展开。"""
-        panel = self.navigationInterface.panel
-        for route, _icon, _title, _children in NAVIGATION_GROUPS:
-            node = panel.widget(route)
-            if node is None:
-                continue
-            expanded = self._navigation_groups.get(route, True)
-            # 分组自己的收展动画还在跑的话，它结束时会用动画中途的尺寸再钉一次，
-            # 把下面设好的宽度覆盖回去，所以先停掉它。
-            node.expandAni.stop()
-            node.setExpanded(expanded, ani=False)
-            # setExpanded 遇到相同状态会直接返回，而收起动画留下的单行高度还在，
-            # 这里按当前布局重新量一次，避免子项虽然可见却被压在 36 像素里。
-            for child in node.treeChildren:
-                child.setVisible(expanded)
-            node.vBoxLayout.activate()
-            # 展开动画会顺手把宽度钉成动画中途的值，之后就一直沿用，
-            # 分组于是比侧边栏窄一截、图标跟着左移。这里按侧边栏宽度重新钉死，
-            # 条目宽度同样对回库的常量，不留给动画留下的旧尺寸。
-            node.setFixedWidth(panel.expandWidth)
-            node.itemWidget.setFixedWidth(panel.expandWidth - NAVIGATION_ITEM_INSET)
-            node.setFixedHeight(node.sizeHint().height())
-
-    def _save_navigation_expanded(self):
-        """把侧边栏是否展开写进设置，下次启动据此恢复。
-
-        首次使用没有这个键，默认保持图标模式。
-        """
-        self.settings.set_value(
-            NAVIGATION_EXPANDED_SETTINGS_KEY,
-            not self.navigationInterface.panel.isCollapsed(),
-        )
+    def _save_navigation_expanded(self, expanded):
+        """把侧边栏最后一次收展请求写进设置。"""
+        self.settings.set_value(NAVIGATION_EXPANDED_SETTINGS_KEY, expanded)
         self.settings.sync()
 
     def _apply_navigation_minimum_height(self):
@@ -829,17 +754,18 @@ class MainWindow(FluentWindow):
             tooltip=title,
         )
         node = self.navigationInterface.panel.widget(route)
-        # 先展开再加子项：insertChild 只在父项已展开时才把高度算进去，
-        # 反过来先加子项会让它们全部挤在同一行里。
-        node.setExpanded(True, ani=False)
-        # 侧边栏收起时会先把展开状态存下来，不打开这一项就恢复不回去。
-        node.setRememberExpandState(True)
-        # 库先切换展开状态，这个回调排在它之后，读到的是用户最终的选择。
-        node.itemWidget.itemClicked.connect(
-            lambda *_ignored, route=route: self._remember_navigation_group(route)
-        )
         for key, child_icon, child_title in children:
             self.addSubInterface(self.pages[key], child_icon, child_title, parent=route)
+        node.setExpanded(
+            normalize_switch(
+                self.settings.value("gui/window/navigation_%s" % route, None), True
+            )
+        )
+        node.expansionChanged.connect(
+            lambda expanded, route=route: self._remember_navigation_group(
+                route, expanded
+            )
+        )
         self._apply_navigation_minimum_height()
         return node
 
@@ -904,7 +830,6 @@ class MainWindow(FluentWindow):
         )
         if node is not None and not node.isExpanded:
             node.setExpanded(True, ani=False)
-            self._remember_navigation_group(parent_key)
         self.switchTo(page)
         self._reveal_navigation_item(key)
 
@@ -919,9 +844,10 @@ class MainWindow(FluentWindow):
         if item is None:
             return
         area = panel.scrollArea
-        # 导航内容比视口宽十来个像素，横向留白如果只给 0，ensureWidgetVisible
-        # 会顺手把视图横向滚出去，整列图标跟着左移；给足横向余量让它只滚纵向，
-        # 再把横向位置复位。
+        # 图标模式下定位父项，隐藏子项的旧坐标不参与滚动。
+        while item.isHidden() and item.treeParent is not None:
+            item = item.treeParent
+        panel.scrollLayout.activate()
         area.ensureWidgetVisible(item, area.viewport().width(), 12)
         area.horizontalScrollBar().setValue(0)
 
@@ -2346,6 +2272,8 @@ class MainWindow(FluentWindow):
         instance = getattr(self, "single_instance", None)
         if instance is not None:
             instance.close()
+        self._navigation_closed = True
+        self._navigation_refresh_timer.stop()
         super().closeEvent(event)
         if not event.isAccepted():
             return
@@ -2363,8 +2291,6 @@ PREVIEW_SECONDS = 8.0
 PROBE_TIMEOUT = 1.0
 # 侧边栏最小高度的上限：导航项再多也不该把整个窗口顶到超出屏幕。
 NAVIGATION_MAX_HEIGHT = 680
-# 分组条目比侧边栏窄这么多像素，与组件库的 NavigationWidget.EXPAND_WIDTH 对齐。
-NAVIGATION_ITEM_INSET = 10
 # 侧边栏顶部菜单按钮那一行的高度，算进导航项需要的空间里。
 NAVIGATION_HEADER_HEIGHT = 36
 

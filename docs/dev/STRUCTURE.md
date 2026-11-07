@@ -50,6 +50,7 @@ jiyu_attack_next/
 |       |-- app.py                # Fluent 窗口、导航、单实例与交互
 |       |-- build_info.py         # 读取打包构建时间与版本号
 |       |-- components.py         # 共用目标参数与任务栏
+|       |-- navigation.py         # 侧边栏宽度动画、分组状态与可见性
 |       |-- models.py             # 连接状态、设备备注与结构化运行日志
 |       |-- settings_store.py     # settings.json 的 core/gui 分组读写
 |       |-- workers.py            # 后台任务
@@ -111,7 +112,8 @@ jiyu_attack_next/
 - `app/core/` 提供报文常量、协议构造、UDP 与文件传送、防火墙规则、本机信息探测，以及应用命令、教师端模拟会话与反弹终端；可按需使用第三方库（`av`、`Pillow`），新增依赖同步写进 `requirements.txt`。CLI 与 GUI 都通过 `from .. import core` 使用这些接口。
 - `app/core/appcmd.py` 只拼装和解析字节：应用命令、会话通报文、黑屏与解锁、学生信息。`app/core/teacher.py` 负责套接字：宣告、登录应答、监听上报与按通道投递命令；`comd` 单播应用命令，`mess` 单播会话报文，`session` 发到会话组播（黑屏与解锁只有这条生效）。`app/core/screen.py` 负责 4806 端口的 UMSP 会话：切包、按偏移重组桌面分片、把记录交给回调；H.264 记录交给 `app/core/video.py` 用 PyAV 解成 RGB 位图，JPEG 帧由界面直接显示。`app/core/shell.py` 负责反弹终端：在本机起终端监听与只提供启动脚本的临时 HTTP 服务，再经远程命令通道让目标下载脚本并主动连回，命令行输入输出都走这条回连的 TCP 连接；启动脚本不内联在命令里，因为远程命令通道单条只有 163 个字符。`app/core/teacher.py` 里的 `RemoteControl` 保存远控用的常驻 UDP 套接字，边观看边把键鼠输入发回学生端（学生端只认发出接管请求的那个本地端口，所以套接字不能发完就关）。
 - `app/cli/main.py` 负责 argparse、参数校验、单条命令、文件传送、防火墙命令与终端输出；不再作为可单独复制的单文件脚本维护。
-- `app/gui/app.py` 基于 `FluentWindow` 实现侧边导航、任务调度、单实例运行与页面联动。导航按“远程攻击／教师端模拟／本机工具”三个可折叠分组组织，分组由 `NAVIGATION_GROUPS` 描述，`_add_navigation_group` 建节点并在创建后重算高度（库把树项压成单行高，必须在 `expand()` 之后 `_fit_navigation_groups()`）。
+- `app/gui/app.py` 基于 `FluentWindow` 实现侧边导航、任务调度、单实例运行与页面联动。导航按“远程攻击／教师端模拟／本机工具”三个可折叠分组组织，分组由 `NAVIGATION_GROUPS` 描述，`_add_navigation_group` 注册页面并恢复分组设置。
+- `app/gui/navigation.py` 保留 Fluent 组件的绘制、路由和弹出菜单，集中管理侧边栏宽度动画；树节点同步更新高度与子项可见性，逻辑展开状态独立于图标模式。叶节点点击只切换页面，选中标记由当前可见条目绘制，主窗口不再用延时刷新和尺寸补丁干预动画。
 - `app/gui/pages/` 按首页、消息、命令、设备、文件传送、设备备注、应用命令、学生信息、本机信息、防火墙、日志、设置和关于拆分页面；文件传送页使用带复选框与全选的文件树，公共控件集中在 `common.py`。
 - `app/gui/build_info.py` 从打包资源读取构建时间与版本号，源码运行时分别显示“源码运行”和 `app.__version__`。
 - `app/gui/components.py` 提供跨页面同步的连接参数和统一任务栏。
