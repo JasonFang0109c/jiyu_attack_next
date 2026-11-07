@@ -608,12 +608,12 @@ class GuiTests(unittest.TestCase):
         home = self.window.pages["home"]
         self.assertEqual(home.objectName(), "home")
         self.assertEqual(
-            list(home.shortcuts), ["message", "repository", "document", "feedback"]
+            list(home.shortcuts), ["aliases", "repository", "document", "feedback"]
         )
-        # 功能卡片覆盖除首页、设置、关于以外的全部页面，点击即跳转。
+        # 功能卡片覆盖除首页、设置、关于与快捷入口以外的全部页面，点击即跳转。
         self.assertEqual(
             set(home.cards),
-            set(self.window.pages) - {"home", "settings", "about"},
+            set(self.window.pages) - {"home", "settings", "about", "aliases"},
         )
         self.assertEqual(home.cards["message"].objectName(), "homeCard_message")
         home.cards["logs"].clicked.emit()

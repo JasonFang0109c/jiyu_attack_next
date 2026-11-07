@@ -127,12 +127,6 @@ SECTIONS = (
             ),
             ("command", FIF.COMMAND_PROMPT, "远程命令", "编辑并发送单条远程命令"),
             (
-                "aliases",
-                FIF.QUICK_NOTE,
-                "设备备注",
-                "给地址起个好记的名字并设为当前目标",
-            ),
-            (
                 "shell",
                 FIF.SPEED_HIGH,
                 "反弹终端",
@@ -193,7 +187,7 @@ SECTIONS = (
 
 # 顶部的四个入口：最常用的页面加仓库、文档与反馈。
 SHORTCUTS = (
-    ("message", FIF.MESSAGE, "快速开始", "编辑消息并发送测试报文"),
+    ("aliases", FIF.QUICK_NOTE, "设备备注", "给地址起个好记的名字并设为当前目标"),
     ("repository", FIF.GITHUB, "项目仓库", "查看源码、版本与更新记录"),
     ("document", FIF.DOCUMENT, "使用文档", "图形界面的完整说明"),
     ("feedback", FIF.FEEDBACK, "问题反馈", "提交 issue 描述异常现象"),
