@@ -119,7 +119,9 @@
 | 模式 | 启动方式 | 说明 |
 | --- | --- | --- |
 | GUI | 双击 EXE；源码 `python -m app` | 无参数启动，先显示使用须知，同意后打开图形界面 |
-| CLI | `JiYuAttackNext.exe -ip ...`；源码 `python -m app -ip ...` | 带参数启动，在终端显示输出 |
+| CLI | `JiYuAttackNext.exe remote message -ip ...`；源码 `python -m app remote message -ip ...` | 带参数启动，在终端显示输出 |
+
+命令行按图形界面的三组分类组织，一个页面一条子命令：`remote`（远程攻击）、`teacher`（教师端模拟）、`local`（本机工具），例如 `remote message`、`teacher appcmd`、`local info`。来源项目的扁平写法（`-ip ... -msg ...`）仍然可用。
 
 EXE 无需安装 Python；从源码运行 CLI 需要按 `requirements.txt` 安装依赖。两者共用同一套报文实现，默认通信为 UDP，目标端口 `4705`。EXE 为窗口化程序，双击不会创建控制台窗口，带参数运行时把输出写回启动它的终端、不会另开窗口；由于它不占用控制台，提示符会立即返回——需要等命令执行完再继续时用 `start /wait JiYuAttackNext.exe ...`。PowerShell 中若 EXE 不在 `PATH`，需写成 `.\JiYuAttackNext.exe ...`；cmd 可直接运行。
 

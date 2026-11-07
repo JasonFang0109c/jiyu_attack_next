@@ -1,6 +1,5 @@
 """命令行参数解析与命令分发。"""
 
-import argparse
 import sys
 from os import system
 from pathlib import Path
@@ -32,7 +31,6 @@ from ..core import (
     request_firewall_rule,
     run_app_operation,
     run_firewall_helper,
-    runtime_version,
     send_chat,
     send_command,
     send_tracked,
@@ -41,315 +39,21 @@ from ..core import (
     transfer_file,
     view_screen,
 )
+from .parser import GROUP_NAMES, build_flat_parser, build_group_parser
 
 # 按进程名或窗口标题操作前要先发现学生、拉取列表，这里的监听时长固定。
 DISCOVERY_SECONDS = 8.0
 
 
 def build_parser():
-    """创建 CLI 参数解析器。"""
-    parser = argparse.ArgumentParser(
-        description="极域课堂 UDP 报文测试工具（学生端控制与教师端模拟）"
-    )
-    parser.add_argument(
-        "-V",
-        "--version",
-        action="version",
-        version=runtime_version(),
-        help="显示版本号并退出",
-    )
-    parser.add_argument("-ip", type=str, help="ip 指定目标IP地址")
-    parser.add_argument(
-        "-p", type=int, default=4705, help="port 指定监听端口，默认端口为4705"
-    )
-    message_options = parser.add_mutually_exclusive_group()
-    message_options.add_argument(
-        "-msg", type=str, help="发送文本消息，支持多行；超长内容自动分条"
-    )
-    message_options.add_argument(
-        "--msg-file",
-        type=str,
-        metavar="PATH",
-        help="从 UTF-8 文件读取消息；使用 - 从标准输入读取",
-    )
-    message_options.add_argument(
-        "--file",
-        type=str,
-        nargs="+",
-        metavar="PATH",
-        help="传送一个或多个文件、文件夹到目标电脑桌面，文件夹按原结构递归",
-    )
-    parser.add_argument(
-        "-c", type=str, help='command命令 eg: -c   "cmd.exe /c ipconfig"'
-    )
-    parser.add_argument("-l", type=int, default=1, help="循环次数，默认为1")
-    parser.add_argument("-t", type=int, default=22, help="循环时间间隔，默认是22秒")
-    parser.add_argument(
-        "--file-ip", type=str, metavar="IP", help="文件传送时发送端 IP，默认自动检测"
-    )
-    parser.add_argument(
-        "--file-timeout",
-        type=int,
-        default=120,
-        metavar="SECONDS",
-        help="等待目标下载文件的秒数，默认 120",
-    )
-    parser.add_argument(
-        "-e",
-        type=str,
-        choices=["r", "s", "l", "g", "break", "continue", "nc"],
-        help=(
-            "额外选项：r 重启、s 关机、l 注销、g 本机信息、"
-            "break 阻断学生端、continue 恢复允许、nc 反弹终端"
-        ),
-    )
-    parser.add_argument(
-        "--power-delay",
-        type=int,
-        default=0,
-        metavar="SECONDS",
-        help="配合 -e r/-e s 的倒计时秒数，默认 0（立即执行）",
-    )
-    parser.add_argument(
-        "--power-text",
-        type=str,
-        default="",
-        metavar="TEXT",
-        help="配合 -e r/-e s 显示在学生机上的提示文字",
-    )
-    parser.add_argument(
-        "--power-no-force",
-        action="store_true",
-        help="配合 -e r/-e s 时等待程序自行退出，不强制关闭",
-    )
-    action_group = parser.add_mutually_exclusive_group()
-    action_group.add_argument(
-        "--run",
-        metavar="PATH",
-        help="在目标电脑上运行指定程序（应用命令 0x0F）",
-    )
-    action_group.add_argument(
-        "--url", metavar="URL", help="在目标电脑上打开网址（应用命令 0x18）"
-    )
-    action_group.add_argument(
-        "--mouse",
-        action="store_true",
-        help="打开图形界面的远程接管页：鼠标输入只能在 GUI 里转发",
-    )
-    action_group.add_argument(
-        "--key",
-        action="store_true",
-        help="打开图形界面的远程接管页：键盘输入只能在 GUI 里转发",
-    )
-    action_group.add_argument(
-        "--view-stop",
-        action="store_true",
-        help="打开图形界面的屏幕画面页：观看会话在窗口里关闭",
-    )
-    action_group.add_argument(
-        "--control-stop",
-        action="store_true",
-        help="打开图形界面的远程接管页：解除接管在窗口里操作",
-    )
-    action_group.add_argument(
-        "--shell",
-        action="store_true",
-        help="启动反弹终端：本机监听并通过远程命令让目标连回来交互",
-    )
-    action_group.add_argument(
-        "--kill",
-        metavar="PID|NAME",
-        help="结束目标进程，填进程号直接下发，填进程名则先发现学生再按名匹配",
-    )
-    action_group.add_argument(
-        "--blackscreen",
-        nargs="?",
-        const=10,
-        type=int,
-        metavar="SECONDS",
-        help="黑屏并显示 SECONDS 秒后自动解除，默认 10 秒；0 表示不自动解除",
-    )
-    action_group.add_argument(
-        "--unlock", action="store_true", help="解除目标电脑的黑屏与键鼠锁"
-    )
-    action_group.add_argument(
-        "--exit-student", action="store_true", help="让目标电脑退出学生端"
-    )
-    action_group.add_argument(
-        "--close-apps", action="store_true", help="关闭目标电脑上的所有程序"
-    )
-    action_group.add_argument(
-        "--rename",
-        metavar="NAME",
-        help="修改目标电脑上显示的计算机名（应用命令 0x05）",
-    )
-    action_group.add_argument(
-        "--lock-screen", action="store_true", help="锁定目标电脑的屏幕（应用命令 0x0A）"
-    )
-    action_group.add_argument(
-        "--unlock-screen",
-        action="store_true",
-        help="解除目标电脑的锁屏（应用命令 0x0A，状态 0）",
-    )
-    action_group.add_argument(
-        "--all-preview",
-        nargs="?",
-        const=8,
-        type=int,
-        metavar="SECONDS",
-        help="对发现到的全部学生拉取缩略图，默认监听 8 秒",
-    )
-    action_group.add_argument(
-        "--announce",
-        nargs="?",
-        const=10,
-        type=int,
-        metavar="SECONDS",
-        help="以教师端模拟身份发送宣告并监听 SECONDS 秒，默认 10 秒",
-    )
-    action_group.add_argument(
-        "--students",
-        nargs="?",
-        const=8,
-        type=int,
-        metavar="SECONDS",
-        help="发现学生机并拉取信息、进程与窗口，默认监听 8 秒",
-    )
-    action_group.add_argument(
-        "--preview",
-        nargs="?",
-        const=8,
-        type=int,
-        metavar="SECONDS",
-        help="拉取并修正目标电脑的屏幕缩略图，默认监听 8 秒",
-    )
-    action_group.add_argument(
-        "--view",
-        nargs="?",
-        const=15,
-        type=int,
-        metavar="SECONDS",
-        help="观看目标电脑的实时画面，默认 15 秒",
-    )
-    action_group.add_argument(
-        "--chat",
-        type=str,
-        metavar="TEXT",
-        help="向已登录学生发送会话聊天消息（MESS 0x800）",
-    )
-    action_group.add_argument(
-        "--kill-window",
-        metavar="HWND|TITLE",
-        help="关闭目标窗口：填句柄直接下发，填标题关键字则先拉取窗口列表再匹配",
-    )
-    action_group.add_argument(
-        "--probe",
-        action="store_true",
-        help="探测目标电脑的屏幕传输端口是否在监听，不建立观看会话",
-    )
-    parser.add_argument(
-        "--run-args", type=str, default="", metavar="TEXT", help="--run 的启动参数"
-    )
-    parser.add_argument(
-        "--run-show",
-        type=int,
-        default=0,
-        choices=[0, 1, 2],
-        metavar="MODE",
-        help="--run 的窗口状态：0 正常、1 最小化、2 最大化",
-    )
-    parser.add_argument(
-        "--shell-port",
-        type=int,
-        default=0,
-        metavar="PORT",
-        help="反弹终端的本机监听端口，默认 0 表示随机",
-    )
-    parser.add_argument(
-        "--shell-ip",
-        type=str,
-        default="",
-        metavar="IP",
-        help="写进目标连接命令的本机地址，默认自动探测",
-    )
-    parser.add_argument(
-        "--control",
-        action="store_true",
-        help="配合 --view 请求接管键鼠；单独使用会打开图形界面的远程接管页",
-    )
-    parser.add_argument(
-        "--no-lock",
-        action="store_true",
-        help="--blackscreen 只黑屏，不锁定键盘与鼠标",
-    )
-    parser.add_argument(
-        "--no-auto-unlock",
-        action="store_true",
-        help="--blackscreen 结束后不自动解除，由 --unlock 或学生端自己计时结束",
-    )
-    parser.add_argument(
-        "--blackout-text",
-        type=str,
-        default="",
-        metavar="TEXT",
-        help="黑屏中间显示的提示",
-    )
-    parser.add_argument(
-        "--screen-password",
-        type=str,
-        default=None,
-        metavar="PASSWORD",
-        help="设置目标电脑的锁屏解锁密码（应用命令 0x0B），传空字符串表示清除",
-    )
-    parser.add_argument(
-        "--lcmd",
-        action="store_true",
-        help="应用命令改走不带事务应答的轻量通道 LCMD",
-    )
-    parser.add_argument(
-        "--report",
-        type=int,
-        default=0,
-        choices=[0, 1, 2],
-        metavar="KIND",
-        help="--students 请求的上报类型：0 全部、1 窗口、2 进程，默认 0",
-    )
-    parser.add_argument(
-        "--channel",
-        type=int,
-        default=1,
-        metavar="N",
-        help="教师端模拟的会话频道，默认 1",
-    )
-    parser.add_argument(
-        "--teacher-name",
-        type=str,
-        default="1",
-        metavar="NAME",
-        help="学生端显示的教师名",
-    )
-    parser.add_argument(
-        "--peer",
-        action="append",
-        default=[],
-        metavar="IP",
-        help="宣告时额外定向单发的地址，可重复，用于组播与广播都到不了的网段",
-    )
-    parser.add_argument(
-        "--tcp-port",
-        type=int,
-        default=4806,
-        metavar="PORT",
-        help="学生端屏幕传输的 TCP 端口，默认 4806",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=str,
-        default="",
-        metavar="DIR",
-        help="--preview 与 --view 保存图片的目录，默认当前目录下的 preview",
-    )
-    return parser
+    """创建兼容旧写法的扁平参数解析器。
+
+    具体参数定义在 ``app/cli/parser.py``，这里只保留函数名供既有调用方使用。
+
+    Returns:
+        argparse.ArgumentParser: 扁平参数解析器。
+    """
+    return build_flat_parser()
 
 
 parser = build_parser()
@@ -1056,6 +760,10 @@ def run_action(arguments):
     if arguments.control and arguments.view is None:
         # 接管需要持续转发键鼠事件，命令行没有输入循环，直接进图形界面。
         return launch_gui("control", get_ip(arguments.ip)[0], arguments.channel)
+    # 全员缩略图要在学生信息分支之前判断：分类写法里 students 有默认值，
+    # 否则 --all-preview 永远轮不到。
+    if arguments.all_preview is not None:
+        return run_all_previews(arguments)
     if arguments.announce is not None or arguments.students is not None:
         duration = (
             arguments.announce if arguments.announce is not None else arguments.students
@@ -1099,8 +807,6 @@ def run_action(arguments):
         log.info("教师端模拟查询完成", "教师端模拟", "学生数：%d" % len(records))
         return True
 
-    if arguments.all_preview is not None:
-        return run_all_previews(arguments)
     if arguments.preview is not None:
         return run_preview(arguments)
     if arguments.view is not None:
@@ -1267,6 +973,20 @@ def run_from_cmd(arguments):
     log_arguments(arguments)
     log = cli_log.LOG
     try:
+        if arguments.firewall:
+            results = request_firewall_rule(arguments.firewall)
+            failed = any(not item["success"] for item in results)
+            if failed:
+                print("[-] 部分防火墙设置失败，请检查管理员权限")
+                log.warning("部分防火墙设置失败，请检查管理员权限", "防火墙")
+                return 1
+            print(
+                "防火墙规则已阻断"
+                if arguments.firewall == "block"
+                else "防火墙规则已恢复"
+            )
+            log.info("防火墙规则已更新", "防火墙", "动作：%s" % arguments.firewall)
+            return 0
         if run_action(arguments):
             return
         single_command(arguments)
@@ -1314,6 +1034,21 @@ def run_from_cmd(arguments):
     return 0
 
 
+def _select_parser(arguments):
+    """按首个参数选择分类写法或扁平写法的解析器。
+
+    Args:
+        arguments: 去掉程序名之后的参数列表。
+
+    Returns:
+        argparse.ArgumentParser: 首参数是 ``remote``/``teacher``/``local``
+        时返回分类解析器，否则返回扁平解析器。
+    """
+    if arguments[:1] and arguments[0] in (*GROUP_NAMES, "-h", "--help"):
+        return build_group_parser()
+    return parser
+
+
 def main(argv=None):
     """解析参数并执行 CLI 或隐藏的防火墙助手。"""
     arguments = list(sys.argv[1:] if argv is None else argv)
@@ -1321,7 +1056,7 @@ def main(argv=None):
         return run_firewall_helper(arguments[1:])
     if is_informational(arguments):
         # 帮助与版本号走 argparse 自身的退出路径，不创建数据目录与日志文件。
-        parser.parse_args(arguments)
+        _select_parser(arguments).parse_args(arguments)
         return 0
     start_logging()
     cli_log.LOG.info(
@@ -1330,7 +1065,7 @@ def main(argv=None):
         "参数：%s" % (" ".join(arguments) if arguments else "无"),
     )
     try:
-        code = run_from_cmd(parser.parse_args(arguments))
+        code = run_from_cmd(_select_parser(arguments).parse_args(arguments))
     except SystemExit as error:
         # --help 与 --version 也用 SystemExit 结束，退出码 0 属于正常结束。
         if error.code in (0, None):

@@ -25,6 +25,31 @@ class EntryTests(unittest.TestCase):
             timeout=10,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
+        # 顶层帮助按图形界面的分组组织，具体参数在子命令的帮助里。
+        for name in ("remote", "teacher", "local"):
+            self.assertIn(name, result.stdout)
+
+    def test_group_help_lists_message_options(self):
+        project_root = Path(__file__).resolve().parents[1]
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-X",
+                "utf8",
+                "-B",
+                "-m",
+                "app",
+                "remote",
+                "message",
+                "-h",
+            ],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=10,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("-msg", result.stdout)
         self.assertIn("--msg-file", result.stdout)
 
@@ -121,8 +146,8 @@ runpy.run_path('app/__main__.py', run_name='__main__')
             timeout=10,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("-msg", result.stdout)
-        self.assertIn("--msg-file", result.stdout)
+        self.assertIn("remote", result.stdout)
+        self.assertIn("teacher", result.stdout)
 
 
 if __name__ == "__main__":
