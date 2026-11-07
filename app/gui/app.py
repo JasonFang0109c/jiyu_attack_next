@@ -761,8 +761,10 @@ class MainWindow(FluentWindow):
             for child in node.treeChildren:
                 child.setVisible(expanded)
             node.vBoxLayout.activate()
-            # 只调高度，宽度交给布局：把宽度也钉死会让分组比侧边栏窄，
-            # 图标随之左移，展开几次之后越缩越靠左。
+            # 展开动画会同时钉住宽高，只解除高度不够：宽度留着上次的值，
+            # 每次展开都比侧边栏窄一点，图标和文字就一步步往左缩。
+            node.setMinimumWidth(0)
+            node.setMaximumWidth(16777215)
             node.setFixedHeight(node.sizeHint().height())
 
     def _save_navigation_expanded(self):

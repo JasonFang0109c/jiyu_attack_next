@@ -9,6 +9,7 @@ from PySide6.QtCore import (
     QSignalBlocker,
     QSize,
     Qt,
+    QTimer,
     Signal,
     Slot,
 )
@@ -37,17 +38,50 @@ from qfluentwidgets import (
 
 from .. import core
 
+# 滚动条出现后停留的时长：滚动停下后过一会儿就消失。
+SCROLL_BAR_FADE_MS = 900
+# 滑块宽度固定成 3 像素，组件库默认会随悬停动画涨到 6 像素。
+SCROLL_BAR_HANDLE_SIZE = 3
+
+
+def _keep_thin(bar):
+    """把滑块压回固定尺寸；组件库会在悬停动画里把它改宽。"""
+    if bar.orientation() == Qt.Orientation.Vertical:
+        bar.handle.setFixedWidth(SCROLL_BAR_HANDLE_SIZE)
+    else:
+        bar.handle.setFixedHeight(SCROLL_BAR_HANDLE_SIZE)
+    # 宽度变了，位置也要按新宽度重新算，否则滑块会偏出轨道右缘。
+    bar._adjustHandlePos()
+
+
+def _fade_scroll_bar(bar):
+    """让滚动条只在滚动时短暂出现，且始终是一条很细的淡色滑块。"""
+    bar.setGrooveColor(QColor(0, 0, 0, 0), QColor(255, 255, 255, 0))
+    bar.setHandleColor(QColor(0, 0, 0, 70), QColor(255, 255, 255, 60))
+    bar.setHandleDisplayMode(ScrollBarHandleDisplayMode.ALWAYS)
+    _keep_thin(bar)
+    bar.handle.setOpacity(0)
+
+    timer = QTimer(bar)
+    timer.setSingleShot(True)
+    timer.setInterval(SCROLL_BAR_FADE_MS)
+    timer.timeout.connect(lambda: bar.handle.setOpacity(0))
+
+    def reveal(*_args):
+        bar.handle.setOpacity(1)
+        timer.start()
+
+    # 值变化即用户真的在滚；范围变化说明内容变了，也让它露个面。
+    bar.partnerBar.valueChanged.connect(reveal)
+    bar.partnerBar.rangeChanged.connect(reveal)
+    # 悬停时组件库会把滑块加粗，这里把它压回去。
+    bar.groove.opacityAni.valueChanged.connect(lambda *_: _keep_thin(bar))
+
 
 def soften_scroll_bars(widget):
-    """把区域内所有滚动条调细、调淡，并且不悬停时自动隐藏。
-
-    组件库的滚动条带一块比页面更深的凹槽底色，常驻显示很抢眼；这里把
-    凹槽底色清空、滑块调成半透明，并改用悬停才出现的显示模式。
-    """
+    """把区域内所有滚动条调成滚动时才出现的细淡滑块。"""
     for bar in widget.findChildren(ScrollBar):
-        bar.setHandleDisplayMode(ScrollBarHandleDisplayMode.ON_HOVER)
-        bar.setHandleColor(QColor(0, 0, 0, 60), QColor(255, 255, 255, 50))
-        bar.setGrooveColor(QColor(0, 0, 0, 0), QColor(255, 255, 255, 0))
+        _fade_scroll_bar(bar)
 
 
 def tool_button(icon, text, parent, callback):

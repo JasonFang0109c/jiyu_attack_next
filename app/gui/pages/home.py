@@ -54,9 +54,14 @@ class ShortcutCard(SimpleCardWidget):
         self.icon_widget.setFixedSize(self.ICON_SIZE, self.ICON_SIZE)
         layout.addWidget(self.icon_widget)
         self.title_label = StrongBodyLabel(title, self)
+        # 说明最多两行，标题与说明各按两行的位置固定下来；
+        # 否则换行的卡片会把标题挤矮，四张卡的文字基线就对不齐了。
+        self.title_label.setFixedHeight(self.title_label.sizeHint().height())
         layout.addWidget(self.title_label)
         self.description_label = CaptionLabel(description, self)
         self.description_label.setWordWrap(True)
+        line = self.description_label.fontMetrics().lineSpacing()
+        self.description_label.setFixedHeight(line * 2)
         layout.addWidget(self.description_label)
         footer = QHBoxLayout()
         footer.addStretch()
@@ -187,7 +192,7 @@ SECTIONS = (
 
 # 顶部的四个入口：最常用的页面加仓库、文档与反馈。
 SHORTCUTS = (
-    ("aliases", FIF.QUICK_NOTE, "设备备注", "给地址起个好记的名字并设为当前目标"),
+    ("aliases", FIF.QUICK_NOTE, "设备备注", "给地址起个好记的名字"),
     ("repository", FIF.GITHUB, "项目仓库", "查看源码、版本与更新记录"),
     ("document", FIF.DOCUMENT, "使用文档", "图形界面的完整说明"),
     ("feedback", FIF.FEEDBACK, "问题反馈", "提交 issue 描述异常现象"),
