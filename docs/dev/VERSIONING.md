@@ -14,11 +14,14 @@
 ## 版本号格式
 
 ```text
-主版本号.次版本号.修订号            正式版，例如 0.1.0
-主版本号.次版本号.修订号-nightly.YYYYMMDD   nightly，例如 0.1.0-nightly.20261029
+主版本号.次版本号.修订号                       正式版，例如 0.1.0
+主版本号.次版本号.修订号-nightly.YYYYMMDD         nightly，例如 0.1.0-nightly.20261029
+主版本号.次版本号.修订号-nightly.YYYYMMDD-提交哈希  nightly 的显示版本，例如 0.1.0-nightly.20261029-1a8ede3
 ```
 
-nightly 的后缀符合 SemVer 第 9 条“先行版本号”的约定：标识符只使用 ASCII 字母、数字与连接号，且 `0.1.0-nightly.20261029` 的优先级低于 `0.1.0`。因此同一版本线内的 nightly 永远排在对应正式版之前，GitHub 与包管理工具都能正确排序。
+测试版会在带日期的版本号后再追加 7 位提交哈希，只有测试版带，正式版始终是纯版本号。带哈希的形式出现在三处：EXE 文件名（含带版本号的副本）、EXE 属性里的版本资源、GUI 与命令行显示的版本号；发布说明的标题与 `**Version:**` 行只写带日期的版本号，不写哈希。同一天的多次推送因此能靠文件名与界面区分，GitHub 上的发布标题却不会每次都变。
+
+nightly 的后缀符合 SemVer 第 9 条“先行版本号”的约定：标识符只使用 ASCII 字母、数字与连接号，且 `0.1.0-nightly.20261029` 的优先级低于 `0.1.0`。追加提交哈希后 `20261029-1a8ede3` 仍是单个点分标识符，只是同一个先行版本号内的更细标识，不影响与正式版的排序关系。因此同一版本线内的 nightly 永远排在对应正式版之前，GitHub 与包管理工具都能正确排序。
 
 ## 起始版本
 
@@ -49,7 +52,9 @@ nightly 的后缀符合 SemVer 第 9 条“先行版本号”的约定：标识�
 | --- | --- |
 | `app/core/constants.py` 的 `__version__` | 唯一权威来源，构建脚本与工作流都从这里读取 |
 | `app/__init__.py` | 重新导出 `__version__`，供运行时代码和“关于”页使用 |
-| `build/assets/version.txt` | 构建时写入并打包进 EXE，供“关于”页显示 |
+| `build/assets/version.txt` | 构建时写入并打包进 EXE，供“关于”页与命令行显示；测试版写带提交哈希的显示版本 |
+
+`app/core/version.py` 负责把提交哈希拼到版本号上（`display_version`）并读取打包内的显示版本（`runtime_version`），`app/gui/build_info.py` 转调它。
 
 `tests/test_versioning.py` 校验版本号格式、包导出值与命令行 `--version` 输出一致；`packaging/build.ps1` 会拒绝不符合 SemVer 的版本号，`release.yml` 会拒绝与源码不一致或已存在标签的版本号。
 
@@ -58,10 +63,10 @@ nightly 的后缀符合 SemVer 第 9 条“先行版本号”的约定：标识�
 | 通道 | 触发方式 | 标签 | Release 属性 | 资产文件名 |
 | --- | --- | --- | --- | --- |
 | 正式版 | Actions 页面手动运行 `Release` | `v0.1.0`（与版本号一致，不复用） | 正式版，`make_latest: true` | `JiYuAttackNext-0.1.0.exe` 与 `JiYuAttackNext_Debug-0.1.0.exe`，另附固定名 `JiYuAttackNext.exe` 与 `JiYuAttackNext_Debug.exe` |
-| nightly | 推送到 `main` 且改动影响产物，或手动运行 | `nightly`（同一天原地更新，跨天删除重建） | 预发布，`make_latest: false` | `JiYuAttackNext.exe`、`JiYuAttackNext_Debug.exe` 及各自带版本号的副本 |
+| nightly | 推送到 `main` 且改动影响产物，或手动运行 | `nightly`（同一天原地更新，跨天删除重建） | 预发布，`make_latest: false` | `JiYuAttackNext.exe`、`JiYuAttackNext_Debug.exe` 及各自带显示版本（含提交哈希）的副本 |
 
 - 标签名带 `v` 前缀是 Git 的通行写法，但 `v` 不属于 SemVer 版本号本身。
-- 正式版与 nightly 都提供正常运行版本与调试版本两个 EXE，两者代码相同，只有日志等级不同：正常运行版本只记录 `WARNING` 与 `ERROR`，`_Debug` 版本从 `DEBUG` 起全量记录，供排查问题使用。版本号只加在带版本号的副本上，固定名资产保证 README 与文档中的下载链接长期有效。该资产是同一个 EXE，同时提供 GUI 与 CLI。
+- 正式版与 nightly 都提供正常运行版本与调试版本两个 EXE，两者代码相同，只有日志等级不同：正常运行版本只记录 `WARNING` 与 `ERROR`，`_Debug` 版本从 `DEBUG` 起全量记录，供排查问题使用。版本号只加在带版本号的副本上，固定名资产保证 README 与文档中的下载链接长期有效；nightly 的副本名带提交哈希，固定名不带，因此固定链接始终指向当天最新一次构建。该资产是同一个 EXE，同时提供 GUI 与 CLI。
 - nightly 同一天内重复构建时原地更新同一个预发布，只替换资产与说明，不产生新的发布通知；日期变了才删除旧的预发布与 `nightly` 标签再重新创建，因此历史资产与旧说明不会残留，下载地址仍固定为 `https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly`。
 - 发布说明中的日期使用 ISO 8601 格式（`YYYY-MM-DD`），与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 的建议一致。
 - 同一个 EXE 同时提供 GUI 与 CLI，发布资产不再附带独立的命令行脚本。
