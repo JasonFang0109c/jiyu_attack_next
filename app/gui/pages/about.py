@@ -3,7 +3,7 @@
 from importlib.metadata import PackageNotFoundError, version
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QFontMetrics, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -46,6 +46,9 @@ class AboutInfoCard(SectionCard):
             detail = HyperlinkButton(url, value, self, icon=icon)
             detail.setMaximumWidth(detail.sizeHint().width())
             row.addWidget(detail)
+        if url is None:
+            # 纯文字行留出与超链接内边距等宽的空白，右端才对得齐。
+            row.addSpacing(self.value_inset())
         self.body.addLayout(row)
         self.detail = detail
 
@@ -71,6 +74,9 @@ class AboutDetailCard(SectionCard):
 
     # 标题与内容行之间额外留白，比行与行之间更大，形成分组层次。
     HEADING_GAP = 6
+    # 超链接按钮左右各有内边距，文字并不贴住按钮边缘；纯文字行按同样的
+    # 留白往回缩，两类行的右端才会落在同一条竖线上。
+    LINK_TEXT_GAP = 4
 
     def __init__(self, heading, parent=None):
         super().__init__(parent, spacing=8, margins=(18, 12, 18, 12))
@@ -80,6 +86,7 @@ class AboutDetailCard(SectionCard):
         self.body.addSpacing(self.HEADING_GAP)
         self.rows = {}
         self._row_height = None
+        self._value_inset = None
 
     def row_height(self):
         """超链接按钮的自然高度；文字行据此对齐。
@@ -92,6 +99,23 @@ class AboutDetailCard(SectionCard):
             self._row_height = probe.sizeHint().height()
             probe.deleteLater()
         return self._row_height
+
+    def value_inset(self):
+        """超链接文字距按钮右缘的留白，纯文字行据此对齐右端。"""
+        if self._value_inset is None:
+            probe = HyperlinkButton(
+                "https://example.invalid", "示例", self, icon=FIF.LINK
+            )
+            metrics = QFontMetrics(probe.font())
+            spare = (
+                probe.sizeHint().width()
+                - metrics.horizontalAdvance("示例")
+                - probe.iconSize().width()
+                - self.LINK_TEXT_GAP
+            )
+            self._value_inset = max(0, spare // 2)
+            probe.deleteLater()
+        return self._value_inset
 
     def add_row(self, key, label, value, url=None, icon=None, tooltip=None):
         """追加一行“名称 + 值”，值可以是纯文本或超链接。"""
@@ -194,14 +218,14 @@ class AboutPage(Page):
             "来源仓库",
             "https://github.com/ht0Ruial/Jiyu_udp_attack",
             url="https://github.com/ht0Ruial/Jiyu_udp_attack",
-            icon=FIF.LINK,
+            icon=FIF.GITHUB,
         )
         self.repository_card.add_row(
             "thirdparty",
-            "来源仓库",
+            "",
             "https://github.com/yunsjxh/Third-party-JiYu-Teacher-Endpoint",
             url="https://github.com/yunsjxh/Third-party-JiYu-Teacher-Endpoint",
-            icon=FIF.LINK,
+            icon=FIF.GITHUB,
         )
         content.addWidget(self.repository_card)
 
