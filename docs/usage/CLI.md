@@ -421,7 +421,7 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 .\JiYuAttackNext.exe restriction student --start --exe "C:\Program Files\TopDomain\e-Learning Class Standard\1.00\StudentMain.exe"
 ```
 
-进程、端口与程序路径来自 `tasklist`、`netstat` 与 `Get-Process`；路径读不到时（例如学生端以 SYSTEM 运行）显示“不可读”，这不影响结束。列表会标注同目录是否带 `LibTDMaster.dll`，没有这个库的同名进程通常是冒牌货。
+结束分三层：先请学生端正常退出，等不到进程消失再强制结束，仍被拒绝才走管理员授权；学生端不响应正常退出，`taskkill` 不加 `/F` 也会报成功，所以判定以进程是否真的消失为准。启动会依次查运行中的进程、卸载信息、极域服务所在目录与常见安装目录，拉起后等最多 5 秒确认。结束后学生端又被拉起来时，会提示是守护服务重启了它。进程、端口与程序路径来自 `tasklist`、`netstat` 与 `Get-Process`；路径读不到时（例如学生端以 SYSTEM 运行）显示“不可读”，这不影响结束。列表会标注同目录是否带 `LibTDMaster.dll`，没有这个库的同名进程通常是冒牌货。
 
 结束是分层的：先 `taskkill` 请求正常退出，失败再 `/F` 强制，仍然被拒绝且当前不是管理员时，才把剩下的进程交给 UAC 隐藏助手一次性处理，弹窗里选“是”即可，点“否”会提示授权已取消。
 

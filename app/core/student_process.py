@@ -78,6 +78,11 @@ STUDENT_DIRECTORIES = (
 # 启动后等待学生端进程出现的上限，超时只是提示，不代表启动失败。
 START_TIMEOUT = 5.0
 
+# 请求正常退出后等这么久，超时就强制结束；强制结束后的等待时间同理。
+GRACEFUL_TIMEOUT = 1.5
+
+FORCED_TIMEOUT = 2.5
+
 # 轮询进程列表的间隔。
 POLL_INTERVAL = 0.25
 
@@ -187,6 +192,23 @@ def find_student_processes():
     ]
 
 
+def _pid_alive(pid):
+    """用 tasklist 判断指定进程是否还在，避免依赖退出码误判。"""
+    process = run_windows_command(["tasklist", "/FI", "PID eq %d" % pid, "/NH"])
+    return process.returncode == 0 and str(pid) in process.stdout
+
+
+def _wait_gone(pid, timeout):
+    """在超时时间内轮询等待进程消失，返回是否已经不在。"""
+    deadline = time.monotonic() + timeout
+    while True:
+        if not _pid_alive(pid):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(POLL_INTERVAL)
+
+
 def _taskkill(pid, force):
     """用 taskkill 结束进程，先正常请求退出，失败再强制。
 
@@ -216,13 +238,25 @@ def _taskkill(pid, force):
 
 
 def _terminate(pid):
-    """结束单个进程：先正常请求，失败再强制。"""
+    """结束单个进程：先请它正常退出，等不到才强制结束。
+
+    极域学生端没有窗口也不处理关闭消息，``taskkill`` 不加 ``/F`` 同样返回
+    成功，但进程其实还在跑，所以每一步都要以“进程是否真的消失”为准。
+    """
     outcome = _taskkill(pid, force=False)
-    if outcome["success"]:
+    if _wait_gone(pid, GRACEFUL_TIMEOUT):
+        outcome["gone"] = True
         return outcome
     forced = _taskkill(pid, force=True)
-    if not forced["success"]:
-        forced["output"] = forced["output"] or outcome["output"]
+    gone = _wait_gone(pid, FORCED_TIMEOUT)
+    forced["gone"] = gone
+    forced["success"] = gone
+    if not gone:
+        reason = forced["output"] or outcome["output"] or "进程仍在运行"
+        hint = "进程仍在运行"
+        if "拒绝访问" in reason:
+            hint = "拒绝访问，需要管理员权限"
+        forced["output"] = "%s（%s）" % (reason, hint)
     return forced
 
 
@@ -237,15 +271,25 @@ def _run_student_elevated(target):
             STUDENT_RESULT_ARGUMENT,
             result_path,
         ]
+        directory = None
         if not getattr(sys, "frozen", False):
-            arguments.insert(0, str(Path(__file__).resolve()))
+            # 源码运行时助手必须走 -m app 统一入口，并把仓库根目录设为工作目录，
+            # 否则相对导入失败，助手什么都没干就退出，表现为“没有成功杀掉”。
+            arguments = ["-m", "app", *arguments]
+            directory = str(Path(__file__).resolve().parents[2])
         exit_code = _run_elevated_process(
-            sys.executable, subprocess.list2cmdline(arguments)
+            sys.executable,
+            subprocess.list2cmdline(arguments),
+            directory=directory,
+            action="结束或启动学生端",
         )
         try:
             payload = json.loads(Path(result_path).read_text(encoding="utf-8"))
         except (OSError, ValueError) as error:
-            raise RuntimeError("管理员权限进程未返回结果") from error
+            raise RuntimeError(
+                "管理员权限进程未返回结果（助手退出码 %d），可能是授权被取消、"
+                "被安全软件拦截或程序路径含中文" % exit_code
+            ) from error
         if payload.get("error"):
             raise RuntimeError(payload["error"])
         results = payload.get("results")
@@ -312,11 +356,28 @@ def stop_student_processes(pids=None, report=None):
             report("正在请求管理员权限结束剩余的 %d 个进程…" % len(pending))
         elevated = {item["pid"]: item for item in _elevated_stop(pending)}
         results = [elevated.get(item["pid"], item) for item in results]
-    gone = {item["pid"] for item in find_student_processes()}
+    alive = {item["pid"] for item in results if _pid_alive(item["pid"])}
     for item in results:
-        item["gone"] = item["pid"] not in gone
+        item["gone"] = item["pid"] not in alive
         if item["gone"]:
             item["success"] = True
+    remaining = find_student_processes()
+    # 极域的服务端会看住学生端，结束之后可能立刻被重新拉起，这时必须说清楚，
+    # 否则用户只会看到“进程又回来了”，不知道是守护进程干的。
+    respawned = [item for item in remaining if item["pid"] not in targets]
+    for item in respawned:
+        results.append(
+            {
+                "pid": item["pid"],
+                "code": 0,
+                "output": "学生端被极域守护服务重新拉起（PID %d），"
+                "需要先停止该服务再结束进程" % item["pid"],
+                "success": False,
+                "forced": False,
+                "gone": False,
+                "respawned": True,
+            }
+        )
     return results
 
 
@@ -332,6 +393,39 @@ def _registry_paths():
         "exact": ["HKLM:" + sep.join(exact), "HKLM:" + sep.join(wow)],
         "wildcard": ["HKLM:" + sep.join(wildcard), "HKLM:" + sep.join(wildcard_wow)],
     }
+
+
+def _service_directories():
+    """从极域相关服务的可执行路径推出安装目录。
+
+    服务端组件（如 ``GATESRV.exe``）和学生端装在同一目录，注册表里查不到时
+    用这条线索最可靠；有些机器把学生端装在非系统盘的自定义目录。
+    """
+    script = (
+        "Get-CimInstance Win32_Service | "
+        "Where-Object { $_.PathName -match "
+        "'Mythware|TopDomain|Student|e-Learning|JiYu' } | "
+        "ForEach-Object { $_.PathName }"
+    )
+    try:
+        process = run_windows_command(["powershell", "-NoProfile", "-Command", script])
+    except (OSError, RuntimeError):
+        return []
+    if process.returncode != 0:
+        return []
+    directories = []
+    for line in process.stdout.splitlines():
+        text = line.strip().strip('"')
+        if not text:
+            continue
+        quoted = text.startswith('"')
+        candidate = (
+            text.split('"')[1] if quoted and '"' in text[1:] else text.split()[0]
+        )
+        parent = Path(candidate.strip('"')).parent
+        if str(parent) not in directories:
+            directories.append(str(parent))
+    return directories
 
 
 def _clean_icon(value):
@@ -377,16 +471,17 @@ def _executable_in(directory):
     for name in STUDENT_EXECUTABLE_NAMES:
         candidate = Path(directory) / name
         if candidate.is_file():
-            return str(candidate)
+            # 目录可能来自 netstat 之类的相对来源，统一返回绝对路径。
+            return str(candidate.resolve())
     return None
 
 
 def find_student_executable(explicit=None):
     """定位本机学生端主程序。
 
-    顺序与 JiYuTrainer 一致：手动指定 → 正在运行的进程 → 卸载信息里的
-    ``DisplayIcon`` → 卸载信息里的安装目录 → 常见安装目录。多个候选时优先
-    同目录带 ``LibTDMaster.dll`` 的真身。
+    顺序参考 JiYuTrainer：手动指定 → 正在运行的进程 → 卸载信息里的
+    ``DisplayIcon`` → 卸载信息里的安装目录 → 极域服务所在目录 → 常见安装
+    目录。多个候选时优先同目录带 ``LibTDMaster.dll`` 的真身。
 
     Args:
         explicit: 手动指定的路径，None 表示自动查找。
@@ -409,6 +504,10 @@ def find_student_executable(explicit=None):
     candidates = list(running)
     candidates.extend(_uninstall_icon())
     for directory in _registered_directories():
+        found = _executable_in(directory)
+        if found:
+            candidates.append(found)
+    for directory in _service_directories():
         found = _executable_in(directory)
         if found:
             candidates.append(found)

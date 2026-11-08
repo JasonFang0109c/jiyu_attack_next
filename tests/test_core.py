@@ -427,20 +427,142 @@ class CoreTests(unittest.TestCase):
                 self.core.student_process, "_taskkill", side_effect=outcomes
             ) as taskkill,
             patch.object(
+                self.core.student_process, "_wait_gone", side_effect=[False, True]
+            ),
+            patch.object(self.core.student_process, "_pid_alive", return_value=False),
+            patch.object(
                 self.core.student_process, "find_student_processes", return_value=[]
             ),
             patch.object(self.core.student_process, "_is_admin", return_value=True),
         ):
             results = self.core.stop_student_processes([17600])
         self.assertEqual(
-            [item.args for item in taskkill.call_args_list], [(17600,), (17600,)]
-        )
-        self.assertEqual(
             [item.kwargs["force"] for item in taskkill.call_args_list], [False, True]
         )
         self.assertTrue(results[0]["success"])
         self.assertTrue(results[0]["forced"])
         self.assertTrue(results[0]["gone"])
+
+    def test_terminate_escalates_when_graceful_signal_leaves_it_running(self):
+        # 极域学生端不响应正常退出，taskkill 不加 /F 也返回成功，要靠存活检查升级。
+        graceful = {
+            "pid": 17600,
+            "code": 0,
+            "output": "成功: 给进程发送了终止信号",
+            "success": True,
+            "forced": False,
+        }
+        forced = {
+            "pid": 17600,
+            "code": 0,
+            "output": "成功: 已终止",
+            "success": True,
+            "forced": True,
+        }
+        with (
+            patch.object(
+                self.core.student_process, "_taskkill", side_effect=[graceful, forced]
+            ) as taskkill,
+            patch.object(
+                self.core.student_process, "_wait_gone", side_effect=[False, True]
+            ),
+        ):
+            outcome = self.core.student_process._terminate(17600)
+        self.assertEqual(
+            [item.kwargs["force"] for item in taskkill.call_args_list], [False, True]
+        )
+        self.assertTrue(outcome["success"])
+        self.assertTrue(outcome["gone"])
+
+    def test_stop_student_processes_reports_respawned_student(self):
+        respawn = {
+            "pid": 19000,
+            "name": "StudentMain.exe",
+            "ports": [4705],
+            "path": "",
+            "genuine": False,
+        }
+        outcome = {
+            "pid": 17600,
+            "code": 0,
+            "output": "成功",
+            "success": True,
+            "forced": True,
+        }
+        with (
+            patch.object(self.core.student_process, "_taskkill", return_value=outcome),
+            patch.object(self.core.student_process, "_wait_gone", return_value=True),
+            patch.object(self.core.student_process, "_pid_alive", return_value=False),
+            patch.object(
+                self.core.student_process,
+                "find_student_processes",
+                side_effect=[[respawn]],
+            ),
+            patch.object(self.core.student_process, "_is_admin", return_value=True),
+        ):
+            results = self.core.stop_student_processes([17600])
+        self.assertEqual(len(results), 2)
+        self.assertTrue(results[0]["success"])
+        self.assertTrue(results[1]["respawned"])
+        self.assertFalse(results[1]["success"])
+        self.assertIn("守护服务", results[1]["output"])
+
+    def test_find_student_executable_uses_service_directory(self):
+        root = Path(self.test_root)
+        service_dir = root / "Mythware"
+        service_dir.mkdir(exist_ok=True)
+        exe = service_dir / "StudentMain.exe"
+        exe.write_text("", encoding="utf-8")
+        plain = str(service_dir / "GATESRV.exe")
+        services = SimpleNamespace(
+            returncode=0,
+            stderr="",
+            stdout=plain + chr(10),
+        )
+        with (
+            patch.object(
+                self.core.student_process, "find_student_processes", return_value=[]
+            ),
+            patch.object(self.core.student_process, "_uninstall_icon", return_value=[]),
+            patch.object(
+                self.core.student_process, "_registered_directories", return_value=[]
+            ),
+            patch.object(
+                self.core.student_process,
+                "run_windows_command",
+                return_value=services,
+            ),
+        ):
+            found = self.core.student_process.find_student_executable()
+        self.assertEqual(found, str(exe.resolve()))
+
+    def test_elevated_helper_uses_module_entry_when_not_frozen(self):
+        seen = {}
+
+        def fake(executable, parameters, directory=None, action=""):
+            seen["executable"] = executable
+            seen["parameters"] = parameters
+            seen["directory"] = directory
+            seen["action"] = action
+            return 1
+
+        with (
+            patch.object(
+                self.core.student_process, "_run_elevated_process", side_effect=fake
+            ),
+            patch.object(self.core.student_process, "sys") as fake_sys,
+        ):
+            fake_sys.platform = "win32"
+            fake_sys.executable = "python.exe"
+            fake_sys.frozen = False
+            with self.assertRaises(RuntimeError):
+                self.core.student_process._run_student_elevated("17600")
+        self.assertTrue(seen["parameters"].startswith("-m app"))
+        self.assertTrue(seen["parameters"].endswith(".json"))
+        self.assertEqual(
+            Path(seen["directory"]).name,
+            Path(self.core.student_process.__file__).parents[2].name,
+        )
 
     def test_toggle_student_process_follows_running_state(self):
         record = {

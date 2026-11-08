@@ -150,8 +150,18 @@ def _is_admin():
         return False
 
 
-def _run_elevated_process(executable, parameters):
-    """通过 UAC 启动隐藏的管理员进程并等待其退出。"""
+def _run_elevated_process(executable, parameters, directory=None, action="操作"):
+    """通过 UAC 启动隐藏的管理员进程并等待其退出。
+
+    Args:
+        executable: 要启动的程序。
+        parameters: 命令行参数文本。
+        directory: 工作目录，None 表示沿用当前目录。
+        action: 出现在提示文案里的动作名，用于说明被取消的是什么操作。
+
+    Returns:
+        int: 提权进程的退出码。
+    """
     import ctypes
     from ctypes import wintypes
 
@@ -193,11 +203,12 @@ def _run_elevated_process(executable, parameters):
     info.lpVerb = "runas"
     info.lpFile = executable
     info.lpParameters = parameters
+    info.lpDirectory = directory
     info.nShow = 0  # SW_HIDE
     if not shell32.ShellExecuteExW(ctypes.byref(info)):
         error = ctypes.WinError(ctypes.get_last_error())
         if getattr(error, "winerror", None) == 1223:
-            raise RuntimeError("管理员授权已取消，未执行防火墙操作")
+            raise RuntimeError("管理员授权已取消，未执行%s" % action)
         raise error
     if not info.hProcess:
         raise RuntimeError("无法启动管理员权限进程")
@@ -221,10 +232,17 @@ def _run_firewall_elevated(action):
             FIREWALL_RESULT_ARGUMENT,
             result_path,
         ]
+        directory = None
         if not getattr(sys, "frozen", False):
-            arguments.insert(0, str(Path(__file__).resolve()))
+            # 直接运行源码时要把仓库根目录设为工作目录，用 -m app 走统一入口，
+            # 否则助手进程无法解析相对导入，等于什么都没做。
+            arguments = ["-m", "app", *arguments]
+            directory = str(Path(__file__).resolve().parents[2])
         exit_code = _run_elevated_process(
-            sys.executable, subprocess.list2cmdline(arguments)
+            sys.executable,
+            subprocess.list2cmdline(arguments),
+            directory=directory,
+            action="防火墙操作",
         )
         try:
             payload = json.loads(Path(result_path).read_text(encoding="utf-8"))
