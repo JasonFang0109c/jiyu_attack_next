@@ -145,22 +145,29 @@ def _name_field(teacher_name, channel):
     return (characters << 17) | channel, encoded, characters
 
 
-def oonc_packet(local_ip, sequence=0):
+def oonc_packet(local_ip, sequence=0, channel=1):
     """构造在线宣告包 ``OONC``。
+
+    尾部的两个字段是教师所在频道号，抓包可见真实教师端在频道 2 时填
+    ``2, 2``。学生端会拿它和自己的频道比对，写死 1 时频道 2 以上的学生
+    机直接忽略宣告。
 
     Args:
         local_ip: 本机在教室网段的地址。
         sequence: 递增序号，学生端只用来判断宣告是否新鲜。
+        channel: 频道号，1 到 32。
 
     Returns:
         bytes: 完整报文。
     """
+    if not 1 <= channel <= 32:
+        raise ValueError("频道号必须在 1 到 32 之间")
     return (
         struct.pack("<II", OONC_MAGIC, COM_VERSION)
         + struct.pack("<I", 16)
         + TEACHER_GUID.bytes_le
         + _address(local_ip)
-        + struct.pack("<III", 1, 1, sequence & 0xFFFFFFFF)
+        + struct.pack("<III", channel, channel, sequence & 0xFFFFFFFF)
     )
 
 

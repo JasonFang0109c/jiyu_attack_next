@@ -6,6 +6,7 @@
 """
 
 import ipaddress
+import os
 import socket
 import struct
 import time
@@ -14,7 +15,7 @@ from threading import Event, Lock, Thread
 from time import monotonic, sleep
 
 from . import appcmd
-from .local_info import detect_local_ip, local_networks
+from .local_info import detect_local_ip, local_networks, udp_port_owners
 
 # 组播回环要关掉，否则本机会收到自己发出的宣告，把监听结果撑成多个条目。
 _MULTICAST_TTL = 32
@@ -126,6 +127,8 @@ class TeacherSession:
         self._threads = []
         self._peers = []
         self._report = None
+        # 本机其他进程占用 4705 时，学生端的回包会被它收走，需要提示用户。
+        self.port_conflicts = []
 
     def __enter__(self):
         self.open()
@@ -144,6 +147,14 @@ class TeacherSession:
         self._session = _multicast_socket(
             self.session_port, self.session_address, self.local_ip
         )
+        self.port_conflicts = self._detect_conflicts()
+
+    def _detect_conflicts(self):
+        """找出本机抢占总通道端口的其他进程，查询失败时返回空列表。"""
+        try:
+            return udp_port_owners(self.port, exclude_pids=(os.getpid(),))
+        except (RuntimeError, OSError):
+            return []
 
     def close(self):
         """关闭两个套接字，重复调用无副作用。"""
@@ -190,7 +201,11 @@ class TeacherSession:
             self._sequence += 1
             sent += self._deliver(
                 self._main,
-                [appcmd.oonc_packet(self.local_ip, self._sequence)],
+                [
+                    appcmd.oonc_packet(
+                        self.local_ip, self._sequence, channel=self.channel
+                    )
+                ],
                 targets,
             )
             if self._pause(half, cancel_event):

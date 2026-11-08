@@ -1583,6 +1583,29 @@ class MainWindow(FluentWindow):
             "频道：%d；教师名：%s" % (channel, teacher_name),
         )
         self._notify("常驻教师端", "已开始持续宣告，收到登录会自动刷新列表", "成功")
+        for conflict in session.port_conflicts:
+            self.logs.warning(
+                "学生信息",
+                "教师端端口被占用",
+                "进程：%s（PID %d），地址：%s，端口：%d"
+                % (
+                    conflict["name"],
+                    conflict["pid"],
+                    conflict["address"],
+                    session.port,
+                ),
+            )
+            self._notify(
+                "端口被占用",
+                "%s（PID %d）占用 %s 的 %d 端口，学生端的回包会先被它收走"
+                % (
+                    conflict["name"],
+                    conflict["pid"],
+                    conflict["address"],
+                    session.port,
+                ),
+                "警告",
+            )
 
     def stop_serve(self, notify=True):
         """停止常驻会话并恢复界面控件。

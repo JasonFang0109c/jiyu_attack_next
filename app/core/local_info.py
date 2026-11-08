@@ -147,6 +147,61 @@ def local_ip_and_ports():
     return ip, sorted(ports, key=int)
 
 
+def udp_port_owners(port, exclude_pids=()):
+    """列出本机占用指定 UDP 端口的其他进程。
+
+    学生端的回包只会送到教师端地址的 4705 端口，本机若同时跑着学生端客户端，
+    它对同一地址的独占绑定会抢先收走回包，表现为“宣告发出去了但没人登录”。
+
+    Args:
+        port: 要检查的 UDP 端口。
+        exclude_pids: 需要忽略的进程号，通常是本进程。
+
+    Returns:
+        list[dict]: 每项含 ``address``、``pid``、``name``，按进程号升序。
+
+    Raises:
+        RuntimeError: 端口或进程查询失败。
+    """
+    connections = run_windows_command(["netstat", "-ano", "-p", "UDP"])
+    if connections.returncode:
+        raise RuntimeError(connections.stderr.strip() or "监听端口查询失败")
+    ignored = {str(pid) for pid in exclude_pids}
+    owners = {}
+    for line in connections.stdout.splitlines():
+        fields = line.split()
+        if len(fields) < 4 or fields[0] != "UDP":
+            continue
+        address, pid = fields[1], fields[-1]
+        if address.rsplit(":", 1)[-1] != str(port) or pid in ignored:
+            continue
+        owners.setdefault(pid, []).append(address)
+    if not owners:
+        return []
+    names = _process_names(tuple(owners))
+    return [
+        {
+            "address": ",".join(sorted(addresses)),
+            "pid": int(pid),
+            "name": names.get(pid, "未知进程"),
+        }
+        for pid, addresses in sorted(owners.items(), key=lambda item: int(item[0]))
+    ]
+
+
+def _process_names(pids):
+    """把进程号映射成映像名，查询失败时返回空字典。"""
+    tasks = run_windows_command(["tasklist", "/FO", "CSV", "/NH"])
+    if tasks.returncode:
+        return {}
+    wanted = {str(pid) for pid in pids}
+    names = {}
+    for row in csv.reader(tasks.stdout.splitlines()):
+        if len(row) >= 2 and row[1] in wanted:
+            names[row[1]] = row[0]
+    return names
+
+
 # 网卡前缀查一次就够用，结果缓存到进程结束；网卡变动后重启程序即可刷新。
 _NETWORK_CACHE = None
 

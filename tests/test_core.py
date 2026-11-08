@@ -312,6 +312,36 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(ip, "模拟本机")
         self.assertEqual(result, ["4705"])
 
+    def test_udp_port_owners_lists_other_processes_on_the_port(self):
+        connections = SimpleNamespace(
+            returncode=0,
+            stderr="",
+            stdout="UDP 192.168.50.22:4705 *:* 17600\n"
+            "UDP 0.0.0.0:4705 *:* 9001\n"
+            "UDP 0.0.0.0:6536 *:* 9002\n",
+        )
+        tasks = SimpleNamespace(
+            returncode=0,
+            stderr="",
+            stdout='"StudentMain.exe","17600"\n"JiYuAttackNext.exe","9001"\n',
+        )
+        with patch.object(
+            self.core.local_info,
+            "run_windows_command",
+            side_effect=[connections, tasks],
+        ):
+            owners = self.core.local_info.udp_port_owners(4705, exclude_pids=(9001,))
+        self.assertEqual(
+            owners,
+            [
+                {
+                    "address": "192.168.50.22:4705",
+                    "pid": 17600,
+                    "name": "StudentMain.exe",
+                }
+            ],
+        )
+
     def test_windows_output_decoding_supports_utf8_and_gbk(self):
         self.assertEqual(
             self.core.firewall._decode_windows_output("规则已更新".encode("utf-8")),

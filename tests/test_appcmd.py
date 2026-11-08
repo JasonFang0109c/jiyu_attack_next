@@ -278,6 +278,25 @@ class PersistentSessionTests(unittest.TestCase):
         self.assertIsNone(teacher._main)
         self.assertIsNone(teacher._session)
 
+    def test_oonc_carries_teacher_channel(self):
+        packet = core.appcmd.oonc_packet("192.168.50.22", sequence=97, channel=2)
+        self.assertEqual(len(packet), 44)
+        self.assertEqual(struct.unpack("<III", packet[32:44]), (2, 2, 97))
+        with self.assertRaises(ValueError):
+            core.appcmd.oonc_packet("192.168.50.22", channel=33)
+
+    def test_open_reports_other_owners_of_the_main_port(self):
+        teacher = core.TeacherSession(
+            channel=3, teacher_name="Fang", port=47124, local_ip="127.0.0.1"
+        )
+        owners = [
+            {"address": "192.168.50.22:47124", "pid": 17600, "name": "StudentMain.exe"}
+        ]
+        with patch.object(core.teacher, "udp_port_owners", return_value=owners):
+            teacher.open()
+        self.assertEqual(teacher.port_conflicts, owners)
+        teacher.close()
+
 
 class AppCommandCliTests(unittest.TestCase):
     """应用命令相关命令行参数的解析与负载生成。"""

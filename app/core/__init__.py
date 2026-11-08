@@ -42,6 +42,7 @@ from .local_info import (
     detect_local_ip,
     local_ip_and_ports,
     local_networks,
+    udp_port_owners,
     validate_listen_ip,
 )
 from .paths import (
@@ -209,6 +210,7 @@ __all__ = [
     "teacher",
     "transfer_file",
     "transport",
+    "udp_port_owners",
     "validate_file_transfer",
     "validate_listen_ip",
     "validate_options",

@@ -774,6 +774,29 @@ def run_serve(arguments):
         % (arguments.channel, arguments.teacher_name, arguments.p),
         flush=True,
     )
+    for conflict in session.port_conflicts:
+        print(
+            "[警告] %s（PID %d）已占用本机 %s 的 %d 端口，"
+            "学生端的回包会先被它收走，模拟教师可能一直等不到登录。"
+            % (
+                conflict["name"],
+                conflict["pid"],
+                conflict["address"],
+                arguments.p,
+            ),
+            flush=True,
+        )
+        log.warning(
+            "教师端端口被占用",
+            "教师端模拟",
+            "进程：%s（PID %d），地址：%s，端口：%d"
+            % (
+                conflict["name"],
+                conflict["pid"],
+                conflict["address"],
+                arguments.p,
+            ),
+        )
     log.info(
         "教师端常驻启动",
         "教师端模拟",
@@ -805,7 +828,8 @@ def run_serve(arguments):
                 break
             sleep(0.5)
     except KeyboardInterrupt:
-        print("\n已收到中断，正在停止教师端…", flush=True)
+        print()
+        print("已收到中断，正在停止教师端…", flush=True)
     finally:
         session.stop()
     print("教师端已停止，本次共发现 %d 台学生机" % len(seen), flush=True)
