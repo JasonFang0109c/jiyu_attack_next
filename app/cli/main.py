@@ -40,6 +40,7 @@ from ..core import (
     send_tracked,
     send_unlocks,
     split_message,
+    start_student_process,
     stop_student_processes,
     transfer_file,
     view_screen,
@@ -1068,8 +1069,8 @@ def run_from_cmd(arguments):
     log_arguments(arguments)
     log = cli_log.LOG
     try:
-        if arguments.endstudent or arguments.list:
-            return run_end_student(arguments)
+        if arguments.endstudent or arguments.list or arguments.start_student:
+            return run_student_command(arguments)
         if arguments.firewall:
             results = request_firewall_rule(arguments.firewall)
             failed = any(not item["success"] for item in results)
@@ -1131,26 +1132,39 @@ def run_from_cmd(arguments):
     return 0
 
 
-def run_end_student(arguments):
-    """列出或结束本机学生端进程。
+def run_student_command(arguments):
+    """列出、结束或启动本机学生端。
 
     Args:
-        arguments: 解析后的参数，``list`` 为真时只列进程，否则结束进程。
+        arguments: 解析后的参数；``list`` 只列进程，``start_student`` 启动
+        学生端，其余情况结束进程。
 
     Returns:
-        int: 0 表示成功，1 表示有进程未能结束。
+        int: 0 表示成功，1 表示有进程未能启动或结束。
     """
     log = cli_log.LOG
+    if arguments.start_student:
+        results = start_student_process(arguments.student_exe)
+        for item in results:
+            print(("[+] " if item["success"] else "[-] ") + str(item.get("output", "")))
+            if item["success"]:
+                print("已启动学生端：%s" % item["path"])
+                log.info("已启动学生端", "解除限制", "程序：%s" % item["path"])
+        failed = [item for item in results if not item["success"]]
+        if failed:
+            log.error("启动学生端失败", "解除限制", "程序：%s" % failed[0]["path"])
+            return 1
+        return 0
     processes = find_student_processes()
     if not processes:
         print("本机没有正在运行的学生端进程")
-        log.info("本机没有学生端进程", "本机进程")
+        log.info("本机没有学生端进程", "解除限制")
         return 0
     for item in processes:
         ports = ", ".join(str(port) for port in item["ports"]) or "-"
         print("[*] PID %d  %s  端口 %s" % (item["pid"], item["name"], ports))
     if arguments.list:
-        log.info("已列出学生端进程", "本机进程", "共 %d 个" % len(processes))
+        log.info("已列出学生端进程", "解除限制", "共 %d 个" % len(processes))
         return 0
     results = stop_student_processes(arguments.pid)
     for item in results:
@@ -1159,12 +1173,12 @@ def run_end_student(arguments):
     if failed:
         log.error(
             "结束学生端失败",
-            "本机进程",
+            "解除限制",
             "失败进程：%s" % ", ".join(str(item["pid"]) for item in failed),
         )
         return 1
     print("已结束 %d 个学生端进程" % len(results))
-    log.info("已结束学生端进程", "本机进程", "共 %d 个" % len(results))
+    log.info("已结束学生端进程", "解除限制", "共 %d 个" % len(results))
     return 0
 
 

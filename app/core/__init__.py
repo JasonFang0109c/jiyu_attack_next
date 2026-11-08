@@ -70,8 +70,10 @@ from .shell import ShellServer, connect_command, payload_script, send_command
 from .student_process import (
     STUDENT_HELPER_ARGUMENT,
     STUDENT_RESULT_ARGUMENT,
+    find_student_executable,
     find_student_processes,
     run_student_helper,
+    start_student_process,
     stop_student_processes,
 )
 from .teacher import (
@@ -168,6 +170,7 @@ __all__ = [
     "execute_send",
     "execute_send_report",
     "fetch_students_info",
+    "find_student_executable",
     "find_student_processes",
     "firewall",
     "fix_thumbnail",
@@ -217,6 +220,7 @@ __all__ = [
     "shell",
     "split_message",
     "start_screen",
+    "start_student_process",
     "stop_screen",
     "stop_student_processes",
     "store",

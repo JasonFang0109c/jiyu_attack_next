@@ -298,6 +298,12 @@ NAVIGATION_ALIASES_AFTER = "group_teacher"
 
 NAVIGATION_GROUPS = (
     (
+        "group_restriction",
+        FIF.SPEED_OFF,
+        "解除限制",
+        (("studentproc", FIF.POWER_BUTTON, "启停学生端"),),
+    ),
+    (
         "group_remote",
         FIF.GLOBE,
         "远程攻击",
@@ -330,12 +336,6 @@ NAVIGATION_GROUPS = (
             ("local", FIF.IOT, "本机信息"),
             ("firewall", FIF.CERTIFICATE, "防火墙"),
         ),
-    ),
-    (
-        "group_process",
-        FIF.ERASE_TOOL,
-        "本机进程",
-        (("studentproc", FIF.CANCEL_MEDIUM, "结束学生端"),),
     ),
 )
 
@@ -814,6 +814,7 @@ class MainWindow(FluentWindow):
         self.pages["students"].refreshRequested.connect(self.refresh_students)
         self.pages["students"].killRequested.connect(self.kill_student_process)
         self.pages["students"].previewAllRequested.connect(self.preview_all_students)
+        self.pages["studentproc"].startRequested.connect(self.start_local_student)
         self.pages["students"].serveRequested.connect(self.toggle_serve)
         self.pages["chat"].footer.requested.connect(self.start_chat)
         self.pages["closewindow"].footer.requested.connect(self.start_close_window)
@@ -1365,6 +1366,46 @@ class MainWindow(FluentWindow):
         self.logs.info("本机进程", "已刷新学生端进程列表", "共 %d 个" % len(processes))
         if not processes:
             self._notify("未发现学生端", "本机没有正在运行的学生端进程", "信息")
+
+    def start_local_student(self):
+        """确认后启动本机学生端，必要时走 UAC 提权。"""
+        if self.thread is not None:
+            self.logs.warning("解除限制", "已有任务在执行", "请等当前任务结束后再试")
+            return
+        page = self.pages["studentproc"]
+        if page.processes:
+            self._notify("学生端已在运行", "先结束再启动", "警告")
+            return
+        if not self._confirm(
+            "确认启动学生端",
+            "将按需以管理员权限启动本机极域学生端，启动后本机会重新受课堂管理。",
+        ):
+            return
+        page.set_busy(True)
+        self._begin_task(
+            "studentproc",
+            TaskWorker(core.start_student_process, page.exe_path()),
+            self._start_student_finished,
+            self._local_failed,
+        )
+
+    @Slot(object)
+    def _start_student_finished(self, results):
+        """启动结束后提示结果并刷新进程列表。"""
+        failed = [item for item in results if not item.get("success")]
+        for item in failed:
+            self.logs.error(
+                "解除限制",
+                "启动学生端失败",
+                "程序：%s；%s" % (item.get("path", ""), item.get("output", "")),
+            )
+        if failed:
+            self._notify("启动学生端失败", "见运行日志", "错误")
+        else:
+            path = results[0].get("path", "") if results else ""
+            self.logs.info("解除限制", "已启动学生端", "程序：%s" % path)
+            self._notify("已启动学生端", path, "成功")
+        self.refresh_student_processes()
 
     def stop_local_student(self):
         """确认后结束本机学生端进程，必要时走 UAC 提权。"""

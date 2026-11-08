@@ -413,7 +413,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.command.editor.toPlainText(), "whoami")
 
     def test_navigation_groups_pages_in_expected_order(self):
-        # 分组顺序固定：远程攻击、教师端模拟、设备备注、本机工具、本机进程。
+        # 分组顺序固定：解除限制、远程攻击、教师端模拟、设备备注、本机工具。
         panel = self.window.navigationInterface.panel
         top = [
             item.routeKey
@@ -425,11 +425,11 @@ class GuiTests(unittest.TestCase):
             top,
             [
                 "home",
+                "group_restriction",
                 "group_remote",
                 "group_teacher",
                 "aliases",
                 "group_local",
-                "group_process",
             ],
         )
         self.assertEqual(
@@ -445,8 +445,8 @@ class GuiTests(unittest.TestCase):
             ["本机信息", "防火墙"],
         )
         self.assertEqual(
-            [child.text() for child in panel.widget("group_process").treeChildren],
-            ["结束学生端"],
+            [child.text() for child in panel.widget("group_restriction").treeChildren],
+            ["启停学生端"],
         )
 
     def test_navigation_groups_have_no_header_text(self):
@@ -960,11 +960,13 @@ class GuiTests(unittest.TestCase):
         page = self.window.pages["studentproc"]
         page.set_processes([])
         self.assertFalse(page.stop_button.isEnabled())
+        self.assertTrue(page.start_button.isEnabled())
         self.assertIn("没有正在运行", page.status.text())
         page.set_processes(
             [{"pid": 17600, "name": "StudentMain.exe", "ports": [4705, 51767]}]
         )
         self.assertTrue(page.stop_button.isEnabled())
+        self.assertFalse(page.start_button.isEnabled())
         self.assertEqual(page.table.item(0, 2).text(), "4705、51767")
         # 任务进行中按钮要禁用，避免重复提权。
         page.set_busy(True)
@@ -991,6 +993,32 @@ class GuiTests(unittest.TestCase):
             worker.run()
         # 后台任务会额外传入进度回调，这里只核对结束的进程号。
         self.assertEqual(stop.call_args.args, ([17600],))
+
+    def test_start_local_student_dispatches_worker(self):
+        page = self.window.pages["studentproc"]
+        page.set_processes([])
+        page.exe_input.setText(" ")
+        with (
+            patch.object(self.window, "_begin_task") as begin_task,
+            patch.object(self.window, "thread", None),
+            patch.object(
+                core,
+                "start_student_process",
+                return_value=[
+                    {
+                        "path": "C:/x/StudentMain.exe",
+                        "success": True,
+                        "output": "已启动",
+                    }
+                ],
+            ) as start,
+        ):
+            self.window.start_local_student()
+            self.assertEqual(begin_task.call_args.args[0], "studentproc")
+            worker = begin_task.call_args.args[1]
+            worker.run()
+        # 输入框只有空格时按留空处理，交给核心自动查找路径。
+        self.assertEqual(start.call_args.args, (None,))
 
     def test_app_command_page_covers_new_operations(self):
         page = self.window.pages["appcmd"]

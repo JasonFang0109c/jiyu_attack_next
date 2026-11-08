@@ -159,6 +159,7 @@ start /wait JiYuAttackNext.exe -ip 10.49.151.29 -msg "Hello"
 
 | 分组 | 子命令 | 对应界面页面 | 例子 |
 | --- | --- | --- | --- |
+| `restriction` 解除限制 | `student` | 启停学生端 | `restriction student --list`、`restriction student --start` |
 | `remote` 远程攻击 | `message` | 文本消息 | `remote message -ip 192.168.1.10 -msg "下课了"` |
 | | `file` | 文件传送 | `remote file -ip 192.168.1.10 --file 报告.pdf` |
 | | `device` | 设备操作 | `remote device -ip 192.168.1.10 --shutdown --power-delay 30 --power-text 请保存` |
@@ -172,7 +173,6 @@ start /wait JiYuAttackNext.exe -ip 10.49.151.29 -msg "Hello"
 | | `closewindow` | 关闭窗口 | `teacher closewindow -ip 192.168.1.10 记事本` |
 | `local` 本机工具 | `info` | 本机信息 | `local info` |
 | | `firewall` | 防火墙 | `local firewall block`、`local firewall allow` |
-| `process` 本机进程 | `endstudent` | 结束学生端 | `process endstudent --list`、`process endstudent` |
 
 子命令之后的参数与下面“参数参考”完全一致，只是省掉了不属于该页面的部分。旧的扁平写法（`-ip ... -msg ...`、`--run ...`）仍然可用，两种写法解析出的字段相同，可以按习惯自由选择；同一次调用里混用两种写法会报参数错误。
 
@@ -400,22 +400,28 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 
 仅查询运行 CLI 模式的本机，不查询远程目标；未匹配到学生端进程或端口时输出可能不完整。
 
-### 结束本机学生端
+### 启停本机学生端
 
-模拟教师端时，如果运行程序的本机也装着极域学生端（`StudentMain.exe`），它会独占本机地址的 4705 端口，把学生端回的包全部收走，命令行会提示端口被占用：常驻监听看起来正常，却始终等不到学生登录。先结束它再监听：
+模拟教师端时，如果运行程序的本机也装着极域学生端（`StudentMain.exe`），它会独占本机地址的 4705 端口，把学生端回的包全部收走，命令行会提示端口被占用：常驻监听看起来正常，却始终等不到学生登录。先结束它再监听；验证完想恢复课堂管理，再用同一个子命令把它启动起来。
 
 ```powershell
 # 只列进程与占用端口，不动进程
-.\\JiYuAttackNext.exe process endstudent --list
+.\JiYuAttackNext.exe restriction student --list
 
 # 结束全部学生端进程，会弹出管理员授权
-.\\JiYuAttackNext.exe process endstudent
+.\JiYuAttackNext.exe restriction student
 
 # 只结束指定进程
-.\\JiYuAttackNext.exe process endstudent --pid 17600
+.\JiYuAttackNext.exe restriction student --pid 17600
+
+# 启动学生端，留空路径时自动查找安装位置
+.\JiYuAttackNext.exe restriction student --start
+
+# 指定程序路径启动
+.\JiYuAttackNext.exe restriction student --start --exe "C:\Program Files\TopDomain\e-Learning Class Standard\1.00\StudentMain.exe"
 ```
 
-进程与端口来自 `tasklist` 与 `netstat`，结束动作由 `taskkill /F` 完成；当前进程不是管理员时会通过 UAC 启动隐藏助手，弹窗里选“是”即可，点“否”会提示授权已取消。扁平写法对应 `--end-student`、`--end-student-pid`、`--list-student`。
+进程与端口来自 `tasklist` 与 `netstat`，结束动作由 `taskkill /F` 完成；当前进程不是管理员时会通过 UAC 启动隐藏助手，弹窗里选“是”即可，点“否”会提示授权已取消。启动时先按运行中的进程取路径，再查注册表里的安装位置，最后试常见安装目录；本机已经在运行学生端时不会重复启动。扁平写法对应 `--end-student`、`--end-student-pid`、`--list-student`、`--start-student`、`--student-exe`。
 
 ### 用本机 IP 测试
 

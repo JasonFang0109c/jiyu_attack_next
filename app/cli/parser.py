@@ -1,7 +1,7 @@
 """命令行参数解析：按图形界面的分组提供分类子命令，并保留扁平写法。
 
-图形界面的侧边栏分成“远程攻击”“教师端模拟”“本机工具”三组，每组下面是
-具体页面；这里的子命令结构与之一一对应，一个页面就是一条子命令。
+图形界面的侧边栏分成“解除限制”“远程攻击”“教师端模拟”“本机工具”四组，
+每组下面是具体页面；这里的子命令结构与之一一对应，一个页面就是一条子命令。
 """
 
 import argparse
@@ -10,14 +10,17 @@ from ..core import runtime_version
 
 # 与图形界面侧边栏的分组一一对应。
 GROUPS = {
+    "restriction": "解除限制",
     "remote": "远程攻击",
     "teacher": "教师端模拟",
     "local": "本机工具",
-    "process": "本机进程",
 }
 
 # 每个分组下的子命令，同样对应图形界面的页面。
 COMMANDS = {
+    "restriction": {
+        "student": "启停学生端",
+    },
     "remote": {
         "message": "文本消息",
         "file": "文件传送",
@@ -36,9 +39,6 @@ COMMANDS = {
     "local": {
         "info": "本机信息",
         "firewall": "防火墙",
-    },
-    "process": {
-        "endstudent": "结束学生端",
     },
 }
 
@@ -110,6 +110,8 @@ def _base_defaults():
         "file_timeout": 120,
         "firewall": None,
         "endstudent": False,
+        "start_student": False,
+        "student_exe": None,
         "pid": None,
         "list": False,
     }
@@ -214,11 +216,11 @@ def build_group_parser():
     )
     _build_local(local_commands)
 
-    process = groups.add_parser("process", help="本机进程")
-    process_commands = process.add_subparsers(
+    restriction = groups.add_parser("restriction", help="解除限制")
+    restriction_commands = restriction.add_subparsers(
         title="子命令", dest="command", metavar="子命令", required=True
     )
-    _build_process(process_commands)
+    _build_restriction(restriction_commands)
 
     return parser
 
@@ -571,28 +573,41 @@ def _build_local(commands):
     )
 
 
-def _build_process(commands):
-    """注册本机进程分组下的子命令。"""
-    endstudent = commands.add_parser(
-        "endstudent",
-        help="结束学生端：结束本机正在运行的极域学生端进程（需要管理员权限）",
-        description="结束本机正在运行的极域学生端进程，模拟教师前先腾出 4705 端口。"
-        "非管理员时通过 UAC 提权执行。",
+def _build_restriction(commands):
+    """注册解除限制分组下的子命令。"""
+    student = commands.add_parser(
+        "student",
+        aliases=("endstudent",),
+        help="启停学生端：结束或重新启动本机极域学生端（需要管理员权限）",
+        description="启停本机极域学生端。模拟教师前结束它腾出 4705 端口，"
+        "要恢复课堂管理时再启动。非管理员时通过 UAC 提权执行。",
     )
     defaults = _base_defaults()
     defaults["endstudent"] = True
-    endstudent.set_defaults(**defaults)
-    endstudent.add_argument(
+    student.set_defaults(**defaults)
+    student.add_argument(
+        "--list",
+        action="store_true",
+        help="只列出学生端进程与占用端口，不做任何改动",
+    )
+    student.add_argument(
+        "--start",
+        dest="start_student",
+        action="store_true",
+        help="启动学生端，路径留空时自动查找 StudentMain.exe",
+    )
+    student.add_argument(
+        "--exe",
+        dest="student_exe",
+        metavar="PATH",
+        help="配合 --start：指定学生端主程序的完整路径",
+    )
+    student.add_argument(
         "--pid",
         type=int,
         action="append",
         metavar="PID",
-        help="只结束指定进程号，可重复；不写则结束本机全部学生端进程",
-    )
-    endstudent.add_argument(
-        "--list",
-        action="store_true",
-        help="只列出学生端进程与占用端口，不结束",
+        help="结束模式：只结束指定进程号，可重复；不写则结束本机全部学生端进程",
     )
 
 
@@ -921,6 +936,18 @@ def build_flat_parser():
         dest="endstudent",
         action="store_true",
         help="结束本机正在运行的极域学生端进程，腾出 4705 端口（需要管理员权限）",
+    )
+    parser.add_argument(
+        "--start-student",
+        dest="start_student",
+        action="store_true",
+        help="启动本机极域学生端，恢复课堂管理（需要管理员权限）",
+    )
+    parser.add_argument(
+        "--student-exe",
+        dest="student_exe",
+        metavar="PATH",
+        help="配合 --start-student：指定学生端主程序的完整路径",
     )
     parser.add_argument(
         "--end-student-pid",

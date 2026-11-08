@@ -112,8 +112,19 @@ class ActionCard(SimpleCardWidget):
             child.setAttribute(Qt.WA_TransparentForMouseEvents, True)
 
 
-# 分组内的入口：远程攻击按使用频率排，本机工具按用途排。
+# 分组内的入口：解除限制放在最前，其余按使用频率与用途排。
 SECTIONS = (
+    (
+        "解除限制",
+        (
+            (
+                "studentproc",
+                FIF.POWER_BUTTON,
+                "启停学生端",
+                "结束或启动本机极域学生端，处理被它独占的 4705 端口",
+            ),
+        ),
+    ),
     (
         "远程攻击",
         (
@@ -185,17 +196,6 @@ SECTIONS = (
                 FIF.HISTORY,
                 "运行日志",
                 "按功能、级别与关键词筛选，勾选导出或删除",
-            ),
-        ),
-    ),
-    (
-        "本机进程",
-        (
-            (
-                "studentproc",
-                FIF.CANCEL_MEDIUM,
-                "结束学生端",
-                "结束本机极域学生端进程，腾出被它独占的 4705 端口",
             ),
         ),
     ),

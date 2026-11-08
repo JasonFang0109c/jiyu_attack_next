@@ -385,6 +385,45 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(self.core.run_student_helper([]), 2)
         self.assertEqual(self.core.run_student_helper(["17600", "--student-result"]), 2)
 
+    def test_start_student_process_needs_existing_executable(self):
+        missing = self.test_root / "missing-StudentMain.exe"
+        with self.assertRaises(RuntimeError) as raised:
+            self.core.start_student_process(str(missing))
+        self.assertIn("不存在", str(raised.exception))
+
+    def test_start_student_process_refuses_second_instance(self):
+        exe = self.test_root / "StudentMain.exe"
+        exe.write_bytes(b"MZ")
+        running = [{"pid": 17600, "name": "StudentMain.exe", "ports": [4705]}]
+        with (
+            patch.object(
+                self.core.student_process,
+                "find_student_processes",
+                return_value=running,
+            ),
+            self.assertRaises(RuntimeError) as raised,
+        ):
+            self.core.start_student_process(str(exe))
+        self.assertIn("已经有学生端在运行", str(raised.exception))
+
+    def test_student_helper_starts_the_executable_and_reports_it(self):
+        exe = self.test_root / "StudentMain.exe"
+        exe.write_bytes(b"MZ")
+        result_file = self.test_root / "student-start.json"
+        result_file.unlink(missing_ok=True)
+        launched = MagicMock(pid=4242)
+        with patch.object(
+            self.core.student_process.subprocess, "Popen", return_value=launched
+        ) as popen:
+            code = self.core.run_student_helper(
+                ["start=" + str(exe), "--student-result", str(result_file)]
+            )
+        self.assertEqual(code, 0)
+        self.assertEqual(popen.call_args.args[0], [str(exe)])
+        payload = json.loads(result_file.read_text(encoding="utf-8"))
+        self.assertEqual(payload["results"][0]["pid"], 4242)
+        self.assertTrue(payload["results"][0]["success"])
+
     def test_windows_output_decoding_supports_utf8_and_gbk(self):
         self.assertEqual(
             self.core.firewall._decode_windows_output("规则已更新".encode("utf-8")),

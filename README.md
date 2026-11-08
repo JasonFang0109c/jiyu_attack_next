@@ -86,7 +86,7 @@
       <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
         <li><b>本机信息</b>：查询 IP 与 Student 端口</li>
         <li><b>防火墙</b>：修改现有规则并查看结果</li>
-        <li><b>结束学生端</b>：按需提权结束本机学生端，腾出 4705</li>
+        <li><b>启停学生端</b>：按需提权结束或启动本机学生端</li>
         <li><b>目标地址</b>：IPv4、末段与 <code>/24</code></li>
       </ul>
     </td>
@@ -122,7 +122,7 @@
 | GUI | 双击 EXE；源码 `python -m app` | 无参数启动，先显示使用须知，同意后打开图形界面 |
 | CLI | `JiYuAttackNext.exe remote message -ip ...`；源码 `python -m app remote message -ip ...` | 带参数启动，在终端显示输出 |
 
-命令行按图形界面的四组分类组织，一个页面一条子命令：`remote`（远程攻击）、`teacher`（教师端模拟）、`local`（本机工具）、`process`（本机进程），例如 `remote message`、`teacher appcmd`、`local info`、`process endstudent`。来源项目的扁平写法（`-ip ... -msg ...`）仍然可用。
+命令行按图形界面的四组分类组织，一个页面一条子命令：`restriction`（解除限制）、`remote`（远程攻击）、`teacher`（教师端模拟）、`local`（本机工具），例如 `restriction student --start`、`remote message`、`teacher appcmd`、`local info`。来源项目的扁平写法（`-ip ... -msg ...`）仍然可用。
 
 EXE 无需安装 Python；从源码运行 CLI 需要按 `requirements.txt` 安装依赖。两者共用同一套报文实现，默认通信为 UDP，目标端口 `4705`。EXE 为窗口化程序，双击不会创建控制台窗口，带参数运行时把输出写回启动它的终端、不会另开窗口；由于它不占用控制台，提示符会立即返回——需要等命令执行完再继续时用 `start /wait JiYuAttackNext.exe ...`。PowerShell 中若 EXE 不在 `PATH`，需写成 `.\JiYuAttackNext.exe ...`；cmd 可直接运行。
 
