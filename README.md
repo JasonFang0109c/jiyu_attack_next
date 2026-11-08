@@ -86,7 +86,7 @@
       <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
         <li><b>本机信息</b>：查询 IP 与 Student 端口</li>
         <li><b>防火墙</b>：修改现有规则并查看结果</li>
-        <li><b>启停学生端</b>：按需提权结束或启动本机学生端</li>
+        <li><b>启停学生端</b>：单按钮按状态启动或结束本机学生端，按需提权</li>
         <li><b>目标地址</b>：IPv4、末段与 <code>/24</code></li>
       </ul>
     </td>

@@ -402,6 +402,10 @@ class MainWindow(FluentWindow):
         self._serve_timer = QTimer(self)
         self._serve_timer.setInterval(500)
         self._serve_timer.timeout.connect(self._refresh_serve)
+        # 学生端可能被课堂软件自己拉起或结束，页面可见时按节奏轮询状态。
+        self._studentproc_timer = QTimer(self)
+        self._studentproc_timer.setInterval(STUDENT_POLL_INTERVAL)
+        self._studentproc_timer.timeout.connect(self._poll_student_processes)
         self._closing_screen_windows = set()
         self._screen_windows = {}
         self._first_close_dialog_open = False
@@ -814,7 +818,6 @@ class MainWindow(FluentWindow):
         self.pages["students"].refreshRequested.connect(self.refresh_students)
         self.pages["students"].killRequested.connect(self.kill_student_process)
         self.pages["students"].previewAllRequested.connect(self.preview_all_students)
-        self.pages["studentproc"].startRequested.connect(self.start_local_student)
         self.pages["students"].serveRequested.connect(self.toggle_serve)
         self.pages["chat"].footer.requested.connect(self.start_chat)
         self.pages["closewindow"].footer.requested.connect(self.start_close_window)
@@ -825,7 +828,7 @@ class MainWindow(FluentWindow):
         self.pages["studentproc"].refreshRequested.connect(
             self.refresh_student_processes
         )
-        self.pages["studentproc"].stopRequested.connect(self.stop_local_student)
+        self.pages["studentproc"].toggleRequested.connect(self.toggle_local_student)
         for page in self.task_pages:
             page.footer.cancelled.connect(self.cancel_task)
             page.footer.viewLogs.connect(lambda: self.show_page("logs"))
@@ -865,9 +868,12 @@ class MainWindow(FluentWindow):
             node.setExpanded(True, ani=False)
         self.switchTo(page)
         self._reveal_navigation_item(key)
-        # 进入结束学生端页时先查一次，省得用户对着空表再点刷新。
-        if key == "studentproc" and not page.processes:
+        # 进页先查一次，随后开轮询；离开本页就停，避免后台白白扫进程。
+        if key == "studentproc":
             self.refresh_student_processes()
+            self._studentproc_timer.start()
+        else:
+            self._studentproc_timer.stop()
 
     def _reveal_navigation_item(self, key):
         """把当前页面对应的导航项滚进可见区域。
@@ -1358,14 +1364,58 @@ class MainWindow(FluentWindow):
         except (RuntimeError, OSError) as error:
             self.pages["studentproc"].set_processes([])
             self.pages["studentproc"].set_busy(False)
-            self.logs.error("本机进程", "查询学生端进程失败", "异常：%s" % error)
+            self.logs.error("解除限制", "查询学生端进程失败", "异常：%s" % error)
             self._notify("查询学生端进程失败", str(error), "错误")
             return
         self.pages["studentproc"].set_processes(processes)
         self.pages["studentproc"].set_busy(False)
-        self.logs.info("本机进程", "已刷新学生端进程列表", "共 %d 个" % len(processes))
+        self.logs.info("解除限制", "已刷新学生端进程列表", "共 %d 个" % len(processes))
         if not processes:
             self._notify("未发现学生端", "本机没有正在运行的学生端进程", "信息")
+
+    @Slot()
+    def _poll_student_processes(self):
+        """页面可见时刷新学生端状态，让按钮始终表示当前能做的事。"""
+        if self.thread is not None:
+            return
+        page = self.pages["studentproc"]
+        try:
+            processes = core.find_student_processes()
+        except (RuntimeError, OSError):
+            return
+        # 只在进程集合变化时重绘，避免每两秒刷一次表打断选择。
+        if [item["pid"] for item in processes] == [
+            item["pid"] for item in page.processes
+        ]:
+            return
+        page.set_processes(processes)
+        self.logs.debug(
+            "解除限制",
+            "学生端状态变化",
+            "当前进程：%s"
+            % ("、".join(str(item["pid"]) for item in processes) or "无"),
+        )
+
+    def toggle_local_student(self):
+        """单按钮入口：按当前状态决定启动还是结束学生端。"""
+        if self.thread is not None:
+            self.logs.warning(
+                "解除限制",
+                "已有任务在运行，启停学生端未开始",
+                "当前任务：%s" % (self.active_kind or "无"),
+            )
+            return
+        try:
+            processes = core.find_student_processes()
+        except (RuntimeError, OSError) as error:
+            self.logs.error("解除限制", "查询学生端进程失败", "异常：%s" % error)
+            self._notify("查询学生端进程失败", str(error), "错误")
+            return
+        self.pages["studentproc"].set_processes(processes)
+        if processes:
+            self.stop_local_student()
+        else:
+            self.start_local_student()
 
     def start_local_student(self):
         """确认后启动本机学生端，必要时走 UAC 提权。"""
@@ -1411,7 +1461,7 @@ class MainWindow(FluentWindow):
         """确认后结束本机学生端进程，必要时走 UAC 提权。"""
         if self.thread is not None:
             self.logs.warning(
-                "本机进程",
+                "解除限制",
                 "已有任务在运行，结束学生端未开始",
                 "当前任务：%s" % (self.active_kind or "无"),
             )
@@ -1428,9 +1478,9 @@ class MainWindow(FluentWindow):
             "结束本机学生端进程（%s）？\n结束时可能弹出管理员授权，请选择“是”。"
             % names,
         ):
-            self.logs.info("本机进程", "用户取消了结束学生端", "目标：%s" % names)
+            self.logs.info("解除限制", "用户取消了结束学生端", "目标：%s" % names)
             return
-        self.logs.info("本机进程", "开始结束学生端进程", "目标：%s" % names)
+        self.logs.info("解除限制", "开始结束学生端进程", "目标：%s" % names)
         self.pages["studentproc"].set_busy(True)
         self._begin_task(
             "studentproc",
@@ -1450,10 +1500,10 @@ class MainWindow(FluentWindow):
             detail = "；".join(
                 "PID %d %s" % (item["pid"], item["output"]) for item in failed
             )
-            self.logs.error("本机进程", "部分学生端进程未能结束", "失败：%s" % detail)
+            self.logs.error("解除限制", "部分学生端进程未能结束", "失败：%s" % detail)
             self._notify("部分进程未能结束", detail, "错误")
         else:
-            self.logs.info("本机进程", "已结束学生端进程", "共 %d 个" % len(results))
+            self.logs.info("解除限制", "已结束学生端进程", "共 %d 个" % len(results))
             self._notify("已结束学生端", "共结束 %d 个进程" % len(results), "成功")
         self.refresh_student_processes()
 
@@ -2870,6 +2920,7 @@ class MainWindow(FluentWindow):
         self._blackscreen_timer.stop()
         self._serve_timer.stop()
         self.stop_serve(notify=False)
+        self._studentproc_timer.stop()
         super().closeEvent(event)
         if not event.isAccepted():
             return
@@ -2883,6 +2934,8 @@ class MainWindow(FluentWindow):
 STUDENT_SCAN_SECONDS = 8.0
 # 缩略图监听时长：学生端按 LPNT 策略每 5 秒推一帧，留够两帧的余量。
 PREVIEW_SECONDS = 8.0
+# 学生端状态轮询间隔，与参考实现的 2 秒定时器一致；太密会让 tasklist 白跑。
+STUDENT_POLL_INTERVAL = 2000
 # 端口探测只用来区分「没开」和「网络不通」，等太久反而像是界面卡住。
 PROBE_TIMEOUT = 1.0
 # 侧边栏最小高度的上限：导航项再多也不该把整个窗口顶到超出屏幕。

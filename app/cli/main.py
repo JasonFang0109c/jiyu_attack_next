@@ -1132,43 +1132,56 @@ def run_from_cmd(arguments):
     return 0
 
 
-def run_student_command(arguments):
-    """列出、结束或启动本机学生端。
-
-    Args:
-        arguments: 解析后的参数；``list`` 只列进程，``start_student`` 启动
-        学生端，其余情况结束进程。
-
-    Returns:
-        int: 0 表示成功，1 表示有进程未能启动或结束。
-    """
-    log = cli_log.LOG
-    if arguments.start_student:
-        results = start_student_process(arguments.student_exe)
-        for item in results:
-            print(("[+] " if item["success"] else "[-] ") + str(item.get("output", "")))
-            if item["success"]:
-                print("已启动学生端：%s" % item["path"])
-                log.info("已启动学生端", "解除限制", "程序：%s" % item["path"])
-        failed = [item for item in results if not item["success"]]
-        if failed:
-            log.error("启动学生端失败", "解除限制", "程序：%s" % failed[0]["path"])
-            return 1
-        return 0
-    processes = find_student_processes()
+def _print_student_list(processes):
+    """打印学生端进程列表，返回是否为空。"""
     if not processes:
         print("本机没有正在运行的学生端进程")
-        log.info("本机没有学生端进程", "解除限制")
-        return 0
+        return False
     for item in processes:
         ports = ", ".join(str(port) for port in item["ports"]) or "-"
-        print("[*] PID %d  %s  端口 %s" % (item["pid"], item["name"], ports))
-    if arguments.list:
-        log.info("已列出学生端进程", "解除限制", "共 %d 个" % len(processes))
-        return 0
-    results = stop_student_processes(arguments.pid)
+        tail = ""
+        if item.get("path") and not item.get("genuine"):
+            tail = "  （目录里没有 LibTDMaster.dll，可能不是极域学生端）"
+        print(
+            "[*] PID %d  %s  端口 %s  路径 %s%s"
+            % (
+                item["pid"],
+                item["name"],
+                ports,
+                item.get("path") or "不可读（需要管理员）",
+                tail,
+            )
+        )
+    return True
+
+
+def _start_student(arguments):
+    """启动学生端，返回退出码。"""
+    log = cli_log.LOG
+    results = start_student_process(arguments.student_exe)
     for item in results:
-        print(("[+] " if item["success"] else "[-] ") + item["output"])
+        print(("[+] " if item["success"] else "[-] ") + str(item.get("output", "")))
+        if item["success"]:
+            print("已启动学生端：%s" % item["path"])
+            log.info("已启动学生端", "解除限制", "程序：%s" % item["path"])
+        if not item.get("confirmed", True):
+            print("[-] 没有检测到学生端进程，可能被安全软件拦下，试试用管理员权限运行")
+    failed = [item for item in results if not item["success"]]
+    if failed:
+        log.error("启动学生端失败", "解除限制", "程序：%s" % failed[0]["path"])
+        return 1
+    return 0
+
+
+def _stop_student(arguments, pids):
+    """结束学生端，返回退出码。"""
+    log = cli_log.LOG
+    results = stop_student_processes(pids)
+    for item in results:
+        stage = "强制" if item.get("forced") else "正常"
+        print(
+            ("[+] " if item["success"] else "[-] ") + "%s：%s" % (stage, item["output"])
+        )
     failed = [item for item in results if not item["success"]]
     if failed:
         log.error(
@@ -1180,6 +1193,39 @@ def run_student_command(arguments):
     print("已结束 %d 个学生端进程" % len(results))
     log.info("已结束学生端进程", "解除限制", "共 %d 个" % len(results))
     return 0
+
+
+def run_student_command(arguments):
+    """列出、启动或结束本机学生端。
+
+    与界面上的单按钮一致：什么都不指定时按当前状态决定方向——有进程就结束，
+    没有就启动。``--list`` 只列进程，``--start`` 强制启动，``--pid`` 只结束
+    指定进程。
+
+    Args:
+        arguments: 解析后的参数。
+
+    Returns:
+        int: 0 表示成功，1 表示有进程未能启动或结束。
+    """
+    log = cli_log.LOG
+    processes = find_student_processes()
+    if arguments.list:
+        _print_student_list(processes)
+        log.info("已列出学生端进程", "解除限制", "共 %d 个" % len(processes))
+        return 0
+    if arguments.start_student:
+        print("启动学生端：%s" % (arguments.student_exe or "自动查找安装位置"))
+        return _start_student(arguments)
+    if arguments.pid:
+        print("结束指定的 %d 个学生端进程" % len(arguments.pid))
+        return _stop_student(arguments, arguments.pid)
+    if processes:
+        print("检测到 %d 个学生端进程，按当前状态执行结束" % len(processes))
+        _print_student_list(processes)
+        return _stop_student(arguments, None)
+    print("本机没有学生端进程，按当前状态执行启动")
+    return _start_student(arguments)
 
 
 def _select_parser(arguments):

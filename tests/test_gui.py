@@ -956,51 +956,68 @@ class GuiTests(unittest.TestCase):
         self.assertFalse(self.window._serve_timer.isActive())
         self.assertTrue(page.channel_input.isEnabled())
 
-    def test_student_process_page_lists_and_gates_stop_button(self):
+    def test_student_process_page_switches_single_button(self):
         page = self.window.pages["studentproc"]
         page.set_processes([])
-        self.assertFalse(page.stop_button.isEnabled())
-        self.assertTrue(page.start_button.isEnabled())
+        self.assertEqual(page.toggle_button.text(), "启动学生端")
+        self.assertTrue(page.toggle_button.isEnabled())
+        self.assertTrue(page.exe_input.isEnabled())
         self.assertIn("没有正在运行", page.status.text())
         page.set_processes(
-            [{"pid": 17600, "name": "StudentMain.exe", "ports": [4705, 51767]}]
+            [
+                {
+                    "pid": 17600,
+                    "name": "StudentMain.exe",
+                    "ports": [4705, 51767],
+                    "path": "",
+                    "genuine": False,
+                }
+            ]
         )
-        self.assertTrue(page.stop_button.isEnabled())
-        self.assertFalse(page.start_button.isEnabled())
+        # 有进程时同一个按钮变成结束，路径输入框锁住以免误改。
+        self.assertEqual(page.toggle_button.text(), "结束学生端")
+        self.assertFalse(page.exe_input.isEnabled())
         self.assertEqual(page.table.item(0, 2).text(), "4705、51767")
+        self.assertTrue(page.is_running())
         # 任务进行中按钮要禁用，避免重复提权。
         page.set_busy(True)
-        self.assertFalse(page.stop_button.isEnabled())
+        self.assertFalse(page.toggle_button.isEnabled())
         self.assertFalse(page.refresh_button.isEnabled())
         page.set_busy(False)
-        self.assertTrue(page.stop_button.isEnabled())
+        self.assertTrue(page.toggle_button.isEnabled())
 
-    def test_stop_local_student_dispatches_worker(self):
-        page = self.window.pages["studentproc"]
-        page.set_processes([{"pid": 17600, "name": "StudentMain.exe", "ports": [4705]}])
+    def test_toggle_local_student_stops_when_running(self):
+        record = {
+            "pid": 17600,
+            "name": "StudentMain.exe",
+            "ports": [4705],
+            "path": "",
+            "genuine": False,
+        }
         with (
             patch.object(self.window, "_begin_task") as begin_task,
             patch.object(self.window, "thread", None),
+            patch.object(core, "find_student_processes", return_value=[record]),
             patch.object(
                 core,
                 "stop_student_processes",
                 return_value=[{"pid": 17600, "success": True}],
             ) as stop,
         ):
-            self.window.stop_local_student()
+            self.window.toggle_local_student()
             worker = begin_task.call_args.args[1]
             self.assertEqual(begin_task.call_args.args[0], "studentproc")
             worker.run()
         # 后台任务会额外传入进度回调，这里只核对结束的进程号。
         self.assertEqual(stop.call_args.args, ([17600],))
 
-    def test_start_local_student_dispatches_worker(self):
+    def test_toggle_local_student_starts_when_idle(self):
         page = self.window.pages["studentproc"]
-        page.set_processes([])
         page.exe_input.setText(" ")
         with (
             patch.object(self.window, "_begin_task") as begin_task,
             patch.object(self.window, "thread", None),
+            patch.object(core, "find_student_processes", return_value=[]),
             patch.object(
                 core,
                 "start_student_process",
@@ -1013,12 +1030,35 @@ class GuiTests(unittest.TestCase):
                 ],
             ) as start,
         ):
-            self.window.start_local_student()
+            self.window.toggle_local_student()
             self.assertEqual(begin_task.call_args.args[0], "studentproc")
             worker = begin_task.call_args.args[1]
             worker.run()
         # 输入框只有空格时按留空处理，交给核心自动查找路径。
         self.assertEqual(start.call_args.args, (None,))
+
+    def test_studentproc_poll_updates_button_when_state_changes(self):
+        page = self.window.pages["studentproc"]
+        page.set_processes([])
+        record = {
+            "pid": 17600,
+            "name": "StudentMain.exe",
+            "ports": [4705],
+            "path": "",
+            "genuine": False,
+        }
+        with (
+            patch.object(self.window, "thread", None),
+            patch.object(core, "find_student_processes", return_value=[record]),
+        ):
+            self.window._poll_student_processes()
+        self.assertEqual(page.toggle_button.text(), "结束学生端")
+        with (
+            patch.object(self.window, "thread", None),
+            patch.object(core, "find_student_processes", return_value=[]),
+        ):
+            self.window._poll_student_processes()
+        self.assertEqual(page.toggle_button.text(), "启动学生端")
 
     def test_app_command_page_covers_new_operations(self):
         page = self.window.pages["appcmd"]

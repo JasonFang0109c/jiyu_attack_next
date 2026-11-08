@@ -342,7 +342,21 @@ class CoreTests(unittest.TestCase):
             ],
         )
 
+    def _install_dir(self, with_library=True):
+        """建一个临时的学生端目录，按需放入 LibTDMaster.dll。"""
+        directory = self.test_root / "mythware"
+        directory.mkdir(parents=True, exist_ok=True)
+        exe = directory / "StudentMain.exe"
+        exe.write_bytes(b"MZ")
+        library = directory / "LibTDMaster.dll"
+        if with_library:
+            library.write_bytes(b"MZ")
+        elif library.exists():
+            library.unlink()
+        return exe
+
     def test_find_student_processes_reports_listening_ports(self):
+        exe = self._install_dir()
         tasks = SimpleNamespace(
             returncode=0,
             stderr="",
@@ -356,16 +370,135 @@ class CoreTests(unittest.TestCase):
             stderr="",
             stdout="TCP 192.168.50.22:51767 0.0.0.0:0 LISTENING 17600\n",
         )
+        paths = SimpleNamespace(returncode=0, stderr="", stdout="17600|%s\n" % exe)
         with patch.object(
             self.core.student_process,
             "run_windows_command",
-            side_effect=[tasks, udp, tcp],
+            side_effect=[tasks, udp, tcp, paths],
         ):
             processes = self.core.find_student_processes()
         self.assertEqual(
             processes,
-            [{"pid": 17600, "name": "StudentMain.exe", "ports": [4705, 51767]}],
+            [
+                {
+                    "pid": 17600,
+                    "name": "StudentMain.exe",
+                    "ports": [4705, 51767],
+                    "path": str(exe),
+                    "genuine": True,
+                }
+            ],
         )
+
+    def test_find_student_processes_marks_decoy_without_library(self):
+        exe = self._install_dir(with_library=False)
+        tasks = SimpleNamespace(
+            returncode=0, stderr="", stdout='"StudentMain.exe","17600"\n'
+        )
+        ports = SimpleNamespace(returncode=0, stderr="", stdout="")
+        paths = SimpleNamespace(returncode=0, stderr="", stdout="17600|%s\n" % exe)
+        with patch.object(
+            self.core.student_process,
+            "run_windows_command",
+            side_effect=[tasks, ports, ports, paths],
+        ):
+            processes = self.core.find_student_processes()
+        self.assertFalse(processes[0]["genuine"])
+
+    def test_stop_student_processes_escalates_from_graceful_to_force(self):
+        outcomes = [
+            {
+                "pid": 17600,
+                "code": 5,
+                "output": "拒绝访问",
+                "success": False,
+                "forced": False,
+            },
+            {
+                "pid": 17600,
+                "code": 0,
+                "output": "成功",
+                "success": True,
+                "forced": True,
+            },
+        ]
+        with (
+            patch.object(
+                self.core.student_process, "_taskkill", side_effect=outcomes
+            ) as taskkill,
+            patch.object(
+                self.core.student_process, "find_student_processes", return_value=[]
+            ),
+            patch.object(self.core.student_process, "_is_admin", return_value=True),
+        ):
+            results = self.core.stop_student_processes([17600])
+        self.assertEqual(
+            [item.args for item in taskkill.call_args_list], [(17600,), (17600,)]
+        )
+        self.assertEqual(
+            [item.kwargs["force"] for item in taskkill.call_args_list], [False, True]
+        )
+        self.assertTrue(results[0]["success"])
+        self.assertTrue(results[0]["forced"])
+        self.assertTrue(results[0]["gone"])
+
+    def test_toggle_student_process_follows_running_state(self):
+        record = {
+            "pid": 17600,
+            "name": "StudentMain.exe",
+            "ports": [4705],
+            "path": "",
+            "genuine": False,
+        }
+        with (
+            patch.object(
+                self.core.student_process,
+                "find_student_processes",
+                return_value=[record],
+            ),
+            patch.object(
+                self.core.student_process,
+                "stop_student_processes",
+                return_value=[{"pid": 17600, "success": True}],
+            ) as stop,
+        ):
+            stopped = self.core.toggle_student_process()
+        self.assertEqual(stopped["action"], "stop")
+        self.assertEqual(stop.call_args.args, ([17600],))
+        with (
+            patch.object(
+                self.core.student_process, "find_student_processes", return_value=[]
+            ),
+            patch.object(
+                self.core.student_process,
+                "start_student_process",
+                return_value=[{"path": "C:/x/StudentMain.exe", "success": True}],
+            ) as start,
+        ):
+            started = self.core.toggle_student_process("C:/x/StudentMain.exe")
+        self.assertEqual(started["action"], "start")
+        self.assertEqual(start.call_args.args, ("C:/x/StudentMain.exe",))
+
+    def test_find_student_executable_prefers_genuine_running_process(self):
+        genuine = self._install_dir()
+        decoy_dir = self.test_root / "decoy"
+        decoy_dir.mkdir(parents=True, exist_ok=True)
+        decoy = decoy_dir / "StudentMain.exe"
+        decoy.write_bytes(b"MZ")
+        records = [
+            {"pid": 100, "name": "StudentMain.exe", "ports": [], "path": str(decoy)},
+            {
+                "pid": 200,
+                "name": "StudentMain.exe",
+                "ports": [],
+                "path": str(genuine),
+            },
+        ]
+        with patch.object(
+            self.core.student_process, "find_student_processes", return_value=records
+        ):
+            located = self.core.find_student_executable()
+        self.assertEqual(located, str(genuine))
 
     def test_stop_student_processes_rejects_missing_targets(self):
         tasks = SimpleNamespace(
@@ -387,7 +520,12 @@ class CoreTests(unittest.TestCase):
 
     def test_start_student_process_needs_existing_executable(self):
         missing = self.test_root / "missing-StudentMain.exe"
-        with self.assertRaises(RuntimeError) as raised:
+        with (
+            patch.object(
+                self.core.student_process, "find_student_processes", return_value=[]
+            ),
+            self.assertRaises(RuntimeError) as raised,
+        ):
             self.core.start_student_process(str(missing))
         self.assertIn("不存在", str(raised.exception))
 

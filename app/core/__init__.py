@@ -75,6 +75,7 @@ from .student_process import (
     run_student_helper,
     start_student_process,
     stop_student_processes,
+    toggle_student_process,
 )
 from .teacher import (
     RemoteControl,
@@ -226,6 +227,7 @@ __all__ = [
     "store",
     "student_process",
     "teacher",
+    "toggle_student_process",
     "transfer_file",
     "transport",
     "udp_port_owners",

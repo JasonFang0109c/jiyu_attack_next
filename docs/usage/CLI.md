@@ -408,7 +408,7 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 # 只列进程与占用端口，不动进程
 .\JiYuAttackNext.exe restriction student --list
 
-# 结束全部学生端进程，会弹出管理员授权
+# 按当前状态切换：有进程就结束，没有就启动，与界面上的单按钮一致
 .\JiYuAttackNext.exe restriction student
 
 # 只结束指定进程
@@ -421,7 +421,13 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 .\JiYuAttackNext.exe restriction student --start --exe "C:\Program Files\TopDomain\e-Learning Class Standard\1.00\StudentMain.exe"
 ```
 
-进程与端口来自 `tasklist` 与 `netstat`，结束动作由 `taskkill /F` 完成；当前进程不是管理员时会通过 UAC 启动隐藏助手，弹窗里选“是”即可，点“否”会提示授权已取消。启动时先按运行中的进程取路径，再查注册表里的安装位置，最后试常见安装目录；本机已经在运行学生端时不会重复启动。扁平写法对应 `--end-student`、`--end-student-pid`、`--list-student`、`--start-student`、`--student-exe`。
+进程、端口与程序路径来自 `tasklist`、`netstat` 与 `Get-Process`；路径读不到时（例如学生端以 SYSTEM 运行）显示“不可读”，这不影响结束。列表会标注同目录是否带 `LibTDMaster.dll`，没有这个库的同名进程通常是冒牌货。
+
+结束是分层的：先 `taskkill` 请求正常退出，失败再 `/F` 强制，仍然被拒绝且当前不是管理员时，才把剩下的进程交给 UAC 隐藏助手一次性处理，弹窗里选“是”即可，点“否”会提示授权已取消。
+
+不带选项时按状态决定方向，和界面上那个按钮一样：有进程就结束并打印被结束的进程，没有就启动。`--start` 是强制启动（用于确认方向），`--pid` 只结束指定进程，`--list` 只查看。
+
+启动时依次找：手动 `--exe` → 运行中的真身进程 → 卸载信息里的 `DisplayIcon` → 卸载信息里的 `InstallLocation` → 常见安装目录（含 `Mythware\e-Learning Class` 与中文目录）。拉起后会在 5 秒内轮询确认进程真的起来了，没确认到会提示可能被安全软件拦下；本机已经在运行学生端时不会重复启动。扁平写法对应 `--end-student`、`--end-student-pid`、`--list-student`、`--start-student`、`--student-exe`。
 
 ### 用本机 IP 测试
 

@@ -578,9 +578,12 @@ def _build_restriction(commands):
     student = commands.add_parser(
         "student",
         aliases=("endstudent",),
-        help="启停学生端：结束或重新启动本机极域学生端（需要管理员权限）",
-        description="启停本机极域学生端。模拟教师前结束它腾出 4705 端口，"
-        "要恢复课堂管理时再启动。非管理员时通过 UAC 提权执行。",
+        help="启停学生端：按当前状态启动或结束本机极域学生端",
+        description="启停本机极域学生端。不带选项时按当前状态决定方向："
+        "有学生端在运行就结束它、腾出被独占的 4705 端口；没有就启动它、"
+        "恢复课堂管理。非管理员时通过 UAC 提权执行。",
+        epilog="示例：restriction student 按状态切换；"
+        "restriction student --list 只查看；restriction student --start 强制启动。",
     )
     defaults = _base_defaults()
     defaults["endstudent"] = True
@@ -607,7 +610,7 @@ def _build_restriction(commands):
         type=int,
         action="append",
         metavar="PID",
-        help="结束模式：只结束指定进程号，可重复；不写则结束本机全部学生端进程",
+        help="只结束指定进程号，可重复；不写则按当前状态切换或结束全部",
     )
 
 
