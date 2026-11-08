@@ -933,6 +933,24 @@ class GuiTests(unittest.TestCase):
             worker.run()
         collect.assert_called_once()
 
+    def test_students_serve_button_starts_and_stops_session(self):
+        page = self.window.pages["students"]
+        fake = MagicMock()
+        fake.students = {"10.1.1.8": {"address": "10.1.1.8", "info": {"name": "PC-01"}}}
+        with patch.object(core, "TeacherSession", return_value=fake) as factory:
+            self.window.toggle_serve()
+            factory.assert_called_once()
+            fake.start.assert_called_once_with()
+            self.assertIs(self.window._serve_session, fake)
+            self.assertTrue(self.window._serve_timer.isActive())
+            # 常驻期间不允许改频道与教师名，否则会和已建立的会话不一致。
+            self.assertFalse(page.channel_input.isEnabled())
+            self.window.toggle_serve()
+        fake.stop.assert_called_once_with()
+        self.assertIsNone(self.window._serve_session)
+        self.assertFalse(self.window._serve_timer.isActive())
+        self.assertTrue(page.channel_input.isEnabled())
+
     def test_app_command_page_covers_new_operations(self):
         page = self.window.pages["appcmd"]
         codes = [

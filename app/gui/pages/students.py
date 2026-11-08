@@ -31,6 +31,7 @@ class StudentsPage(Page):
     refreshRequested = Signal()
     killRequested = Signal()
     previewAllRequested = Signal()
+    serveRequested = Signal()
 
     def __init__(self, parent=None):
         super().__init__("students", parent)
@@ -52,6 +53,11 @@ class StudentsPage(Page):
         self.teacher_input.setMaximumWidth(220)
         config_row.addWidget(self.teacher_input)
         config_row.addStretch()
+        # 真实教师端是常驻进程，学生端只认持续宣告；按钮在这里开关常驻会话。
+        self.serve_button = tool_button(
+            FIF.HISTORY, "常驻监听", self, self.serveRequested.emit
+        )
+        config_row.addWidget(self.serve_button)
         self.preview_all_button = tool_button(
             FIF.PHOTO, "全员缩略图", self, self.previewAllRequested.emit
         )
@@ -129,6 +135,20 @@ class StudentsPage(Page):
     def detail_kind(self):
         """返回当前查看的详情类型（processes/windows）。"""
         return DETAIL_KINDS[self.detail_box.currentIndex()][0]
+
+    def set_serving(self, active):
+        """切换常驻按钮的状态，常驻期间禁掉会打断会话的一次性操作。
+
+        Args:
+            active: 是否正在常驻。
+        """
+        label = "停止常驻" if active else "常驻监听"
+        self.serve_button.setToolTip(label)
+        self.serve_button.setAccessibleName(label)
+        self.serve_button.setIcon(FIF.CANCEL if active else FIF.HISTORY)
+        self.channel_input.setEnabled(not active)
+        self.teacher_input.setEnabled(not active)
+        self.footer.send_button.setEnabled(not active)
 
     def set_students(self, records):
         """填入发现结果，并保留原选中行的地址。"""

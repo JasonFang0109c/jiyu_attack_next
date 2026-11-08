@@ -5,13 +5,14 @@ from os import system
 from pathlib import Path
 from queue import Empty, Queue
 from threading import Thread
-from time import sleep
+from time import monotonic, sleep
 
 from ..core import (
     FIREWALL_HELPER_ARGUMENT,
     LOGOFF_COMMAND,
     H264Decoder,
     ShellServer,
+    TeacherSession,
     appcmd,
     cli_log,
     close_window,
@@ -748,6 +749,69 @@ def run_view(arguments):
     return True
 
 
+def run_serve(arguments):
+    """以教师端身份常驻，持续宣告并实时打印登录的学生。
+
+    真实教师端是常驻进程，学生端只有持续收到宣告才会保持登录；只发一轮宣告
+    就退出时，学生端下一次心跳就判定教师离线，看起来像被踢下线。
+
+    Args:
+        arguments: 解析后的参数。
+
+    Returns:
+        bool: 是否已处理本次调用，恒为 True。
+    """
+    log = cli_log.LOG
+    duration = arguments.serve or 0
+    session = TeacherSession(
+        channel=arguments.channel,
+        teacher_name=arguments.teacher_name,
+        port=arguments.p,
+    )
+    session.start(peers=arguments.peer, report=print)
+    print(
+        "教师端已常驻：频道 %d，教师名 %s，端口 %d；按 Ctrl+C 结束"
+        % (arguments.channel, arguments.teacher_name, arguments.p),
+        flush=True,
+    )
+    log.info(
+        "教师端常驻启动",
+        "教师端模拟",
+        "频道：%d，教师名：%s，端口：%d"
+        % (arguments.channel, arguments.teacher_name, arguments.p),
+    )
+    seen = set()
+    deadline = monotonic() + duration if duration > 0 else None
+    try:
+        while True:
+            for address, student in list(session.students.items()):
+                if address in seen:
+                    continue
+                seen.add(address)
+                info = student.get("info") or {}
+                print(
+                    "[学生] %s  %s  用户：%s  系统：%s"
+                    % (
+                        address,
+                        info.get("name", "未知"),
+                        info.get("user", "未知"),
+                        info.get("os", "未知"),
+                    ),
+                    flush=True,
+                )
+                log.info("学生登录", "教师端模拟", "地址：%s" % address)
+                session.request_info(address, report=arguments.report)
+            if deadline is not None and monotonic() >= deadline:
+                break
+            sleep(0.5)
+    except KeyboardInterrupt:
+        print("\n已收到中断，正在停止教师端…", flush=True)
+    finally:
+        session.stop()
+    print("教师端已停止，本次共发现 %d 台学生机" % len(seen), flush=True)
+    return True
+
+
 def run_action(arguments):
     """执行应用命令、宣告或学生信息查询，返回是否已处理本次调用。"""
     log = cli_log.LOG
@@ -760,6 +824,9 @@ def run_action(arguments):
     if arguments.control and arguments.view is None:
         # 接管需要持续转发键鼠事件，命令行没有输入循环，直接进图形界面。
         return launch_gui("control", get_ip(arguments.ip)[0], arguments.channel)
+    # 常驻模式要在学生信息分支之前判断：它自己带收包循环，不走一次性监听。
+    if arguments.serve is not False:
+        return run_serve(arguments)
     # 全员缩略图要在学生信息分支之前判断：分类写法里 students 有默认值，
     # 否则 --all-preview 永远轮不到。
     if arguments.all_preview is not None:

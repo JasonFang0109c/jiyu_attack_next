@@ -255,6 +255,30 @@ class TeacherSessionTests(unittest.TestCase):
             core.send_session_broadcast([], b"x")
 
 
+class PersistentSessionTests(unittest.TestCase):
+    """常驻教师端会话：ANNO 报文结构与会话启停。"""
+
+    def test_anno_packets_match_teacher_endpoint(self):
+        brief, detail = core.appcmd.anno_packets("192.168.50.22")
+        self.assertEqual(len(brief), 8)
+        self.assertEqual(brief[:4], core.appcmd.ANNO_MAGIC.to_bytes(4, "little"))
+        expected = brief[:4] + bytes([1, 0, 0, 0, 1, 0, 0, 0])
+        self.assertEqual(detail[:12], expected)
+        self.assertEqual(len(detail), 72)
+        self.assertIn(bytes([192, 168, 50, 22]), detail)
+
+    def test_open_and_close_release_both_sockets(self):
+        teacher = core.TeacherSession(
+            channel=7, teacher_name="Fang", port=47123, local_ip="127.0.0.1"
+        )
+        teacher.open()
+        self.assertIsNotNone(teacher._main)
+        self.assertIsNotNone(teacher._session)
+        teacher.close()
+        self.assertIsNone(teacher._main)
+        self.assertIsNone(teacher._session)
+
+
 class AppCommandCliTests(unittest.TestCase):
     """应用命令相关命令行参数的解析与负载生成。"""
 

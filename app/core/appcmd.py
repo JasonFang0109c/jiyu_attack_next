@@ -261,6 +261,33 @@ def dmoc_packet(local_ip):
     )
 
 
+def anno_packets(local_ip):
+    """返回会话通道上的两条 ``ANNO`` 宣告。
+
+    真实教师端每 0.7 秒往会话组播补一次 ``ANNO``：第一条只声明会话类型，
+    第二条带上本机地址与两个固定的服务标识。学生端据此判定教师仍然在线。
+
+    Args:
+        local_ip: 本机在教室网段的地址。
+
+    Returns:
+        list[bytes]: 两条完整报文。
+    """
+    marker = struct.pack("<I", 0x0D5AD030)
+    brief = struct.pack("<II", ANNO_MAGIC, 1)
+    detail = (
+        struct.pack("<III", ANNO_MAGIC, 1, 1)
+        + b"\x00" * 8
+        + _address(local_ip)
+        + marker
+        + b"\x00" * 4
+        + marker
+        + struct.pack("<I", 1)
+        + b"\x00" * 32
+    )
+    return [brief, detail]
+
+
 def comd_packet(payload, magic=COM_MAGIC, command_code=APP_COMMAND_CODE, transaction=0):
     """把应用命令负载封装成 ``COMD``/``LCMD`` 报文。"""
     inner = (

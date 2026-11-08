@@ -89,6 +89,7 @@ def _base_defaults():
         "all_preview": None,
         "announce": None,
         "students": None,
+        "serve": False,
         "chat": None,
         "control": False,
         "no_lock": False,
@@ -448,6 +449,15 @@ def _build_teacher(commands):
         choices=[0, 1, 2],
         metavar="KIND",
         help="请求的上报类型：0 全部、1 窗口、2 进程，默认 0",
+    )
+    students.add_argument(
+        "--serve",
+        nargs="?",
+        const=0,
+        type=int,
+        default=False,
+        metavar="SECONDS",
+        help="常驻教师端，持续宣告并实时显示登录的学生；填秒数则在指定时间后退出，0 表示一直运行",
     )
 
     screen = commands.add_parser("screen", help="屏幕画面：缩略图、观看、端口探测")
@@ -822,6 +832,15 @@ def build_flat_parser():
         choices=[0, 1, 2],
         metavar="KIND",
         help="--students 请求的上报类型：0 全部、1 窗口、2 进程，默认 0",
+    )
+    parser.add_argument(
+        "--serve",
+        nargs="?",
+        const=0,
+        type=int,
+        default=False,
+        metavar="SECONDS",
+        help="常驻教师端模拟，持续宣告并实时显示登录的学生；填秒数则在指定时间后退出",
     )
     parser.add_argument(
         "--channel",

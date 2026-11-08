@@ -144,6 +144,17 @@ class GroupParserTests(unittest.TestCase):
         self.assertIsNone(arguments.firewall)
         self.assertIsNone(arguments.all_preview)
 
+    def test_students_serve_accepts_optional_seconds(self):
+        parser = cli_parser.build_group_parser()
+        self.assertEqual(parser.parse_args(["teacher", "students", "--serve"]).serve, 0)
+        self.assertEqual(
+            parser.parse_args(["teacher", "students", "--serve", "5"]).serve, 5
+        )
+        # 没写 --serve 时保持 False，分发函数据此区分“不常驻”和“常驻到中断”。
+        self.assertIs(parser.parse_args(["teacher", "students"]).serve, False)
+        flat = cli_parser.build_flat_parser().parse_args(["-ip", "10.0.0.1", "--serve"])
+        self.assertEqual(flat.serve, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -242,6 +242,7 @@ start /wait JiYuAttackNext.exe -ip 10.49.151.29 -msg "Hello"
 | `--announce [SECONDS]` | 整数 | `10` | 以教师端模拟身份发送在线宣告并监听登录，超时后打印发现的路由信息 |
 | `--students [SECONDS]` | 整数 | `8` | 发现学生机后拉取并打印其系统信息、进程与窗口 |
 | `--report KIND` | 整数 | `0` | `--students` 请求的上报类型：`0` 全部、`1` 窗口、`2` 进程 |
+| `--serve [SECONDS]` | 整数 | — | 常驻教师端：持续宣告并实时打印登录的学生；填秒数则到点退出，`0` 表示一直运行到 Ctrl+C |
 | `--preview [SECONDS]` | 整数 | `8` | 向目标请求一帧屏幕缩略图并保存到 `--output-dir` |
 | `--all-preview [SECONDS]` | 整数 | `8` | 先宣告发现全部学生，再逐个拉缩略图；不给 `-ip` 也能用，等价于来源项目的 `all` |
 | `--view [SECONDS]` | 整数 | `15` | 连上目标 `--tcp-port` 连续接收桌面画面，按帧保存 |
@@ -486,6 +487,15 @@ JiYuAttackNext.exe --announce 15 --channel 2 --teacher-name "实验教师"
 ```
 
 宣告不需要 `-ip`：报文发到会话组播地址，学生端收到后主动登录。发现阶段会先回会话应答与缩略图策略，再请求一次全量上报，因此终端里能直接看到计算机名、登录用户、系统、CPU、内存以及进程与窗口列表。没有任何学生登录时，命令会提示确认网段与频道是否一致。
+
+只想看到学生登录、不需要拉进程与窗口时，用常驻模式：
+
+```powershell
+JiYuAttackNext.exe teacher students --serve
+JiYuAttackNext.exe teacher students --serve 60 --channel 2 --teacher-name "实验教师"
+```
+
+常驻模式会一直按真实教师端的节奏广播（先 `OONC`，半拍后 `NANC` 与 `CANC`，同时每轮补一条会话通道的 `ANNO`），学生端登录后立刻打印该机信息，直到按 Ctrl+C 或到达指定秒数才停止。真实教师端是常驻进程，只发一轮宣告就退出的话，学生端下一次心跳就会判定教师离线，表现成刚登录又掉线。
 
 ### 缩略图与屏幕观看
 

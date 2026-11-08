@@ -390,6 +390,11 @@ class MainWindow(FluentWindow):
         self._blackscreen_channel = 1
         self._pending_blackscreen = None
         self._preview_window = None
+        # 常驻教师端由后台线程持续宣告并收包，界面只按固定节奏刷新列表。
+        self._serve_session = None
+        self._serve_timer = QTimer(self)
+        self._serve_timer.setInterval(500)
+        self._serve_timer.timeout.connect(self._refresh_serve)
         self._closing_screen_windows = set()
         self._screen_windows = {}
         self._first_close_dialog_open = False
@@ -801,6 +806,7 @@ class MainWindow(FluentWindow):
         self.pages["students"].refreshRequested.connect(self.refresh_students)
         self.pages["students"].killRequested.connect(self.kill_student_process)
         self.pages["students"].previewAllRequested.connect(self.preview_all_students)
+        self.pages["students"].serveRequested.connect(self.toggle_serve)
         self.pages["chat"].footer.requested.connect(self.start_chat)
         self.pages["closewindow"].footer.requested.connect(self.start_close_window)
         self.pages["screen"].previewRequested.connect(self.refresh_preview)
@@ -1543,6 +1549,80 @@ class MainWindow(FluentWindow):
             self._students_finished,
             self._local_failed,
         )
+
+    def toggle_serve(self):
+        """开始或停止常驻教师端会话。
+
+        真实教师端是常驻进程，学生端只认持续的宣告；一次性宣告结束后学生端
+        下一次心跳就会判定教师离线，所以这里默认常驻而不是发一轮就结束。
+        """
+        if self._serve_session is not None:
+            self.stop_serve()
+            return
+        page = self.pages["students"]
+        channel = page.channel_input.value()
+        teacher_name = page.teacher_input.text().strip() or "1"
+        session = core.TeacherSession(
+            channel=channel,
+            teacher_name=teacher_name,
+            port=self.connection_state.values["port"],
+        )
+        try:
+            session.start()
+        except OSError as error:
+            self.logs.error("学生信息", "常驻教师端启动失败", "异常：%s" % error)
+            self._notify("常驻启动失败", str(error), "错误")
+            return
+        self._serve_session = session
+        self._serve_timer.start()
+        page.set_serving(True)
+        page.footer.set_status("常驻中：频道 %d，教师名 %s" % (channel, teacher_name))
+        self.logs.info(
+            "学生信息",
+            "常驻教师端已启动",
+            "频道：%d；教师名：%s" % (channel, teacher_name),
+        )
+        self._notify("常驻教师端", "已开始持续宣告，收到登录会自动刷新列表", "成功")
+
+    def stop_serve(self, notify=True):
+        """停止常驻会话并恢复界面控件。
+
+        Args:
+            notify: 是否弹提示，退出程序时不再打扰用户。
+        """
+        session = self._serve_session
+        self._serve_session = None
+        self._serve_timer.stop()
+        page = self.pages["students"]
+        page.set_serving(False)
+        if session is None:
+            return
+        count = len(session.students)
+        session.stop()
+        page.footer.set_status("常驻已停止，共发现 %d 台学生机" % count)
+        self.logs.info("学生信息", "常驻教师端已停止", "共发现 %d 台学生机" % count)
+        if notify:
+            self._notify("常驻已停止", "本次共发现 %d 台学生机" % count, "成功")
+
+    @Slot()
+    def _refresh_serve(self):
+        """把常驻会话里已登录的学生同步到列表。"""
+        session = self._serve_session
+        if session is None:
+            return
+        page = self.pages["students"]
+        records = [dict(student) for student in list(session.students.values())]
+        known = {record.get("address"): record for record in page.records}
+        for record in records:
+            current = known.get(record.get("address"))
+            if current is None or (current.get("info") or {}) != (
+                record.get("info") or {}
+            ):
+                page.set_students(records)
+                page.footer.set_status(
+                    "常驻中：已发现 %d 台学生机" % len(records),
+                )
+                return
 
     def refresh_students(self):
         """重新拉取所选学生的信息、进程与窗口。"""
@@ -2642,6 +2722,8 @@ class MainWindow(FluentWindow):
         self._navigation_refresh_timer.stop()
         self._task_dispatch_timer.stop()
         self._blackscreen_timer.stop()
+        self._serve_timer.stop()
+        self.stop_serve(notify=False)
         super().closeEvent(event)
         if not event.isAccepted():
             return

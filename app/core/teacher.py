@@ -10,7 +10,7 @@ import socket
 import struct
 import time
 from contextlib import suppress
-from threading import Lock
+from threading import Event, Lock, Thread
 from time import monotonic, sleep
 
 from . import appcmd
@@ -49,7 +49,8 @@ def _multicast_socket(port, group=None, local_ip=None):
         )
     sock.bind(("", port))
     if group:
-        membership = socket.inet_aton(group) + socket.inet_aton("0.0.0.0")
+        # 用本机出口地址加入组播，多网卡机器上按默认路由加入常常收不到包。
+        membership = socket.inet_aton(group) + socket.inet_aton(local_ip or "0.0.0.0")
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, membership)
     sock.settimeout(_POLL_TIMEOUT)
     return sock
@@ -121,6 +122,10 @@ class TeacherSession:
         self._session = None
         self._sequence = 0
         self._previews = appcmd.PreviewAssembler()
+        self._stop = Event()
+        self._threads = []
+        self._peers = []
+        self._report = None
 
     def __enter__(self):
         self.open()
@@ -155,6 +160,10 @@ class TeacherSession:
     ):
         """发送在线宣告，学生端据此发现自己并登录。
 
+        真实教师端是常驻广播：先发 ``OONC``，隔半拍再发 ``NANC``/``CANC``，并在
+        会话通道补一条 ``ANNO``。学生端漏掉单包就不会登录，所以一轮内部按半
+        间隔拆成两次发送。
+
         Args:
             rounds: 发送轮数，0 表示一直发到取消。
             interval: 相邻两轮的间隔秒数。
@@ -169,33 +178,151 @@ class TeacherSession:
         targets = announce_targets(
             self.local_ip, appcmd.MULTICAST_ADDRESS, self.port, peers
         )
+        session_targets = announce_targets(
+            self.local_ip, self.session_address, self.session_port, peers
+        )
+        half = max(0.05, interval / 2)
         sent = 0
         round_index = 0
         while rounds <= 0 or round_index < rounds:
             if cancel_event is not None and cancel_event.is_set():
                 break
             self._sequence += 1
-            packets = [
-                appcmd.oonc_packet(self.local_ip, self._sequence),
-                appcmd.nanc_packet(self.local_ip, self.channel, self.teacher_name),
-                appcmd.canc_packet(self.local_ip, self.channel, self.teacher_name),
-            ]
-            for packet in packets:
-                for target in targets:
-                    self._main.sendto(packet, target)
-                    sent += 1
+            sent += self._deliver(
+                self._main,
+                [appcmd.oonc_packet(self.local_ip, self._sequence)],
+                targets,
+            )
+            if self._pause(half, cancel_event):
+                break
+            sent += self._deliver(
+                self._main,
+                [
+                    appcmd.nanc_packet(self.local_ip, self.channel, self.teacher_name),
+                    appcmd.canc_packet(self.local_ip, self.channel, self.teacher_name),
+                ],
+                targets,
+            )
+            sent += self._deliver(
+                self._session, appcmd.anno_packets(self.local_ip), session_targets
+            )
             round_index += 1
             if report:
                 report("第 %d 轮宣告已发送" % round_index)
-            if rounds <= 0 or round_index < rounds:
-                if cancel_event is not None:
-                    if cancel_event.wait(interval):
-                        break
-                else:
-                    sleep(interval)
+            if rounds > 0 and round_index >= rounds:
+                break
+            if self._pause(half, cancel_event):
+                break
         if report:
             report("宣告结束，共发送 %d 个报文" % sent)
         return sent
+
+    @staticmethod
+    def _deliver(sock, packets, targets):
+        """把若干报文发往全部目标，返回发送次数。"""
+        if sock is None:
+            return 0
+        count = 0
+        for packet in packets:
+            for target in targets:
+                try:
+                    sock.sendto(packet, target)
+                except OSError:
+                    continue
+                count += 1
+        return count
+
+    @staticmethod
+    def _pause(seconds, cancel_event):
+        """等待一段时间，返回是否已被取消。"""
+        if cancel_event is None:
+            sleep(seconds)
+            return False
+        return cancel_event.wait(seconds)
+
+    def start(self, peers=None, report=None):
+        """启动常驻教师会话：后台持续宣告并实时应答学生端。
+
+        真实教室里的教师端是常驻进程，学生端只在收到持续宣告后才保持登录
+        状态。只发一轮宣告就退出，学生端下次心跳时找不到教师，会表现为掉线，
+        因此需要常驻。
+
+        Args:
+            peers: 额外定向宣告的地址。
+            report: 进度回调，在发现学生登录时调用。
+        """
+        if self._threads:
+            return
+        self.open()
+        self._stop = Event()
+        self._peers = [address for address in (peers or ()) if address]
+        self._report = report
+        self._threads = [
+            Thread(target=self._announce_loop, name="teacher-announce", daemon=True),
+            Thread(target=self._receive_loop, name="teacher-receive", daemon=True),
+        ]
+        for thread in self._threads:
+            thread.start()
+
+    def stop(self):
+        """停止常驻会话并关闭套接字，重复调用无副作用。"""
+        if not self._threads:
+            self.close()
+            return
+        self._stop.set()
+        for thread in self._threads:
+            thread.join(timeout=2.0)
+        self._threads = []
+        self.close()
+
+    def _announce_loop(self):
+        """常驻宣告线程：按真实教师端的节奏不停广播。"""
+        while not self._stop.is_set():
+            self.announce(
+                rounds=1,
+                interval=1.0,
+                cancel_event=self._stop,
+                peers=self._peers,
+            )
+
+    def _receive_loop(self):
+        """常驻收包线程：处理登录、心跳、缩略图与信息上报。"""
+        while not self._stop.is_set():
+            for sock in (self._session, self._main):
+                if sock is None:
+                    continue
+                try:
+                    data, address = sock.recvfrom(_RECEIVE_BUFFER)
+                except socket.timeout:
+                    continue
+                except OSError:
+                    continue
+                host = address[0]
+                if appcmd.looks_like_login(data):
+                    if self._register(host, self._report):
+                        Thread(
+                            target=self._welcome,
+                            args=(host,),
+                            name="teacher-welcome",
+                            daemon=True,
+                        ).start()
+                    continue
+                self._serve(data, host)
+                self._absorb(data, host)
+
+    def _welcome(self, host):
+        """登录后的欢迎流程：稍等再拉取学生信息，并保持缩略图策略。"""
+        sleep(0.2)
+        self.request_info(host)
+        deadline = monotonic() + 30.0
+        while not self._stop.is_set() and monotonic() < deadline:
+            with self._lock:
+                student = self.students.get(host)
+                if student is None or student.get("preview") is not None:
+                    return
+            self.request_preview(host)
+            self._main.sendto(appcmd.dmoc_packet(self.local_ip), (host, self.port))
+            self._pause(0.5, self._stop)
 
     @staticmethod
     def _blank_student(host):
@@ -218,8 +345,8 @@ class TeacherSession:
             self._session.sendto(packet, (host, self.session_port))
             sleep(0.05)
         for packet in appcmd.thumbnail_packets():
-            self._session.sendto(packet, (host, self.port))
-        self._session.sendto(appcmd.dmoc_packet(self.local_ip), (host, self.port))
+            self._main.sendto(packet, (host, self.port))
+        self._main.sendto(appcmd.dmoc_packet(self.local_ip), (host, self.port))
         if report:
             report("学生已登录：%s" % host)
         return True
@@ -349,6 +476,9 @@ class TeacherSession:
             appcmd.mess_packet(host, appcmd.info_request_payload(report)),
             (host, self.session_port),
         )
+        # 常驻模式下回复由收包线程统一处理，这里再读套接字会抢走学生的上报。
+        if self._threads:
+            return
         deadline = monotonic() + max(0.0, wait)
         while monotonic() < deadline:
             try:
