@@ -17,6 +17,7 @@ from .message import MessagePage
 from .screen import ScreenPage
 from .settings import SettingsPage
 from .shell import ShellPage
+from .studentproc import StudentProcessPage
 from .students import StudentsPage
 
 __all__ = [
@@ -39,5 +40,6 @@ __all__ = [
     "ScreenPage",
     "SettingsPage",
     "ShellPage",
+    "StudentProcessPage",
     "StudentsPage",
 ]

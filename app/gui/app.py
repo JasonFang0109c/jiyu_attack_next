@@ -96,6 +96,7 @@ from .pages import (
     ScreenPage,
     SettingsPage,
     ShellPage,
+    StudentProcessPage,
     StudentsPage,
 )
 from .preview_window import PreviewGridWindow
@@ -330,6 +331,12 @@ NAVIGATION_GROUPS = (
             ("firewall", FIF.CERTIFICATE, "防火墙"),
         ),
     ),
+    (
+        "group_process",
+        FIF.ERASE_TOOL,
+        "本机进程",
+        (("studentproc", FIF.CANCEL_MEDIUM, "结束学生端"),),
+    ),
 )
 
 
@@ -433,6 +440,7 @@ class MainWindow(FluentWindow):
             "aliases": AliasPage(self.connection_state, self, logs=self.logs),
             "local": LocalPage(self),
             "firewall": FirewallPage(self),
+            "studentproc": StudentProcessPage(self),
             "logs": LogPage(self.logs, self),
             "settings": SettingsPage(
                 self.logs, self.close_behavior, self.window_material, self
@@ -813,6 +821,10 @@ class MainWindow(FluentWindow):
         self.pages["screen"].viewRequested.connect(self.watch_screen)
         self.pages["screen"].probeRequested.connect(self.probe_screen_port)
         self.pages["control"].controlRequested.connect(self.start_remote_control)
+        self.pages["studentproc"].refreshRequested.connect(
+            self.refresh_student_processes
+        )
+        self.pages["studentproc"].stopRequested.connect(self.stop_local_student)
         for page in self.task_pages:
             page.footer.cancelled.connect(self.cancel_task)
             page.footer.viewLogs.connect(lambda: self.show_page("logs"))
@@ -852,6 +864,9 @@ class MainWindow(FluentWindow):
             node.setExpanded(True, ani=False)
         self.switchTo(page)
         self._reveal_navigation_item(key)
+        # 进入结束学生端页时先查一次，省得用户对着空表再点刷新。
+        if key == "studentproc" and not page.processes:
+            self.refresh_student_processes()
 
     def _reveal_navigation_item(self, key):
         """把当前页面对应的导航项滚进可见区域。
@@ -1333,6 +1348,73 @@ class MainWindow(FluentWindow):
             self._firewall_finished,
             self._local_failed,
         )
+
+    def refresh_student_processes(self):
+        """刷新本机学生端进程列表。"""
+        self.pages["studentproc"].set_busy(True)
+        try:
+            processes = core.find_student_processes()
+        except (RuntimeError, OSError) as error:
+            self.pages["studentproc"].set_processes([])
+            self.pages["studentproc"].set_busy(False)
+            self.logs.error("本机进程", "查询学生端进程失败", "异常：%s" % error)
+            self._notify("查询学生端进程失败", str(error), "错误")
+            return
+        self.pages["studentproc"].set_processes(processes)
+        self.pages["studentproc"].set_busy(False)
+        self.logs.info("本机进程", "已刷新学生端进程列表", "共 %d 个" % len(processes))
+        if not processes:
+            self._notify("未发现学生端", "本机没有正在运行的学生端进程", "信息")
+
+    def stop_local_student(self):
+        """确认后结束本机学生端进程，必要时走 UAC 提权。"""
+        if self.thread is not None:
+            self.logs.warning(
+                "本机进程",
+                "已有任务在运行，结束学生端未开始",
+                "当前任务：%s" % (self.active_kind or "无"),
+            )
+            return
+        processes = self.pages["studentproc"].processes
+        if not processes:
+            self._notify("没有可结束的进程", "先刷新进程列表", "警告")
+            return
+        names = "、".join(
+            "PID %d %s" % (item["pid"], item["name"]) for item in processes
+        )
+        if not self._confirm(
+            "确认结束学生端",
+            "结束本机学生端进程（%s）？\n结束时可能弹出管理员授权，请选择“是”。"
+            % names,
+        ):
+            self.logs.info("本机进程", "用户取消了结束学生端", "目标：%s" % names)
+            return
+        self.logs.info("本机进程", "开始结束学生端进程", "目标：%s" % names)
+        self.pages["studentproc"].set_busy(True)
+        self._begin_task(
+            "studentproc",
+            TaskWorker(
+                core.stop_student_processes,
+                [item["pid"] for item in processes],
+            ),
+            self._stop_student_finished,
+            self._local_failed,
+        )
+
+    def _stop_student_finished(self, results):
+        """处理结束学生端的结果，并刷新列表。"""
+        self.pages["studentproc"].set_busy(False)
+        failed = [item for item in results if not item.get("success")]
+        if failed:
+            detail = "；".join(
+                "PID %d %s" % (item["pid"], item["output"]) for item in failed
+            )
+            self.logs.error("本机进程", "部分学生端进程未能结束", "失败：%s" % detail)
+            self._notify("部分进程未能结束", detail, "错误")
+        else:
+            self.logs.info("本机进程", "已结束学生端进程", "共 %d 个" % len(results))
+            self._notify("已结束学生端", "共结束 %d 个进程" % len(results), "成功")
+        self.refresh_student_processes()
 
     def start_app_command(self):
         """校验目标后把选中的应用命令发给全部目标设备。"""

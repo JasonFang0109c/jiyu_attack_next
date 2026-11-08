@@ -342,6 +342,49 @@ class CoreTests(unittest.TestCase):
             ],
         )
 
+    def test_find_student_processes_reports_listening_ports(self):
+        tasks = SimpleNamespace(
+            returncode=0,
+            stderr="",
+            stdout='"StudentMain.exe","17600"\n"explorer.exe","9002"\n',
+        )
+        udp = SimpleNamespace(
+            returncode=0, stderr="", stdout="UDP 192.168.50.22:4705 *:* 17600\n"
+        )
+        tcp = SimpleNamespace(
+            returncode=0,
+            stderr="",
+            stdout="TCP 192.168.50.22:51767 0.0.0.0:0 LISTENING 17600\n",
+        )
+        with patch.object(
+            self.core.student_process,
+            "run_windows_command",
+            side_effect=[tasks, udp, tcp],
+        ):
+            processes = self.core.find_student_processes()
+        self.assertEqual(
+            processes,
+            [{"pid": 17600, "name": "StudentMain.exe", "ports": [4705, 51767]}],
+        )
+
+    def test_stop_student_processes_rejects_missing_targets(self):
+        tasks = SimpleNamespace(
+            returncode=0, stderr="", stdout='"explorer.exe","9002"\n'
+        )
+        with (
+            patch.object(
+                self.core.student_process, "run_windows_command", return_value=tasks
+            ),
+            self.assertRaises(RuntimeError),
+        ):
+            self.core.stop_student_processes()
+        with self.assertRaises(ValueError):
+            self.core.stop_student_processes(["not-a-pid"])
+
+    def test_student_helper_rejects_bad_arguments(self):
+        self.assertEqual(self.core.run_student_helper([]), 2)
+        self.assertEqual(self.core.run_student_helper(["17600", "--student-result"]), 2)
+
     def test_windows_output_decoding_supports_utf8_and_gbk(self):
         self.assertEqual(
             self.core.firewall._decode_windows_output("规则已更新".encode("utf-8")),

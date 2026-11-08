@@ -161,7 +161,8 @@ def main(argv=None):
     """
     arguments = list(sys.argv[1:] if argv is None else argv)
     if arguments:
-        if arguments[0] != "--firewall-helper":
+        # 两个提权助手都在后台执行，挂控制台没有意义还会闪窗。
+        if arguments[0] not in ("--firewall-helper", "--student-helper"):
             _show_cli_console()
         from app.cli.main import main as run_cli
 

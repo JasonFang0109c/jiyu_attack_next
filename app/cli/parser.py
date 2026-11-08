@@ -8,11 +8,12 @@ import argparse
 
 from ..core import runtime_version
 
-# 与图形界面侧边栏的三个分组一一对应。
+# 与图形界面侧边栏的分组一一对应。
 GROUPS = {
     "remote": "远程攻击",
     "teacher": "教师端模拟",
     "local": "本机工具",
+    "process": "本机进程",
 }
 
 # 每个分组下的子命令，同样对应图形界面的页面。
@@ -35,6 +36,9 @@ COMMANDS = {
     "local": {
         "info": "本机信息",
         "firewall": "防火墙",
+    },
+    "process": {
+        "endstudent": "结束学生端",
     },
 }
 
@@ -105,6 +109,9 @@ def _base_defaults():
         "file_ip": None,
         "file_timeout": 120,
         "firewall": None,
+        "endstudent": False,
+        "pid": None,
+        "list": False,
     }
 
 
@@ -174,8 +181,9 @@ def build_group_parser():
     parser = argparse.ArgumentParser(
         prog="JiYuAttackNext",
         description="极域课堂 UDP 报文测试工具：命令按图形界面的分组组织",
-        epilog="分组：remote 远程攻击、teacher 教师端模拟、local 本机工具。"
-        "每条子命令对应图形界面里的一个页面，例如 remote message 对应“文本消息”。",
+        epilog="分组：remote 远程攻击、teacher 教师端模拟、local 本机工具、"
+        "process 本机进程。每条子命令对应图形界面里的一个页面，"
+        "例如 remote message 对应“文本消息”。",
     )
     parser.add_argument(
         "-V",
@@ -205,6 +213,12 @@ def build_group_parser():
         title="子命令", dest="command", metavar="子命令", required=True
     )
     _build_local(local_commands)
+
+    process = groups.add_parser("process", help="本机进程")
+    process_commands = process.add_subparsers(
+        title="子命令", dest="command", metavar="子命令", required=True
+    )
+    _build_process(process_commands)
 
     return parser
 
@@ -557,6 +571,31 @@ def _build_local(commands):
     )
 
 
+def _build_process(commands):
+    """注册本机进程分组下的子命令。"""
+    endstudent = commands.add_parser(
+        "endstudent",
+        help="结束学生端：结束本机正在运行的极域学生端进程（需要管理员权限）",
+        description="结束本机正在运行的极域学生端进程，模拟教师前先腾出 4705 端口。"
+        "非管理员时通过 UAC 提权执行。",
+    )
+    defaults = _base_defaults()
+    defaults["endstudent"] = True
+    endstudent.set_defaults(**defaults)
+    endstudent.add_argument(
+        "--pid",
+        type=int,
+        action="append",
+        metavar="PID",
+        help="只结束指定进程号，可重复；不写则结束本机全部学生端进程",
+    )
+    endstudent.add_argument(
+        "--list",
+        action="store_true",
+        help="只列出学生端进程与占用端口，不结束",
+    )
+
+
 def build_flat_parser():
     """创建扁平写法解析器。
 
@@ -876,5 +915,25 @@ def build_flat_parser():
         default="",
         metavar="DIR",
         help="--preview 与 --view 保存图片的目录，默认当前目录下的 preview",
+    )
+    parser.add_argument(
+        "--end-student",
+        dest="endstudent",
+        action="store_true",
+        help="结束本机正在运行的极域学生端进程，腾出 4705 端口（需要管理员权限）",
+    )
+    parser.add_argument(
+        "--end-student-pid",
+        dest="pid",
+        type=int,
+        action="append",
+        metavar="PID",
+        help="配合 --end-student：只结束指定进程号，可重复",
+    )
+    parser.add_argument(
+        "--list-student",
+        dest="list",
+        action="store_true",
+        help="列出本机学生端进程与占用端口，不结束",
     )
     return parser

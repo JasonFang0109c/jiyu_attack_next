@@ -11,6 +11,7 @@ from . import (
     protocol,
     screen,
     shell,
+    student_process,
     teacher,
     transport,
     version,
@@ -66,6 +67,13 @@ from .protocol import (
 )
 from .screen import ScreenSession, fix_thumbnail, probe
 from .shell import ShellServer, connect_command, payload_script, send_command
+from .student_process import (
+    STUDENT_HELPER_ARGUMENT,
+    STUDENT_RESULT_ARGUMENT,
+    find_student_processes,
+    run_student_helper,
+    stop_student_processes,
+)
 from .teacher import (
     RemoteControl,
     TeacherSession,
@@ -125,6 +133,8 @@ __all__ = [
     "LOG_FILE_NAME",
     "MESSAGE_MAX_BYTES",
     "MESSAGE_OFFSET",
+    "STUDENT_HELPER_ARGUMENT",
+    "STUDENT_RESULT_ARGUMENT",
     "CliLog",
     "Delivery",
     "DeliveryState",
@@ -158,6 +168,7 @@ __all__ = [
     "execute_send",
     "execute_send_report",
     "fetch_students_info",
+    "find_student_processes",
     "firewall",
     "fix_thumbnail",
     "format_b4_send",
@@ -185,6 +196,7 @@ __all__ = [
     "request_firewall_rule",
     "run_app_operation",
     "run_firewall_helper",
+    "run_student_helper",
     "run_windows_command",
     "runtime_version",
     "screen",
@@ -206,7 +218,9 @@ __all__ = [
     "split_message",
     "start_screen",
     "stop_screen",
+    "stop_student_processes",
     "store",
+    "student_process",
     "teacher",
     "transfer_file",
     "transport",

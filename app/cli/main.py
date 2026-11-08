@@ -10,6 +10,7 @@ from time import monotonic, sleep
 from ..core import (
     FIREWALL_HELPER_ARGUMENT,
     LOGOFF_COMMAND,
+    STUDENT_HELPER_ARGUMENT,
     H264Decoder,
     ShellServer,
     TeacherSession,
@@ -19,6 +20,7 @@ from ..core import (
     close_windows,
     collect_previews,
     collect_students,
+    find_student_processes,
     fix_thumbnail,
     format_size,
     get_ip,
@@ -32,11 +34,13 @@ from ..core import (
     request_firewall_rule,
     run_app_operation,
     run_firewall_helper,
+    run_student_helper,
     send_chat,
     send_command,
     send_tracked,
     send_unlocks,
     split_message,
+    stop_student_processes,
     transfer_file,
     view_screen,
 )
@@ -1064,6 +1068,8 @@ def run_from_cmd(arguments):
     log_arguments(arguments)
     log = cli_log.LOG
     try:
+        if arguments.endstudent or arguments.list:
+            return run_end_student(arguments)
         if arguments.firewall:
             results = request_firewall_rule(arguments.firewall)
             failed = any(not item["success"] for item in results)
@@ -1125,6 +1131,43 @@ def run_from_cmd(arguments):
     return 0
 
 
+def run_end_student(arguments):
+    """列出或结束本机学生端进程。
+
+    Args:
+        arguments: 解析后的参数，``list`` 为真时只列进程，否则结束进程。
+
+    Returns:
+        int: 0 表示成功，1 表示有进程未能结束。
+    """
+    log = cli_log.LOG
+    processes = find_student_processes()
+    if not processes:
+        print("本机没有正在运行的学生端进程")
+        log.info("本机没有学生端进程", "本机进程")
+        return 0
+    for item in processes:
+        ports = ", ".join(str(port) for port in item["ports"]) or "-"
+        print("[*] PID %d  %s  端口 %s" % (item["pid"], item["name"], ports))
+    if arguments.list:
+        log.info("已列出学生端进程", "本机进程", "共 %d 个" % len(processes))
+        return 0
+    results = stop_student_processes(arguments.pid)
+    for item in results:
+        print(("[+] " if item["success"] else "[-] ") + item["output"])
+    failed = [item for item in results if not item["success"]]
+    if failed:
+        log.error(
+            "结束学生端失败",
+            "本机进程",
+            "失败进程：%s" % ", ".join(str(item["pid"]) for item in failed),
+        )
+        return 1
+    print("已结束 %d 个学生端进程" % len(results))
+    log.info("已结束学生端进程", "本机进程", "共 %d 个" % len(results))
+    return 0
+
+
 def _select_parser(arguments):
     """按首个参数选择分类写法或扁平写法的解析器。
 
@@ -1145,6 +1188,8 @@ def main(argv=None):
     arguments = list(sys.argv[1:] if argv is None else argv)
     if arguments[:1] == [FIREWALL_HELPER_ARGUMENT]:
         return run_firewall_helper(arguments[1:])
+    if arguments[:1] == [STUDENT_HELPER_ARGUMENT]:
+        return run_student_helper(arguments[1:])
     if is_informational(arguments):
         # 帮助与版本号走 argparse 自身的退出路径，不创建数据目录与日志文件。
         _select_parser(arguments).parse_args(arguments)

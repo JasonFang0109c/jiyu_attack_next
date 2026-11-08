@@ -163,7 +163,7 @@ class GuiTests(unittest.TestCase):
         self.assertFalse(self.window.windowIcon().isNull())
         # 首页加 10 个功能页：文本消息、文件传送、设备操作、远程命令、设备备注、
         # 应用命令、学生信息、本机信息、防火墙、运行日志，另有设置与关于。
-        self.assertEqual(self.window.stackedWidget.count(), 18)
+        self.assertEqual(self.window.stackedWidget.count(), 19)
         self.assertEqual(self.window.current_page(), "home")
         self.assertEqual(self.state.values["target"], "")
         self.assertEqual(self.state.values["port"], 4705)
@@ -413,7 +413,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.command.editor.toPlainText(), "whoami")
 
     def test_navigation_groups_pages_in_expected_order(self):
-        # 分组顺序固定：远程攻击、教师端模拟、设备备注、本机工具。
+        # 分组顺序固定：远程攻击、教师端模拟、设备备注、本机工具、本机进程。
         panel = self.window.navigationInterface.panel
         top = [
             item.routeKey
@@ -429,6 +429,7 @@ class GuiTests(unittest.TestCase):
                 "group_teacher",
                 "aliases",
                 "group_local",
+                "group_process",
             ],
         )
         self.assertEqual(
@@ -442,6 +443,10 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(
             [child.text() for child in panel.widget("group_local").treeChildren],
             ["本机信息", "防火墙"],
+        )
+        self.assertEqual(
+            [child.text() for child in panel.widget("group_process").treeChildren],
+            ["结束学生端"],
         )
 
     def test_navigation_groups_have_no_header_text(self):
@@ -950,6 +955,42 @@ class GuiTests(unittest.TestCase):
         self.assertIsNone(self.window._serve_session)
         self.assertFalse(self.window._serve_timer.isActive())
         self.assertTrue(page.channel_input.isEnabled())
+
+    def test_student_process_page_lists_and_gates_stop_button(self):
+        page = self.window.pages["studentproc"]
+        page.set_processes([])
+        self.assertFalse(page.stop_button.isEnabled())
+        self.assertIn("没有正在运行", page.status.text())
+        page.set_processes(
+            [{"pid": 17600, "name": "StudentMain.exe", "ports": [4705, 51767]}]
+        )
+        self.assertTrue(page.stop_button.isEnabled())
+        self.assertEqual(page.table.item(0, 2).text(), "4705、51767")
+        # 任务进行中按钮要禁用，避免重复提权。
+        page.set_busy(True)
+        self.assertFalse(page.stop_button.isEnabled())
+        self.assertFalse(page.refresh_button.isEnabled())
+        page.set_busy(False)
+        self.assertTrue(page.stop_button.isEnabled())
+
+    def test_stop_local_student_dispatches_worker(self):
+        page = self.window.pages["studentproc"]
+        page.set_processes([{"pid": 17600, "name": "StudentMain.exe", "ports": [4705]}])
+        with (
+            patch.object(self.window, "_begin_task") as begin_task,
+            patch.object(self.window, "thread", None),
+            patch.object(
+                core,
+                "stop_student_processes",
+                return_value=[{"pid": 17600, "success": True}],
+            ) as stop,
+        ):
+            self.window.stop_local_student()
+            worker = begin_task.call_args.args[1]
+            self.assertEqual(begin_task.call_args.args[0], "studentproc")
+            worker.run()
+        # 后台任务会额外传入进度回调，这里只核对结束的进程号。
+        self.assertEqual(stop.call_args.args, ([17600],))
 
     def test_app_command_page_covers_new_operations(self):
         page = self.window.pages["appcmd"]

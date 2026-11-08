@@ -7,7 +7,9 @@ from app.cli import parser as cli_parser
 
 class GroupParserTests(unittest.TestCase):
     def test_groups_match_gui_sidebar(self):
-        self.assertEqual(list(cli_parser.GROUPS), ["remote", "teacher", "local"])
+        self.assertEqual(
+            list(cli_parser.GROUPS), ["remote", "teacher", "local", "process"]
+        )
         self.assertEqual(
             list(cli_parser.COMMANDS["remote"]),
             ["message", "file", "device", "command", "shell"],
@@ -17,6 +19,7 @@ class GroupParserTests(unittest.TestCase):
             ["appcmd", "students", "screen", "control", "chat", "closewindow"],
         )
         self.assertEqual(list(cli_parser.COMMANDS["local"]), ["info", "firewall"])
+        self.assertEqual(list(cli_parser.COMMANDS["process"]), ["endstudent"])
 
     def test_every_command_has_a_parser(self):
         group = cli_parser.build_group_parser()
@@ -154,6 +157,24 @@ class GroupParserTests(unittest.TestCase):
         self.assertIs(parser.parse_args(["teacher", "students"]).serve, False)
         flat = cli_parser.build_flat_parser().parse_args(["-ip", "10.0.0.1", "--serve"])
         self.assertEqual(flat.serve, 0)
+
+    def test_process_group_lists_and_stops_student(self):
+        parser = cli_parser.build_group_parser()
+        stop = parser.parse_args(["process", "endstudent"])
+        self.assertTrue(stop.endstudent)
+        self.assertIsNone(stop.pid)
+        self.assertFalse(stop.list)
+        listing = parser.parse_args(["process", "endstudent", "--list"])
+        self.assertTrue(listing.list)
+        # 只结束指定进程时可以不写目标地址，分发直接走本机操作。
+        single = parser.parse_args(["process", "endstudent", "--pid", "17600"])
+        self.assertEqual(single.pid, [17600])
+        self.assertIsNone(single.ip)
+        flat = cli_parser.build_flat_parser().parse_args(
+            ["--end-student", "--end-student-pid", "17600"]
+        )
+        self.assertTrue(flat.endstudent)
+        self.assertEqual(flat.pid, [17600])
 
 
 if __name__ == "__main__":
