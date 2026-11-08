@@ -137,6 +137,7 @@ CATEGORIES = {
     "file": "文件传送",
     "local": "本机信息",
     "firewall": "防火墙",
+    "studentproc": "解除限制",
 }
 
 
@@ -825,9 +826,6 @@ class MainWindow(FluentWindow):
         self.pages["screen"].viewRequested.connect(self.watch_screen)
         self.pages["screen"].probeRequested.connect(self.probe_screen_port)
         self.pages["control"].controlRequested.connect(self.start_remote_control)
-        self.pages["studentproc"].refreshRequested.connect(
-            self.refresh_student_processes
-        )
         self.pages["studentproc"].toggleRequested.connect(self.toggle_local_student)
         for page in self.task_pages:
             page.footer.cancelled.connect(self.cancel_task)
@@ -1468,7 +1466,9 @@ class MainWindow(FluentWindow):
             return
         processes = self.pages["studentproc"].processes
         if not processes:
-            self._notify("没有可结束的进程", "先刷新进程列表", "警告")
+            self._notify(
+                "没有可结束的进程", "列表每 2 秒自动刷新，稍等一下再试", "警告"
+            )
             return
         names = "、".join(
             "PID %d %s" % (item["pid"], item["name"]) for item in processes
@@ -2223,9 +2223,9 @@ class MainWindow(FluentWindow):
         if self.thread is not None:
             self._task_queue.append((kind, worker, finished, failed))
             position = len(self._task_queue)
-            self.pages[kind].footer.set_status(
-                "已加入队列，前面还有 %d 个任务" % position
-            )
+            queued = self.pages[kind]
+            if getattr(queued, "footer", None) is not None:
+                queued.footer.set_status("已加入队列，前面还有 %d 个任务" % position)
             options = getattr(worker, "options", None)
             target = getattr(options, "target", None)
             details = "待执行任务数：%d" % position
@@ -2283,19 +2283,24 @@ class MainWindow(FluentWindow):
             busy and self.active_cancel is not None
         )
         for key, page in self.pages.items():
-            if key in CATEGORIES and key != self.active_kind:
-                page.footer.set_status(
-                    "其他任务正在执行，可继续加入队列" if busy else ""
-                )
-        if busy:
-            self.pages[self.active_kind].footer.set_status("执行中，可继续加入队列")
+            footer = getattr(page, "footer", None)
+            if footer is not None and key in CATEGORIES and key != self.active_kind:
+                footer.set_status("其他任务正在执行，可继续加入队列" if busy else "")
+        active = self.pages[self.active_kind]
+        active_footer = getattr(active, "footer", None)
+        if active_footer is None:
+            active.set_busy(busy)
+        elif busy:
+            active_footer.set_status("执行中，可继续加入队列")
         else:
-            self.pages[self.active_kind].footer.finish_status()
+            active_footer.finish_status()
 
     @Slot(str)
     def _task_progress(self, message):
         self.logs.debug(CATEGORIES[self.active_kind], message, "任务函数进度回调")
-        self.pages[self.active_kind].footer.set_status(message)
+        active = self.pages[self.active_kind]
+        if getattr(active, "footer", None) is not None:
+            active.footer.set_status(message)
         if self.active_kind == "file" and "文件传送服务已启动" in message:
             self.pages["file"].reset_progress()
         if self.active_kind == "file" and "下载文件：" in message:
@@ -2394,7 +2399,9 @@ class MainWindow(FluentWindow):
 
     @Slot(str, str)
     def _local_failed(self, message, details=""):
-        self.pages[self.active_kind].footer.set_status(message)
+        active = self.pages[self.active_kind]
+        if getattr(active, "footer", None) is not None:
+            active.footer.set_status(message)
         self.logs.error(
             CATEGORIES[self.active_kind],
             message,
@@ -2409,8 +2416,9 @@ class MainWindow(FluentWindow):
             queued = len(self._task_queue)
             self._task_queue.clear()
             for key, page in self.pages.items():
-                if key in CATEGORIES and key != self.active_kind:
-                    page.footer.set_status("排队任务已取消")
+                footer = getattr(page, "footer", None)
+                if footer is not None and key in CATEGORIES and key != self.active_kind:
+                    footer.set_status("排队任务已取消")
             self.logs.warning(
                 CATEGORIES.get(self.active_kind, "任务"),
                 "已取消全部排队任务",

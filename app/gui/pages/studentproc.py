@@ -29,7 +29,6 @@ class StudentProcessPage(Page):
             path 与 genuine。
     """
 
-    refreshRequested = Signal()
     toggleRequested = Signal()
 
     def __init__(self, parent=None):
@@ -47,12 +46,9 @@ class StudentProcessPage(Page):
 
         self.content_card = SectionCard(self)
         row = QHBoxLayout()
-        self.status = BodyLabel("尚未查询", self.content_card)
+        self.status = BodyLabel("正在读取学生端状态…", self.content_card)
         row.addWidget(self.status)
         row.addStretch()
-        self.refresh_button = PushButton(FIF.SYNC, "刷新进程列表", self.content_card)
-        self.refresh_button.clicked.connect(lambda: self.refreshRequested.emit())
-        row.addWidget(self.refresh_button)
         self.content_card.body.addLayout(row)
 
         action_row = QHBoxLayout()
@@ -110,7 +106,7 @@ class StudentProcessPage(Page):
             self.table.setItem(row, 0, QTableWidgetItem(str(item.get("pid", ""))))
             self.table.setItem(row, 1, QTableWidgetItem(item.get("name", "")))
             self.table.setItem(row, 2, QTableWidgetItem(ports))
-            path = item.get("path") or "不可读（试试点刷新）"
+            path = item.get("path") or "不可读（需要管理员权限）"
             if item.get("path") and not item.get("genuine"):
                 path += "（同目录没有 LibTDMaster.dll）"
             self.table.setItem(row, 3, QTableWidgetItem(path))
@@ -124,5 +120,4 @@ class StudentProcessPage(Page):
 
     def set_busy(self, busy):
         """任务执行期间禁用按钮，避免重复触发。"""
-        self.refresh_button.setEnabled(not busy)
         self._update_toggle(busy)

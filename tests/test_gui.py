@@ -982,7 +982,6 @@ class GuiTests(unittest.TestCase):
         # 任务进行中按钮要禁用，避免重复提权。
         page.set_busy(True)
         self.assertFalse(page.toggle_button.isEnabled())
-        self.assertFalse(page.refresh_button.isEnabled())
         page.set_busy(False)
         self.assertTrue(page.toggle_button.isEnabled())
 
@@ -1036,6 +1035,39 @@ class GuiTests(unittest.TestCase):
             worker.run()
         # 输入框只有空格时按留空处理，交给核心自动查找路径。
         self.assertEqual(start.call_args.args, (None,))
+
+    def test_busy_state_handles_page_without_status_bar(self):
+        page = self.window.pages["studentproc"]
+        page.set_processes(
+            [
+                {
+                    "pid": 17600,
+                    "name": "StudentMain.exe",
+                    "ports": [4705],
+                    "path": "",
+                    "genuine": False,
+                }
+            ]
+        )
+        # 本机进程页没有状态栏，忙碌开关要走页面自己的按钮控制。
+        self.window.active_kind = "studentproc"
+        self.window._set_busy(True)
+        self.assertFalse(page.toggle_button.isEnabled())
+        self.window._set_busy(False)
+        self.assertTrue(page.toggle_button.isEnabled())
+        self.window.active_kind = ""
+
+    def test_student_process_page_has_no_manual_refresh_button(self):
+        page = self.window.pages["studentproc"]
+        # 列表改成自动刷新，页面上不再保留手动刷新入口。
+        self.assertFalse(hasattr(page, "refresh_button"))
+        self.assertFalse(hasattr(page, "refreshRequested"))
+
+    def test_show_studentproc_page_starts_polling_timer(self):
+        self.window.show_page("studentproc")
+        self.assertTrue(self.window._studentproc_timer.isActive())
+        self.window.show_page("home")
+        self.assertFalse(self.window._studentproc_timer.isActive())
 
     def test_studentproc_poll_updates_button_when_state_changes(self):
         page = self.window.pages["studentproc"]
