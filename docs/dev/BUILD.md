@@ -24,8 +24,6 @@ python -m pip install -r requirements.txt
 
 `requirements.txt` 安装的是 `PySide6-Fluent-Widgets[full]`，比基础包多带 `scipy`、`pillow` 与 `colorthief`，组件库用它们做亚克力控件的高斯模糊与取色。缺这几个包时 `isAcrylicAvailable` 为假，亚克力控件会退化纯色背景。升级组件库时用 `pip install --upgrade` 不会自动补装 extra，需要写明 `[full]`。打包脚本按 `packaging/JiYuAttackNext.spec` 排除 `scipy` 里用不到的子包与 Pillow 的 AVIF、Tk 插件，只保留 `scipy.ndimage` 及其依赖。
 
-`av`（PyAV）随 FFmpeg 动态库一起装进虚拟环境，负责把学生端推来的 H.264 码流解码成位图，打包时由 PyInstaller 的 `av` hook 收集这些 DLL，并额外复制 `av` 的包元数据。查看屏幕画面的体积主要来自这几个 FFmpeg 库，需要精简时优先确认 H.264 是否还要支持。
-
 ## 源码运行
 
 | 运行方式 | 命令 |

@@ -1,5 +1,4 @@
 altgraph==0.17.5
-av==19.0.2
 colorthief==0.2.1
 darkdetect==0.8.0
 numpy==2.5.4

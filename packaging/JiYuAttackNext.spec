@@ -25,8 +25,7 @@ a = Analysis(
           + ([(str(version_file), ".")] if version_file.exists() else [])
           + ([(str(variant_file), ".")] if variant_file.exists() else [])
           + copy_metadata("PySide6")
-          + copy_metadata("PySide6-Fluent-Widgets")
-          + copy_metadata("av"),
+          + copy_metadata("PySide6-Fluent-Widgets"),
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

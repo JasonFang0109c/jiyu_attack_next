@@ -5,50 +5,33 @@ from os import system
 from pathlib import Path
 from queue import Empty, Queue
 from threading import Thread
-from time import monotonic, sleep
+from time import sleep
 
 from ..core import (
     FIREWALL_HELPER_ARGUMENT,
     LOGOFF_COMMAND,
     STUDENT_HELPER_ARGUMENT,
-    H264Decoder,
     ShellServer,
-    TeacherSession,
-    appcmd,
+    basicCMD,
     cli_log,
-    close_window,
-    close_windows,
-    collect_previews,
-    collect_students,
     find_student_processes,
-    fix_thumbnail,
     format_size,
     get_ip,
-    kill_processes,
     local_ip_and_ports,
     pkg_sendlist,
     portable_cli_log_path,
-    probe,
     read_message,
-    remote_control,
     request_firewall_rule,
-    run_app_operation,
     run_firewall_helper,
     run_student_helper,
-    send_chat,
     send_command,
     send_tracked,
-    send_unlocks,
     split_message,
     start_student_process,
     stop_student_processes,
     transfer_file,
-    view_screen,
 )
 from .parser import GROUP_NAMES, build_flat_parser, build_group_parser
-
-# 按进程名或窗口标题操作前要先发现学生、拉取列表，这里的监听时长固定。
-DISCOVERY_SECONDS = 8.0
 
 
 def build_parser():
@@ -115,58 +98,13 @@ def create_send_packets(arguments):
         log.debug("已加入命令", "命令", "命令：%s" % arguments.c)
         send_list.append(pkg_sendlist("-c", arguments.c))
 
-    # 重启与关机改走应用命令，能带上倒计时与提示文字；注销没有对应命令号，
-    # 仍然用远程命令执行 shutdown /l。
-    if arguments.e == "l":
+    # 重启与关机用来源项目的固定报文；注销没有独立报文，走远程命令通道。
+    if arguments.e in {"r", "s"}:
+        send_list.append(basicCMD["-" + arguments.e])
+    elif arguments.e == "l":
         send_list.append(pkg_sendlist("-c", LOGOFF_COMMAND))
 
     return send_list
-
-
-def run_power(arguments):
-    """按 -e r/-e s 下发重启或关机应用命令。"""
-    log = cli_log.LOG
-    reboot = arguments.e == "r"
-    name = "重启" if reboot else "关机"
-    hosts = get_ip(arguments.ip)
-    payload = appcmd.power_payload(
-        reboot=reboot,
-        delay=arguments.power_delay,
-        force=not arguments.power_no_force,
-        text=arguments.power_text,
-    )
-    print(
-        "开始%s，目标 %d 个，倒计时 %d 秒%s"
-        % (
-            name,
-            len(hosts),
-            arguments.power_delay,
-            "，提示文字：%s" % arguments.power_text if arguments.power_text else "",
-        ),
-        flush=True,
-    )
-    result = run_app_operation(
-        hosts, payload, channel="comd", port=arguments.p, report=print
-    )
-    print("%s完成：%d 台目标，共发送 %d 字节" % (name, result["hosts"], result["sent"]))
-    log.info(
-        "%s完成" % name,
-        "设备操作",
-        "目标：%d 台；倒计时：%d 秒；字节：%d"
-        % (result["hosts"], arguments.power_delay, result["sent"]),
-    )
-    return True
-    log.info(
-        name,
-        "设备操作",
-        "目标：%d 台；倒计时：%d 秒；强制：%s；字节：%d"
-        % (
-            result["hosts"],
-            arguments.power_delay,
-            not arguments.power_no_force,
-            result["sent"],
-        ),
-    )
 
 
 def single_command(arguments):
@@ -301,7 +239,7 @@ def log_arguments(arguments):
         "命令行参数",
         "命令行",
         "ip=%s；port=%s；msg=%s；msg_file=%s；file=%s；c=%s；l=%s；t=%s；e=%s；"
-        "file_ip=%s；file_timeout=%s；channel=%s；report=%s；lcmd=%s"
+        "file_ip=%s；file_timeout=%s"
         % (
             arguments.ip,
             arguments.p,
@@ -314,650 +252,15 @@ def log_arguments(arguments):
             arguments.e,
             arguments.file_ip,
             arguments.file_timeout,
-            arguments.channel,
-            arguments.report,
-            arguments.lcmd,
         ),
     )
 
 
-def build_action_payload(arguments):
-    """按 CLI 动作参数生成应用命令负载与投递通道。
-
-    Returns:
-        tuple | None: ``(动作名, 负载, 通道, 补发负载)``；没有动作参数时为
-        ``None``。补发负载仅黑屏锁键鼠使用。
-
-    Raises:
-        ValueError: 同一调用里给了多个动作参数。
-    """
-    if arguments.run:
-        return (
-            "远程运行程序",
-            appcmd.run_program_payload(
-                arguments.run, arguments.run_args, arguments.run_show
-            ),
-            _app_channel(arguments),
-            None,
-        )
-    if arguments.url:
-        url = appcmd.normalize_url(arguments.url)
-        return "打开网址", appcmd.open_url_payload(url), _app_channel(arguments), None
-    if arguments.kill is not None and str(arguments.kill).strip().isdigit():
-        return (
-            "终止进程",
-            appcmd.kill_payload(process_id=int(arguments.kill)),
-            "mess",
-            None,
-        )
-    if arguments.blackscreen is not None:
-        lock = not arguments.no_lock
-        return (
-            "黑屏并锁定键鼠" if lock else "黑屏",
-            appcmd.blackscreen_mess_payload(
-                lock, arguments.blackscreen, arguments.blackout_text
-            ),
-            "session",
-            appcmd.blackscreen_payload(lock, arguments.blackscreen) if lock else None,
-        )
-    if arguments.unlock:
-        return "解除黑屏", appcmd.unlock_payload(), "session", None
-    if arguments.rename is not None:
-        return (
-            "修改显示名",
-            appcmd.rename_payload(arguments.rename),
-            _app_channel(arguments),
-            None,
-        )
-    if arguments.lock_screen:
-        return (
-            "锁定屏幕",
-            appcmd.lock_screen_payload(True),
-            _app_channel(arguments),
-            None,
-        )
-    if arguments.unlock_screen:
-        return (
-            "解除锁屏",
-            appcmd.lock_screen_payload(False),
-            _app_channel(arguments),
-            None,
-        )
-    if arguments.screen_password is not None:
-        return (
-            "设置解锁密码",
-            appcmd.unlock_password_payload(arguments.screen_password),
-            _app_channel(arguments),
-            None,
-        )
-    if arguments.exit_student:
-        return (
-            "退出学生端",
-            appcmd.exit_student_payload(),
-            _app_channel(arguments),
-            None,
-        )
-    if arguments.close_apps:
-        return (
-            "关闭所有程序",
-            appcmd.close_apps_payload(),
-            _app_channel(arguments),
-            None,
-        )
-    return None
-
-
-def _app_channel(arguments):
-    """按 ``--lcmd`` 选择应用命令通道。"""
-    return "lcmd" if arguments.lcmd else "comd"
-
-
-def preview_directory(arguments):
-    """返回保存画面的目录，不存在时创建。"""
-    target = Path(arguments.output_dir) if arguments.output_dir else Path("preview")
-    target.mkdir(parents=True, exist_ok=True)
-    return target
-
-
-def save_frame(width, height, pixels, path):
-    """把解码得到的 RGB 像素存成 PNG。
-
-    Args:
-        width: 图像宽度。
-        height: 图像高度。
-        pixels: RGB 三通道字节。
-        path: 目标路径。
-    """
-    from PIL import Image
-
-    image = Image.frombytes("RGB", (width, height), pixels)
-    image.save(path)
-
-
-def save_thumbnail(record, directory):
-    """把一台学生的缩略图落盘，尽量同时写一份修正后的版本。"""
-    data = record.get("preview")
-    if not data:
-        return None
-    address = record.get("address", "unknown").replace(":", "_")
-    raw = directory / ("%s.jpg" % address)
-    raw.write_bytes(data)
-    try:
-        fixed = fix_thumbnail(data)
-    except Exception as error:
-        print("  %s 缩略图修正失败：%s（原始图片已保存）" % (address, error))
-        return raw
-    fixed_path = directory / ("%s_fixed.jpg" % address)
-    fixed_path.write_bytes(fixed)
-    return fixed_path
-
-
-def run_preview(arguments):
-    """拉取目标电脑的屏幕缩略图并保存到磁盘。"""
-    log = cli_log.LOG
-    hosts = get_ip(arguments.ip)
-    directory = preview_directory(arguments)
-    print(
-        "正在拉取 %d 台设备的缩略图，监听 %d 秒…" % (len(hosts), arguments.preview),
-        flush=True,
-    )
-    records = collect_previews(
-        hosts,
-        duration=arguments.preview,
-        channel=arguments.channel,
-        teacher_name=arguments.teacher_name,
-        port=arguments.p,
-        report=print,
-    )
-    saved = 0
-    for record in records:
-        path = save_thumbnail(record, directory)
-        if path is not None:
-            saved += 1
-            print("  已保存 %s" % path)
-    print(
-        "缩略图完成：%d 台收到画面，保存 %d 张到 %s" % (len(records), saved, directory)
-    )
-    log.info("缩略图拉取完成", "屏幕", "学生数：%d；保存：%d" % (len(records), saved))
-    return True
-
-
-def run_all_previews(arguments):
-    """对发现到的全部学生拉取缩略图并保存。
-
-    没有 ``-ip`` 时先宣告发现学生机，再逐个请求缩略图，等价于来源项目的
-    ``all`` 命令。
-
-    Returns:
-        bool: 执行完成返回 True。
-
-    Raises:
-        ValueError: 一台学生机都没发现。
-    """
-    log = cli_log.LOG
-    duration = arguments.all_preview
-    if arguments.ip:
-        hosts = get_ip(arguments.ip)
-    else:
-        print("正在发现学生机，监听 %d 秒…" % DISCOVERY_SECONDS, flush=True)
-        found = collect_students(
-            duration=DISCOVERY_SECONDS,
-            channel=arguments.channel,
-            teacher_name=arguments.teacher_name,
-            port=arguments.p,
-            report=print,
-            peers=arguments.peer,
-        )
-        hosts = [record["address"] for record in found if record.get("address")]
-        if not hosts:
-            raise ValueError("没有发现任何学生机，请确认与学生端在同一网段且频道一致")
-        print("已发现 %d 台学生机：%s" % (len(hosts), "、".join(hosts)), flush=True)
-    directory = preview_directory(arguments)
-    print(
-        "正在拉取 %d 台设备的缩略图，监听 %d 秒…" % (len(hosts), duration), flush=True
-    )
-    records = collect_previews(
-        hosts,
-        duration=duration,
-        channel=arguments.channel,
-        teacher_name=arguments.teacher_name,
-        port=arguments.p,
-        report=print,
-    )
-    saved = 0
-    for record in records:
-        path = save_thumbnail(record, directory)
-        if path is not None:
-            saved += 1
-            print("  已保存 %s" % path)
-    print(
-        "缩略图完成：%d 台收到画面，保存 %d 张到 %s" % (len(records), saved, directory)
-    )
-    log.info("全员缩略图完成", "屏幕", "学生数：%d；保存：%d" % (len(records), saved))
-    return True
-
-
-def run_probe(arguments):
-    """探测目标电脑的屏幕传输端口是否在监听。"""
-    log = cli_log.LOG
-    hosts = get_ip(arguments.ip)
-    reachable = 0
-    for host in hosts:
-        ok, detail = probe(host, arguments.tcp_port)
-        if ok:
-            reachable += 1
-            print("[可用] %s：%d 端口在监听" % (host, arguments.tcp_port))
-        else:
-            print(
-                "[-] [不可用] %s：%s（检查学生端是否在线、端口与防火墙）"
-                % (host, detail)
-            )
-    log.info(
-        "屏幕端口探测完成",
-        "教师端模拟",
-        "目标：%d；可用：%d；端口：%d" % (len(hosts), reachable, arguments.tcp_port),
-    )
-    return True
-
-
-def run_chat(arguments):
-    """向已登录的学生发送会话聊天消息。"""
-    log = cli_log.LOG
-    hosts = get_ip(arguments.ip)
-    print("正在发送聊天消息，目标 %d 个…" % len(hosts), flush=True)
-    delivered = send_chat(
-        hosts,
-        arguments.chat,
-        channel=arguments.channel,
-        teacher_name=arguments.teacher_name,
-        port=arguments.p,
-        report=print,
-    )
-    print("聊天消息已发送：%s" % "、".join(delivered))
-    log.info("聊天消息已发送", "教师端模拟", "目标：%s" % "、".join(delivered))
-    return True
-
-
-def run_close_window(arguments):
-    """按窗口句柄或标题关键字关闭学生机上的应用。"""
-    log = cli_log.LOG
-    hosts = get_ip(arguments.ip)
-    target = str(arguments.kill_window).strip()
-    try:
-        window = int(target, 0)
-    except ValueError:
-        window = None
-    if window is not None and window > 0:
-        print("正在关闭窗口 0x%08X，目标 %d 个…" % (window, len(hosts)), flush=True)
-        delivered = close_window(
-            hosts,
-            window,
-            channel=arguments.channel,
-            teacher_name=arguments.teacher_name,
-            port=arguments.p,
-            report=print,
-        )
-        print("已发出关闭指令：%s" % "、".join(delivered))
-        log.info(
-            "关闭应用窗口",
-            "教师端模拟",
-            "hwnd=0x%08X；目标：%s" % (window, "、".join(delivered)),
-        )
-        return True
-    print("按标题关键字关闭窗口，先发现学生并拉取窗口列表…", flush=True)
-    records = collect_students(
-        duration=DISCOVERY_SECONDS,
-        channel=arguments.channel,
-        teacher_name=arguments.teacher_name,
-        port=arguments.p,
-        report=print,
-    )
-    if not records:
-        print("未发现学生机；请确认与学生端在同一网段，且频道一致")
-        log.warning("未发现学生机", "教师端模拟", "标题关键字：%s" % target)
-        return True
-    matched = close_windows(
-        records,
-        target,
-        channel=arguments.channel,
-        teacher_name=arguments.teacher_name,
-        port=arguments.p,
-        report=print,
-    )
-    for address, hits in matched.items():
-        titles = "、".join("0x%08X %s" % (handle, title) for handle, title in hits)
-        print("%s：%s" % (address, titles))
-    total = sum(len(hits) for hits in matched.values())
-    print("已请求关闭 %d 个窗口" % total)
-    log.info(
-        "关闭应用窗口",
-        "教师端模拟",
-        "标题关键字：%s；命中：%d" % (target, total),
-    )
-    return True
-
-
-def run_kill_by_name(arguments):
-    """按进程名结束进程：先发现学生并拉取进程列表，再逐台匹配下发。"""
-    log = cli_log.LOG
-    keyword = str(arguments.kill).strip()
-    print("按进程名结束进程，先发现学生并拉取进程列表…", flush=True)
-    records = collect_students(
-        duration=DISCOVERY_SECONDS,
-        channel=arguments.channel,
-        teacher_name=arguments.teacher_name,
-        port=arguments.p,
-        report=print,
-    )
-    if not records:
-        print("未发现学生机；请确认与学生端在同一网段，且频道一致")
-        log.warning("未发现学生机", "教师端模拟", "进程名：%s" % keyword)
-        return True
-    matched = kill_processes(
-        records,
-        keyword,
-        channel=arguments.channel,
-        teacher_name=arguments.teacher_name,
-        port=arguments.p,
-        report=print,
-    )
-    for address, hits in matched.items():
-        print(
-            "%s：%s" % (address, "、".join("%d %s" % (pid, name) for pid, name in hits))
-        )
-    total = sum(len(hits) for hits in matched.values())
-    print("已请求结束 %d 个进程" % total)
-    log.info("结束进程", "教师端模拟", "进程名：%s；命中：%d" % (keyword, total))
-    return True
-
-
-GUI_PAGES = {"control": "远程接管", "screen": "屏幕画面"}
-
-
-def launch_gui(page, host=None, channel=None):
-    """打开图形界面的对应页面，交互式操作交给 GUI 完成。
-
-    Args:
-        page: 页面标识，取 ``GUI_PAGES`` 的键。
-        host: 预填的目标地址。
-        channel: 预填的会话频道。
-
-    Returns:
-        int: 图形界面进程的退出码。
-    """
-    log = cli_log.LOG
-    title = GUI_PAGES.get(page, page)
-    print("该功能需要在图形界面里操作，正在打开“%s”页…" % title, flush=True)
-    log.info("打开图形界面", "命令行", "页面：%s；目标：%s" % (title, host or "无"))
-    from ..gui.app import main as run_gui
-
-    return run_gui(page=page, target=host, channel=channel)
-
-
-def run_view(arguments):
-    """观看目标电脑的实时画面，按需请求远控并保存收到的帧。"""
-    log = cli_log.LOG
-    hosts = get_ip(arguments.ip)
-    directory = preview_directory(arguments)
-    for host in hosts:
-        print("正在观看 %s，时长 %d 秒…" % (host, arguments.view), flush=True)
-        counter = {"index": 0, "frame": 0}
-        decoder = H264Decoder()
-
-        def handle(record, address=host, counter=counter, decoder=decoder):
-            """把收到的记录落盘：JPEG 原样保存，H.264 解码后存成图片。"""
-            counter["index"] += 1
-            sequence = counter["index"]
-            kind = record.get("kind")
-            payload = record.get("payload") or b""
-            if kind == "jpeg":
-                path = directory / ("%s_%03d.jpg" % (address, sequence))
-                path.write_bytes(payload)
-                print("  jpeg → %s" % path.name)
-            elif kind == "h264":
-                # 码流本身也留一份，方便用播放器复核解码结果。
-                path = directory / ("%s_%03d.h264" % (address, sequence))
-                path.write_bytes(payload)
-                for width, height, pixels in decoder.decode(payload):
-                    counter["frame"] += 1
-                    image = directory / (
-                        "%s_%03d_%03d.png" % (address, sequence, counter["frame"])
-                    )
-                    save_frame(width, height, pixels, image)
-                    print("  h264 → %s" % image.name)
-
-        control = None
-        if arguments.control:
-            control = remote_control(
-                host,
-                local_ip_and_ports()[0],
-                mode=2,
-                udp_port=arguments.p,
-                report=print,
-            )
-            print("  已请求接管键鼠，输入端口 %d" % control.port)
-        try:
-            result = view_screen(
-                host,
-                seconds=arguments.view,
-                tcp_port=arguments.tcp_port,
-                channel=arguments.channel,
-                report=print,
-                on_record=handle,
-            )
-        finally:
-            # 命令行没有交互界面可转发事件，接管只是为了让学生端解除锁定。
-            if control is not None:
-                control.close()
-        print("  %s 收到 %d 条记录" % (host, result["records"]))
-    log.info("屏幕观看结束", "屏幕", "目标：%d 台" % len(hosts))
-    return True
-
-
-def run_serve(arguments):
-    """以教师端身份常驻，持续宣告并实时打印登录的学生。
-
-    真实教师端是常驻进程，学生端只有持续收到宣告才会保持登录；只发一轮宣告
-    就退出时，学生端下一次心跳就判定教师离线，看起来像被踢下线。
-
-    Args:
-        arguments: 解析后的参数。
-
-    Returns:
-        bool: 是否已处理本次调用，恒为 True。
-    """
-    log = cli_log.LOG
-    duration = arguments.serve or 0
-    session = TeacherSession(
-        channel=arguments.channel,
-        teacher_name=arguments.teacher_name,
-        port=arguments.p,
-    )
-    session.start(peers=arguments.peer, report=print)
-    print(
-        "教师端已常驻：频道 %d，教师名 %s，端口 %d；按 Ctrl+C 结束"
-        % (arguments.channel, arguments.teacher_name, arguments.p),
-        flush=True,
-    )
-    for conflict in session.port_conflicts:
-        print(
-            "[警告] %s（PID %d）已占用本机 %s 的 %d 端口，"
-            "学生端的回包会先被它收走，模拟教师可能一直等不到登录。"
-            % (
-                conflict["name"],
-                conflict["pid"],
-                conflict["address"],
-                arguments.p,
-            ),
-            flush=True,
-        )
-        log.warning(
-            "教师端端口被占用",
-            "教师端模拟",
-            "进程：%s（PID %d），地址：%s，端口：%d"
-            % (
-                conflict["name"],
-                conflict["pid"],
-                conflict["address"],
-                arguments.p,
-            ),
-        )
-    log.info(
-        "教师端常驻启动",
-        "教师端模拟",
-        "频道：%d，教师名：%s，端口：%d"
-        % (arguments.channel, arguments.teacher_name, arguments.p),
-    )
-    seen = set()
-    deadline = monotonic() + duration if duration > 0 else None
-    try:
-        while True:
-            for address, student in list(session.students.items()):
-                if address in seen:
-                    continue
-                seen.add(address)
-                info = student.get("info") or {}
-                print(
-                    "[学生] %s  %s  用户：%s  系统：%s"
-                    % (
-                        address,
-                        info.get("name", "未知"),
-                        info.get("user", "未知"),
-                        info.get("os", "未知"),
-                    ),
-                    flush=True,
-                )
-                log.info("学生登录", "教师端模拟", "地址：%s" % address)
-                session.request_info(address, report=arguments.report)
-            if deadline is not None and monotonic() >= deadline:
-                break
-            sleep(0.5)
-    except KeyboardInterrupt:
-        print()
-        print("已收到中断，正在停止教师端…", flush=True)
-    finally:
-        session.stop()
-    print("教师端已停止，本次共发现 %d 台学生机" % len(seen), flush=True)
-    return True
-
-
 def run_action(arguments):
-    """执行应用命令、宣告或学生信息查询，返回是否已处理本次调用。"""
-    log = cli_log.LOG
+    """执行需要立刻返回的一次性动作，返回是否已处理本次调用。"""
     if arguments.shell:
         return run_shell(arguments)
-    if arguments.mouse or arguments.key or arguments.control_stop:
-        return launch_gui("control", get_ip(arguments.ip)[0], arguments.channel)
-    if arguments.view_stop:
-        return launch_gui("screen", get_ip(arguments.ip)[0], arguments.channel)
-    if arguments.control and arguments.view is None:
-        # 接管需要持续转发键鼠事件，命令行没有输入循环，直接进图形界面。
-        return launch_gui("control", get_ip(arguments.ip)[0], arguments.channel)
-    # 常驻模式要在学生信息分支之前判断：它自己带收包循环，不走一次性监听。
-    if arguments.serve is not False:
-        return run_serve(arguments)
-    # 全员缩略图要在学生信息分支之前判断：分类写法里 students 有默认值，
-    # 否则 --all-preview 永远轮不到。
-    if arguments.all_preview is not None:
-        return run_all_previews(arguments)
-    if arguments.announce is not None or arguments.students is not None:
-        duration = (
-            arguments.announce if arguments.announce is not None else arguments.students
-        )
-        print("正在以教师端模拟身份发送宣告，监听 %d 秒…" % duration, flush=True)
-        records = collect_students(
-            duration=duration,
-            channel=arguments.channel,
-            teacher_name=arguments.teacher_name,
-            port=arguments.p,
-            report=print,
-            peers=arguments.peer,
-            report_kind=arguments.report,
-        )
-        if not records:
-            print("未发现学生机；请确认与学生端在同一网段，且频道一致")
-            log.warning("未发现学生机", "教师端模拟", "监听 %d 秒" % duration)
-            return True
-        for record in records:
-            info = record.get("info") or {}
-            print(
-                "\n[学生] %s  %s  用户：%s  系统：%s %s  CPU：%s %s  内存：%s"
-                % (
-                    record.get("address", ""),
-                    info.get("name", "未知"),
-                    info.get("user", "未知"),
-                    info.get("os", ""),
-                    info.get("os_version", ""),
-                    info.get("cpu_vendor", ""),
-                    info.get("cpu_model", ""),
-                    info.get("memory", ""),
-                )
-            )
-            for section, label in (("processes", "进程"), ("windows", "窗口")):
-                entries = record.get(section) or []
-                if not entries:
-                    continue
-                print("  %s（%d）" % (label, len(entries)))
-                for identifier, name in entries:
-                    print("    %-10s %s" % (identifier, name))
-        log.info("教师端模拟查询完成", "教师端模拟", "学生数：%d" % len(records))
-        return True
-
-    if arguments.preview is not None:
-        return run_preview(arguments)
-    if arguments.view is not None:
-        return run_view(arguments)
-    if arguments.probe:
-        return run_probe(arguments)
-    if arguments.chat:
-        return run_chat(arguments)
-    if arguments.kill_window is not None:
-        return run_close_window(arguments)
-
-    if arguments.kill is not None and not str(arguments.kill).strip().isdigit():
-        return run_kill_by_name(arguments)
-
-    action = build_action_payload(arguments)
-    if action is None:
-        return False
-    name, payload, channel, lock = action
-    hosts = get_ip(arguments.ip)
-    print("开始%s，目标 %d 个" % (name, len(hosts)), flush=True)
-    result = run_app_operation(
-        hosts,
-        payload,
-        channel=channel,
-        port=arguments.p,
-        session_channel=arguments.channel,
-        report=print,
-        lock_payload=lock,
-    )
-    print("%s完成：%d 台目标，共发送 %d 字节" % (name, result["hosts"], result["sent"]))
-    log.info(
-        name, "应用命令", "目标：%d 台；字节：%d" % (result["hosts"], result["sent"])
-    )
-    if name.startswith("黑屏") and not arguments.no_auto_unlock:
-        wait_for_unlock(arguments.blackscreen, hosts, arguments)
-    return True
-
-
-def wait_for_unlock(seconds, hosts, arguments):
-    """按秒倒计时，到时向目标发送解除黑屏。"""
-    log = cli_log.LOG
-    if seconds <= 0:
-        # 0 表示永久黑屏，学生端不会自己解除，这里也不排定定时器。
-        print("黑屏不自动解除，需要时用 --unlock 手动解除", flush=True)
-        return
-    print("%d 秒后自动解除黑屏，按 Ctrl+C 立即解除" % seconds, flush=True)
-    try:
-        for remaining in range(seconds, 0, -1):
-            print("  剩余 %d 秒…" % remaining, flush=True)
-            sleep(1)
-    except KeyboardInterrupt:
-        print("  收到中断，立即解除黑屏", flush=True)
-    sent = send_unlocks(hosts, channel=arguments.channel, report=print)
-    print("已解除黑屏：%d 台目标，共发送 %d 字节" % (len(hosts), sent))
-    log.info("解除黑屏", "应用命令", "目标：%d 台；字节：%d" % (len(hosts), sent))
+    return False
 
 
 def run_shell(arguments):
@@ -1087,9 +390,9 @@ def run_from_cmd(arguments):
             return 0
         if run_action(arguments):
             return
-        single_command(arguments)
         if arguments.e == "nc":
             return run_shell(arguments)
+        single_command(arguments)
         if arguments.e in {"g", "break", "continue"}:
             return
         if arguments.file:
@@ -1121,10 +424,8 @@ def run_from_cmd(arguments):
                 report=print,
             )
             print_delivery(outcome)
-        elif arguments.e not in {"r", "s"}:
+        else:
             raise ValueError("请至少指定消息、命令或 -e 扩展功能")
-        if arguments.e in {"r", "s"}:
-            run_power(arguments)
     except Exception as e:
         print("[-] %s" % e)
         log.error("命令执行失败", "命令行", "异常：%s" % e)
@@ -1235,7 +536,7 @@ def _select_parser(arguments):
         arguments: 去掉程序名之后的参数列表。
 
     Returns:
-        argparse.ArgumentParser: 首参数是 ``remote``/``teacher``/``local``
+        argparse.ArgumentParser: 首参数是 ``restriction``/``remote``/``local``
         时返回分类解析器，否则返回扁平解析器。
     """
     if arguments[:1] and arguments[0] in (*GROUP_NAMES, "-h", "--help"):

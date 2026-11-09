@@ -10,7 +10,7 @@ import time
 import unittest
 from pathlib import Path
 from threading import Event
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 os.environ.setdefault(
     "QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen"
@@ -54,7 +54,7 @@ from qfluentwidgets import (
 
 from app import core
 from app.gui import app as gui
-from app.gui import components, models, screen_window, splash, window_effect
+from app.gui import components, models, splash, window_effect
 from app.gui.navigation import SidebarTreeWidget
 from app.gui.pages.common import (
     CompactHeaderCheckBox,
@@ -161,9 +161,9 @@ class GuiTests(unittest.TestCase):
         self.assertIsInstance(self.window, FluentWindow)
         self.assertEqual(self.window.windowTitle(), gui.APP_NAME)
         self.assertFalse(self.window.windowIcon().isNull())
-        # 首页加 10 个功能页：文本消息、文件传送、设备操作、远程命令、设备备注、
-        # 应用命令、学生信息、本机信息、防火墙、运行日志，另有设置与关于。
-        self.assertEqual(self.window.stackedWidget.count(), 19)
+        # 首页加 13 个页面：文本消息、文件传送、设备操作、远程命令、反弹终端、
+        # 设备备注、启停学生端、本机信息、防火墙等，另有设置与关于。
+        self.assertEqual(self.window.stackedWidget.count(), 13)
         self.assertEqual(self.window.current_page(), "home")
         self.assertEqual(self.state.values["target"], "")
         self.assertEqual(self.state.values["port"], 4705)
@@ -307,7 +307,7 @@ class GuiTests(unittest.TestCase):
         hero = about.findChild(QWidget, "aboutHero")
         texts = [label.text() for label in hero.findChildren(BodyLabel)]
         for line in (
-            "极域课堂 UDP 报文测试工具，覆盖学生端控制与教师端模拟，图形界面与命令行合并为同一个 Windows EXE",
+            "极域课堂 UDP 报文测试工具，覆盖学生端控制与本机学生端起停，图形界面与命令行合并为同一个 Windows EXE",
             "基于 PySide6-Fluent-Widgets 构建，打包后无需安装 Python 即可使用 GUI 与 CLI",
             "仅供已获授权的教学环境测试使用",
         ):
@@ -413,7 +413,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.command.editor.toPlainText(), "whoami")
 
     def test_navigation_groups_pages_in_expected_order(self):
-        # 分组顺序固定：解除限制、远程攻击、教师端模拟、设备备注、本机工具。
+        # 分组顺序固定：解除限制、远程攻击、设备备注、本机工具。
         panel = self.window.navigationInterface.panel
         top = [
             item.routeKey
@@ -423,22 +423,11 @@ class GuiTests(unittest.TestCase):
         ]
         self.assertEqual(
             top,
-            [
-                "home",
-                "group_restriction",
-                "group_remote",
-                "group_teacher",
-                "aliases",
-                "group_local",
-            ],
+            ["home", "group_restriction", "group_remote", "aliases", "group_local"],
         )
         self.assertEqual(
             [child.text() for child in panel.widget("group_remote").treeChildren],
             ["文本消息", "文件传送", "设备操作", "远程命令", "反弹终端"],
-        )
-        self.assertEqual(
-            [child.text() for child in panel.widget("group_teacher").treeChildren],
-            ["应用命令", "学生信息", "屏幕画面", "远程接管", "聊天消息", "关闭窗口"],
         )
         self.assertEqual(
             [child.text() for child in panel.widget("group_local").treeChildren],
@@ -488,17 +477,17 @@ class GuiTests(unittest.TestCase):
         panel = self.window.navigationInterface.panel
         # 侧边栏首次使用是收起的，先展开才能看到分组里的子项。
         self.window.navigationInterface.expand(useAni=False)
-        group = panel.widget("group_teacher")
+        group = panel.widget("group_local")
         group.setExpanded(False, ani=False)
-        self.window.show_page("appcmd")
+        self.window.show_page("firewall")
         self.assertTrue(group.isExpanded)
-        self.assertEqual(self.window.current_page(), "appcmd")
+        self.assertEqual(self.window.current_page(), "firewall")
 
     def test_selected_children_do_not_leak_into_collapsed_sidebar(self):
         self.window.apply_window_material(gui.MATERIAL_SOLID)
         self.window.show()
         panel = self.window.navigationInterface.panel
-        for route in ("message", "appcmd", "firewall"):
+        for route in ("message", "device", "firewall"):
             with self.subTest(route=route):
                 self.window.expand_navigation()
                 self.window.show_page("home")
@@ -575,24 +564,24 @@ class GuiTests(unittest.TestCase):
     def test_group_state_survives_compact_mode_and_programmatic_navigation(self):
         panel = self.window.navigationInterface.panel
         self.window.expand_navigation()
-        teacher = panel.widget("group_teacher")
-        teacher.setExpanded(False)
+        local = panel.widget("group_local")
+        local.setExpanded(False)
         attack = panel.widget("message").treeParent
         panel.collapse()
         self.wait_for(
             lambda: panel.expandAni.state() == QAbstractAnimation.State.Stopped
         )
-        self.assertFalse(teacher.isExpanded)
+        self.assertFalse(local.isExpanded)
         self.assertTrue(attack.isExpanded)
-        self.window.show_page("appcmd")
-        self.assertTrue(teacher.isExpanded)
-        self.assertTrue(panel.widget("appcmd").isHidden())
-        self.assertEqual(teacher.height(), 36)
+        self.window.show_page("firewall")
+        self.assertTrue(local.isExpanded)
+        self.assertTrue(panel.widget("firewall").isHidden())
+        self.assertEqual(local.height(), 36)
         panel.expand(useAni=False)
-        self.assertFalse(panel.widget("appcmd").isHidden())
+        self.assertFalse(panel.widget("firewall").isHidden())
         self.assertTrue(attack.isExpanded)
         self.assertTrue(
-            self.window.settings.value("gui/window/navigation_group_teacher", False)
+            self.window.settings.value("gui/window/navigation_group_local", False)
         )
 
     def test_sidebar_narrow_overlay_returns_to_interface(self):
@@ -642,7 +631,7 @@ class GuiTests(unittest.TestCase):
         self.window.show()
         panel = self.window.navigationInterface.panel
         first = panel.widget("message").treeParent
-        second = panel.widget("appcmd").treeParent
+        second = panel.widget("firewall").treeParent
         self.window.show_page("message")
         self.application.processEvents()
         self.assertTrue(first.itemWidget._canDrawIndicator())
@@ -651,12 +640,12 @@ class GuiTests(unittest.TestCase):
             patch.object(first.itemWidget, "update") as first_update,
             patch.object(second.itemWidget, "update") as second_update,
         ):
-            self.window.show_page("appcmd")
+            self.window.show_page("firewall")
             first_update.assert_called()
             second_update.assert_called()
         self.assertFalse(first.itemWidget._canDrawIndicator())
         self.assertTrue(second.itemWidget._canDrawIndicator())
-        self.assertTrue(panel.widget("appcmd").isHidden())
+        self.assertTrue(panel.widget("firewall").isHidden())
 
     def test_sidebar_flyout_clone_keeps_leaf_clicks_free_of_geometry_animation(self):
         panel = self.window.navigationInterface.panel
@@ -672,187 +661,6 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(original.isHidden())
         self.assertTrue(panel.isCollapsed())
 
-    def test_students_page_lists_discovered_records(self):
-        page = self.window.pages["students"]
-        page.set_students(
-            [{"address": "10.1.1.5", "info": {"name": "机房-01"}, "processes": []}]
-        )
-        self.assertEqual(page.students.rowCount(), 1)
-        page.students.selectRow(0)
-        self.assertEqual(page.selected_address(), "10.1.1.5")
-        # 画面相关的入口已经搬到独立页面，这一页只剩发现与进程窗口。
-        self.assertFalse(hasattr(page, "preview_button"))
-        self.assertFalse(hasattr(page, "viewRequested"))
-
-    def test_screen_page_shows_preview_and_placeholder(self):
-        page = self.window.pages["screen"]
-        self.assertIsInstance(page.preview_label, BodyLabel)
-        page.set_preview(self.png_bytes())
-        self.assertFalse(page.preview_label.pixmap().isNull())
-        page.set_preview(None)
-        self.assertIn("暂无缩略图", page.preview_label.text())
-
-    def test_screen_page_opens_window_for_typed_host(self):
-        page = self.window.pages["screen"]
-        page.host_input.setText("10.1.1.7")
-        page.channel_input.setValue(3)
-        with patch.object(gui, "ScreenWindow") as window_class:
-            page.viewRequested.emit()
-        window_class.assert_called_once()
-        self.assertEqual(window_class.call_args.args[0], "10.1.1.7")
-        self.assertEqual(window_class.call_args.args[2], 3)
-
-    def test_screen_probe_keeps_event_loop_responsive_and_preserves_target(self):
-        page = self.window.pages["screen"]
-        for reachable, detail in ((True, ""), (False, "模拟超时")):
-            with self.subTest(reachable=reachable):
-                entered, release = Event(), Event()
-
-                def blocked_probe(
-                    host,
-                    timeout,
-                    _entered=entered,
-                    _release=release,
-                    _reachable=reachable,
-                    _detail=detail,
-                ):
-                    _entered.set()
-                    if not _release.wait(3):
-                        raise TimeoutError("测试未及时释放端口检查")
-                    return _reachable, _detail
-
-                page.host_input.setText("10.1.1.7")
-                with patch.object(core, "probe", side_effect=blocked_probe) as probe:
-                    try:
-                        self.window.probe_screen_port()
-                        self.wait_for(entered.is_set)
-                        self.assertFalse(page.probe_button.isEnabled())
-                        page.host_input.setText("10.1.1.9")
-                        ticks = []
-                        QTimer.singleShot(0, lambda target=ticks: target.append(True))
-                        self.wait_for(lambda target=ticks: bool(target))
-                        self.window.probe_screen_port()
-                        self.assertEqual(probe.call_count, 1)
-                    finally:
-                        release.set()
-                        self.wait_for(lambda: self.window.thread is None)
-                    probe.assert_called_once_with("10.1.1.7", timeout=gui.PROBE_TIMEOUT)
-                self.assertTrue(page.probe_button.isEnabled())
-                self.assertIn("10.1.1.7", page.status.text())
-                self.assertIn("可连" if reachable else "模拟超时", page.status.text())
-
-    def test_screen_window_reuse_waits_for_cleanup_and_updates_control_port(self):
-        entered, release = Event(), Event()
-        sessions = []
-        order = []
-
-        def make_session(*args, **kwargs):
-            session = MagicMock()
-            if not sessions:
-
-                def slow_close():
-                    entered.set()
-                    if not release.wait(5):
-                        raise RuntimeError("测试未释放旧屏幕连接")
-
-                session.close.side_effect = slow_close
-            sessions.append(session)
-            return session
-
-        with (
-            patch.object(
-                screen_window,
-                "start_screen",
-                side_effect=lambda *a, **k: order.append("start"),
-            ),
-            patch.object(
-                screen_window,
-                "stop_screen",
-                side_effect=lambda *a, **k: order.append("stop"),
-            ),
-            patch.object(screen_window, "ScreenSession", side_effect=make_session),
-        ):
-            try:
-                self.window._open_screen_window("10.1.1.7", 3, False)
-                window = self.window._screen_windows[("10.1.1.7", 3)]
-                self.wait_for(lambda: window.session is not None)
-                self.window._open_screen_window("10.1.1.7", 3, False)
-                self.assertEqual(len(sessions), 1)
-                window.control = MagicMock()
-                old_control = window.control
-                self.window.connection_state.values["port"] = 4706
-                self.window._open_screen_window("10.1.1.7", 3, False)
-                self.assertIs(self.window._screen_windows[("10.1.1.7", 3)], window)
-                self.assertEqual(window.port, 4706)
-                old_control.close.assert_called_once()
-                self.assertIsNone(window.control)
-                window.close()
-                self.wait_for(entered.is_set)
-                self.window._open_screen_window("10.1.1.7", 3, True)
-                self.assertIs(self.window._screen_windows[("10.1.1.7", 3)], window)
-                self.assertEqual(order, ["start"])
-                release.set()
-                self.wait_for(
-                    lambda: len(sessions) == 2 and window.session is sessions[1]
-                )
-                self.assertEqual(order[:3], ["start", "stop", "start"])
-                window.close()
-                self.wait_for(lambda: window.shutdown_complete)
-                window.deleteLater()
-                QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
-                self.application.processEvents()
-                self.assertNotIn(("10.1.1.7", 3), self.window._screen_windows)
-            finally:
-                release.set()
-                for window in self.window.findChildren(gui.ScreenWindow):
-                    window.close()
-                    self.wait_for(lambda current=window: current.shutdown_complete)
-
-    def test_control_page_starts_with_takeover(self):
-        page = self.window.pages["control"]
-        page.host_input.setText("10.1.1.8")
-        with patch.object(gui, "ScreenWindow") as window_class:
-            page.controlRequested.emit()
-        window_class.assert_called_once()
-        self.assertEqual(window_class.call_args.args[0], "10.1.1.8")
-        window_class.return_value.request_control.assert_called_once_with()
-
-    def test_app_command_log_button_connects_once(self):
-        with patch.object(self.window, "show_page") as show_page:
-            self.window.pages["appcmd"].footer.viewLogs.emit()
-        show_page.assert_called_once_with("logs")
-
-    def test_student_refresh_and_process_workers_accept_their_arguments(self):
-        page = self.window.pages["students"]
-        record = {"address": "10.1.1.8", "processes": [(4321, "notepad.exe")]}
-        with (
-            patch.object(page, "selected_record", return_value=record),
-            patch.object(page, "selected_address", return_value="10.1.1.8"),
-            patch.object(page, "selected_detail_id", return_value=4321),
-            patch.object(page, "kill_target", return_value=""),
-            patch.object(page, "detail_kind", return_value="processes"),
-            patch.object(self.window, "_begin_task") as begin_task,
-            patch.object(core, "fetch_students_info", return_value=[]) as fetch,
-            patch.object(core, "send_mess_command", return_value=1) as send,
-        ):
-            for start in (
-                self.window.refresh_students,
-                self.window.kill_student_process,
-            ):
-                begin_task.reset_mock()
-                start()
-                worker = begin_task.call_args.args[1]
-                results, errors = [], []
-                worker.completed.connect(results.append)
-                worker.failed.connect(
-                    lambda message, details, target=errors: target.append(message)
-                )
-                worker.run()
-                self.assertEqual(errors, [])
-                self.assertEqual(len(results), 1)
-            fetch.assert_called_once()
-            send.assert_called_once()
-
     def test_ipv4_assignment_preserves_existing_signal_block(self):
         target = self.message.targets.target_input
         segment = target.segments[0]
@@ -864,97 +672,6 @@ class GuiTests(unittest.TestCase):
             self.assertFalse(target.segments[1].signalsBlocked())
         finally:
             segment.blockSignals(False)
-
-    def test_chat_page_requires_message_text(self):
-        page = self.window.pages["chat"]
-        with self.assertRaises(ValueError):
-            page.message()
-        page.editor.setPlainText("机房请注意")
-        self.assertEqual(page.message(), "机房请注意")
-        page.teacher_input.setText("")
-        self.assertEqual(page.teacher_name(), "1")
-
-    def test_close_window_page_parses_handles(self):
-        page = self.window.pages["closewindow"]
-        with self.assertRaises(ValueError):
-            page.window_handle()
-        page.window_input.setText("0x00120A3C")
-        self.assertEqual(page.window_handle(), 0x00120A3C)
-        page.window_input.setText("48212800")
-        self.assertEqual(page.window_handle(), 48212800)
-        page.window_input.setText("0")
-        with self.assertRaises(ValueError):
-            page.window_handle()
-
-    def test_close_window_page_accepts_title_keywords(self):
-        page = self.window.pages["closewindow"]
-        page.window_input.setText("记事本")
-        self.assertEqual(page.window_target(), ("title", "记事本"))
-        page.window_input.setText("0x00120A3C")
-        self.assertEqual(page.window_target(), ("handle", 0x00120A3C))
-        page.window_input.setText("")
-        with self.assertRaises(ValueError):
-            page.window_target()
-
-    def test_device_power_uses_app_command(self):
-        page = self.window.pages["device"]
-        page.shutdown.setChecked(True)
-        page.delay_input.setValue(30)
-        page.force_input.setChecked(False)
-        page.text_input.setText("请保存作业")
-        self.assertEqual(
-            page.power(),
-            {"reboot": False, "delay": 30, "force": False, "text": "请保存作业"},
-        )
-        with (
-            patch.object(self.window, "start_power") as start_power,
-            patch.object(self.window, "_begin_task") as begin_task,
-        ):
-            self.window.start_send("device")
-        start_power.assert_called_once_with()
-        begin_task.assert_not_called()
-        page.logoff.setChecked(True)
-        self.assertFalse(page.delay_input.isEnabled())
-
-    def test_black_screen_timer_sends_unlock(self):
-        self.window._blackscreen_targets = ["10.1.1.8"]
-        self.window._blackscreen_channel = 3
-        with patch.object(core, "send_unlocks", return_value=13) as send:
-            self.window._auto_unlock_blackscreen()
-        self.assertEqual(send.call_args.args[0], ["10.1.1.8"])
-        self.assertEqual(send.call_args.kwargs["channel"], 3)
-        self.assertEqual(self.window._blackscreen_targets, [])
-
-    def test_student_preview_all_dispatches_worker(self):
-        page = self.window.pages["students"]
-        page.set_students([{"address": "10.1.1.8", "computer": "PC-01"}])
-        self.window.thread = None
-        with patch.object(self.window, "_begin_task") as begin_task:
-            page.previewAllRequested.emit()
-        worker = begin_task.call_args.args[1]
-        self.assertIsInstance(worker, gui.TaskWorker)
-        self.assertEqual(begin_task.call_args.args[0], "students")
-        with patch.object(core, "collect_previews", return_value={}) as collect:
-            worker.run()
-        collect.assert_called_once()
-
-    def test_students_serve_button_starts_and_stops_session(self):
-        page = self.window.pages["students"]
-        fake = MagicMock()
-        fake.students = {"10.1.1.8": {"address": "10.1.1.8", "info": {"name": "PC-01"}}}
-        with patch.object(core, "TeacherSession", return_value=fake) as factory:
-            self.window.toggle_serve()
-            factory.assert_called_once()
-            fake.start.assert_called_once_with()
-            self.assertIs(self.window._serve_session, fake)
-            self.assertTrue(self.window._serve_timer.isActive())
-            # 常驻期间不允许改频道与教师名，否则会和已建立的会话不一致。
-            self.assertFalse(page.channel_input.isEnabled())
-            self.window.toggle_serve()
-        fake.stop.assert_called_once_with()
-        self.assertIsNone(self.window._serve_session)
-        self.assertFalse(self.window._serve_timer.isActive())
-        self.assertTrue(page.channel_input.isEnabled())
 
     def test_student_process_page_switches_single_button(self):
         page = self.window.pages["studentproc"]
@@ -1091,84 +808,6 @@ class GuiTests(unittest.TestCase):
         ):
             self.window._poll_student_processes()
         self.assertEqual(page.toggle_button.text(), "启动学生端")
-
-    def test_app_command_page_covers_new_operations(self):
-        page = self.window.pages["appcmd"]
-        codes = [
-            page.operation_box.itemData(index)
-            for index in range(page.operation_box.count())
-        ]
-        self.assertEqual(page.forms.count(), len(codes))
-        page.operation_box.setCurrentIndex(codes.index("rename"))
-        page.rename_input.setText("2-01")
-        delivery = page.delivery()
-        self.assertEqual(delivery["name"], "修改显示名")
-        self.assertEqual(delivery["channel"], "comd")
-        page.lcmd_input.setChecked(True)
-        self.assertEqual(page.delivery()["channel"], "lcmd")
-        page.operation_box.setCurrentIndex(codes.index("lock"))
-        self.assertEqual(page.delivery()["payload"][8:12], bytes([10, 0, 0, 0]))
-        page.operation_box.setCurrentIndex(codes.index("unlock-screen"))
-        self.assertEqual(page.delivery()["payload"][12:16], bytes(4))
-        page.operation_box.setCurrentIndex(codes.index("password"))
-        page.password_input.setText("1234")
-        self.assertEqual(page.delivery()["payload"][8:12], bytes([11, 0, 0, 0]))
-        page.operation_box.setCurrentIndex(codes.index("rename"))
-        page.rename_input.setText("   ")
-        with self.assertRaises(ValueError):
-            page.delivery()
-
-    def test_screen_view_maps_click_into_remote_coordinates(self):
-        from PySide6.QtCore import QPoint
-        from PySide6.QtGui import QPixmap as Pixmap
-
-        from app.gui.screen_window import ScreenView
-
-        class Stub:
-            """只为接收转发调用，不需要真实的远控通道。"""
-
-            def __init__(self):
-                self.mouse = []
-
-            def send_mouse(self, action, x, y, data=0):
-                self.mouse.append((action, x, y, data))
-
-            def send_key(self, event, key_up):
-                pass
-
-        stub = Stub()
-        view = ScreenView(stub, None)
-        view.resize(800, 600)
-        pixmap = Pixmap(400, 200)
-        pixmap.fill(QColor("#000000"))
-        view.setPixmap(pixmap)
-        area = view.image_rect()
-        # 400x200 的画面按比例放进 800x600，上下各留 100 像素黑边。
-        self.assertEqual(area.width(), 800)
-        self.assertEqual(area.height(), 400)
-        self.assertEqual(area.y(), 100)
-
-        # 中心点应落在坐标范围的正中间附近，取整方式不同会有几十的偏差。
-        point = view.normalized(area.center())
-        self.assertTrue(32000 <= point[0] <= 33500, point)
-        self.assertTrue(32000 <= point[1] <= 33500, point)
-        # 落在黑边上的点不产生坐标。
-        self.assertIsNone(view.normalized(QPoint(area.center().x(), 10)))
-
-    def test_screen_window_forwards_input_only_after_takeover(self):
-        from app.gui.screen_window import ScreenWindow
-
-        window = ScreenWindow("10.1.1.5")
-        self.addCleanup(self.dispose_widget, window)
-        window.control = None
-        window.send_mouse("move", 1, 1)
-        self.assertIsNone(window.control)
-        control = MagicMock()
-        control.port = 55120
-        window.control = control
-        window.send_mouse("leftdown", 100, 200)
-        control.mouse.assert_called_once_with("leftdown", 100, 200, 0)
-        self.assertEqual(window.control_button.text(), "接管键鼠")
 
     def png_bytes(self):
         """生成一张最小的 PNG，用来验证缩略图能真正解析成图片。"""
@@ -2676,26 +2315,6 @@ class GuiTests(unittest.TestCase):
             self.assertTrue(self.window.close())
         stop.assert_called_once_with()
         self.assertTrue(self.window._quit_finished)
-
-    def test_close_waits_for_screen_shutdown_before_quit(self):
-        from app.gui.screen_window import ScreenWindow
-
-        screen = ScreenWindow("10.1.1.8", parent=self.window)
-        connection = MagicMock()
-        connection.is_alive.return_value = False
-        screen._connection = connection
-        screen.destroyed.connect(connection.cancelled.set)
-        quitting = []
-        self.window.quitRequested.connect(lambda: quitting.append(True))
-        self.window.show()
-        self.assertFalse(self.window.close())
-        self.assertFalse(self.window._quit_finished)
-        self.assertEqual(quitting, [])
-        self.assertTrue(screen._closed)
-        connection.cancelled.set.assert_called_once_with()
-        screen._connection_finished(connection, "")
-        self.wait_for(lambda: self.window._quit_finished)
-        self.assertEqual(quitting, [True])
 
     def test_close_hides_to_tray_when_tray_mode_is_enabled(self):
         window = gui.MainWindow(

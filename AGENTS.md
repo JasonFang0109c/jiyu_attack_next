@@ -60,7 +60,7 @@
 
 ## 代码约定
 
-- Python 3.13；GUI 使用 PySide6。`app/core/` 与 `app/cli/` 可以使用第三方库（当前用到 `av`/PyAV 解码 H.264、`Pillow` 还原缩略图），新依赖一律写进 `requirements.txt` 并在 `docs/dev/BUILD.md` 说明打包影响。
+- Python 3.13；GUI 使用 PySide6。`app/core/` 与 `app/cli/` 可以使用第三方库，新依赖一律写进 `requirements.txt` 并在 `docs/dev/BUILD.md` 说明打包影响。
 - 保持目录职责与模块边界，参考 [项目结构](docs/dev/STRUCTURE.md)。
 - 改动前检查 `git status`，不回退或提交与任务无关的改动。
 - 行为变更补充或更新对应测试；纯文档、注释或格式改动不需要新增测试。
@@ -121,7 +121,7 @@
 
 ```powershell
 # 单个文件
-.\.venv\Scripts\python.exe -B -m unittest tests.test_appcmd -v
+.\.venv\Scripts\python.exe -B -m unittest tests.test_cli_parser -v
 
 # 全量
 .\.venv\Scripts\python.exe -B -m unittest discover -s tests

@@ -187,7 +187,7 @@ class AboutPage(Page):
         hero_body.addWidget(title)
         # 与 README 首页说明保持一致。
         for line in (
-            "极域课堂 UDP 报文测试工具，覆盖学生端控制与教师端模拟，图形界面与命令行合并为同一个 Windows EXE",
+            "极域课堂 UDP 报文测试工具，覆盖学生端控制与本机学生端起停，图形界面与命令行合并为同一个 Windows EXE",
             "基于 PySide6-Fluent-Widgets 构建，打包后无需安装 Python 即可使用 GUI 与 CLI",
             "仅供已获授权的教学环境测试使用",
         ):

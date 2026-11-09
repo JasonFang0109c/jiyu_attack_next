@@ -4,19 +4,14 @@ from PySide6.QtCore import Slot
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
-    QCheckBox,
     QHBoxLayout,
     QHeaderView,
-    QLineEdit,
     QTableWidgetItem,
 )
 from qfluentwidgets import BodyLabel, RadioButton
 
 from ... import core
-from ..components import ReadableSpinBox
 from .common import NetworkPage, table_widget
-
-POWER_MAX_DELAY = 86400
 
 
 class DevicePage(NetworkPage):
@@ -45,29 +40,8 @@ class DevicePage(NetworkPage):
         row.addStretch()
         self.body.addLayout(row)
 
-        power_row = QHBoxLayout()
-        power_row.addWidget(BodyLabel("倒计时秒数", self.content_card))
-        self.delay_input = ReadableSpinBox(self)
-        self.delay_input.setRange(0, POWER_MAX_DELAY)
-        self.delay_input.setValue(0)
-        self.delay_input.setMinimumWidth(120)
-        self.delay_input.setToolTip("0 表示立即执行，最大值 86400 秒（一天）")
-        power_row.addWidget(self.delay_input)
-        power_row.addSpacing(16)
-        self.force_input = QCheckBox("强制关闭程序", self)
-        self.force_input.setChecked(True)
-        self.force_input.setToolTip("勾选后学生端不等待程序保存，直接关机或重启")
-        power_row.addWidget(self.force_input)
-        power_row.addSpacing(16)
-        power_row.addWidget(BodyLabel("提示文字", self.content_card))
-        self.text_input = QLineEdit(self)
-        self.text_input.setPlaceholderText("可选，显示在学生机的关机提示里")
-        power_row.addWidget(self.text_input, 1)
-        self.body.addLayout(power_row)
-
         self.power_hint = BodyLabel(
-            "重启与关机会通过应用命令下发，可带去倒计时与提示文字；注销仍用远程命令"
-            "执行 shutdown /l，不支持倒计时。",
+            "重启与关机会发出固定的重启、关机报文；注销改用远程命令执行 shutdown /l。",
             self.content_card,
         )
         self.body.addWidget(self.power_hint)
@@ -83,18 +57,9 @@ class DevicePage(NetworkPage):
         self.update_preview()
 
     def _update_action(self):
-        """单选切换后同步发送按钮文案与倒计时控件状态。"""
+        """单选切换后同步发送按钮文案。"""
         labels = {"r": "执行重启", "s": "执行关机", "l": "执行注销"}
-        action = self.action()
-        self.footer.send_button.setText(labels[action])
-        power = action != "l"
-        for widget in (
-            self.delay_input,
-            self.force_input,
-            self.text_input,
-            self.power_hint,
-        ):
-            widget.setEnabled(power)
+        self.footer.send_button.setText(labels[self.action()])
 
     @Slot(str, object)
     def _on_target_changed(self, name, value):
@@ -139,25 +104,8 @@ class DevicePage(NetworkPage):
             return "l"
         return "r"
 
-    def power(self):
-        """返回重启或关机的参数，供主窗口拼装应用命令负载。"""
-        return {
-            "reboot": self.action() == "r",
-            "delay": self.delay_input.value(),
-            "force": self.force_input.isChecked(),
-            "text": self.text_input.text().strip(),
-        }
-
     def set_busy(self, busy, cancellable=False, queueable=False):
         """在基类忙碌状态之外锁定三个设备操作按钮。"""
         super().set_busy(busy, cancellable, queueable)
         for button in (self.reboot, self.shutdown, self.logoff):
             button.setEnabled(not busy)
-        power = not busy and self.action() != "l"
-        for widget in (
-            self.delay_input,
-            self.force_input,
-            self.text_input,
-            self.power_hint,
-        ):
-            widget.setEnabled(power)

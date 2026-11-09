@@ -151,6 +151,18 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(len(packets), 1)
         self.assertEqual(self.command_text(packets[0]), self.core.LOGOFF_COMMAND)
 
+    def test_cli_device_actions_reuse_fixed_templates(self):
+        parser = cli.build_parser()
+        for extra, key in (("r", "-r"), ("s", "-s")):
+            with self.subTest(extra=extra):
+                arguments = parser.parse_args(["-ip", "192.168.1.10", "-e", extra])
+                packets = cli.create_send_packets(arguments)
+                self.assertEqual(packets, [self.core.basicCMD[key]])
+
+        arguments = parser.parse_args(["-ip", "192.168.1.10", "-e", "l"])
+        packets = cli.create_send_packets(arguments)
+        self.assertEqual(self.command_text(packets[0]), self.core.LOGOFF_COMMAND)
+
     def test_invalid_reverse_range_is_rejected(self):
         for value in ["192.168.1.10-1", "192.168.1.0-10", "192.168.1.1-255"]:
             with self.subTest(value=value), self.assertRaises(ValueError):

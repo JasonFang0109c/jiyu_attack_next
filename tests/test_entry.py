@@ -26,7 +26,7 @@ class EntryTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         # 顶层帮助按图形界面的分组组织，具体参数在子命令的帮助里。
-        for name in ("remote", "teacher", "local"):
+        for name in ("restriction", "remote", "local"):
             self.assertIn(name, result.stdout)
 
     def test_group_help_lists_message_options(self):
@@ -147,7 +147,7 @@ runpy.run_path('app/__main__.py', run_name='__main__')
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("remote", result.stdout)
-        self.assertIn("teacher", result.stdout)
+        self.assertIn("remote", result.stdout)
 
 
 if __name__ == "__main__":
