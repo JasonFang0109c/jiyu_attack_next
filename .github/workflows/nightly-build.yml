@@ -94,7 +94,7 @@ jobs:
 
           ## Assets
 
-          - \`JiYuAttackNext-${display}.exe\`（正常版本，只记录警告与错误）
+          - \`JiYuAttackNext-${display}.exe\`（正常版本）
           - \`JiYuAttackNext_Debug-${display}.exe\`（调试版本，记录完整日志）
 
           ## SHA256
