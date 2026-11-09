@@ -22,7 +22,7 @@ python -m pip install -r requirements.txt
 
 已有虚拟环境时无需重新创建，GUI 和打包依赖的版本以根目录 [requirements.txt](../../requirements.txt) 为准。若虚拟环境早于 Fluent 组件库引入，重新执行一次安装命令即可。
 
-`requirements.txt` 安装的是 `PySide6-Fluent-Widgets[full]`，比基础包多带 `scipy`、`pillow` 与 `colorthief`，组件库用它们做亚克力控件的高斯模糊与取色。缺这几个包时 `isAcrylicAvailable` 为假，亚克力控件会退化纯色背景。升级组件库时用 `pip install --upgrade` 不会自动补装 extra，需要写明 `[full]`。打包脚本按 `packaging/JiYuAttackNext.spec` 排除 `scipy` 里用不到的子包与 Pillow 的 AVIF、Tk 插件，只保留 `scipy.ndimage` 及其依赖。
+`requirements.txt` 安装的是 `PySide6-Fluent-Widgets[full]`，比基础包多带 `scipy`、`pillow` 与 `colorthief`，组件库用它们做亚克力控件的高斯模糊与取色。缺这几个包时 `isAcrylicAvailable` 为假，亚克力控件会退化纯色背景。升级组件库时用 `pip install --upgrade` 不会自动补装 extra，需要写明 `[full]`。打包脚本按 `packaging/JiYuAttackNext.spec` 排除 `scipy` 里用不到的子包，只保留 `scipy.ndimage` 及其依赖；Qt 与 Pillow 的裁剪见下面的[体积控制](#体积控制)。
 
 ## 源码运行
 
@@ -68,6 +68,21 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python "C:\Pytho
 | `build/previews/` | 手动生成的界面验证截图 | 检查后可删除 |
 
 删除 `build/` 不影响已生成的 EXE，下次构建会重新生成所需文件。`build/`、`output/` 与 `.venv/` 均由 `.gitignore` 排除，不提交 Git。构建前请关闭正在运行的同名程序。项目生成的是未签名 EXE，首次启动需数秒解压资源；EXE 只允许同时运行一个实例，再次启动会唤醒已有窗口。
+
+## 体积控制
+
+单文件程序把 Qt、Python 与依赖一起打包，任何一份多余的 DLL 都会直接进入分发包。`packaging/JiYuAttackNext.spec` 在 `a.binaries` 上做了一次过滤，规则集中在四个集合里：
+
+| 集合 | 去掉的内容 | 为什么可以去掉 |
+| --- | --- | --- |
+| `QT_UNUSED_BINARIES` | 软件 OpenGL 渲染器 `opengl32sw.dll`、QML/Quick 运行时、`Qt6Pdf`、`Qt6OpenGL`、虚拟键盘 | 界面只用 Widgets，运行期不加载 QML、不显示 PDF，也不需要软件渲染兜底 |
+| `QT_UNUSED_PLUGINS` | `qdirect2d`、`qminimal`、`qoffscreen`、`qpdf`、`qtiff`、`qwebp`、`qicns`、`qtga`、`qgif`、触摸与虚拟键盘插件 | 只用 `qwindows` 平台插件，图标与位图走 `qico`、`qsvg`、`qjpeg` |
+| `PILLOW_UNUSED` | `_avif`、`_imagingtk` | 界面不解码 AVIF，也不使用 Tk |
+| `ICU_UNUSED` | 构建机 PATH 上混进来的 ICU DLL | PySide6 使用 Windows 系统自带 ICU |
+
+`_is_qt_translation` 另外滤掉 `PySide6	ranslations` 下的 `.qm`：Qt 自带翻译只有显式 `QTranslator` 加载才生效，界面用的是组件库自带的中文资源。过滤按文件名比对，`_stem` 会去掉扩展名与 ABI 后缀，因此 `_avif.cp313-win_amd64.pyd` 这类带后缀的扩展模块也能命中。
+
+改动这份清单前先确认运行期确实不加载：`pyi-archive_viewer -l output/JiYuAttackNext.exe` 看打进包里的文件，`pyi-archive_viewer -r -b` 看 Python 模块清单。裁剪后必须启动一次打包版界面，并跑 `-h`、`local info`、`restriction student --list`，确认平台插件、图标与命令行都没坏。按当前清单，两份 EXE 从 84 MB 降到 62 MB 左右。
 
 ## 运行数据
 

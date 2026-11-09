@@ -54,15 +54,67 @@ a = Analysis(
 )
 # Pillow 的 AVIF 与 Tk 插件不会被组件库用到，留着只会白占体积。
 PILLOW_UNUSED = {"_avif", "_imagingtk"}
+# 用不上的 Qt 组件：软件 OpenGL 渲染器、QML/Quick 运行时、PDF 模块、
+# 虚拟键盘，以及只服务于这些模块的插件。界面只用 Widgets，运行期不会
+# 加载 QML，也不会显示 PDF。
+QT_UNUSED_BINARIES = {
+    "opengl32sw.dll",
+    "qt6opengl.dll",
+    "qt6openglwidgets.dll",
+    "qt6pdf.dll",
+    "qt6pdfquick.dll",
+    "qt6pdfwidgets.dll",
+    "qt6qml.dll",
+    "qt6qmlmeta.dll",
+    "qt6qmlmodels.dll",
+    "qt6qmlworkerscript.dll",
+    "qt6quick.dll",
+    "qt6quickcontrols2.dll",
+    "qt6quickparticles.dll",
+    "qt6quickshapes.dll",
+    "qt6quicktemplates2.dll",
+    "qt6quickwidgets.dll",
+    "qt6virtualkeyboard.dll",
+}
+QT_UNUSED_PLUGINS = {
+    "qdirect2d.dll",
+    "qgif.dll",
+    "qicns.dll",
+    "qminimal.dll",
+    "qoffscreen.dll",
+    "qpdf.dll",
+    "qtga.dll",
+    "qtiff.dll",
+    "qtuiotouchplugin.dll",
+    "qtvirtualkeyboardplugin.dll",
+    "qwebp.dll",
+}
 # Build hosts can expose incompatible ICU DLLs (for example via Poppler).
 # PySide6 uses the Windows system ICU DLL; keep unrelated PATH copies out.
+ICU_UNUSED = {"icuuc.dll", "icuin.dll", "icudt78.dll", "icuio78.dll"}
+
+
+def _stem(name):
+    """去掉扩展名与 ABI 标记，用于匹配带 ABI 后缀的扩展模块名。"""
+    return Path(name).name.split(".")[0].casefold()
+
+
+def _is_qt_translation(name):
+    """判断是否为 Qt 自带翻译文件，这些文件运行期不会被加载。"""
+    parts = Path(name).parts
+    return "translations" in parts and Path(name).suffix.casefold() == ".qm"
+
+
 a.binaries = [
     entry
     for entry in a.binaries
-    if Path(entry[0]).name.casefold()
-    not in {"icuuc.dll", "icuin.dll", "icudt78.dll", "icuio78.dll"}
-    and Path(entry[0]).stem.casefold() not in PILLOW_UNUSED
+    if Path(entry[0]).name.casefold() not in ICU_UNUSED
+    and Path(entry[0]).name.casefold() not in QT_UNUSED_BINARIES
+    and Path(entry[0]).name.casefold() not in QT_UNUSED_PLUGINS
+    and _stem(entry[0]) not in PILLOW_UNUSED
+    and not _is_qt_translation(entry[0])
 ]
+
 pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
