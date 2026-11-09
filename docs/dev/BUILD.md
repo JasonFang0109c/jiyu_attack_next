@@ -48,6 +48,7 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python "C:\Pytho
 - `-Variant` 取 `both`、`release` 或 `debug`，默认 `both`：一次产出 `JiYuAttackNext.exe` 与 `JiYuAttackNext_Debug.exe`，两份代码完全相同，只有构建变体标记不同。`-Variant debug` 只重建调试版本，调试时不必等两份都打包完。
 - 两个变体使用独立的 `--workpath`（`build/release` 与 `build/debug`），避免 PyInstaller 复用另一份变体的分析缓存。
 - `-Version` 覆盖版本号；省略时读取 `app/core/constants.py` 的 `__version__`。版本号须符合语义化版本格式，规则见[版本规范](VERSIONING.md)。
+- 除了固定名，每个变体还会另存一份带版本号的副本，例如`output/JiYuAttackNext-0.1.0-e1f9608.exe` 与 `output/JiYuAttackNext_Debug-0.1.0-e1f9608.exe`，方便与 CI 产物、历史构建对应。提交哈希省略 `-Commit` 时自动取 `git rev-parse --short=7 HEAD`；显式传 `-Commit ""` 表示不要哈希（正式版发布用它），不在 Git 仓库内构建时也只产出固定名。
 - 脚本根据自身路径定位项目根目录，也可从其他目录通过绝对路径调用，默认使用项目虚拟环境。
 - 读取 [packaging/JiYuAttackNext.spec](../../packaging/JiYuAttackNext.spec)，并收集 Fluent Widgets 的运行时资源与包元数据。
 - 每次构建都把当前本地时间打包进 EXE，“关于”页据此显示构建时间；源码运行时显示“源码运行”。
@@ -59,6 +60,8 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python "C:\Pytho
 | --- | --- | --- |
 | `output/JiYuAttackNext.exe` | 单文件程序，GUI 与 CLI 共用；只写 `WARNING` 及以上的日志 | 保留用于运行和分发 |
 | `output/JiYuAttackNext_Debug.exe` | 同上，但日志从 `DEBUG` 起记录 | 保留，供排查问题使用 |
+| `output/JiYuAttackNext-<版本>.exe` | 正常版本的带版本号副本，内容与固定名完全一致 | 保留，便于归档 |
+| `output/JiYuAttackNext_Debug-<版本>.exe` | 调试版本的带版本号副本 | 保留，便于归档 |
 | `build/release/`、`build/debug/` | 两个变体各自的打包中间文件与分析结果 | 构建后可删除 |
 | `build/assets/variant.txt` | 本次打包的变体标记，运行时打进 EXE | 构建后可删除 |
 | `build/assets/app.ico` | 从 SVG 转换的构建图标 | 构建后可删除 |
@@ -103,7 +106,7 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json`
 | `nightly-build.yml` | `Nightly Build` | 推送到 `main` 且改动影响产物，或手动运行 | 构建 nightly 并滚动更新 `nightly` 预发布 |
 | `release.yml` | `Release` | 仅在 Actions 页面手动运行 | 构建正式版并创建 `vX.Y.Z` 正式发布 |
 
-`build.yml` 通过 `channel` 输入决定版本号：`stable` 使用源码版本，`nightly` 追加 `-nightly.YYYYMMDD`（UTC 日期）；`version` 输入可显式覆盖。nightly 另有一个显示版本，由基础版本号加 7 位提交哈希拼成（例如 `0.1.0-1a8ede3`），产物文件名、EXE 版本资源与界面都用它，发布说明与标签只用带日期的版本号。`packaging/build.ps1` 收到的 `-Commit` 由工作流传入；本地手工构建测试版时留空，脚本会自己取当前提交的前 7 位。
+`build.yml` 通过 `channel` 输入决定版本号：`stable` 使用源码版本，`nightly` 追加 `-nightly.YYYYMMDD`（UTC 日期）；`version` 输入可显式覆盖。nightly 另有一个显示版本，由基础版本号加 7 位提交哈希拼成（例如 `0.1.0-1a8ede3`），产物文件名、EXE 版本资源与界面都用它，发布说明与标签只用带日期的版本号。`packaging/build.ps1` 收到的 `-Commit` 由工作流传入；本地手工构建不传时脚本自己取当前提交的前 7 位，产物名因此也带哈希；正式版工作流传 `-Commit ""` 表示不要哈希。
 
 ### Nightly Build
 
@@ -124,7 +127,7 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json`
 
 - 只支持手动触发，不随推送自动运行；不会自动递增版本号，需先修改 `app/core/constants.py` 的 `__version__` 并提交。
 - 发布前校验版本号与源码一致、正式版不带预发布后缀、标签 `vX.Y.Z` 尚不存在，任一不满足即失败。
-- 资产为固定名 `JiYuAttackNext.exe`，另附带版本号的 `JiYuAttackNext-X.Y.Z.exe`；同一文件同时提供 GUI 与 CLI。正式版不带提交哈希，`packaging/build.ps1` 只在给了提交哈希时追加。
+- 资产为固定名 `JiYuAttackNext.exe` 与 `JiYuAttackNext_Debug.exe`，另附版本号副本`JiYuAttackNext-X.Y.Z.exe`；同一文件同时提供 GUI 与 CLI。正式版的产物体内不带提交哈希，工作流以 `-Commit ""` 显式关闭，nightly 则传当前提交哈希。
 - 发布说明的 `Changes` 章节列出上一个 `v*` 标签以来的提交标题；`make_latest: true` 使正式版成为最新版本，nightly 不受影响。
 - 可选择以草稿（`draft`）创建，确认后再在 Releases 页面发布；`overwrite_files: false` 保证不会覆盖已发布资产。
 - 使用 `release` 并发组且不取消进行中的运行，避免两次发布互相干扰。

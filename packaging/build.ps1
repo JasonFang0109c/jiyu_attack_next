@@ -2,7 +2,7 @@
 param(
     [string]$Python = ".\.venv\Scripts\python.exe",
     [string]$Version = "",
-    # 提交哈希：测试版的版本号后要带它，正式版不带；留空时自动取当前提交。
+    # 提交哈希：产物文件名与版本资源都带它；留空时自动取当前提交。
     [string]$Commit = "",
     # 默认同时产出正常版本与 debug 版本：两个 EXE 只差日志等级，源码同一份。
     [ValidateSet("both", "release", "debug")]
@@ -53,15 +53,17 @@ try {
         throw "版本号不符合语义化版本格式（如 0.4.0 或 0.4.0-nightly.20261029）：$Version"
     }
 
-    # 测试版在版本号后追加提交哈希，正式版保持纯版本号。
-    # 判定同时看预发布后缀与 -Commit：工作流传 0.1.0 加 -Commit 也按测试版处理。
-    $isTestVersion = $Version.Contains("-") -or [bool]$Commit
-    if ($isTestVersion -and -not $Commit) {
+    # 产物名与版本资源都带提交哈希，同一个版本号的不同构建才能区分开。
+    # 没传 -Commit 时自动取当前提交；显式传空字符串表示不要哈希，正式版用它。
+    $autoCommit = -not $PSBoundParameters.ContainsKey("Commit")
+    if ($autoCommit -and -not $Commit) {
         $Commit = (& git rev-parse --short=7 HEAD 2>$null)
         if ($LASTEXITCODE -ne 0 -or -not $Commit) {
-            throw "测试版需要在版本号后追加提交哈希，请在仓库内构建或使用 -Commit 指定。"
+            $Commit = ""
+            Write-Warning "不在 Git 仓库内，产物名与版本资源不带提交哈希。"
+        } else {
+            $Commit = $Commit.Trim()
         }
-        $Commit = $Commit.Trim()
     }
     if ($Commit -and $Commit -notmatch '^[0-9A-Za-z]+$') {
         throw "提交哈希只能包含字母与数字：$Commit"
@@ -118,7 +120,20 @@ try {
         if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
             throw "未找到构建产物：$exePath"
         }
+        # 另存一份带版本号的文件名，方便与 CI 产物、历史构建对应起来；
+        # 固定名的那一份继续保留，文档与自动更新都指向它。
+        $versionedPath = Join-Path $outputRoot ($target.Name + "-" + $displayVersion + ".exe")
+        if ($versionedPath -ne $exePath) {
+            try {
+                Copy-Item -LiteralPath $exePath -Destination $versionedPath -Force
+            } catch {
+                Write-Warning ("未能写出带版本号的副本，可能正在运行：" + $versionedPath)
+            }
+        }
         Write-Host ("构建完成：" + $exePath + "（版本 " + $displayVersion + "，" + $target.Variant + "）") -ForegroundColor Green
+        if (Test-Path -LiteralPath $versionedPath -PathType Leaf) {
+            Write-Host ("带版本号的副本：" + $versionedPath) -ForegroundColor Green
+        }
     }
     Remove-Item Env:\JY_BUILD_VARIANT -ErrorAction SilentlyContinue
 
