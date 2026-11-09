@@ -93,6 +93,36 @@ self.table.blockSignals(True)
 - 待办写成 `# TODO(负责人): 具体动作`，负责人缺省时可省略括号。
 - 术语首次出现时写中文并附英文原词，例如“报文（DMOC）”。
 
+## 界面视觉规范
+
+界面数值以 Windows 11 的 WinUI 3 主题资源为准，写在 `app/gui/theme.py`，改界面时先取这里的常量，不要就地写字面量。`qfluentwidgets` 的默认值只作参考：浅色下它的卡片描边比 WinUI 淡，窗口底色也偏蓝。
+
+### 两个圆角
+
+| 令牌 | 值 | 用在哪 |
+| --- | --- | --- |
+| `ControlCornerRadius` | 4 | 控件与内容面：卡片、表格、树、输入框、按钮 |
+| `OverlayCornerRadius` | 8 | 浮出层：对话框、弹出菜单、提示气泡 |
+
+小圆角让内容面显得紧凑、成排卡片之间不打架；浮出层面积大、离背景更远，圆角大一点才和阴影一起成立。项目里对应 `CONTROL_CORNER_RADIUS` 与 `OVERLAY_CORNER_RADIUS`。
+
+### 颜色
+
+| 令牌 | 浅色 | 深色 | 用在哪 |
+| --- | --- | --- | --- |
+| `CardBackgroundFillColorDefault` | `#B3FFFFFF` | `#0DFFFFFF` | 卡片填充 |
+| `CardStrokeColorDefault` | `#0F000000` | `#19000000` | 卡片描边 |
+| `SolidBackgroundFillColorBase` | `#F3F3F3` | `#202020` | 窗口底色（实色材质） |
+
+浅色下卡片是 70% 的白，压在灰底上刚好浮起一层；描边只有 6% 的黑，负责收边而不是勾轮廓。深色下填充几乎透明，靠 10% 的黑色描边把卡片压在深色背景上。
+
+### 落点
+
+- `app/gui/theme.py` 存常量与三个取值函数：`card_fill()`、`card_stroke()`、`window_background(dark=None)`。
+- `app/gui/components.py` 的 `FluentCard` 用 `paintEvent` 画填充与描边，`FluentDialog` 追加一条 QSS 覆盖组件库写死的 10 像素对话框圆角。
+- 新增卡片一律继承 `FluentCard`，不要直接用 `SimpleCardWidget`；新增对话框用 `FluentDialog`，不要直接用 `Dialog`。
+- 云母与亚克力材质开启时窗口必须是全透明，只有实色材质才用窗口底色，判断写在 `MainWindow._normalBackgroundColor` 与 `apply_window_material`。
+
 ## 每次写完代码跑格式化
 
 改完任意 `.py` 文件后立刻执行，让格式化成为一次独立动作，不要留到最后：

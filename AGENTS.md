@@ -57,6 +57,7 @@
 - 复用 `qfluentwidgets` 已有组件、主题与样式，不重复实现；亚克力与云母统一调用组件自带的 `windowEffect`，不自行用 ctypes 操作窗口材质。
 - 文档、示例与本地版本冲突时，通过导入、源码或最小测试验证后再改。
 - GUI 行为或交互变化时同步更新 [GUI 文档](docs/usage/GUI.md) 与 `tests/test_gui.py`。
+- 视觉数值以 WinUI 3 主题资源为准，统一从 `app/gui/theme.py` 取：圆角 4（控件与内容面）/ 8（对话框等浮出层），卡片填充 `#B3FFFFFF`/`#0DFFFFFF`、描边 `#0F000000`/`#19000000`、窗口底色 `#F3F3F3`/`#202020`（浅色/深色）。卡片继承 `FluentCard`、对话框用 `FluentDialog`，不要直接用组件库的 `SimpleCardWidget` 与 `Dialog`；完整规范见[代码风格规范](docs/dev/STYLE.md)的「界面视觉规范」。
 
 ## 代码约定
 

@@ -13,7 +13,13 @@ from PySide6.QtCore import (
     Signal,
     Slot,
 )
-from PySide6.QtGui import QColor, QIntValidator, QRegularExpressionValidator, QScreen
+from PySide6.QtGui import (
+    QColor,
+    QIntValidator,
+    QPainter,
+    QRegularExpressionValidator,
+    QScreen,
+)
 from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import (
     BodyLabel,
@@ -37,6 +43,12 @@ from qfluentwidgets import (
 )
 
 from .. import core
+from .theme import (
+    CONTROL_CORNER_RADIUS,
+    OVERLAY_CORNER_RADIUS,
+    card_fill,
+    card_stroke,
+)
 
 # 滚动条出现后停留的时长：滚动停下后过一会儿就消失。
 SCROLL_BAR_FADE_MS = 900
@@ -166,17 +178,46 @@ def page_heading(layout, title, action=None):
     layout.addLayout(row)
 
 
-# Fluent 2 的形状令牌里，Large 是 8 像素，用于卡片这类大号容器；
-# 12 像素属于 X-Large，只留给按钮面板与浮出层，卡片用它会显得过圆。
-CORNER_RADIUS = 8
+class FluentCard(SimpleCardWidget):
+    """按 WinUI 3 的卡片资源绘制圆角、填充与描边。
+
+    组件库自带的 ``SimpleCardWidget`` 直接用 Qt 的默认画笔与半透明白，
+    浅色主题下描边只有 4.7% 的黑。这里换成 WinUI 3 的
+    ``CardBackgroundFillColorDefault`` 与 ``CardStrokeColorDefault``，
+    与 Windows 11 原生卡片的深浅一致。
+    """
+
+    def paintEvent(self, event):
+        """用主题令牌绘制圆角卡片。"""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(card_fill())
+        painter.setPen(card_stroke())
+        radius = self.borderRadius
+        painter.drawRoundedRect(self.rect().adjusted(1, 1, -1, -1), radius, radius)
 
 
-class SectionCard(SimpleCardWidget):
+class FluentDialog(Dialog):
+    """按 ``OverlayCornerRadius`` 绘制圆角的对话框。
+
+    组件库把 10 像素的圆角写死在对话框的 QSS 里，这里追加一条同选择器
+    的规则覆盖成 WinUI 3 给浮出层规定的 8 像素。
+    """
+
+    def __init__(self, title, content, parent=None):
+        super().__init__(title, content, parent)
+        self.setStyleSheet(
+            self.styleSheet()
+            + "\n#centerWidget { border-radius: %dpx; }" % OVERLAY_CORNER_RADIUS
+        )
+
+
+class SectionCard(FluentCard):
     """带圆角与内边距的页面功能分区。"""
 
     def __init__(self, parent=None, spacing=12, margins=(20, 18, 20, 18)):
         super().__init__(parent)
-        self.setBorderRadius(CORNER_RADIUS)
+        self.setBorderRadius(CONTROL_CORNER_RADIUS)
         self.body = QVBoxLayout(self)
         self.body.setContentsMargins(*margins)
         self.body.setSpacing(spacing)
@@ -470,7 +511,9 @@ class TargetControls(QWidget):
                 self.state.set_value("target", name)
 
     def _show_empty_alias_dialog(self):
-        dialog = Dialog("选择设备", "还没有设备备注，请先在“设备备注”页面添加。", self)
+        dialog = FluentDialog(
+            "选择设备", "还没有设备备注，请先在“设备备注”页面添加。", self
+        )
         dialog.cancelButton.hide()
         dialog.yesButton.setText("知道了")
         dialog.setFixedSize(360, 196)
@@ -478,7 +521,7 @@ class TargetControls(QWidget):
         dialog.exec()
 
     def _create_device_dialog(self):
-        dialog = Dialog("选择设备", "选择一个设备备注作为当前目标：", self)
+        dialog = FluentDialog("选择设备", "选择一个设备备注作为当前目标：", self)
         dialog.setFixedSize(420, 236)
         selector = ComboBox(dialog)
         selector.setMinimumWidth(340)

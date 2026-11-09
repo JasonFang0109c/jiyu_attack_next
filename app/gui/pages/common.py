@@ -9,12 +9,12 @@ from qfluentwidgets import CheckBox, TableWidget, TreeItemDelegate, TreeWidget
 from qfluentwidgets.components.widgets.check_box import CheckBoxIcon
 
 from ..components import (
-    CORNER_RADIUS,
     SectionCard,
     TargetControls,
     TaskFooter,
     page_heading,
 )
+from ..theme import CONTROL_CORNER_RADIUS
 
 ASSET_ROOT = Path(__file__).resolve().parents[3] / "assets"
 
@@ -196,7 +196,7 @@ def table_widget(headers, parent, table_class=TableWidget):
     table.setSelectionBehavior(QAbstractItemView.SelectRows)
     table.setWordWrap(False)
     table.setBorderVisible(True)
-    table.setBorderRadius(CORNER_RADIUS)
+    table.setBorderRadius(CONTROL_CORNER_RADIUS)
     table.horizontalHeader().setStretchLastSection(True)
     return table
 

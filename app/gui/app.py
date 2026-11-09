@@ -28,7 +28,6 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QFileDialog, QSystemTrayIcon
 from qfluentwidgets import (
     Action,
-    Dialog,
     FluentTranslator,
     FluentWindow,
     InfoBar,
@@ -47,7 +46,7 @@ from qfluentwidgets import (
 
 from .. import core
 from .build_info import version_text
-from .components import center_dialog, soften_scroll_bars
+from .components import FluentDialog, center_dialog, soften_scroll_bars
 from .models import (
     CLOSE_BEHAVIOR_QUIT,
     CLOSE_BEHAVIOR_SETTINGS_KEY,
@@ -95,6 +94,11 @@ from .pages import (
 )
 from .settings_store import STATUS_NO_ERROR
 from .splash import create_splash
+from .theme import (
+    WINDOW_BACKGROUND_DARK,
+    WINDOW_BACKGROUND_LIGHT,
+    window_background,
+)
 from .window_effect import apply_acrylic, apply_mica, clear_material
 from .workers import SendWorker, TaskWorker
 
@@ -382,7 +386,7 @@ class MainWindow(FluentWindow):
         self.blur_enabled = False
         self.window_material = self._load_window_material()
         self.apply_window_material(self.window_material)
-        self.setCustomBackgroundColor("#f5f6f8", "#202020")
+        self.setCustomBackgroundColor(WINDOW_BACKGROUND_LIGHT, WINDOW_BACKGROUND_DARK)
         self.setMinimumSize(960, 640)
         self.resize(1180, 1000)
         self._restore_window_geometry()
@@ -465,7 +469,7 @@ class MainWindow(FluentWindow):
         被完全盖住，表现就是“设置了却没生效、切换后也不生效”。
         """
         if getattr(self, "window_material", None) in (None, MATERIAL_SOLID):
-            return QColor("#202020") if isDarkTheme() else QColor("#f5f6f8")
+            return window_background()
         return QColor(0, 0, 0, 0)
 
     def apply_window_material(self, material):
@@ -490,9 +494,7 @@ class MainWindow(FluentWindow):
         if material == MATERIAL_SOLID:
             clear_material(self)
             # 库关闭材质后不会恢复底色，这里自己刷回不透明，否则窗口全透明。
-            self.setBackgroundColor(
-                QColor("#202020") if dark_theme else QColor("#f5f6f8")
-            )
+            self.setBackgroundColor(window_background(dark_theme))
             return
         # 库只在部分系统上把背景刷成透明，自己刷一遍，否则材质被底色盖住。
         self.setBackgroundColor(QColor(0, 0, 0, 0))
@@ -853,7 +855,7 @@ class MainWindow(FluentWindow):
 
     def _confirm(self, title, content, confirm_text="确认执行"):
         """弹出确认对话框，返回用户是否点击了确认按钮。"""
-        dialog = Dialog(title, content, self)
+        dialog = FluentDialog(title, content, self)
         dialog.setFixedSize(520, 280)
         dialog.yesButton.setText(confirm_text)
         dialog.cancelButton.setText("取消")
@@ -1821,7 +1823,7 @@ class MainWindow(FluentWindow):
 
     def _ask_first_close_behavior(self):
         self._first_close_dialog_open = True
-        dialog = Dialog(
+        dialog = FluentDialog(
             "关闭窗口",
             "是否在关闭窗口时最小化到系统托盘？\n"
             "最小化后后台任务继续运行，可从托盘恢复窗口。",
@@ -2058,7 +2060,7 @@ def confirm_usage_notice(parent=None):
     Returns:
         bool: 选择“同意并继续”返回 True，选择退出或关闭对话框返回 False。
     """
-    dialog = Dialog(USAGE_NOTICE_TITLE, USAGE_NOTICE_TEXT, parent)
+    dialog = FluentDialog(USAGE_NOTICE_TITLE, USAGE_NOTICE_TEXT, parent)
     dialog.setFixedSize(560, 300)
     dialog.windowTitleLabel.hide()
     dialog.yesButton.setText("同意并继续")

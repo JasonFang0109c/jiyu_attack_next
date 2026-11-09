@@ -12,7 +12,6 @@ from qfluentwidgets import (
     CaptionLabel,
     IconWidget,
     LargeTitleLabel,
-    SimpleCardWidget,
     SmoothScrollArea,
     StrongBodyLabel,
     SubtitleLabel,
@@ -22,11 +21,12 @@ from qfluentwidgets import (
 )
 
 from ..build_info import version_text
-from ..components import CORNER_RADIUS
+from ..components import FluentCard
+from ..theme import CONTROL_CORNER_RADIUS
 from .common import Page
 
 
-class ShortcutCard(SimpleCardWidget):
+class ShortcutCard(FluentCard):
     """顶部的快捷入口：图标、标题、说明与右下角的外链箭头。"""
 
     MINIMUM_WIDTH = 176
@@ -36,7 +36,7 @@ class ShortcutCard(SimpleCardWidget):
 
     def __init__(self, icon, title, description, parent=None):
         super().__init__(parent)
-        self.setBorderRadius(CORNER_RADIUS)
+        self.setBorderRadius(CONTROL_CORNER_RADIUS)
         self.setClickEnabled(True)
         self.setMinimumWidth(self.MINIMUM_WIDTH)
         self.setCursor(Qt.PointingHandCursor)
@@ -75,7 +75,7 @@ class ShortcutCard(SimpleCardWidget):
             child.setAttribute(Qt.WA_TransparentForMouseEvents, True)
 
 
-class ActionCard(SimpleCardWidget):
+class ActionCard(FluentCard):
     """功能入口卡片：左侧纯图标，右侧标题与一句话说明。"""
 
     ICON_SIZE = 28
@@ -84,7 +84,7 @@ class ActionCard(SimpleCardWidget):
 
     def __init__(self, icon, title, description, parent=None):
         super().__init__(parent)
-        self.setBorderRadius(CORNER_RADIUS)
+        self.setBorderRadius(CONTROL_CORNER_RADIUS)
         self.setClickEnabled(True)
         self.setMinimumHeight(84)
         self.setCursor(Qt.PointingHandCursor)

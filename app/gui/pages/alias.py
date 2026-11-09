@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
 )
 from qfluentwidgets import (
     CaptionLabel,
-    Dialog,
     LineEdit,
     PrimaryPushButton,
     PushButton,
@@ -21,13 +20,14 @@ from qfluentwidgets import (
 )
 
 from ..components import (
-    CORNER_RADIUS,
+    FluentDialog,
     Ipv4TargetInput,
     SectionCard,
     center_dialog,
     info_button,
     page_heading,
 )
+from ..theme import CONTROL_CORNER_RADIUS
 from .common import Page, table_widget
 
 
@@ -88,7 +88,7 @@ class AliasPage(Page):
         self.table_card = SectionCard(self, spacing=0, margins=(0, 0, 0, 0))
         self.table = table_widget(["备注名", "IP 地址"], self.table_card)
         # 表格铺满卡片，圆角与卡片保持一致，避免出现两条错位弧线。
-        self.table.setBorderRadius(CORNER_RADIUS)
+        self.table.setBorderRadius(CONTROL_CORNER_RADIUS)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(
             1, QHeaderView.ResizeToContents
@@ -270,7 +270,7 @@ class AliasPage(Page):
         if matched is None:
             self._log("warning", "未选中设备备注，无法删除")
             return
-        dialog = Dialog(
+        dialog = FluentDialog(
             "删除设备备注",
             "确定删除备注「%s」（%s）？当前目标如果引用该备注，也会被清空。" % matched,
             self,

@@ -54,7 +54,7 @@ from qfluentwidgets import (
 
 from app import core
 from app.gui import app as gui
-from app.gui import components, models, splash, window_effect
+from app.gui import components, models, splash, theme, window_effect
 from app.gui.navigation import SidebarTreeWidget
 from app.gui.pages.common import (
     CompactHeaderCheckBox,
@@ -199,7 +199,7 @@ class GuiTests(unittest.TestCase):
             [button.text() for button in about.findChildren(HyperlinkButton)],
         )
         self.assertEqual(about.author_card.objectName(), "aboutInfoCard")
-        self.assertEqual(about.author_card.borderRadius, components.CORNER_RADIUS)
+        self.assertEqual(about.author_card.borderRadius, theme.CONTROL_CORNER_RADIUS)
         self.assertEqual(about.author_card.detail.text(), "JasonFang0109c")
         hero = about.findChild(QWidget, "aboutHero")
         self.assertIsNotNone(hero)
@@ -213,7 +213,7 @@ class GuiTests(unittest.TestCase):
         # 版本与构建时间合并到“版本信息”，组件版本改名为“组件信息”。
         self.assertEqual(about.version_card.heading.text(), "版本信息")
         self.assertEqual(about.version_card.objectName(), "aboutDetailCard")
-        self.assertEqual(about.version_card.borderRadius, components.CORNER_RADIUS)
+        self.assertEqual(about.version_card.borderRadius, theme.CONTROL_CORNER_RADIUS)
         self.assertEqual(about.version_value.text(), build_info.version_text())
         self.assertEqual(about.version_value.objectName(), "aboutVersion")
         self.assertEqual(about.build_time_value.text(), "源码运行")
@@ -366,7 +366,7 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(home.cards)
         self.assertTrue(
             all(
-                card.borderRadius == components.CORNER_RADIUS
+                card.borderRadius == theme.CONTROL_CORNER_RADIUS
                 for card in home.cards.values()
             )
         )
@@ -376,7 +376,7 @@ class GuiTests(unittest.TestCase):
             cards = page.findChildren(components.SectionCard)
             self.assertGreaterEqual(len(cards), 1, page.objectName())
             self.assertTrue(
-                all(card.borderRadius == components.CORNER_RADIUS for card in cards)
+                all(card.borderRadius == theme.CONTROL_CORNER_RADIUS for card in cards)
             )
 
     def test_title_bar_keeps_icon_and_title(self):
@@ -900,7 +900,7 @@ class GuiTests(unittest.TestCase):
         )
 
         page.table.setCurrentCell(0, 0)
-        with patch.object(gui.Dialog, "exec", return_value=1):
+        with patch.object(gui.FluentDialog, "exec", return_value=1):
             page.delete_button.click()
         self.assertIsNone(self.alias_store.match("一号机房"))
         self.assertEqual(self.state.values["target"], "")
@@ -1100,7 +1100,7 @@ class GuiTests(unittest.TestCase):
 
     def test_device_picker_handles_no_aliases(self):
         targets = self.message.targets
-        with patch.object(components.Dialog, "exec", return_value=1) as execute:
+        with patch.object(components.FluentDialog, "exec", return_value=1) as execute:
             targets.choose_device()
         execute.assert_called_once()
         self.assertEqual(self.state.values["target"], "")
@@ -2021,7 +2021,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(store.entries[-1].level, models.LogLevel.INFO)
         self.assertEqual(store.entries[-1].message, "已添加备注「日志备注」")
         page.table.setCurrentCell(0, 0)
-        with patch.object(gui.Dialog, "exec", return_value=1):
+        with patch.object(gui.FluentDialog, "exec", return_value=1):
             page.delete_button.click()
         self.assertEqual(store.entries[-1].level, models.LogLevel.INFO)
         self.assertEqual(store.entries[-1].message, "已删除备注「日志备注」")
@@ -2143,7 +2143,7 @@ class GuiTests(unittest.TestCase):
         settings_page = self.window.pages["settings"]
         self.assertEqual(settings_page.theme_card.objectName(), "settingsThemeCard")
         self.assertEqual(
-            settings_page.theme_card.borderRadius, components.CORNER_RADIUS
+            settings_page.theme_card.borderRadius, theme.CONTROL_CORNER_RADIUS
         )
         self.assertEqual(
             settings_page.material_box.itemText(0),
@@ -2356,7 +2356,7 @@ class GuiTests(unittest.TestCase):
             window.show()
             window.tray_icon = TestTrayIcon(window)
             window.tray_menu = gui.SystemTrayMenu(parent=window)
-            with patch.object(gui.Dialog, "exec", return_value=1) as execute:
+            with patch.object(gui.FluentDialog, "exec", return_value=1) as execute:
                 window.close()
             execute.assert_called_once()
             self.assertFalse(window.isVisible())
@@ -2371,7 +2371,7 @@ class GuiTests(unittest.TestCase):
             )
 
             window.show()
-            with patch.object(gui.Dialog, "exec") as second_prompt:
+            with patch.object(gui.FluentDialog, "exec") as second_prompt:
                 window.close()
             second_prompt.assert_not_called()
             self.assertFalse(window.isVisible())
@@ -2406,7 +2406,7 @@ class GuiTests(unittest.TestCase):
             window.show()
             window.tray_icon = TestTrayIcon(window)
             window.tray_menu = gui.SystemTrayMenu(parent=window)
-            with patch.object(gui.Dialog, "exec", return_value=0) as execute:
+            with patch.object(gui.FluentDialog, "exec", return_value=0) as execute:
                 window.close()
             execute.assert_called_once()
             self.assertFalse(window.isVisible())
@@ -2504,7 +2504,7 @@ class UsageNoticeTests(unittest.TestCase):
     """校验启动时的使用须知：未同意不进入主界面。"""
 
     def test_notice_follows_dialog_answer(self):
-        with patch.object(gui, "Dialog") as dialog_class:
+        with patch.object(gui, "FluentDialog") as dialog_class:
             dialog_class.return_value.exec.return_value = 0
             self.assertFalse(gui.confirm_usage_notice())
             dialog_class.return_value.exec.return_value = 1

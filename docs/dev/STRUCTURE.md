@@ -47,7 +47,8 @@ jiyu_attack_next/
 |       |-- __main__.py           # GUI 源码入口
 |       |-- app.py                # Fluent 窗口、导航、单实例与交互
 |       |-- build_info.py         # 读取打包构建时间与版本号
-|       |-- components.py         # 共用目标参数与任务栏
+|       |-- components.py         # 共用目标参数、任务栏与 WinUI 卡片
+|       |-- theme.py              # WinUI 3 的圆角、填充、描边与窗口底色常量
 |       |-- navigation.py         # 侧边栏宽度动画、分组状态与可见性
 |       |-- models.py             # 连接状态、设备备注与结构化运行日志
 |       |-- splash.py             # 启动遮罩
@@ -112,7 +113,8 @@ jiyu_attack_next/
 - `app/gui/navigation.py` 保留 Fluent 组件的绘制、路由和弹出菜单，集中管理侧边栏宽度动画；树节点同步更新高度与子项可见性，逻辑展开状态独立于图标模式。叶节点点击只切换页面，选中标记由当前可见条目绘制，主窗口不再用延时刷新和尺寸补丁干预动画。
 - `app/gui/pages/` 按首页、消息、命令、设备、文件传送、设备备注、本机信息、防火墙、启停学生端、反弹终端、日志、设置和关于拆分页面；文件传送页使用带复选框与全选的文件树，公共控件集中在 `common.py`。
 - `app/gui/build_info.py` 从打包资源读取构建时间与版本号，源码运行时分别显示“源码运行”和 `app.__version__`。
-- `app/gui/components.py` 提供跨页面同步的连接参数和统一任务栏。
+- `app/gui/components.py` 提供跨页面同步的连接参数和统一任务栏；`FluentCard` 与 `FluentDialog` 按 WinUI 3 令牌自绘，`SectionCard` 与首页卡片都继承它。
+- `app/gui/theme.py` 只存 WinUI 3 的视觉常量与取值函数，不导入其它界面模块。
 - `app/gui/splash.py` 提供启动遮罩：主窗口显示后用项目图标、应用名、版本号与不确定进度条盖住界面，跟随窗口尺寸，最短停留一段时间后自动关闭。
 - `app/gui/models.py` 保存连接状态、持久化设备备注，并提供带等级、线程、输出位置和异常详情的结构化日志存储；日志写入、快照与文件切换使用同一把锁，状态变更通知按顺序在对象所属线程发送，回调在锁外执行。
 - `app/gui/workers.py` 执行后台发送与本机工具任务，通过信号更新界面。
