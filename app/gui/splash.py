@@ -1,7 +1,6 @@
 """启动遮罩：主窗口首次显示时用项目图标盖住界面，等首帧绘制完再移开。"""
 
 from PySide6.QtCore import QSize, QTimer
-from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QWidget
 from qfluentwidgets import (
     BodyLabel,
@@ -142,11 +141,3 @@ def create_splash(window, **kwargs):
     if not isinstance(window, QWidget):
         return None
     return AppSplashScreen(window, **kwargs)
-
-
-def splash_icon():
-    """返回遮罩使用的图标，供测试与其他入口复用。"""
-    from .app import app_icon
-
-    icon = app_icon()
-    return icon if isinstance(icon, QIcon) else QIcon(icon)

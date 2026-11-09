@@ -9,6 +9,42 @@ from .firewall import run_windows_command
 from .protocol import get_ip
 
 
+def process_rows(text):
+    """把 ``tasklist /FO CSV`` 的输出解析成 ``(映像名, 进程号)``。
+
+    字段不足或进程号不是数字的行会被跳过，两者都保持原始字符串。
+
+    Args:
+        text: 命令的标准输出。
+
+    Returns:
+        list[tuple[str, str]]: 映像名与进程号。
+    """
+    rows = []
+    for row in csv.reader(text.splitlines()):
+        if len(row) >= 2 and row[1].isdigit():
+            rows.append((row[0], row[1]))
+    return rows
+
+
+def netstat_rows(text, protocol="UDP"):
+    """把 ``netstat -ano -p`` 的输出解析成 ``(本地地址, 进程号)``。
+
+    Args:
+        text: 命令的标准输出。
+        protocol: 只取该协议的行，例如 ``UDP`` 或 ``TCP``。
+
+    Returns:
+        list[tuple[str, str]]: 本地地址与进程号。
+    """
+    rows = []
+    for line in text.splitlines():
+        fields = line.split()
+        if len(fields) >= 4 and fields[0] == protocol:
+            rows.append((fields[1], fields[-1]))
+    return rows
+
+
 def validate_listen_ip(value):
     """校验用户填写的发送端 IP，空值表示自动检测。
 
@@ -122,15 +158,17 @@ def local_ip_and_ports():
     """
     hostname = socket.gethostname()
     ip = socket.gethostbyname(hostname)
+    # 主机名可能解析到 TUN 网卡的 198.18.0.0/15 地址，学生端无法用这种
+    # 地址回连，此时改用出口探测拿到的真实局域网地址。
+    if not _is_usable_local_address(ip):
+        ip = detect_local_ip()
     tasks = run_windows_command(["tasklist", "/FO", "CSV", "/NH"])
     if tasks.returncode:
         raise RuntimeError(
             tasks.stderr.strip() or tasks.stdout.strip() or "进程查询失败"
         )
     pids = {
-        row[1]
-        for row in csv.reader(tasks.stdout.splitlines())
-        if len(row) >= 2 and "student" in row[0].casefold()
+        pid for name, pid in process_rows(tasks.stdout) if "student" in name.casefold()
     }
     if not pids:
         return ip, []
@@ -138,12 +176,12 @@ def local_ip_and_ports():
     if connections.returncode:
         raise RuntimeError(connections.stderr.strip() or "监听端口查询失败")
     ports = set()
-    for line in connections.stdout.splitlines():
-        fields = line.split()
-        if len(fields) >= 4 and fields[0] == "UDP" and fields[-1] in pids:
-            port = fields[1].rsplit(":", 1)[-1]
-            if port.isdigit():
-                ports.add(port)
+    for address, pid in netstat_rows(connections.stdout):
+        if pid not in pids:
+            continue
+        port = address.rsplit(":", 1)[-1]
+        if port.isdigit():
+            ports.add(port)
     return ip, sorted(ports, key=int)
 
 
@@ -168,11 +206,7 @@ def udp_port_owners(port, exclude_pids=()):
         raise RuntimeError(connections.stderr.strip() or "监听端口查询失败")
     ignored = {str(pid) for pid in exclude_pids}
     owners = {}
-    for line in connections.stdout.splitlines():
-        fields = line.split()
-        if len(fields) < 4 or fields[0] != "UDP":
-            continue
-        address, pid = fields[1], fields[-1]
+    for address, pid in netstat_rows(connections.stdout):
         if address.rsplit(":", 1)[-1] != str(port) or pid in ignored:
             continue
         owners.setdefault(pid, []).append(address)
@@ -196,8 +230,8 @@ def _process_names(pids):
         return {}
     wanted = {str(pid) for pid in pids}
     names = {}
-    for row in csv.reader(tasks.stdout.splitlines()):
-        if len(row) >= 2 and row[1] in wanted:
+    for row in process_rows(tasks.stdout):
+        if row[1] in wanted:
             names[row[1]] = row[0]
     return names
 

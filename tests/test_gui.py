@@ -322,9 +322,7 @@ class GuiTests(unittest.TestCase):
         about = self.window.pages["about"]
         self.assertEqual(about.repository_card.heading.text(), "仓库信息")
         self.assertEqual(about.repository_card.objectName(), "aboutDetailCard")
-        self.assertEqual(
-            sorted(about.repository_card.rows), ["origin", "repository", "thirdparty"]
-        )
+        self.assertEqual(sorted(about.repository_card.rows), ["origin", "repository"])
         self.assertEqual(
             about.repository_card.rows["repository"].getUrl().toString(),
             "https://github.com/JasonFang0109c/jiyu_attack_next",
@@ -332,10 +330,6 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(
             about.repository_card.rows["origin"].getUrl().toString(),
             "https://github.com/ht0Ruial/Jiyu_udp_attack",
-        )
-        self.assertEqual(
-            about.repository_card.rows["thirdparty"].getUrl().toString(),
-            "https://github.com/yunsjxh/Third-party-JiYu-Teacher-Endpoint",
         )
         self.assertNotIn(
             "GitHub 仓库", [label.text() for label in about.findChildren(BodyLabel)]
@@ -1798,7 +1792,17 @@ class GuiTests(unittest.TestCase):
         request.assert_called_once_with("block")
 
     def test_firewall_result_preserves_failure_status(self):
-        result = [("模拟规则", 1, "", "模拟失败")]
+        result = [
+            {
+                "command": "netsh advfirewall firewall set rule name=StudentMain.exe "
+                "new action=block",
+                "code": 1,
+                "stdout": "",
+                "stderr": "模拟失败",
+                "success": False,
+                "detail": "",
+            }
+        ]
         with patch.object(gui, "apply_firewall", return_value=result) as apply:
             self.window.start_firewall()
             self.wait_for(lambda: self.window.thread is None)

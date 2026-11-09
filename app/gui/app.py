@@ -1163,14 +1163,20 @@ class MainWindow(FluentWindow):
             "信息" if cancelled else "错误",
         )
 
+    def _claim_task(self, category, action):
+        """确认当前没有任务在跑；已有任务时记一条 warning 并返回 False。"""
+        if self.thread is None:
+            return True
+        self.logs.warning(
+            category,
+            "已有任务在运行，%s未开始" % action,
+            "当前任务：%s" % (self.active_kind or "无"),
+        )
+        return False
+
     def start_local_probe(self):
         """查询本机 IP 与 Student 端监听端口。"""
-        if self.thread is not None:
-            self.logs.warning(
-                "本机信息",
-                "已有任务在运行，本机查询未开始",
-                "当前任务：%s" % (self.active_kind or "无"),
-            )
+        if not self._claim_task("本机信息", "本机查询"):
             return
         self.logs.info("本机信息", "开始查询本机 IP 与监听端口")
         self._begin_task(
@@ -1179,12 +1185,7 @@ class MainWindow(FluentWindow):
 
     def start_firewall(self):
         """确认后修改 StudentMain.exe 的防火墙规则。"""
-        if self.thread is not None:
-            self.logs.warning(
-                "防火墙",
-                "已有任务在运行，防火墙操作未开始",
-                "当前任务：%s" % (self.active_kind or "无"),
-            )
+        if not self._claim_task("防火墙", "防火墙操作"):
             return
         action = self.pages["firewall"].action()
         action_name = "阻断连接" if action == "block" else "恢复允许"
@@ -1243,12 +1244,7 @@ class MainWindow(FluentWindow):
 
     def toggle_local_student(self):
         """单按钮入口：按当前状态决定启动还是结束学生端。"""
-        if self.thread is not None:
-            self.logs.warning(
-                "解除限制",
-                "已有任务在运行，启停学生端未开始",
-                "当前任务：%s" % (self.active_kind or "无"),
-            )
+        if not self._claim_task("解除限制", "启停学生端"):
             return
         try:
             processes = core.find_student_processes()
@@ -1264,8 +1260,7 @@ class MainWindow(FluentWindow):
 
     def start_local_student(self):
         """确认后启动本机学生端，必要时走 UAC 提权。"""
-        if self.thread is not None:
-            self.logs.warning("解除限制", "已有任务在执行", "请等当前任务结束后再试")
+        if not self._claim_task("解除限制", "启动学生端"):
             return
         page = self.pages["studentproc"]
         if page.processes:
@@ -1304,12 +1299,7 @@ class MainWindow(FluentWindow):
 
     def stop_local_student(self):
         """确认后结束本机学生端进程，必要时走 UAC 提权。"""
-        if self.thread is not None:
-            self.logs.warning(
-                "解除限制",
-                "已有任务在运行，结束学生端未开始",
-                "当前任务：%s" % (self.active_kind or "无"),
-            )
+        if not self._claim_task("解除限制", "结束学生端"):
             return
         processes = self.pages["studentproc"].processes
         if not processes:
@@ -1505,26 +1495,15 @@ class MainWindow(FluentWindow):
     @Slot(object)
     def _firewall_finished(self, results):
         self.pages["firewall"].set_result(results)
-        failed = any(
-            not result["success"] if isinstance(result, dict) else result[1] != 0
-            for result in results
-        )
+        failed = any(not result["success"] for result in results)
         message = "部分规则操作失败，请查看操作结果" if failed else "防火墙规则已更新"
         self.pages["firewall"].footer.set_status(message)
         for result in results:
-            if isinstance(result, dict):
-                command = result["command"]
-                output = result["stdout"] or result["stderr"]
-                success = result["success"]
+            text = "%s\n%s" % (result["command"], result["stdout"] or result["stderr"])
+            if result["success"]:
+                self.logs.info("防火墙", text, "命令执行成功")
             else:
-                command, code, stdout, stderr = result
-                output = stdout or stderr
-                success = code == 0
-            message_text = "%s\n%s" % (command, output)
-            if success:
-                self.logs.info("防火墙", message_text, "命令执行成功")
-            else:
-                self.logs.error("防火墙", message_text, "命令执行失败")
+                self.logs.error("防火墙", text, "命令执行失败")
         self._notify("防火墙", message, "警告" if failed else "成功")
 
     @Slot(str, str)
@@ -2047,8 +2026,6 @@ class MainWindow(FluentWindow):
 
 # 学生端状态轮询间隔，与参考实现的 2 秒定时器一致；太密会让 tasklist 白跑。
 STUDENT_POLL_INTERVAL = 2000
-# 端口探测只用来区分「没开」和「网络不通」，等太久反而像是界面卡住。
-PROBE_TIMEOUT = 1.0
 # 侧边栏最小高度的上限：导航项再多也不该把整个窗口顶到超出屏幕。
 NAVIGATION_MAX_HEIGHT = 680
 # 侧边栏顶部菜单按钮那一行的高度，算进导航项需要的空间里。

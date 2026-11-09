@@ -100,6 +100,19 @@ def _target_spec(value):
     return int(ipaddress.IPv4Address(value)), 1
 
 
+def _parse_target(ip):
+    """解析目标地址，把格式错误统一成一句中文提示。
+
+    Raises:
+        ValueError: 地址为空或格式不受支持。
+    """
+    value = _target_value(ip)
+    try:
+        return _target_spec(value)
+    except ValueError as error:
+        raise ValueError("IP 格式错误，请使用单个地址、末段范围或 /24 网段") from error
+
+
 def get_ip(ip):
     """把目标地址展开为 IP 列表。
 
@@ -112,11 +125,7 @@ def get_ip(ip):
     Raises:
         ValueError: 地址为空或格式不受支持。
     """
-    value = _target_value(ip)
-    try:
-        start, count = _target_spec(value)
-    except ValueError as error:
-        raise ValueError("IP 格式错误，请使用单个地址、末段范围或 /24 网段") from error
+    start, count = _parse_target(ip)
     return [str(ipaddress.IPv4Address(start + offset)) for offset in range(count)]
 
 
@@ -135,11 +144,7 @@ def count_targets(ip):
     Raises:
         ValueError: 地址为空或格式不受支持。
     """
-    value = _target_value(ip)
-    try:
-        return _target_spec(value)[1]
-    except ValueError as error:
-        raise ValueError("IP 格式错误，请使用单个地址、末段范围或 /24 网段") from error
+    return _parse_target(ip)[1]
 
 
 _SENDLIST_SPECS = {

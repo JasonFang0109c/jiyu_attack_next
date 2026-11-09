@@ -220,13 +220,6 @@ class AboutPage(Page):
             url="https://github.com/ht0Ruial/Jiyu_udp_attack",
             icon=FIF.GITHUB,
         )
-        self.repository_card.add_row(
-            "thirdparty",
-            "",
-            "https://github.com/yunsjxh/Third-party-JiYu-Teacher-Endpoint",
-            url="https://github.com/yunsjxh/Third-party-JiYu-Teacher-Endpoint",
-            icon=FIF.GITHUB,
-        )
         content.addWidget(self.repository_card)
 
         self.version_card = AboutDetailCard("版本信息", content_host)

@@ -318,11 +318,27 @@ class CoreTests(unittest.TestCase):
             patch.object(
                 self.core.local_info, "run_windows_command", side_effect=[tasks, ports]
             ),
-            patch.object(socket, "gethostbyname", return_value="模拟本机"),
+            patch.object(socket, "gethostbyname", return_value="192.168.50.22"),
         ):
             ip, result = self.core.local_ip_and_ports()
-        self.assertEqual(ip, "模拟本机")
+        self.assertEqual(ip, "192.168.50.22")
         self.assertEqual(result, ["4705"])
+
+    def test_local_ip_and_ports_skips_unreachable_hostname_address(self):
+        tasks = SimpleNamespace(returncode=0, stderr="", stdout="")
+        with (
+            patch.object(
+                self.core.local_info, "run_windows_command", side_effect=[tasks]
+            ),
+            patch.object(socket, "gethostbyname", return_value="198.18.0.3"),
+            patch.object(
+                self.core.local_info, "detect_local_ip", return_value="192.168.50.22"
+            ) as detect,
+        ):
+            ip, result = self.core.local_ip_and_ports()
+        detect.assert_called_once_with()
+        self.assertEqual(ip, "192.168.50.22")
+        self.assertEqual(result, [])
 
     def test_udp_port_owners_lists_other_processes_on_the_port(self):
         connections = SimpleNamespace(

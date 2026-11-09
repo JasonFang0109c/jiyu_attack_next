@@ -107,48 +107,41 @@ def create_send_packets(arguments):
     return send_list
 
 
-def single_command(arguments):
-    """执行查询本机信息或切换本机防火墙规则等单项操作。"""
+def print_local_info():
+    """打印本机 IP 与学生端可能占用的端口，返回退出码。"""
     log = cli_log.LOG
-    if arguments.e == "g":
-        try:
-            ip, ports = local_ip_and_ports()
-            if not ip:
-                print("未能获取本机 IP 地址")
-                log.warning("未能获取本机 IP 地址", "本机信息")
-                return
-            print("\\nYour ip addres is:" + ip)
-            print("\\nYour student client possible ports are:" + ",".join(ports))
-            log.info(
-                "已获取本机信息", "本机信息", "IP：%s，端口：%s" % (ip, ",".join(ports))
-            )
-        except Exception as error:
-            print("[-] %s" % error)
-            log.error("获取本机信息失败", "本机信息", "异常：%r" % error)
-        return
+    try:
+        ip, ports = local_ip_and_ports()
+    except Exception as error:
+        print("[-] %s" % error)
+        log.error("获取本机信息失败", "本机信息", "异常：%r" % error)
+        return 1
+    if not ip:
+        print("未能获取本机 IP 地址")
+        log.warning("未能获取本机 IP 地址", "本机信息")
+        return 1
+    print()
+    print("Your ip address is: " + ip)
+    print("Your student client possible ports are: " + ",".join(ports))
+    log.info("已获取本机信息", "本机信息", "IP：%s，端口：%s" % (ip, ",".join(ports)))
+    return 0
 
-    elif arguments.e == "break":
-        results = request_firewall_rule("block")
-        sleep(1)
-        system("cls")
-        failed = any(not item["success"] for item in results)
-        print(
-            "[-] 部分防火墙设置失败，请检查管理员权限" if failed else "防火墙规则已阻断"
-        )
-        log_line = "防火墙规则已阻断" if not failed else "部分防火墙设置失败"
-        log.add("WARNING" if failed else "INFO", log_line, "防火墙")
-        return
 
-    elif arguments.e == "continue":
-        results = request_firewall_rule("allow")
-        failed = any(not item["success"] for item in results)
-        if failed:
-            print("[-] 部分防火墙设置失败，请检查管理员权限")
-            log.warning("部分防火墙设置失败，请检查管理员权限", "防火墙")
-            return
-        print("防火墙规则已恢复")
-        log.info("防火墙规则已恢复", "防火墙")
-        return
+# 动作与成功文案一一对应，阻断与恢复共用同一段输出与日志逻辑。
+FIREWALL_RESULTS = {"block": "防火墙规则已阻断", "allow": "防火墙规则已恢复"}
+
+
+def apply_firewall(action):
+    """切换本机防火墙规则并输出结果，返回退出码。"""
+    log = cli_log.LOG
+    results = request_firewall_rule(action)
+    if any(not item["success"] for item in results):
+        print("[-] 部分防火墙设置失败，请检查管理员权限")
+        log.warning("部分防火墙设置失败，请检查管理员权限", "防火墙")
+        return 1
+    print(FIREWALL_RESULTS.get(action, "防火墙规则已更新"))
+    log.info("防火墙规则已更新", "防火墙", "动作：%s" % action)
+    return 0
 
 
 def run_file_transfer(arguments):
@@ -254,13 +247,6 @@ def log_arguments(arguments):
             arguments.file_timeout,
         ),
     )
-
-
-def run_action(arguments):
-    """执行需要立刻返回的一次性动作，返回是否已处理本次调用。"""
-    if arguments.shell:
-        return run_shell(arguments)
-    return False
 
 
 def run_shell(arguments):
@@ -372,29 +358,21 @@ def run_from_cmd(arguments):
     log_arguments(arguments)
     log = cli_log.LOG
     try:
+        if arguments.shell or arguments.e == "nc":
+            return run_shell(arguments)
         if arguments.endstudent or arguments.list or arguments.start_student:
             return run_student_command(arguments)
         if arguments.firewall:
-            results = request_firewall_rule(arguments.firewall)
-            failed = any(not item["success"] for item in results)
-            if failed:
-                print("[-] 部分防火墙设置失败，请检查管理员权限")
-                log.warning("部分防火墙设置失败，请检查管理员权限", "防火墙")
-                return 1
-            print(
-                "防火墙规则已阻断"
-                if arguments.firewall == "block"
-                else "防火墙规则已恢复"
-            )
-            log.info("防火墙规则已更新", "防火墙", "动作：%s" % arguments.firewall)
-            return 0
-        if run_action(arguments):
-            return
-        if arguments.e == "nc":
-            return run_shell(arguments)
-        single_command(arguments)
-        if arguments.e in {"g", "break", "continue"}:
-            return
+            return apply_firewall(arguments.firewall)
+        if arguments.e == "g":
+            return print_local_info()
+        if arguments.e in {"break", "continue"}:
+            code = apply_firewall("block" if arguments.e == "break" else "allow")
+            if arguments.e == "break":
+                # 规则生效需要一点时间，清屏前稍等，避免界面还停在旧状态。
+                sleep(1)
+                system("cls")
+            return code
         if arguments.file:
             if arguments.e or arguments.msg or arguments.msg_file or arguments.c:
                 raise ValueError("文件传送不能与消息、命令或 -e 扩展功能同时使用")
@@ -474,7 +452,7 @@ def _start_student(arguments):
     return 0
 
 
-def _stop_student(arguments, pids):
+def _stop_student(pids):
     """结束学生端，返回退出码。"""
     log = cli_log.LOG
     results = stop_student_processes(pids)
@@ -520,11 +498,11 @@ def run_student_command(arguments):
         return _start_student(arguments)
     if arguments.pid:
         print("结束指定的 %d 个学生端进程" % len(arguments.pid))
-        return _stop_student(arguments, arguments.pid)
+        return _stop_student(arguments.pid)
     if processes:
         print("检测到 %d 个学生端进程，按当前状态执行结束" % len(processes))
         _print_student_list(processes)
-        return _stop_student(arguments, None)
+        return _stop_student(None)
     print("本机没有学生端进程，按当前状态执行启动")
     return _start_student(arguments)
 

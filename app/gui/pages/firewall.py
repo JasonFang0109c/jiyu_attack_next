@@ -52,27 +52,21 @@ class FirewallPage(Page):
         self.result_table.setRowCount(len(results))
         labels = ["防火墙服务", "启用防火墙", "目标规则"]
         for row, result in enumerate(results):
-            if isinstance(result, dict):
-                text = result["stdout"] or result["stderr"]
-                success = result["success"]
-                prefixes = [
-                    "net.exe",
-                    "netsh advfirewall set",
-                    "netsh advfirewall firewall",
-                ]
-                label = next(
-                    (
-                        item
-                        for item, prefix in zip(labels, prefixes, strict=True)
-                        if result["command"].startswith(prefix)
-                    ),
-                    labels[-1],
-                )
-            else:
-                _, code, stdout, stderr = result
-                text = stdout or stderr
-                success = code == 0
-                label = labels[min(row, len(labels) - 1)]
+            text = result["stdout"] or result["stderr"]
+            success = result["success"]
+            prefixes = [
+                "net.exe",
+                "netsh advfirewall set",
+                "netsh advfirewall firewall",
+            ]
+            label = next(
+                (
+                    item
+                    for item, prefix in zip(labels, prefixes, strict=True)
+                    if result["command"].startswith(prefix)
+                ),
+                labels[-1],
+            )
             for column, value in enumerate(
                 [label, "成功" if success else "失败", text]
             ):

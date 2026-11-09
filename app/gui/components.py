@@ -540,30 +540,6 @@ class TargetControls(QWidget):
             self.target_input.setError(False)
 
 
-class StatusFooter:
-    """没有底栏的页面用一行状态文字顶替任务底栏。
-
-    主窗口统一按 ``page.footer`` 汇报进度与忙碌状态，屏幕画面这类不需要
-    发送按钮的页面用它把提示转成页面自己的状态行。
-
-    Args:
-        setter: 接收状态文字的回调。
-    """
-
-    def __init__(self, setter):
-        self._setter = setter
-
-    def set_status(self, text):
-        """更新状态文字。"""
-        self._setter(text)
-
-    def finish_status(self):
-        """保留任务结果，供用户在后台任务结束后查看。"""
-
-    def set_busy(self, busy):
-        """状态行没有按钮，忙碌与否都不需要改动。"""
-
-
 class TaskFooter(QWidget):
     """页面底部的任务栏：状态文字、进度环与发送、取消按钮。
 

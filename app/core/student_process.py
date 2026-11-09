@@ -20,6 +20,7 @@ from contextlib import suppress
 from pathlib import Path
 
 from .firewall import _is_admin, _run_elevated_process, run_windows_command
+from .local_info import netstat_rows, process_rows
 
 # 提权助手进程的入口参数，由 ``app/__main__.py`` 转发给本模块。
 STUDENT_HELPER_ARGUMENT = "--student-helper"
@@ -96,15 +97,7 @@ def _process_rows():
     process = run_windows_command(["tasklist", "/FO", "CSV", "/NH"])
     if process.returncode:
         raise RuntimeError(process.stderr.strip() or "进程列表查询失败")
-    rows = []
-    for line in process.stdout.splitlines():
-        fields = [field.strip('"') for field in line.split('","')]
-        if len(fields) < 2:
-            continue
-        name, pid = fields[0].strip('"'), fields[1].strip('"')
-        if pid.isdigit():
-            rows.append((int(pid), name))
-    return rows
+    return [(int(pid), name) for name, pid in process_rows(process.stdout)]
 
 
 def _listening_ports(pids):
@@ -115,15 +108,12 @@ def _listening_ports(pids):
         process = run_windows_command(["netstat", "-ano", "-p", protocol])
         if process.returncode:
             continue
-        for line in process.stdout.splitlines():
-            fields = line.split()
-            if len(fields) < 4 or fields[0] != protocol:
+        for address, pid in netstat_rows(process.stdout, protocol):
+            if pid not in wanted:
                 continue
-            if fields[-1] not in wanted:
-                continue
-            port = fields[1].rsplit(":", 1)[-1]
+            port = address.rsplit(":", 1)[-1]
             if port.isdigit():
-                ports.setdefault(int(fields[-1]), set()).add(int(port))
+                ports.setdefault(int(pid), set()).add(int(port))
     return ports
 
 

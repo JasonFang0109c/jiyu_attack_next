@@ -25,10 +25,6 @@ from ..build_info import version_text
 from ..components import CORNER_RADIUS
 from .common import Page
 
-REPOSITORY_URL = "https://github.com/JasonFang0109c/jiyu_attack_next"
-DOCUMENT_URL = REPOSITORY_URL + "/blob/main/docs/usage/GUI.md"
-ISSUE_URL = REPOSITORY_URL + "/issues"
-
 
 class ShortcutCard(SimpleCardWidget):
     """顶部的快捷入口：图标、标题、说明与右下角的外链箭头。"""
