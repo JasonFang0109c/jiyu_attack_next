@@ -15,7 +15,7 @@
 | 改动范围 | 需要阅读 |
 | --- | --- |
 | 改文档 | 被改文档，以及引用了同一行为的其他文档 |
-| 改 `app/cli/` | `app/cli/main.py`、[CLI 文档](docs/usage/CLI.md) |
+| 改 `app/cli/` | `app/cli/main.py`、`app/cli/parser.py`、[CLI 文档](docs/usage/CLI.md) |
 | 改 `app/gui/` | [GUI 文档](docs/usage/GUI.md)、[项目结构](docs/dev/STRUCTURE.md)、涉及的模块与测试 |
 | 改构建、打包或工作流 | [构建说明](docs/dev/BUILD.md)、[项目结构](docs/dev/STRUCTURE.md) |
 | 改代码风格、注释或 docstring | [代码风格规范](docs/dev/STYLE.md)、涉及的模块 |

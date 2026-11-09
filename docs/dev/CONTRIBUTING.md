@@ -46,7 +46,7 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Clean
 
 - 权威来源是 `app/core/constants.py` 的 `__version__`；`app/__init__.py` 只重新导出该值，命令行 `--version` 也读取同一来源，由 `tests/test_versioning.py` 校验。
 - 新增功能升次版本号，修复升修订号，文档、测试、工作流等不影响产物的改动不递增。
-- nightly 与正式版共用同一版本号，nightly 由工作流追加 `-nightly.YYYYMMDD`，不需要手工维护。
+- nightly 与正式版共用同一版本号；nightly 的显示版本由工作流在基础版本号后追加 7 位提交哈希，带日期的版本号只出现在发布说明与标签里，都不需要手工维护。
 - 正式版通过 Actions 页面的 `Release` 工作流手动发布，不要在本地打标签后手工上传资产。
 
 ## 代码风格

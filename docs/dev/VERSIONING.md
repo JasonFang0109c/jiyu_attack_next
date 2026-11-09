@@ -63,7 +63,7 @@ nightly 的后缀符合 SemVer 第 9 条“先行版本号”的约定：标识�
 | 通道 | 触发方式 | 标签 | Release 属性 | 资产文件名 |
 | --- | --- | --- | --- | --- |
 | 正式版 | Actions 页面手动运行 `Release` | `v0.1.0`（与版本号一致，不复用） | 正式版，`make_latest: true` | `JiYuAttackNext-0.1.0.exe` 与 `JiYuAttackNext_Debug-0.1.0.exe`，另附固定名 `JiYuAttackNext.exe` 与 `JiYuAttackNext_Debug.exe` |
-| nightly | 推送到 `main` 且改动影响产物，或手动运行 | `nightly`（同一天原地更新，跨天删除重建） | 预发布，`make_latest: false` | `JiYuAttackNext.exe`、`JiYuAttackNext_Debug.exe` 及各自带显示版本（含提交哈希）的副本 |
+| nightly | 推送到 `main` 且改动影响产物，或手动运行 | `nightly`（同一天原地更新，跨天删除重建） | 预发布，`make_latest: false` | 两个带显示版本的文件：`JiYuAttackNext-<显示版本>.exe`、`JiYuAttackNext_Debug-<显示版本>.exe` |
 
 - 标签名带 `v` 前缀是 Git 的通行写法，但 `v` 不属于 SemVer 版本号本身。
 - 正式版与 nightly 都提供正常运行版本与调试版本两个 EXE，两者代码相同，只有日志等级不同：正常运行版本只记录 `WARNING` 与 `ERROR`，`_Debug` 版本从 `DEBUG` 起全量记录，供排查问题使用。正式版的固定名资产保证 README 与文档中的下载链接长期有效，另附带版本号的副本；nightly 只发布带提交哈希的两个文件，不再提供固定名。该资产是同一个 EXE，同时提供 GUI 与 CLI。

@@ -110,12 +110,12 @@ jiyu_attack_next/
 - `app/gui/app.py` 基于 `FluentWindow` 实现侧边导航、任务调度、单实例运行与页面联动。导航按“解除限制／远程攻击／本机工具”三个可折叠分组组织，分组由 `NAVIGATION_GROUPS` 描述，`_add_navigation_group` 注册页面并恢复分组设置。
 - `app/core/student_process.py` 只处理本机学生端：用 `tasklist` 与 `netstat` 找进程与监听端口，用 `Get-Process` 取可执行文件路径，同目录有 `LibTDMaster.dll` 时标记为真身；结束先 `taskkill` 请求正常退出，用 `_wait_gone` 轮询确认进程真的消失，等不到再 `/F` 强制，仍被拒绝且非管理员才整批交给 UAC 助手；定位程序时依次试运行中的真身进程、卸载信息里的 `DisplayIcon`、卸载信息里的 `InstallLocation`、极域服务所在目录与常见安装目录，拉起后用 `_wait_for_start` 轮询确认进程真的出现。`toggle_student_process` 是界面上那个单按钮与命令行默认动作共用的入口。当前进程不是管理员时复用防火墙模块的 UAC 助手启动隐藏子进程，结束与启动结果都经临时 JSON 回传，`--student-helper` 是它在打包产物里的入口参数；直接运行源码时助手用 `-m app` 并以仓库根目录为工作目录启动，否则相对导入会失败，助手什么都没做就退出。
 - `app/gui/navigation.py` 保留 Fluent 组件的绘制、路由和弹出菜单，集中管理侧边栏宽度动画；树节点同步更新高度与子项可见性，逻辑展开状态独立于图标模式。叶节点点击只切换页面，选中标记由当前可见条目绘制，主窗口不再用延时刷新和尺寸补丁干预动画。
-- `app/gui/pages/` 按首页、消息、命令、设备、文件传送、设备备注、本机信息、防火墙、启停学生端、日志、设置和关于拆分页面；文件传送页使用带复选框与全选的文件树，公共控件集中在 `common.py`。
+- `app/gui/pages/` 按首页、消息、命令、设备、文件传送、设备备注、本机信息、防火墙、启停学生端、反弹终端、日志、设置和关于拆分页面；文件传送页使用带复选框与全选的文件树，公共控件集中在 `common.py`。
 - `app/gui/build_info.py` 从打包资源读取构建时间与版本号，源码运行时分别显示“源码运行”和 `app.__version__`。
 - `app/gui/components.py` 提供跨页面同步的连接参数和统一任务栏。
 - `app/gui/splash.py` 提供启动遮罩：主窗口显示后用项目图标、应用名、版本号与不确定进度条盖住界面，跟随窗口尺寸，最短停留一段时间后自动关闭。
 - `app/gui/models.py` 保存连接状态、持久化设备备注，并提供带等级、线程、输出位置和异常详情的结构化日志存储；日志写入、快照与文件切换使用同一把锁，状态变更通知按顺序在对象所属线程发送，回调在锁外执行。
-- `app/gui/workers.py` 执行后台发送、本机工具与屏幕端口检测任务，通过信号更新界面。
+- `app/gui/workers.py` 执行后台发送与本机工具任务，通过信号更新界面。
 - `packaging/` 存放 PyInstaller 配置、构建脚本与版本资源生成器；EXE 以普通用户权限启动，防火墙操作在需要时通过 UAC 启动隐藏助手。
 - `.github/workflows/build.yml` 提供可复用的打包流程，`nightly-build.yml` 与 `release.yml` 分别以 nightly、stable 通道调用它。
 - `.github/workflows/nightly-build.yml` 在推送到 `main` 且改动涉及 `app/`、`packaging/`、`scripts/`、`assets/`、依赖清单或工作流文件时构建 EXE，并滚动更新 `nightly` 预发布；纯文档改动不触发。
