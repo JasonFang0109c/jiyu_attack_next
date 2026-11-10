@@ -2,14 +2,9 @@
 
 from PySide6.QtCore import QSize, QTimer
 from PySide6.QtWidgets import QWidget
-from qfluentwidgets import (
-    BodyLabel,
-    IndeterminateProgressBar,
-    SplashScreen,
-    TitleLabel,
-)
+from qfluentwidgets import BodyLabel, IndeterminateProgressBar, SplashScreen, TitleLabel
 
-from .build_info import version_text
+from app.shared.build_info import version_text
 
 
 class AppSplashScreen(SplashScreen):
@@ -54,9 +49,8 @@ class AppSplashScreen(SplashScreen):
             version: 显示的版本号，默认读取构建信息。
             minimum_duration: 最短停留时间，单位毫秒。
         """
-        # 延迟导入：``app.gui.app`` 在本模块之上导入 ``create_splash``，
-        # 模块级互相引用会形成循环导入。
-        from .app import APP_NAME, app_icon
+        from app.gui.resources import app_icon
+        from app.gui.window.data import APP_NAME
 
         super().__init__(icon or app_icon(), parent, enableShadow=True)
         self.setIconSize(self.ICON_SIZE)

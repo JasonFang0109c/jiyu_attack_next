@@ -9,127 +9,208 @@
 
 ---
 
-根目录只保留仓库首页、依赖清单与 Git 配置。运行时代码、打包配置、测试与文档按职责分类，运行时代码集中在 `app/` 包内。
+根目录保留仓库首页、协作规范、依赖清单与 Git 配置。运行时代码集中在 `app/`，按启动、功能、界面基础、报文、系统适配与公共基础划分；打包、测试和文档分别独立。下面列出主要文件，常规包内的 `__init__.py` 省略。
 
 ```text
 jiyu_attack_next/
-|-- .github/
-|   `-- workflows/
-|       |-- build.yml             # 可复用打包流程，供下面两个工作流调用
-|       |-- nightly-build.yml     # Nightly 构建与滚动预发布
-|       `-- release.yml           # 正式版发布（仅手动触发）
-|-- README.md                     # 基础介绍与文档导航
-|-- LICENSE                       # GNU General Public License v3.0
-|-- requirements.txt              # GUI 与构建依赖
-|-- requirements-dev.txt          # 本地开发工具（ruff）
-|-- pyproject.toml                # ruff 格式化与 lint 配置
-|-- app/             # 唯一运行时代码包
-|   |-- __init__.py               # 包入口，导出版本号
-|   |-- __main__.py               # 统一入口与 PyInstaller 打包入口
-|   |-- core/                     # 与界面无关的标准库核心
-|   |   |-- __init__.py           # 汇总导出核心接口
-|   |   |-- constants.py          # 报文常量、命令表与版本号唯一来源
-|   |   |-- protocol.py           # 报文构造、分片、地址校验
-|   |   |-- transport.py          # UDP 发送、文件传送与结果解析
-|   |   |-- firewall.py           # 防火墙规则与按需 UAC 提权
-|   |   |-- config.py             # JSON with comments 配置读写
-|   |   |-- paths.py              # 数据目录与日志文件位置
-|   |   |-- cli_log.py            # 命令行运行日志
-|   |   |-- local_info.py         # 本机 IP 与端口探测
-|   |   |-- reachability.py       # ICMP 探测目标主机是否在线
-|   |   |-- version.py            # 版本号与打包提交后缀的读取
-|   |   |-- buildvariant.py       # 构建变体（正常版与调试版）
-|   |   |-- loglevel.py           # 日志等级与按变体决定的默认阈值
-|   |   |-- student_process.py    # 本机学生端进程的定位、结束与启动（按需 UAC 提权）
-|   |   `-- shell.py              # 反弹终端：本机监听、脚本分发与命令下发
-|   |-- cli/
-|   |   |-- __init__.py
-|   |   |-- parser.py             # 按图形界面分组组织的子命令与扁平兼容解析器
-|   |   `-- main.py               # 命令分发、终端输出与命令行日志
-|   `-- gui/
-|       |-- __init__.py
-|       |-- __main__.py           # GUI 源码入口
-|       |-- app.py                # Fluent 窗口、导航、单实例与交互
-|       |-- build_info.py         # 读取打包构建时间与版本号
-|       |-- components.py         # 共用目标参数、任务栏与 WinUI 卡片
-|       |-- theme.py              # WinUI 3 的圆角、填充、描边与窗口底色常量
-|       |-- navigation.py         # 侧边栏宽度动画、分组状态与可见性
-|       |-- models.py             # 连接状态、设备备注与结构化运行日志
-|       |-- splash.py             # 启动遮罩
-|       |-- window_effect.py      # 窗口背景材质
-|       |-- settings_store.py     # settings.json 的 core/gui 分组读写
-|       |-- workers.py            # 后台任务
-|       `-- pages/
-|           |-- __init__.py       # 汇总导出页面类
-|           |-- common.py         # 页面基类、文件树与日志表格组件
-|           |-- home.py           # 首页：横幅快捷入口与功能卡片
-|           |-- message.py        # 消息页
-|           |-- command.py        # 命令页
-|           |-- device.py         # 设备页
-|           |-- file.py           # 文件传送页
-|           |-- alias.py          # 设备备注页
-|           |-- local.py          # 本机信息页
-|           |-- firewall.py       # 防火墙页
-|           |-- studentproc.py    # 启停学生端页
-|           |-- log.py            # 日志页
-|           |-- settings.py       # 设置页
-|           |-- shell.py          # 反弹终端页
-|           `-- about.py          # 关于页
-|-- packaging/
-|   |-- build.ps1                 # EXE 构建脚本
-|   |-- gen_version_info.py       # 生成 EXE 版本资源
-|   `-- JiYuAttackNext.spec       # PyInstaller 配置
+|-- .github/workflows/
+|   |-- build.yml                   # 可复用打包流程
+|   |-- nightly-build.yml           # Nightly 构建与滚动预发布
+|   `-- release.yml                 # 正式版发布（仅手动触发）
+|-- README.md                       # 项目介绍与文档导航
+|-- AGENTS.md                       # 仓库协作与按范围验证规范
+|-- .gitmessage                     # Conventional Commits 提交模板
+|-- LICENSE                        # GNU General Public License v3.0
+|-- requirements.txt               # GUI 与构建依赖
+|-- requirements-dev.txt           # 本地开发工具
+|-- pyproject.toml                 # ruff 配置
+|-- app/
+|   |-- __init__.py                # 重新导出版本号
+|   |-- __main__.py                # python -m app 与 PyInstaller 入口
+|   |-- start/
+|   |   |-- service.py             # GUI / CLI 与隐藏助手入口分流
+|   |   |-- parser.py              # 装配功能子命令与扁平兼容语法
+|   |   |-- cli.py                 # CLI 分发与日志生命周期
+|   |   |-- console.py             # 接回调用方控制台与标准流
+|   |   `-- gui.py                 # Qt 初始化、单实例与 GUI 生命周期
+|   |-- features/                  # 按用户功能组织，按需设置适配层
+|   |   |-- about/                 # gui/page.py：关于页
+|   |   |-- home/                  # gui/page.py：首页
+|   |   |-- command/               # cli.py、gui/page.py：命令
+|   |   |-- device/                # cli.py、gui/page.py：设备操作
+|   |   |-- message/               # service.py、cli.py、gui/：消息
+|   |   |-- files/                 # service.py、cli.py、gui/：文件传送
+|   |   |-- firewall/              # service.py、cli.py、gui/：防火墙
+|   |   |-- local/                 # service.py、cli.py、gui/：本机信息
+|   |   |-- student/               # service.py、cli.py、gui/：学生端进程
+|   |   |-- shell/                 # service.py、cli.py、gui/：终端
+|   |   |-- send/
+|   |   |   |-- data.py            # SendOptions 等发送参数
+|   |   |   |-- service.py         # 参数校验、报文准备与发送协调
+|   |   |   `-- cli.py             # 共用 CLI 参数与发送结果输出
+|   |   |-- names/
+|   |   |   |-- data.py            # 设备备注的数据约定
+|   |   |   |-- service.py         # 无 Qt 的备注校验与持久化
+|   |   |   `-- gui/
+|   |   |       |-- data.py        # DeviceAliasStore 信号适配
+|   |   |       `-- page.py        # 设备备注页
+|   |   |-- logs/
+|   |   |   |-- data.py            # LogEntry、LogLevel 与规范化
+|   |   |   `-- gui/
+|   |   |       |-- data.py        # LogStore、文件存储与线程通知
+|   |   |       |-- service.py     # GUI 日志配置、导出与删除
+|   |   |       `-- page.py        # 日志页
+|   |   `-- settings/
+|   |       |-- data.py            # 设置键、默认值与规范化
+|   |       |-- service.py         # 便携设置存储的创建
+|   |       `-- gui/page.py        # 设置页
+|   |-- gui/                       # 跨功能共用的 Qt 基础与装配
+|   |   |-- __main__.py            # 转交 start/gui.py
+|   |   |-- data.py                # 仅 ConnectionState
+|   |   |-- service.py             # 通用发送交互、提示与结果收尾
+|   |   |-- resources.py           # QIcon 适配
+|   |   |-- theme.py               # WinUI 视觉常量
+|   |   |-- splash.py              # 启动遮罩
+|   |   |-- window_effect.py       # 窗口材质适配
+|   |   |-- widgets/
+|   |   |   |-- common.py          # FluentCard、连接参数与任务栏
+|   |   |   `-- page.py            # 页面基类、文件树与日志表格
+|   |   |-- menu/
+|   |   |   |-- sidebar.py         # 侧边栏绘制与宽度动画
+|   |   |   `-- service.py         # 导航分组、路由与状态恢复
+|   |   |-- workers/
+|   |   |   |-- tasks.py           # SendWorker / ProbeWorker / TaskWorker
+|   |   |   `-- service.py         # 任务队列、取消与线程生命周期
+|   |   `-- window/
+|   |       |-- data.py            # 窗口、导航与功能分类常量
+|   |       |-- main.py            # MainWindow 装配、信号与 Qt 槽
+|   |       |-- service.py         # 主题、材质、位置与窗口设置
+|   |       `-- tray.py            # 托盘菜单、关闭行为与退出
+|   |-- packets/
+|   |   |-- constants.py           # 报文数组、命令表与容量常量
+|   |   `-- codec.py               # 报文构造、文本编码与消息分片
+|   |-- system/
+|   |   |-- net/
+|   |   |   |-- data.py            # 送达状态与结果数据
+|   |   |   |-- targets.py         # 目标地址解析与计数
+|   |   |   |-- local.py           # 本机地址选择与监听地址校验
+|   |   |   |-- reachability.py    # ICMP 与 ARP 探测
+|   |   |   `-- udp.py             # UDP 发送与送达结果采集
+|   |   `-- windows/
+|   |       |-- command.py         # Windows 命令执行与输出解码
+|   |       |-- process.py         # 进程与端口枚举
+|   |       `-- elevation.py       # UAC 隐藏助手与结果回传
+|   |-- shared/
+|   |   |-- config.py              # JSONC 解析与原子读写
+|   |   |-- settings.py            # 通用分组设置存储
+|   |   |-- paths.py               # 项目根目录与便携数据路径
+|   |   |-- resources.py           # resource_path 静态资源定位
+|   |   |-- version.py             # __version__ 唯一来源与显示版本
+|   |   |-- build_info.py          # 构建时间与版本文本
+|   |   |-- build_variant.py       # 正常版与调试版标记
+|   |   `-- logs/
+|   |       |-- cli.py             # 无 Qt 的命令行日志
+|   |       `-- levels.py          # 日志等级与构建变体阈值
+|   `-- resources/icons/app.svg    # 唯一静态图标源
+|-- pack/
+|   |-- build.ps1                  # EXE 构建脚本
+|   |-- gen_version_info.py        # EXE 版本资源生成器
+|   `-- JiYuAttackNext.spec        # PyInstaller 配置
 |-- scripts/
-|   |-- run_gui.ps1               # 使用虚拟环境启动 GUI
-|   `-- test_local_ip.py          # 本机 IPv4 报文收发自测
+|   |-- run_gui.ps1                # 使用虚拟环境启动 GUI
+|   `-- test_local_ip.py           # 本机 IPv4 报文收发自测
 |-- tests/
-|   |-- __init__.py
-|   |-- test_core.py              # 核心协议、传输与防火墙测试
-|   |-- test_config_io.py         # JSONC 解析与配置原子保存回归
-|   |-- test_cli_lifecycle.py     # 命令行帮助与日志生命周期回归
-|   |-- test_entry.py             # 统一入口与命令行启动测试
-|   |-- test_gui.py               # 界面与线程生命周期测试
-|   |-- test_log_page_gui.py      # 日志筛选、选择与删除回归
-|   |-- test_log_store_concurrency.py # 日志并发与通知顺序回归
-|   |-- test_nightly_workflow.py  # Nightly 与 Release 工作流配置测试
-|   |-- test_versioning.py        # 版本号一致性与读取测试
-|   `-- verify_gui.py             # 界面截图检查工具
-|-- docs/
-|   |-- usage/                    # 使用文档
-|   |   |-- CLI.md                # CLI 模式使用说明
-|   |   `-- GUI.md                # GUI 模式使用说明
-|   `-- dev/                      # 开发文档
-|       |-- STRUCTURE.md          # 项目结构与模块职责
-|       |-- BUILD.md              # 编译、输出与清理
-|       |-- STYLE.md              # 代码风格、docstring 与注释规范
-|       |-- VERSIONING.md         # 版本号、发布通道与正式版发布流程
-|       `-- CONTRIBUTING.md       # 开发与中文提交规范
-`-- assets/
-    `-- app.svg                    # 图标源文件
+|   |-- fixtures/offline.py        # 离线网络替身与共用 fixture
+|   |-- unit/                     # 报文、地址、业务与配置单元测试
+|   |   |-- test_packets.py
+|   |   |-- test_targets.py
+|   |   |-- test_send.py
+|   |   |-- test_windows.py
+|   |   |-- test_student.py
+|   |   |-- test_firewall.py
+|   |   |-- test_local.py
+|   |   |-- test_config.py
+|   |   |-- test_config_io.py
+|   |   `-- test_cli_parser.py
+|   |-- integration/              # 入口、CLI 生命周期与跨模块协作
+|   |   |-- test_entry.py
+|   |   |-- test_layout.py          # 依赖方向、显式导入与无 Qt 校验
+|   |   |-- test_cli_lifecycle.py
+|   |   |-- test_cli_commands.py
+|   |   |-- test_files.py
+|   |   `-- test_shell.py
+|   |-- gui/
+|   |   |-- test_window.py
+|   |   |-- test_log_page.py
+|   |   |-- test_log_store.py
+|   |   `-- verify_gui.py          # 截图检查工具
+|   `-- pack/
+|       |-- test_workflows.py
+|       `-- test_versioning.py
+`-- docs/
+    |-- usage/
+    |   |-- CLI.md
+    |   `-- GUI.md
+    `-- dev/
+        |-- STRUCTURE.md
+        |-- BUILD.md
+        |-- STYLE.md
+        |-- VERSIONING.md
+        `-- CONTRIBUTING.md
 ```
 
 ## 模块关系
 
-- `app/__main__.py` 是唯一入口：无参数时启动 GUI，带参数时调用 `app/cli/main.py`；`--firewall-helper` 与 `--student-helper` 由隐藏提权助手直接执行，不显示控制台。打包产物是窗口化子系统，`_show_cli_console()` 负责在 CLI 模式下把标准流接回调用方的终端或重定向目标，不新建控制台窗口。PyInstaller 也从此文件打包。
-- `app/core/` 提供报文常量、协议构造、UDP 与文件传送、防火墙规则、本机信息探测、本机学生端起停与反弹终端；新增依赖同步写进 `requirements.txt`。CLI 与 GUI 都通过 `from .. import core` 使用这些接口。
-- `app/core/shell.py` 负责反弹终端：在本机起终端监听与只提供启动脚本的临时 HTTP 服务，再经远程命令通道让目标下载脚本并主动连回，命令行输入输出都走这条回连的 TCP 连接；启动脚本不内联在命令里，因为远程命令通道单条最多容纳 163 个 UTF-16 单元。
-- `app/cli/parser.py` 只定义参数：`build_group_parser()` 按图形界面侧边栏的分组给出子命令，一个页面一条子命令；`build_flat_parser()` 保留来源项目与本程序早期的扁平写法。两者解析出的字段名相同，分发代码因此不必区分写法。`app/cli/main.py` 按首个参数是否属于分组名选择解析器，负责参数校验、单条命令、文件传送、防火墙与启停学生端命令、终端输出；不再作为可单独复制的单文件脚本维护。
-- `app/gui/app.py` 基于 `FluentWindow` 实现侧边导航、任务调度、单实例运行与页面联动。导航按“解除限制／远程攻击／本机工具”三个可折叠分组组织，分组由 `NAVIGATION_GROUPS` 描述，`_add_navigation_group` 注册页面并恢复分组设置。
-- `app/core/student_process.py` 只处理本机学生端：用 `tasklist` 与 `netstat` 找进程与监听端口，用 `Get-Process` 取可执行文件路径，同目录有 `LibTDMaster.dll` 时标记为真身；结束先 `taskkill` 请求正常退出，用 `_wait_gone` 轮询确认进程真的消失，等不到再 `/F` 强制，仍被拒绝且非管理员才整批交给 UAC 助手；定位程序时依次试运行中的真身进程、卸载信息里的 `DisplayIcon`、卸载信息里的 `InstallLocation`、极域服务所在目录与常见安装目录，拉起后用 `_wait_for_start` 轮询确认进程真的出现。`toggle_student_process` 是界面上那个单按钮与命令行默认动作共用的入口。当前进程不是管理员时复用防火墙模块的 UAC 助手启动隐藏子进程，结束与启动结果都经临时 JSON 回传，`--student-helper` 是它在打包产物里的入口参数；直接运行源码时助手用 `-m app` 并以仓库根目录为工作目录启动，否则相对导入会失败，助手什么都没做就退出。
-- `app/gui/navigation.py` 保留 Fluent 组件的绘制、路由和弹出菜单，集中管理侧边栏宽度动画；树节点同步更新高度与子项可见性，逻辑展开状态独立于图标模式。叶节点点击只切换页面，选中标记由当前可见条目绘制，主窗口不再用延时刷新和尺寸补丁干预动画。
-- `app/gui/pages/` 按首页、消息、命令、设备、文件传送、设备备注、本机信息、防火墙、启停学生端、反弹终端、日志、设置和关于拆分页面；文件传送页使用带复选框与全选的文件树，公共控件集中在 `common.py`。
-- `app/gui/build_info.py` 从打包资源读取构建时间与版本号，源码运行时分别显示“源码运行”和 `app.__version__`。
-- `app/gui/components.py` 提供跨页面同步的连接参数和统一任务栏；`FluentCard` 与 `FluentDialog` 按 WinUI 3 令牌自绘，`SectionCard` 与首页卡片都继承它。
-- `app/gui/theme.py` 只存 WinUI 3 的视觉常量与取值函数，不导入其它界面模块。
-- `app/gui/splash.py` 提供启动遮罩：主窗口显示后用项目图标、应用名、版本号与不确定进度条盖住界面，跟随窗口尺寸，最短停留一段时间后自动关闭。
-- `app/gui/models.py` 保存连接状态、持久化设备备注，并提供带等级、线程、输出位置和异常详情的结构化日志存储；日志写入、快照与文件切换使用同一把锁，状态变更通知按顺序在对象所属线程发送，回调在锁外执行。
-- `app/gui/workers.py` 执行后台发送、本机工具任务与状态查询，通过信号传递结果；失败信号携带异常消息和堆栈，由主线程恢复界面状态。
-- `packaging/` 存放 PyInstaller 配置、构建脚本与版本资源生成器；EXE 以普通用户权限启动，防火墙操作在需要时通过 UAC 启动隐藏助手。
-- `.github/workflows/build.yml` 提供可复用的打包流程，`nightly-build.yml` 与 `release.yml` 分别以 nightly、stable 通道调用它。
-- `.github/workflows/nightly-build.yml` 在推送到 `main` 且改动涉及 `app/`、`packaging/`、`scripts/`、`assets/`、依赖清单或工作流文件时构建 EXE，并滚动更新 `nightly` 预发布；纯文档改动不触发。
-- `.github/workflows/release.yml` 仅在 Actions 页面手动触发，校验版本号与标签后创建 `vX.Y.Z` 正式发布，规则见[版本规范](VERSIONING.md)。
-- `scripts/` 存放启动与本机自测脚本，自动按脚本位置定位项目根目录；`test_local_ip.py` 用本机地址验证真实报文收发。
-- `tests/` 使用模拟套接字验证行为，不执行真实目标发送或防火墙变更。
+### 入口与命令行
+
+- `app/__main__.py` 保留 `python -m app` 和 PyInstaller 入口，交给 `app/start/service.py` 分流。无参数时延迟导入 `app/start/gui.py`，带参数时进入 `app/start/cli.py`；CLI 路径不导入 Qt。
+- `app/start/console.py` 的 `_show_cli_console()` 在 CLI 模式下把标准流接回调用方终端或重定向目标，不新建控制台。`--firewall-helper`、`--student-helper` 由启动层转交对应业务服务，不显示控制台。
+- `app/start/parser.py` 负责装配解析器，显式调用各功能 `app/features/*/cli.py` 的 `register()`，由功能模块注册自己的参数。`build_group_parser()` 保留页面对应的分组子命令，`build_flat_parser()` 保留原扁平语法，两者使用一致字段。
+- `app/start/cli.py` 管理解析器选择、日志生命周期和调用分发；功能 CLI 负责终端输入输出并调用自身业务服务或共用发送服务。可复用的业务逻辑不放进参数解析器。
+- `app/start/gui.py` 负责 Qt 应用初始化、单实例、启动遮罩、异常日志与事件循环；`app/gui/__main__.py` 仅转交这个入口。
+
+### 业务与基础模块
+
+| 模块 | 职责与依赖边界 |
+| --- | --- |
+| `app/features/<功能>/service.py` | 与界面无关的业务流程；按需调用报文、系统适配与公共基础，不导入 Qt。并非每个功能都需要单独服务，命令和设备功能共用发送服务。 |
+| `app/features/<功能>/data.py` | 功能数据、设置键、默认值与规范化；Qt 信号适配另放在功能的 `gui/data.py`。 |
+| `app/features/send/` | `SendOptions`、参数校验、报文准备和发送协调；供不同页面与 CLI 发送功能复用。 |
+| `app/features/files/`、`firewall/`、`local/`、`student/`、`shell/` | 分别承载文件传送、防火墙、本机信息、学生端进程与终端业务；平台命令、地址解析和套接字操作复用 `app/system/`。 |
+| `app/packets/` | `constants.py` 保存报文数组和命令表，`codec.py` 负责构造、编码与分片，不负责界面或网络生命周期。 |
+| `app/system/net/` | 目标解析、本机地址、UDP 发送、ICMP/ARP 探测与送达结果；结果数据在 `data.py`。 |
+| `app/system/windows/` | Windows 命令、进程枚举与提权助手等系统接口，供具体功能调用。 |
+| `app/shared/` | JSONC、设置存储、数据路径、构建信息、版本与日志基础；不依赖界面功能。 |
+| `app/resources/` | 仅放静态资源。唯一图标源为 `icons/app.svg`，运行时通过 `app.shared.resources.resource_path()` 统一定位源码与解包目录，Qt 图标由 `app/gui/resources.py` 适配。 |
+
+版本号唯一来源是 `app/shared/version.py` 的 `__version__`；`app/__init__.py` 只重新导出，`app/shared/build_info.py` 转调版本读取接口并提供构建时间。`app/packets/constants.py` 只维护报文相关常量，不能把版本号放回该文件。
+
+### GUI 装配与功能适配
+
+- `app/gui/window/main.py` 的 `MainWindow` 显式创建页面和服务、连接信号并保留 Qt 槽与事件入口；具体交互交给 `app/gui/service.py`、`app/gui/menu/service.py`、`app/gui/workers/service.py`、`app/gui/window/service.py`、`app/gui/window/tray.py` 和各功能的 `gui/service.py`。
+- 页面位于 `app/features/<功能>/gui/page.py`；消息、文件、防火墙、本机信息、学生端和日志功能的 GUI 服务与页面同目录。CLI 与 GUI 复用无 Qt 的业务服务，文件对话框、提示、信号和控件状态保留在 GUI 适配层。
+- 导航常量位于 `app/gui/window/data.py`，`app/gui/menu/service.py` 注册页面分组、恢复状态和切换路由；`app/gui/menu/sidebar.py` 处理侧边栏绘制与宽度动画。导航仍按现有三个分组组织。
+- `app/gui/widgets/common.py` 提供 `FluentCard`、`FluentDialog`、连接参数与任务栏，`app/gui/widgets/page.py` 提供页面基类、文件树和日志表格；`app/gui/theme.py` 集中保存视觉数值。
+- `app/gui/workers/tasks.py` 定义后台线程与结果信号，`app/gui/workers/service.py` 管理排队、取消和线程收尾。失败信号携带异常消息与堆栈，由 GUI 主线程恢复界面状态。
+- `app/gui/data.py` 仅保留 `ConnectionState`。设备备注的数据约定与业务在 `app/features/names/data.py`、`service.py`，`gui/data.py` 的 `DeviceAliasStore` 只做 Qt 信号适配；日志实体在 `app/features/logs/data.py`，带线程通知与持久化的 `LogStore` 位于 `gui/data.py`；设置键与存储入口在 `app/features/settings/data.py`、`service.py`，页面在 `gui/page.py`。
+- `settings.json` 中的 `core`、`gui` 分组是既有持久化格式，不随源代码目录划分改变。通用 JSONC 与分组存储分别由 `app/shared/config.py`、`app/shared/settings.py` 提供。
+
+### 打包与测试
+
+- `pack/` 只放构建脚本、PyInstaller 配置和版本资源生成器；运行时入口仍为 `app/__main__.py`，静态图标按 `app/resources/icons/app.svg` 收集。
+- `.github/workflows/build.yml` 为可复用打包流程；`nightly-build.yml` 在推送 `main` 且涉及 `app/`、`pack/`、`scripts/`、`requirements.txt` 或工作流文件时构建，静态资源已包含在 `app/` 过滤内。`release.yml` 仍仅手动触发，详见[版本规范](VERSIONING.md)。
+- `tests/unit/` 检查报文、业务与配置单元，`tests/integration/` 检查入口和跨模块协作，其中 `test_layout.py` 检查底层依赖方向、移除旧聚合入口及业务模块不加载 Qt；`tests/gui/` 检查窗口与日志界面，`tests/pack/` 检查版本和工作流。公共离线替身集中在 `tests/fixtures/offline.py`，测试不执行真实目标发送或防火墙变更。
+- 全量发现使用 `python -B -m unittest discover -s tests -t .`，保证按 `tests` 包导入；单个模块使用完整包名，例如 `python -B -m unittest tests.gui.test_window -v`。截图工具为 `python -B -m tests.gui.verify_gui --screenshot <截图路径>`。
+- `scripts/` 保留虚拟环境启动与本机自测入口；`test_local_ip.py` 是真实本机报文收发自测，与离线测试套件分开。
+
+## 新增功能
+
+1. 在 `app/features/<功能>/` 建立有独立职责的功能包；业务参数与数据约定按需放入 `data.py`，可复用流程放入无 Qt 的 `service.py`。通用编解码、网络/系统接口和配置继续复用各自基础模块。
+2. 需要 CLI 时，在功能的 `cli.py` 定义 `register()` 并注册本功能参数，在 `app/start/parser.py` 的对应分组显式调用；在 `app/start/cli.py` 接入执行分发。仅在需要兼容已有扁平语法时补 `add_flat_arguments()`，保持两种写法字段一致。
+3. 需要 GUI 时，在功能的 `gui/page.py` 定义页面，交互协调按需放入 `gui/service.py`，Qt 数据通知适配按需放入 `gui/data.py`。在 `app/gui/window/main.py` 显式导入、创建页面和服务、连接信号与槽，并更新 `app/gui/window/data.py` 的导航描述及相关菜单装配；仅有内部服务的功能不必创建页面。
+4. 耗时任务交给 `app/gui/workers/` 的线程与任务服务；通用控件复用 `app/gui/widgets/`，业务服务保持独立于窗口和 Qt 对象。新静态资源放入 `app/resources/` 并经 `resource_path()` 读取，新增打包资源时同步 `pack/JiYuAttackNext.spec`。
+5. 业务、报文与参数单元测试放入 `tests/unit/`，CLI/跨模块流程放入 `tests/integration/`，界面与线程行为放入 `tests/gui/`；打包或版本变化补 `tests/pack/`，共用替身复用 `tests/fixtures/offline.py`。按[验证范围](../../AGENTS.md#验证)选择检查。
+6. 按影响范围更新 [CLI 文档](../usage/CLI.md)、[GUI 文档](../usage/GUI.md) 与本结构说明；新增依赖写入依赖清单并说明打包影响。提交类型与作用域继续按[项目作用域](CONTRIBUTING.md#项目作用域)选择，不按每个子目录机械新增 scope。
 
 ## 本地生成目录
 

@@ -1,6 +1,6 @@
 <div align="center">
 <h1>JiYu Attack Next</h1>
-<img src="assets/app.svg" width="150" height="150" alt="JiYu Attack Next">
+<img src="app/resources/icons/app.svg" width="150" height="150" alt="JiYu Attack Next">
 <p></p>
 <p>
    <a href="https://github.com/JasonFang0109c/jiyu_attack_next"><img alt="GitHub stars" src="https://img.shields.io/github/stars/JasonFang0109c/jiyu_attack_next?label=Stars&style=flat&color=orange&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCc+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J00xMiAxNy4yN0wxOC4xOCAyMWwtMS42NC03LjAzTDIyIDkuMjRsLTcuMTktLjYxTDEyIDIgOS4xOSA4LjYzIDIgOS4yNGw1LjQ2IDQuNzNMNS44MiAyMXonLz48L3N2Zz4="></a>
@@ -130,7 +130,7 @@ EXE 无需安装 Python；从源码运行 CLI 需要按 `requirements.txt` 安�
 - EXE：`JiYuAttackNext.exe`，同一个文件支持 GUI 与 CLI，无需安装 Python
 - CLI 不再单独发布脚本；需要从源码调试时使用 `python -m app ...`
 
-推送 `main` 且改动涉及 `app/`、`packaging/`、`scripts/`、`assets/`、依赖清单或工作流文件时，会自动构建并滚动更新 `nightly` 预发布版本；纯文档改动不触发构建。正式版需在 Actions 页面手动运行 `Release`，版本号规则见[版本规范](docs/dev/VERSIONING.md)。
+推送 `main` 且改动涉及 `app/`、`pack/`、`scripts/`、`requirements.txt` 或工作流文件时，会自动构建并滚动更新 `nightly` 预发布版本；纯文档改动不触发构建。正式版需在 Actions 页面手动运行 `Release`，版本号规则见[版本规范](docs/dev/VERSIONING.md)。
 
 <br>
 
@@ -172,7 +172,7 @@ python -m app
 构建 EXE：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1
+powershell -ExecutionPolicy Bypass -File .\pack\build.ps1
 ```
 
 没有第二台测试设备时，可用本机 IPv4 地址验证报文收发：

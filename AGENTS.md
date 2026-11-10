@@ -15,8 +15,9 @@
 | 改动范围 | 需要阅读 |
 | --- | --- |
 | 改文档 | 被改文档，以及引用了同一行为的其他文档 |
-| 改 `app/cli/` | `app/cli/main.py`、`app/cli/parser.py`、[CLI 文档](docs/usage/CLI.md) |
-| 改 `app/gui/` | [GUI 文档](docs/usage/GUI.md)、[项目结构](docs/dev/STRUCTURE.md)、涉及的模块与测试 |
+| 改命令行启动或 `app/features/*/cli.py` | `app/start/cli.py`、`app/start/parser.py`、对应功能的 `cli.py` 与 `service.py`（如有）、[CLI 文档](docs/usage/CLI.md) |
+| 改 `app/gui/`、`app/start/gui.py` 或 `app/features/*/gui/` | [GUI 文档](docs/usage/GUI.md)、[项目结构](docs/dev/STRUCTURE.md)、对应页面与服务、涉及的测试 |
+| 改功能业务、报文、系统适配或公共基础 | [项目结构](docs/dev/STRUCTURE.md)、对应 `app/features/`、`app/packets/`、`app/system/`、`app/shared/` 模块与调用方 |
 | 改构建、打包或工作流 | [构建说明](docs/dev/BUILD.md)、[项目结构](docs/dev/STRUCTURE.md) |
 | 改代码风格、注释或 docstring | [代码风格规范](docs/dev/STYLE.md)、涉及的模块 |
 | 改提交或协作规范 | 本文档、[开发与提交规范](docs/dev/CONTRIBUTING.md) |
@@ -56,13 +57,13 @@
 - 以 PySide6 分支和本项目安装的 `PySide6-Fluent-Widgets` 版本为准，不套用 PyQt5/PyQt6 示例。
 - 复用 `qfluentwidgets` 已有组件、主题与样式，不重复实现；亚克力与云母统一调用组件自带的 `windowEffect`，不自行用 ctypes 操作窗口材质。
 - 文档、示例与本地版本冲突时，通过导入、源码或最小测试验证后再改。
-- GUI 行为或交互变化时同步更新 [GUI 文档](docs/usage/GUI.md) 与 `tests/test_gui.py`。
+- GUI 行为或交互变化时同步更新 [GUI 文档](docs/usage/GUI.md) 与 `tests/gui/test_window.py` 等对应界面测试。
 - 视觉数值以 WinUI 3 主题资源为准，统一从 `app/gui/theme.py` 取：圆角 4（控件与内容面）/ 8（对话框等浮出层），卡片填充 `#B3FFFFFF`/`#0DFFFFFF`、描边 `#0F000000`/`#19000000`、窗口底色 `#F3F3F3`/`#202020`（浅色/深色）。卡片继承 `FluentCard`、对话框用 `FluentDialog`，不要直接用组件库的 `SimpleCardWidget` 与 `Dialog`；完整规范见[代码风格规范](docs/dev/STYLE.md)的「界面视觉规范」。
 
 ## 代码约定
 
-- Python 3.13；GUI 使用 PySide6。`app/core/` 与 `app/cli/` 可以使用第三方库，新依赖一律写进 `requirements.txt` 并在 `docs/dev/BUILD.md` 说明打包影响。
-- 保持目录职责与模块边界，参考 [项目结构](docs/dev/STRUCTURE.md)。
+- Python 3.13；GUI 使用 PySide6。`app/features/` 的非界面业务、`app/packets/`、`app/system/`、`app/shared/` 与命令行层可以使用第三方库，但业务 `service.py` 与 CLI 不导入 Qt；新依赖一律写进 `requirements.txt` 并在 `docs/dev/BUILD.md` 说明打包影响。
+- 保持目录职责与模块边界，参考 [项目结构](docs/dev/STRUCTURE.md)。新增功能放入 `app/features/<功能>/`：无 Qt 的业务放在 `service.py`，CLI 参数由功能 `cli.py` 注册并由 `app/start/parser.py` 装配；GUI 页面在主窗口显式注册，交互实现放在对应 GUI 服务中，接入步骤见[新增功能](docs/dev/STRUCTURE.md#新增功能)。
 - 改动前检查 `git status`，不回退或提交与任务无关的改动。
 - 行为变更补充或更新对应测试；纯文档、注释或格式改动不需要新增测试。
 - 用户可见行为、命令参数、构建方式或项目结构变化时同步更新对应文档。
@@ -79,7 +80,7 @@
 ```
 
 - 排版交给 `ruff format`，不手工对齐 `=`、`:` 或续行括号，也不用行尾短注释。
-- `app/core/constants.py` 的十六进制报文数组被 ruff 排除，新增报文时沿用现有每行字节数与缩进，不要重排已有行。
+- `app/packets/constants.py` 的十六进制报文数组被 ruff 排除，新增报文时沿用现有每行字节数与缩进，不要重排已有行。
 - docstring 用 Google 风格（`Args`、`Returns`、`Yields`、`Raises`、`Attributes`，说明文字中文），只写模块、公共类、公共函数与逻辑复杂的函数。
 - 注释一律整行中文，解释“为什么”而非复述代码；待办写成 `# TODO(负责人): 具体动作`。
 - 提交前用 `ruff format --check .` 与 `ruff check .` 确认没有待格式化或待修复内容；纯排版改动按 `style` 类型单独提交，不与功能改动混在一起。
@@ -104,7 +105,7 @@
 - 按时间顺序追加；删除或清空时重写文件，保持与界面、内存一致。
 - 读取时兼容旧版 JSONL 并迁移为规范文本，不因历史格式导致启动失败。
 - 日志页支持功能与精确级别筛选、多选、导出选中、删除选中与表头全选。表头复选框位于时间列之前、样式与行内一致：勾选后选中当前筛选结果，任一行取消即取消表头，取消表头则清空全部选择。导出与删除按钮只处理选中记录，未选择时禁用。
-- 修改日志筛选、批量操作或文件格式时，同步更新 [GUI 文档](docs/usage/GUI.md) 与 `tests/test_gui.py`。
+- 修改日志筛选、批量操作或文件格式时，同步更新 [GUI 文档](docs/usage/GUI.md) 与 `tests/gui/test_window.py`、`tests/gui/test_log_page.py`、`tests/gui/test_log_store.py` 中的对应测试。
 
 ## 验证
 
@@ -114,22 +115,23 @@
 | --- | --- | --- |
 | 只改 Markdown、注释、docstring | 通读一遍，确认示例命令与路径没有写错 | 测试、`compileall`、构建、截图 |
 | 只改测试文件 | 跑被改的那个测试文件 | 全量测试、`compileall`、构建 |
-| 改 `app/core/`、`app/cli/` | 跑相关测试文件；改动跨模块或涉及报文字节布局时跑全量测试 | 截图、构建 |
-| 改 `app/gui/` 的逻辑（线程、任务分发、信号） | 跑 `tests.test_gui` + 相关测试文件 | 截图（除非外观也变了） |
-| 改 GUI 外观、布局、文案或交互 | 跑 `tests.test_gui`，并按需截图确认 | 全量测试 |
-| 改 `packaging/`、`scripts/`、依赖清单、构建配置 | 实际执行一次构建，并用构建出的 EXE 冒烟 | 全量测试（除非同时改了 `app/`） |
+| 改 `app/features/` 的非界面业务、`app/packets/`、`app/system/`、`app/shared/` | 跑对应 `tests/unit/`、`tests/integration/` 测试；改动跨模块或涉及报文字节布局时跑全量测试 | 截图、构建 |
+| 改命令行启动或 `app/features/*/cli.py` | 跑 `tests.unit.test_cli_parser` 及对应的 `tests.integration.test_cli_commands`、`tests.integration.test_cli_lifecycle`、`tests.integration.test_entry` | 截图、构建 |
+| 改 `app/gui/`、`app/start/gui.py` 或 `app/features/*/gui/` 的逻辑（线程、任务分发、信号） | 跑 `tests.gui.test_window` + 对应界面或业务测试 | 截图（除非外观也变了） |
+| 改 GUI 外观、布局、文案或交互（含功能目录中的 GUI） | 跑 `tests.gui.test_window` 与对应界面测试，并按需截图确认 | 全量测试 |
+| 改 `pack/`、`scripts/`、依赖清单、构建配置 | 实际执行一次构建，并用构建出的 EXE 冒烟 | 全量测试（除非同时改了 `app/`） |
 | 同时涉及多类 | 取并集，但每一项只做一次 | — |
 
 ```powershell
 # 单个文件
-.\.venv\Scripts\python.exe -B -m unittest tests.test_cli_parser -v
+.\.venv\Scripts\python.exe -B -m unittest tests.unit.test_cli_parser -v
 
 # 全量
-.\.venv\Scripts\python.exe -B -m unittest discover -s tests
+.\.venv\Scripts\python.exe -B -m unittest discover -s tests -t .
 ```
 
 - 语法检查用 `compileall` 只在无法运行测试时才有意义（例如改的是入口脚本或打包钩子）；测试能跑起来就不必再单独跑一遍。
-- 截图验证只在意外观时做，命令是 `.\.venv\Scripts\python.exe -B -m tests.verify_gui --screenshot <截图路径>`。
+- 截图验证只在意外观时做，命令是 `.\.venv\Scripts\python.exe -B -m tests.gui.verify_gui --screenshot <截图路径>`。
 - 测试结果不稳定时先确认是否与本次改动相关；与改动无关的既有失败如实报告，不要反复重跑掩盖问题。
 - 只报告实际执行过的验证，未执行的检查要说明为什么不需要。
 
@@ -137,10 +139,10 @@
 
 ## 构建
 
-只在改动会影响 EXE 内容时构建：`app/`、`packaging/`、`scripts/`、`assets/`、依赖清单。纯文档、注释和测试改动不需要构建。
+只在改动会影响 EXE 内容时构建：`app/`（含 `app/resources/`）、`pack/`、`scripts/`、依赖清单。纯文档、注释和测试改动不需要构建。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1
+powershell -ExecutionPolicy Bypass -File .\pack\build.ps1
 ```
 
 - 需要构建时，构建失败不得提交。

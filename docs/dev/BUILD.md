@@ -10,7 +10,7 @@
 
 ---
 
-以下命令均以项目根目录为工作目录。构建脚本位于 `packaging/`，使用 PyInstaller 生成同时包含 GUI 与 CLI 的 Windows 单文件程序。
+以下命令均以项目根目录为工作目录。构建脚本位于 `pack/`，使用 PyInstaller 生成同时包含 GUI 与 CLI 的 Windows 单文件程序。
 
 ## 准备环境
 
@@ -22,7 +22,7 @@ python -m pip install -r requirements.txt
 
 已有虚拟环境时无需重新创建，GUI 和打包依赖的版本以根目录 [requirements.txt](../../requirements.txt) 为准。若虚拟环境早于 Fluent 组件库引入，重新执行一次安装命令即可。
 
-`requirements.txt` 安装的是 `PySide6-Fluent-Widgets[full]`，比基础包多带 `scipy`、`pillow` 与 `colorthief`，组件库用它们做亚克力控件的高斯模糊与取色。缺这几个包时 `isAcrylicAvailable` 为假，亚克力控件会退化纯色背景。升级组件库时用 `pip install --upgrade` 不会自动补装 extra，需要写明 `[full]`。打包脚本按 `packaging/JiYuAttackNext.spec` 排除 `scipy` 里用不到的子包，只保留 `scipy.ndimage` 及其依赖；Qt 与 Pillow 的裁剪见下面的[体积控制](#体积控制)。
+`requirements.txt` 安装的是 `PySide6-Fluent-Widgets[full]`，比基础包多带 `scipy`、`pillow` 与 `colorthief`，组件库用它们做亚克力控件的高斯模糊与取色。缺这几个包时 `isAcrylicAvailable` 为假，亚克力控件会退化纯色背景。升级组件库时用 `pip install --upgrade` 不会自动补装 extra，需要写明 `[full]`。打包脚本按 `pack/JiYuAttackNext.spec` 排除 `scipy` 里用不到的子包，只保留 `scipy.ndimage` 及其依赖；Qt 与 Pillow 的裁剪见下面的[体积控制](#体积控制)。
 
 ## 源码运行
 
@@ -32,27 +32,27 @@ python -m pip install -r requirements.txt
 | 命令行帮助 | `python -m app -h` |
 | 虚拟环境启动脚本 | `powershell -ExecutionPolicy Bypass -File .\scripts\run_gui.ps1` |
 
-`app/__main__.py` 是统一入口：无参数时启动 GUI，带参数时交给 `app/cli/main.py`。运行时代码集中在 `app/`：`core/` 提供协议、传输、防火墙与本机信息等标准库实现，`cli/` 负责参数解析和命令分发，`gui/` 提供 PySide6 界面。EXE 以普通用户权限启动，避免在终端运行 CLI 时另开提升窗口；只有防火墙操作在未提升时按需通过 UAC 启动隐藏助手。
+`app/__main__.py` 保留统一入口，并交给 `app/start/service.py` 分流：无参数时调用 `app/start/gui.py`，带参数时调用 `app/start/cli.py`。运行时代码集中在 `app/`：`features/` 按功能组织业务与 CLI/GUI 适配，`packets/` 负责报文编解码，`system/` 负责网络和 Windows 适配，`shared/` 保存配置、日志与版本等公共基础，`gui/` 提供通用界面组件与装配。EXE 以普通用户权限启动，避免在终端运行 CLI 时另开提升窗口；只有防火墙操作在未提升时按需通过 UAC 启动隐藏助手。
 
 ## 构建 EXE
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1
-powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Clean
-powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Variant debug
-powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Version 0.1.1
-powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python "C:\Python313\python.exe"
+powershell -ExecutionPolicy Bypass -File .\pack\build.ps1
+powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Clean
+powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Variant debug
+powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Version 0.1.1
+powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Python "C:\Python313\python.exe"
 ```
 
 - 无参数时增量构建，`-Clean` 清理 PyInstaller 缓存后重建，`-Python` 指定其他解释器。
 - `-Variant` 取 `both`、`release` 或 `debug`，默认 `both`：一次产出 `JiYuAttackNext-<显示版本>.exe` 与 `JiYuAttackNext_Debug-<显示版本>.exe`，两份代码完全相同，只有构建变体标记不同。`-Variant debug` 只重建调试版本，调试时不必等两份都打包完。
 - 两个变体使用独立的 `--workpath`（`build/release` 与 `build/debug`），避免 PyInstaller 复用另一份变体的分析缓存。
-- `-Version` 覆盖版本号；省略时读取 `app/core/constants.py` 的 `__version__`。版本号须符合语义化版本格式，规则见[版本规范](VERSIONING.md)。
+- `-Version` 覆盖版本号；省略时读取 `app/shared/version.py` 的 `__version__`。版本号须符合语义化版本格式，规则见[版本规范](VERSIONING.md)。
 - 产物名直接带显示版本，例如 `output/JiYuAttackNext-0.1.0-e1f9608.exe` 与 `output/JiYuAttackNext_Debug-0.1.0-e1f9608.exe`；显示版本是版本号加提交哈希，因此从文件名就能看出对应哪次提交。本地构建不再产出 `JiYuAttackNext.exe` 这类不带版本号的固定名，早期构建留下的固定名文件在构建结束时清掉。
 - `output/` 只留最近一次构建的两份 EXE：重新构建后删除旧版本产物，避免与当前构建混淆，不保留历史版本。
 - 提交哈希省略 `-Commit` 时自动取 `git rev-parse --short=7 HEAD`；显式传 `-Commit ""` 表示不要哈希（正式版发布用它），此时产物名就是 `output/JiYuAttackNext-0.1.0.exe`；不在 Git 仓库内构建时同样只带版本号。
 - 脚本根据自身路径定位项目根目录，也可从其他目录通过绝对路径调用，默认使用项目虚拟环境。
-- 读取 [packaging/JiYuAttackNext.spec](../../packaging/JiYuAttackNext.spec)，并收集 Fluent Widgets 的运行时资源与包元数据。
+- 读取 [pack/JiYuAttackNext.spec](../../pack/JiYuAttackNext.spec)，并收集 Fluent Widgets 的运行时资源与包元数据。
 - 每次构建都把当前本地时间打包进 EXE，“关于”页据此显示构建时间；源码运行时显示“源码运行”。
 - 版本号同时写入 `build/assets/version.txt`（供“关于”页显示）与 `build/assets/version_info.txt`（PyInstaller 的 Windows 版本资源，EXE 属性中可见）。
 
@@ -64,17 +64,17 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python "C:\Pytho
 | `output/JiYuAttackNext_Debug-<显示版本>.exe` | 同上，但日志从 `DEBUG` 起记录 | 保留，供排查问题使用，旧版本号的删除 |
 | `build/release/`、`build/debug/` | 两个变体各自的打包中间文件与分析结果 | 构建后可删除 |
 | `build/assets/variant.txt` | 本次打包的变体标记，运行时打进 EXE | 构建后可删除 |
-| `build/assets/app.ico` | 从 SVG 转换的构建图标 | 构建后可删除 |
+| `build/assets/app.ico` | 从唯一图标源 `app/resources/icons/app.svg` 转换的构建图标 | 构建后可删除 |
 | `build/assets/build_time.txt` | 本次构建时间，打包进 EXE | 构建后可删除 |
 | `build/assets/version.txt` | 本次构建版本号，打包进 EXE | 构建后可删除 |
-| `build/assets/version_info.txt` | EXE 版本资源，由 `packaging/gen_version_info.py` 生成 | 构建后可删除 |
+| `build/assets/version_info.txt` | EXE 版本资源，由 `pack/gen_version_info.py` 生成 | 构建后可删除 |
 | `build/previews/` | 手动生成的界面验证截图 | 检查后可删除 |
 
 删除 `build/` 不影响已生成的 EXE，下次构建会重新生成所需文件。`build/`、`output/` 与 `.venv/` 均由 `.gitignore` 排除，不提交 Git。构建前请关闭正在运行的同名程序。项目生成的是未签名 EXE，首次启动需数秒解压资源；EXE 只允许同时运行一个实例，再次启动会唤醒已有窗口。
 
 ## 体积控制
 
-单文件程序把 Qt、Python 与依赖一起打包，任何一份多余的 DLL 都会直接进入分发包。`packaging/JiYuAttackNext.spec` 在 `a.binaries` 上做了一次过滤，规则集中在四个集合里：
+单文件程序把 Qt、Python 与依赖一起打包，任何一份多余的 DLL 都会直接进入分发包。`pack/JiYuAttackNext.spec` 在 `a.binaries` 上做了一次过滤，规则集中在四个集合里：
 
 | 集合 | 去掉的内容 | 为什么可以去掉 |
 | --- | --- | --- |
@@ -106,14 +106,14 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json`
 | `nightly-build.yml` | `Nightly Build` | 推送到 `main` 且改动影响产物，或手动运行 | 构建 nightly 并滚动更新 `nightly` 预发布 |
 | `release.yml` | `Release` | 仅在 Actions 页面手动运行 | 构建正式版并创建 `vX.Y.Z` 正式发布 |
 
-`build.yml` 通过 `channel` 输入决定版本号：`stable` 使用源码版本，`nightly` 追加 `-nightly.YYYYMMDD`（UTC 日期）；`version` 输入可显式覆盖。nightly 另有一个显示版本，由基础版本号加 7 位提交哈希拼成（例如 `0.1.0-1a8ede3`），产物文件名、EXE 版本资源与界面都用它，发布说明与标签只用带日期的版本号。`packaging/build.ps1` 收到的 `-Commit` 由工作流传入；本地手工构建不传时脚本自己取当前提交的前 7 位，产物名因此也带哈希；正式版工作流传 `-Commit ""` 表示不要哈希。
+`build.yml` 通过 `channel` 输入决定版本号：`stable` 使用源码版本，`nightly` 追加 `-nightly.YYYYMMDD`（UTC 日期）；`version` 输入可显式覆盖。nightly 另有一个显示版本，由基础版本号加 7 位提交哈希拼成（例如 `0.1.0-1a8ede3`），产物文件名、EXE 版本资源与界面都用它，发布说明与标签只用带日期的版本号。`pack/build.ps1` 收到的 `-Commit` 由工作流传入；本地手工构建不传时脚本自己取当前提交的前 7 位，产物名因此也带哈希；正式版工作流传 `-Commit ""` 表示不要哈希。
 
 ### Nightly Build
 
-- 推送到 `main` 时按改动路径决定是否运行：只有 `app/`、`packaging/`、`scripts/`、`assets/`、`requirements.txt` 或工作流文件本身发生变化才会触发，纯文档与测试改动不会重新编译 EXE。
+- 推送到 `main` 时按改动路径决定是否运行：只有 `app/`（含 `app/resources/`）、`pack/`、`scripts/`、`requirements.txt` 或工作流文件本身发生变化才会触发，纯文档与测试改动不会重新编译 EXE。
 - 也可在 Actions 页面选择该工作流并点击 `Run workflow` 手动运行，手动运行需选择 `main` 分支才会发布；手动运行不受路径过滤限制。
 - 工作流文件首次进入默认分支后，Actions 页面才会显示手动运行入口。
-- 在 `windows-latest` 上使用 Python 3.13 安装依赖、执行离线检查并运行 `packaging/build.ps1 -Clean`；构建脚本直接产出 `output/JiYuAttackNext-<显示版本>.exe` 与对应的调试版本，工作流再据此准备 `dist/` 下的资产。
+- 在 `windows-latest` 上使用 Python 3.13 安装依赖、执行离线检查并运行 `pack/build.ps1 -Clean`；构建脚本直接产出 `output/JiYuAttackNext-<显示版本>.exe` 与对应的调试版本，工作流再据此准备 `dist/` 下的资产。
 - 构建成功后更新标签为 `nightly`、标题为 `Nightly Build <版本>` 的预发布版本，资产只有两个：`JiYuAttackNext-<显示版本>.exe` 与 `JiYuAttackNext_Debug-<显示版本>.exe`，显示版本是基础版本号加提交哈希（如 `0.1.0-1a8ede3`）。不再发布固定名副本，免得每次推送都在发布页多堆两个文件（GUI 与 CLI 共用同一个 EXE，调试版只差日志等级）。
 - 发布说明包含版本号、构建时间、工作流运行记录、两个资产的 SHA256，`Commits` 章节列出本次构建对应的那条提交。
 - 路径过滤按整个推送的 `before..head` 判定，因此把文档提交与代码提交一起推送时仍会构建；`Commits` 章节据此说明本次构建实际包含哪些改动。
@@ -125,7 +125,7 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json`
 
 ### Release
 
-- 只支持手动触发，不随推送自动运行；不会自动递增版本号，需先修改 `app/core/constants.py` 的 `__version__` 并提交。
+- 只支持手动触发，不随推送自动运行；不会自动递增版本号，需先修改 `app/shared/version.py` 的 `__version__` 并提交。
 - 发布前校验版本号与源码一致、正式版不带预发布后缀、标签 `vX.Y.Z` 尚不存在，任一不满足即失败。
 - 资产为固定名 `JiYuAttackNext.exe` 与 `JiYuAttackNext_Debug.exe`，另附版本号副本`JiYuAttackNext-X.Y.Z.exe`；同一文件同时提供 GUI 与 CLI。固定名副本由工作流从构建脚本产出的 `output/JiYuAttackNext-X.Y.Z.exe` 复制而来，本地 `output/` 里只有带版本号的那一份。正式版的产物体内不带提交哈希，工作流以 `-Commit ""` 显式关闭，nightly 则传当前提交哈希。
 - 发布说明的 `Changes` 章节列出上一个 `v*` 标签以来的提交标题；`make_latest: true` 使正式版成为最新版本，nightly 不受影响。
@@ -139,8 +139,8 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json`
 验证项目按改动范围选择，详见 [开发与提交规范](CONTRIBUTING.md#离线检查)。下面是全量测试与截图验证的命令示例：跨模块行为变化时跑全量测试；只有外观、布局或交互需要视觉确认时才截图。构建脚本、打包配置或依赖变化后，实际构建并用 EXE 冒烟；纯文档改动无需执行。
 
 ```powershell
-.\.venv\Scripts\python.exe -B -m unittest discover -s tests -v
-.\.venv\Scripts\python.exe -B -m tests.verify_gui --screenshot <截图路径>
+.\.venv\Scripts\python.exe -B -m unittest discover -s tests -t . -v
+.\.venv\Scripts\python.exe -B -m tests.gui.verify_gui --screenshot <截图路径>
 ```
 
 没有第二台测试设备时，可另外运行本机 IP 自测：
@@ -149,4 +149,4 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json`
 .\.venv\Scripts\python.exe -B .\scripts\test_local_ip.py
 ```
 
-生成的 EXE 无参数时打开图形界面，带参数时运行命令行模式；两种模式都无需安装 Python。EXE 打包为窗口化子系统（`console=False`），双击启动不会出现控制台窗口；带参数运行时由 `app/__main__.py` 的 `_show_cli_console()` 把标准流接回调用方的终端：优先沿用调用方传入的句柄（命令提示符的控制台句柄、Windows Terminal 的伪控制台管道、重定向到的文件），取不到时再挂到父进程的控制台，任何情况下都不新建控制台窗口；确实拿不到终端时丢弃输出，命令本身照常执行。因此从终端启动不会阻塞提示符，需要等待命令结束时用 `start /wait`。EXE 不强制请求管理员权限；防火墙操作在需要时单独弹出 UAC，并由隐藏助手执行。
+生成的 EXE 无参数时打开图形界面，带参数时运行命令行模式；两种模式都无需安装 Python。EXE 打包为窗口化子系统（`console=False`），双击启动不会出现控制台窗口；带参数运行时由 `app/start/service.py` 调用 `app/start/console.py` 的 `_show_cli_console()` 把标准流接回调用方的终端：优先沿用调用方传入的句柄（命令提示符的控制台句柄、Windows Terminal 的伪控制台管道、重定向到的文件），取不到时再挂到父进程的控制台，任何情况下都不新建控制台窗口；确实拿不到终端时丢弃输出，命令本身照常执行。因此从终端启动不会阻塞提示符，需要等待命令结束时用 `start /wait`。EXE 不强制请求管理员权限；防火墙操作在需要时单独弹出 UAC，并由隐藏助手执行。

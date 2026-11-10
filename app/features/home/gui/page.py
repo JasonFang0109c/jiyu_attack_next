@@ -1,0 +1,233 @@
+"""首页：仿 Fluent Gallery 的快捷入口与按功能分组的功能卡片。"""
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QVBoxLayout, QWidget
+from qfluentwidgets import (
+    CaptionLabel,
+    IconWidget,
+    LargeTitleLabel,
+    SmoothScrollArea,
+    StrongBodyLabel,
+    SubtitleLabel,
+)
+from qfluentwidgets import FluentIcon as FIF
+
+from app.gui.theme import CONTROL_CORNER_RADIUS
+from app.gui.widgets.common import FluentCard
+from app.gui.widgets.page import Page
+from app.shared.build_info import version_text
+
+
+class ShortcutCard(FluentCard):
+    """顶部的快捷入口：图标、标题、说明与右下角的外链箭头。"""
+
+    MINIMUM_WIDTH = 176
+    ICON_SIZE = 40
+    # 图标四周的留白取同一个值，上、下、左三边看起来才一样宽。
+    PADDING = 26
+
+    def __init__(self, icon, title, description, parent=None):
+        super().__init__(parent)
+        self.setBorderRadius(CONTROL_CORNER_RADIUS)
+        self.setClickEnabled(True)
+        self.setMinimumWidth(self.MINIMUM_WIDTH)
+        self.setCursor(Qt.PointingHandCursor)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(
+            self.PADDING, self.PADDING, self.PADDING, self.PADDING
+        )
+        layout.setSpacing(10)
+        self.icon_widget = IconWidget(icon, self)
+        self.icon_widget.setFixedSize(self.ICON_SIZE, self.ICON_SIZE)
+        layout.addWidget(self.icon_widget)
+        self.title_label = StrongBodyLabel(title, self)
+        # 说明最多两行，标题与说明各按两行的位置固定下来；
+        # 否则换行的卡片会把标题挤矮，四张卡的文字基线就对不齐了。
+        self.title_label.setFixedHeight(self.title_label.sizeHint().height())
+        layout.addWidget(self.title_label)
+        self.description_label = CaptionLabel(description, self)
+        self.description_label.setWordWrap(True)
+        line = self.description_label.fontMetrics().lineSpacing()
+        self.description_label.setFixedHeight(line * 2)
+        layout.addWidget(self.description_label)
+        footer = QHBoxLayout()
+        footer.addStretch()
+        self.arrow = IconWidget(FIF.LINK, self)
+        self.arrow.setFixedSize(16, 16)
+        footer.addWidget(self.arrow)
+        layout.addLayout(footer)
+        # 子控件不接收鼠标事件，点击才能落到整张卡片上。
+        for child in (
+            self.icon_widget,
+            self.title_label,
+            self.description_label,
+            self.arrow,
+        ):
+            child.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+
+
+class ActionCard(FluentCard):
+    """功能入口卡片：左侧纯图标，右侧标题与一句话说明。"""
+
+    ICON_SIZE = 28
+    # 图标左右两侧的留白取同一个值，视觉上才会居中在一条竖直的留白里。
+    ICON_GAP = 22
+
+    def __init__(self, icon, title, description, parent=None):
+        super().__init__(parent)
+        self.setBorderRadius(CONTROL_CORNER_RADIUS)
+        self.setClickEnabled(True)
+        self.setMinimumHeight(84)
+        self.setCursor(Qt.PointingHandCursor)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(self.ICON_GAP, 14, 18, 14)
+        layout.setSpacing(self.ICON_GAP)
+        self.icon_widget = IconWidget(icon, self)
+        self.icon_widget.setFixedSize(self.ICON_SIZE, self.ICON_SIZE)
+        self.icon_widget.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        layout.addWidget(self.icon_widget, 0, Qt.AlignVCenter)
+        text = QVBoxLayout()
+        text.setSpacing(2)
+        self.title_label = StrongBodyLabel(title, self)
+        self.description_label = CaptionLabel(description, self)
+        self.description_label.setWordWrap(True)
+        text.addWidget(self.title_label)
+        text.addWidget(self.description_label)
+        layout.addLayout(text, 1)
+        for child in (self.title_label, self.description_label):
+            child.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+
+
+# 分组内的入口：解除限制放在最前，其余按使用频率与用途排。
+SECTIONS = (
+    (
+        "解除限制",
+        (
+            (
+                "studentproc",
+                FIF.POWER_BUTTON,
+                "启停学生端",
+                "结束或启动本机极域学生端，处理被它独占的 4705 端口",
+            ),
+        ),
+    ),
+    (
+        "远程攻击",
+        (
+            (
+                "message",
+                FIF.MESSAGE,
+                "文本消息",
+                "编辑多行文本，按报文长度自动分条发送",
+            ),
+            ("file", FIF.SEND, "文件传送", "勾选文件或文件夹，发送到目标学生端桌面"),
+            (
+                "device",
+                FIF.POWER_BUTTON,
+                "设备操作",
+                "重启、关机或注销，发送前预览目标设备",
+            ),
+            ("command", FIF.COMMAND_PROMPT, "远程命令", "编辑并发送单条远程命令"),
+            (
+                "shell",
+                FIF.SPEED_HIGH,
+                "反弹终端",
+                "本机监听并让目标主动连回，得到可交互的命令行",
+            ),
+        ),
+    ),
+    (
+        "本机工具",
+        (
+            ("local", FIF.IOT, "本机信息", "查询本机 IP 与 Student 相关的监听端口"),
+            (
+                "firewall",
+                FIF.CERTIFICATE,
+                "防火墙",
+                "调整 StudentMain.exe 的防火墙规则",
+            ),
+            (
+                "logs",
+                FIF.HISTORY,
+                "运行日志",
+                "按功能、级别与关键词筛选，勾选导出或删除",
+            ),
+        ),
+    ),
+)
+
+# 顶部的四个入口：最常用的页面加仓库、文档与反馈。
+SHORTCUTS = (
+    ("aliases", FIF.QUICK_NOTE, "设备备注", "给地址起个好记的名字"),
+    ("repository", FIF.GITHUB, "项目仓库", "查看源码、版本与更新记录"),
+    ("document", FIF.DOCUMENT, "使用文档", "图形界面的完整说明"),
+    ("feedback", FIF.FEEDBACK, "问题反馈", "提交 issue 描述异常现象"),
+)
+
+
+class HomePage(Page):
+    """首页，结构与官方 Gallery 示例一致：大标题、快捷入口、功能卡片分组。"""
+
+    pageRequested = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__("home", parent)
+        # 与关于页一致：滚动区域铺满整页，内容超高时整页滚动。
+        self.vbox.setContentsMargins(0, 0, 0, 0)
+        self.vbox.setSpacing(0)
+        scroll = SmoothScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        bar_width = scroll.verticalScrollBar().sizeHint().width()
+        host = QWidget(scroll)
+        content = QVBoxLayout(host)
+        content.setContentsMargins(28, 24, 28 + bar_width, 24)
+        content.setSpacing(16)
+
+        self.title_label = LargeTitleLabel("JiYu Attack Next", host)
+        content.addWidget(self.title_label)
+        self.subtitle_label = CaptionLabel(
+            "极域课堂 UDP 报文测试工具 · 版本 %s" % version_text(), host
+        )
+        content.addWidget(self.subtitle_label)
+        content.addSpacing(8)
+
+        shortcuts = QHBoxLayout()
+        shortcuts.setSpacing(12)
+        self.shortcuts = {}
+        for key, icon, title, description in SHORTCUTS:
+            card = ShortcutCard(icon, title, description, host)
+            card.setObjectName("homeShortcut_" + key)
+            card.clicked.connect(lambda page=key: self.emit_page(page))
+            shortcuts.addWidget(card, 1)
+            self.shortcuts[key] = card
+        content.addLayout(shortcuts)
+        content.addSpacing(8)
+
+        self.cards = {}
+        for section, entries in SECTIONS:
+            # 分组标题与各页顶部的页标题同样使用 SubtitleLabel，
+            # 免得首页看起来比功能页的标题层级更高。
+            content.addWidget(SubtitleLabel(section, host))
+            # 两列排布与官方 Gallery 一致，单卡宽度足够放下说明文字。
+            grid = QGridLayout()
+            grid.setSpacing(12)
+            for index, (key, icon, title, description) in enumerate(entries):
+                card = ActionCard(icon, title, description, host)
+                card.setObjectName("homeCard_" + key)
+                card.clicked.connect(lambda page=key: self.emit_page(page))
+                grid.addWidget(card, index // 2, index % 2)
+                self.cards[key] = card
+            content.addLayout(grid)
+        content.addStretch()
+        scroll.setWidget(host)
+        # 透明背景要同时作用于滚动区域与内容宿主，否则会留下默认灰底。
+        scroll.enableTransparentBackground()
+        self.vbox.addWidget(scroll)
+
+    def emit_page(self, key):
+        """卡片点击后请求主窗口切换页面。"""
+        self.pageRequested.emit(key)

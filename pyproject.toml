@@ -3,7 +3,7 @@ line-length = 88
 target-version = "py313"
 # 报文常量是逐字节对齐的十六进制数组，重排只会产生上千行无意义改动；
 # output/ 存放本地构建产物，不参与格式化与检查。
-extend-exclude = ["app/core/constants.py", "output"]
+extend-exclude = ["app/packets/constants.py", "output"]
 
 [tool.ruff.format]
 # 沿用双引号、空格缩进与魔法尾逗号，和源码现有排版一致。

@@ -29,22 +29,22 @@ python --version
 python -m app -h
 ```
 
-`python -m app` 是统一入口：无参数启动 GUI，带参数运行命令行模式。运行时代码位于 `app/{core,cli,gui}`，不再保留可单独复制的 `cli/main.py` 入口。
+`python -m app` 是统一入口，由 `app/start/service.py` 分流到命令行或 GUI 启动流程。运行时代码按 `app/start/`、`app/features/`、`app/gui/`、`app/packets/`、`app/system/`、`app/shared/` 与 `app/resources/` 划分；功能参数由各自的 `cli.py` 注册，页面由主窗口显式装配，边界与接入步骤见[项目结构](STRUCTURE.md#新增功能)。
 
 ## 启动与构建
 
 ```powershell
 python -m app
-powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Clean
+powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Clean
 ```
 
-`packaging/build.ps1` 接受 `-Python` 参数指定其他虚拟环境解释器，`-Version` 覆盖版本号（默认读取 `app/core/constants.py` 的 `__version__`）。构建产物与虚拟环境、缓存文件均由 `.gitignore` 排除，不提交到仓库。
+`pack/build.ps1` 接受 `-Python` 参数指定其他虚拟环境解释器，`-Version` 覆盖版本号（默认读取 `app/shared/version.py` 的 `__version__`）。构建产物与虚拟环境、缓存文件均由 `.gitignore` 排除，不提交到仓库。
 
 ## 版本号
 
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)，当前处于 `0.y.z` 阶段，完整规则与发布流程见[版本规范](VERSIONING.md)。
 
-- 权威来源是 `app/core/constants.py` 的 `__version__`；`app/__init__.py` 只重新导出该值，命令行 `--version` 也读取同一来源，由 `tests/test_versioning.py` 校验。
+- 权威来源是 `app/shared/version.py` 的 `__version__`；`app/__init__.py` 只重新导出该值，命令行 `--version` 也读取同一来源，由 `tests/pack/test_versioning.py` 校验。
 - 新增功能升次版本号，修复升修订号，文档、测试、工作流等不影响产物的改动不递增。
 - nightly 与正式版共用同一版本号；nightly 的显示版本由工作流在基础版本号后追加 7 位提交哈希，带日期的版本号只出现在发布说明与标签里，都不需要手工维护。
 - 正式版通过 Actions 页面的 `Release` 工作流手动发布，不要在本地打标签后手工上传资产。
@@ -58,7 +58,7 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Clean
 .\.venv\Scripts\python.exe -m ruff check --fix .
 ```
 
-配置在根目录 `pyproject.toml`（行宽 88、目标版本 `py313`）。`app/core/constants.py` 的十六进制报文数组由 ruff 排除，只能手工按现有换行维护，不要重排。提交前用 `ruff format --check .` 与 `ruff check .` 确认没有待格式化或待修复内容；纯排版改动按 `style` 类型单独提交，不与功能改动混在一起。
+配置在根目录 `pyproject.toml`（行宽 88、目标版本 `py313`）。`app/packets/constants.py` 的十六进制报文数组由 ruff 排除，只能手工按现有换行维护，不要重排。提交前用 `ruff format --check .` 与 `ruff check .` 确认没有待格式化或待修复内容；纯排版改动按 `style` 类型单独提交，不与功能改动混在一起。
 
 ## 离线检查
 
@@ -67,7 +67,7 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Clean
 下面是全量测试命令；测试可以运行时无需额外执行 `compileall`，只有测试环境受限时才用语法检查补充验证。
 
 ```powershell
-.\.venv\Scripts\python.exe -B -m unittest discover -s tests -v
+.\.venv\Scripts\python.exe -B -m unittest discover -s tests -t . -v
 ```
 
 ### 本机 IP 自测
@@ -87,20 +87,20 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Clean
 仅在改动 GUI 或 CLI 日志行为、调用点时适用。GUI 运行日志遵循 [日志规范](https://itliwei.github.io/technology/engineer/develop/logger.html)，等级统一使用 `DEBUG`、`INFO`、`WARNING`、`ERROR`，其中 `warn` 写作 `warning`。正常版本默认 `WARNING`，可在“设置”页切到 `INFO` 或 `ERROR`；调试版本固定从 `DEBUG` 起全量记录，下拉框不可用。低于写入阈值的记录不会进入列表和 `runtime.log`。
 
 ```text
-2026-10-23 12:34:56.789 [12345] [MainThread] INFO    app.gui.app.MainWindow:123 - [文本消息] 开始发送：192.168.1.20，端口 4705，1 轮
+2026-10-23 12:34:56.789 [12345] [MainThread] INFO    app.gui.service.GuiService.start_send:175 - [文本消息] 开始发送：192.168.1.20，端口 4705，1 轮
     目标设备数：1
 ```
 
-新增日志优先调用 `LogStore.debug/info/warning/error`，关键节点携带目标、端口、文件名、耗时等定位信息，异常附带堆栈，不记录密码、令牌等敏感信息。日志页支持功能与级别筛选、多选、导出选中、删除选中和表头全选；相关行为变更需同步更新 [GUI 模式使用说明](../usage/GUI.md) 和 `tests/test_gui.py`。
+新增日志优先调用 `LogStore.debug/info/warning/error`，关键节点携带目标、端口、文件名、耗时等定位信息，异常附带堆栈，不记录密码、令牌等敏感信息。日志页支持功能与级别筛选、多选、导出选中、删除选中和表头全选；相关行为变更需同步更新 [GUI 模式使用说明](../usage/GUI.md) 和 `tests/gui/test_window.py`、`tests/gui/test_log_page.py`、`tests/gui/test_log_store.py` 中的对应测试。
 
-命令行模式写自己的日志文件 `cli.log`，与界面的 `runtime.log` 分开，两者共用一个数据目录，规则在 `app/core/paths.py`。实现位于 `app/core/cli_log.py` 的 `CliLog`：只依赖标准库，写入阈值跟构建变体一致（正常版 `WARNING`、调试版 `DEBUG`），命令行没有等级开关，写入 `app.cli` 与 `app.core` 时必须用它而不是 `LogStore`（`LogStore` 依赖 PySide6，命令行入口不允许导入 Qt）。格式与界面日志一致，便于同一套工具阅读：
+命令行模式写自己的日志文件 `cli.log`，与界面的 `runtime.log` 分开，两者共用一个数据目录，规则在 `app/shared/paths.py`。实现位于 `app/shared/logs/cli.py` 的 `CliLog`：只依赖标准库，写入阈值跟构建变体一致（正常版 `WARNING`、调试版 `DEBUG`），命令行没有等级开关，命令行启动层与各功能的 CLI 适配使用它记录日志，而不是 `LogStore`（`LogStore` 依赖 PySide6，命令行入口不允许导入 Qt）。格式与界面日志一致，便于同一套工具阅读：
 
 ```text
-2026-11-04 13:29:10.527 [10440] [MainThread] DEBUG   app.cli.main.main:318 - [命令行] 命令行参数
+2026-11-04 13:29:10.527 [10440] [MainThread] DEBUG   app.start.cli.log_arguments:31 - [命令行] 命令行参数
     ip=10.49.151.29；port=4705；msg=Hello
 ```
 
-新增命令行节点时按功能分类调用 `core.cli_log.LOG.debug/info/warning/error`，参数快照、目标与报文数量、每个目标的送达判定、文件传送路径与监听端口、异常都要落盘；`main()` 里已用 `finally` 关闭句柄，无需在分支里手动关闭。
+新增命令行节点时按功能分类调用 `app.shared.logs.cli.LOG.debug/info/warning/error`，参数快照、目标与报文数量、每个目标的送达判定、文件传送路径与监听端口、异常都要落盘；`app/start/cli.py` 的 `main()` 已用 `finally` 关闭句柄，无需在分支里手动关闭。
 
 ## 提交信息
 

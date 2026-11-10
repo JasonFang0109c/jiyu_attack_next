@@ -10,7 +10,7 @@ on:
         required: false
         default: stable
       version:
-        description: 显式指定版本号；留空时读取 app/core/constants.py 的 __version__
+        description: 显式指定版本号；留空时读取 app/shared/version.py 的 __version__
         type: string
         required: false
         default: ""
@@ -98,7 +98,7 @@ jobs:
         shell: pwsh
         run: |
           # 一次构建同时产出正常版本与 _Debug 版本，两者只差日志等级。
-          powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Clean `
+          powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Clean `
             -Variant both -Version "${{ steps.version.outputs.base }}" `
             -Commit "${{ steps.version.outputs.commit }}"
 

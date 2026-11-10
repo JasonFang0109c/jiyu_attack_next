@@ -19,7 +19,7 @@
 python -m pip install -r requirements-dev.txt
 ```
 
-`app/core/constants.py` 保存逐字节对齐的十六进制报文数组（`store`），整体被 ruff 排除。该文件只手工维护：新增报文时沿用现有每行字节数与缩进，不要为对齐重排已有行，否则会产生上千行的无意义改动。
+`app/packets/constants.py` 保存逐字节对齐的十六进制报文数组（`store`），整体被 ruff 排除。该文件只手工维护：新增报文时沿用现有每行字节数与缩进，不要为对齐重排已有行，否则会产生上千行的无意义改动。
 
 ## 排版规则
 
@@ -119,9 +119,9 @@ self.table.blockSignals(True)
 ### 落点
 
 - `app/gui/theme.py` 存常量与三个取值函数：`card_fill()`、`card_stroke()`、`window_background(dark=None)`。
-- `app/gui/components.py` 的 `FluentCard` 用 `paintEvent` 画填充与描边，`FluentDialog` 追加一条 QSS 覆盖组件库写死的 10 像素对话框圆角。
+- `app/gui/widgets/common.py` 的 `FluentCard` 用 `paintEvent` 画填充与描边，`FluentDialog` 追加一条 QSS 覆盖组件库写死的 10 像素对话框圆角。
 - 新增卡片一律继承 `FluentCard`，不要直接用 `SimpleCardWidget`；新增对话框用 `FluentDialog`，不要直接用 `Dialog`。
-- 云母与亚克力材质开启时窗口必须是全透明，只有实色材质才用窗口底色，判断写在 `MainWindow._normalBackgroundColor` 与 `apply_window_material`。
+- 云母与亚克力材质开启时窗口必须是全透明，只有实色材质才用窗口底色，主窗口的 `_normalBackgroundColor` 委托给 `app/gui/window/service.py` 的 `WindowService`，窗口材质由该服务的 `apply_window_material` 统一应用。
 
 ## 每次写完代码跑格式化
 

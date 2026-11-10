@@ -14,7 +14,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app import core  # noqa: E402  (需要先把仓库根加入 sys.path)
+from app.features.send import service as send_service  # noqa: E402
+from app.features.send.data import SendOptions  # noqa: E402
+from app.packets import constants  # noqa: E402
+from app.system.net.local import detect_local_ip  # noqa: E402
 
 
 class TestFailure(RuntimeError):
@@ -57,10 +60,10 @@ def decode_text(packet, offset):
 
 
 def send_once(target, port, **kwargs):
-    options = core.SendOptions(target=target, port=port, **kwargs)
-    expected = len(core.prepare_packets(options))
+    options = SendOptions(target=target, port=port, **kwargs)
+    expected = len(send_service.prepare_packets(options))
     try:
-        core.execute_send(options)
+        send_service.execute_send(options)
     except Exception as error:
         raise TestFailure("发送失败：%s" % error) from error
     return expected
@@ -76,11 +79,11 @@ def check_packets(label, packets, expected, kwargs, timeout):
         if packet[:4] != b"DMOC":
             raise TestFailure("%s：报文缺少 DMOC 标识" % label)
         if "message" in kwargs:
-            actual = decode_text(packet, core.MESSAGE_OFFSET)
+            actual = decode_text(packet, constants.MESSAGE_OFFSET)
             if actual != kwargs["message"]:
                 raise TestFailure("%s：消息内容不一致：%r" % (label, actual))
         elif "command" in kwargs:
-            actual = decode_text(packet, core.COMMAND_OFFSET)
+            actual = decode_text(packet, constants.COMMAND_OFFSET)
             if actual != kwargs["command"]:
                 raise TestFailure("%s：命令内容不一致：%r" % (label, actual))
         elif kwargs.get("extra") in ("r", "s"):
@@ -88,8 +91,8 @@ def check_packets(label, packets, expected, kwargs, timeout):
             if len(packet) <= 52 or packet[52] != code:
                 raise TestFailure("%s：命令码不是 0x%02x" % (label, code))
         elif kwargs.get("extra") == "l":
-            actual = decode_text(packet, core.COMMAND_OFFSET)
-            if actual != core.LOGOFF_COMMAND:
+            actual = decode_text(packet, constants.COMMAND_OFFSET)
+            if actual != constants.LOGOFF_COMMAND:
                 raise TestFailure("%s：注销命令不一致：%r" % (label, actual))
     return len(packets)
 
@@ -124,8 +127,8 @@ def run(target, port, timeout, repeat):
 
         burst = {"message": "本机连续发送测试"}
         per_send = len(
-            core.prepare_packets(
-                core.SendOptions(target=receiver.target, port=receiver.port, **burst)
+            send_service.prepare_packets(
+                SendOptions(target=receiver.target, port=receiver.port, **burst)
             )
         )
         for _ in range(repeat):
@@ -165,7 +168,7 @@ def main(argv=None):
     if args.repeat < 1:
         parser.error("--repeat 必须大于 0")
 
-    target = args.target or core.detect_local_ip()
+    target = args.target or detect_local_ip()
     if not target:
         target = "127.0.0.1"
         print("未能自动检测局域网地址，改用回环地址 127.0.0.1。")
