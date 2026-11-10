@@ -36,6 +36,10 @@ jiyu_attack_next/
 |   |   |-- paths.py              # 数据目录与日志文件位置
 |   |   |-- cli_log.py            # 命令行运行日志
 |   |   |-- local_info.py         # 本机 IP 与端口探测
+|   |   |-- reachability.py       # ICMP 探测目标主机是否在线
+|   |   |-- version.py            # 版本号与打包提交后缀的读取
+|   |   |-- buildvariant.py       # 构建变体（正常版与调试版）
+|   |   |-- loglevel.py           # 日志等级与按变体决定的默认阈值
 |   |   |-- student_process.py    # 本机学生端进程的定位、结束与启动（按需 UAC 提权）
 |   |   `-- shell.py              # 反弹终端：本机监听、脚本分发与命令下发
 |   |-- cli/

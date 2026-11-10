@@ -39,7 +39,7 @@ GUI 与 CLI 已合并到同一个单文件 EXE：从 [Nightly Build](https://git
 | `remote message` | 文本消息 | 给学生机弹一句话：`-msg` 或 `--msg-file` 二选一，`-l` / `-t` 管重复轮次与间隔 |
 | `remote command` | 远程命令 | 让学生机执行一条命令行（`-c`），不回显输出 |
 | `remote file` | 文件传送 | 把文件或文件夹丢到学生机桌面（`--file`） |
-| `remote device` | 设备操作 | `--reboot` 重启、`--shutdown` 关机、`--logoff` 注销；重启与关机可倒计时并留一句话 |
+| `remote device` | 设备操作 | `--reboot` 重启、`--shutdown` 关机、`--logoff` 注销；三个动作互斥，重启与关机用固定报文，不带倒计时与提示 |
 | `remote shell` | 反弹终端 | 在学生机上开一个可以一直打字的命令行 |
 | `restriction student` | 启停学生端 | 按当前状态启动或结束本机极域学生端，腾出被独占的 4705 端口 |
 | `local info` | 本机信息 | 查自己这台机器的 IP 和学生端端口 |
@@ -137,18 +137,18 @@ start /wait JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
 .\JiYuAttackNext.exe remote message -h
 ```
 
-| 分组 | 子命令 | 对应界面页面 | 例子 |
-| --- | --- | --- | --- |
-| `restriction` 解除限制 | `student` | 启停学生端 | `restriction student --list`、`restriction student --start` |
-| `remote` 远程攻击 | `message` | 文本消息 | `remote message -ip 192.168.1.10 -msg "下课了"` |
-| | `file` | 文件传送 | `remote file -ip 192.168.1.10 --file 报告.pdf` |
-| | `device` | 设备操作 | `remote device -ip 192.168.1.10 --shutdown` |
-| | `command` | 远程命令 | `remote command -ip 192.168.1.10 -c whoami` |
-| | `shell` | 反弹终端 | `remote shell -ip 192.168.1.10` |
-| `local` 本机工具 | `info` | 本机信息 | `local info` |
-| | `firewall` | 防火墙 | `local firewall block`、`local firewall allow` |
+| 子命令 | 例子 |
+| --- | --- |
+| `restriction student` | `restriction student --list`、`restriction student --start` |
+| `remote message` | `remote message -ip 192.168.1.10 -msg "下课了"` |
+| `remote file` | `remote file -ip 192.168.1.10 --file 报告.pdf` |
+| `remote device` | `remote device -ip 192.168.1.10 --shutdown` |
+| `remote command` | `remote command -ip 192.168.1.10 -c whoami` |
+| `remote shell` | `remote shell -ip 192.168.1.10` |
+| `local info` | `local info` |
+| `local firewall` | `local firewall block`、`local firewall allow` |
 
-子命令之后的参数与下面“参数参考”完全一致，只是省掉了不属于该页面的部分。旧的扁平写法（`-ip ... -msg ...`、`--run ...`）仍然可用，两种写法解析出的字段相同，可以按习惯自由选择；同一次调用里混用两种写法会报参数错误。
+子命令之后的参数与下面“参数参考”完全一致，只是省掉了不属于该页面的部分。旧的扁平写法（`-ip ... -msg ...`、`-c ...`）仍然可用，两种写法解析出的字段相同，可以按习惯自由选择；同一次调用里混用两种写法会报参数错误。
 
 <br>
 
@@ -179,6 +179,8 @@ start /wait JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
 | 参数 | 类型 | 默认值 | 用途与说明 |
 | --- | --- | --- | --- |
 | `-c TEXT` | 字符串 | 无 | 发送待执行的命令，单条最多 163 个 UTF-16 单元 |
+| `-l N` | 整数 | `1` | 发送轮数；每轮遍历全部目标 |
+| `-t N` | 整数 | `22` | 轮次之间的等待秒数，仅多轮发送时生效 |
 
 命令走 `-c` 报文通道，目标是否执行、输出到哪里都由学生端决定；要看实时回显请用 `remote shell`。
 
