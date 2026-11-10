@@ -253,7 +253,9 @@ def run_shell(arguments):
     """启动反弹终端：本机监听、下发连接命令，并把本机终端接到会话上。"""
     log = cli_log.LOG
     host = get_ip(arguments.ip)[0]
-    server = ShellServer(port=arguments.shell_port, local_ip=arguments.shell_ip or None)
+    server = ShellServer(
+        port=arguments.shell_port, local_ip=arguments.shell_ip or None, target=host
+    )
     server.start()
     try:
         print(

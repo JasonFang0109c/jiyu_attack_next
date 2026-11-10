@@ -26,6 +26,9 @@ class ShellPage(Page):
         super().__init__("shell", parent)
         self.logs = logs
         self.server = None
+        # 记录上一次的连接状态与来源，只在状态变化时写日志。
+        self._connected = False
+        self._address = ""
         page_heading(self.vbox, "反弹终端")
         self.vbox.addWidget(
             BodyLabel("远程攻击：目标主动连回本机，得到一条可持续交互的命令行。", self)
@@ -122,7 +125,12 @@ class ShellPage(Page):
         except ValueError:
             self.status.setText("监听端口必须是数字")
             return
-        server = core.ShellServer(port=port, local_ip=self.local_input.text().strip())
+        server = core.ShellServer(
+            port=port,
+            local_ip=self.local_input.text().strip(),
+            # 带上目标地址，多网卡机器才能挑到目标能回连的那张网卡。
+            target=self.target_input.text().strip() or None,
+        )
         try:
             server.start()
         except OSError as error:
@@ -156,6 +164,8 @@ class ShellPage(Page):
         port = self.server.port
         self.server.close()
         self.server = None
+        self._connected = False
+        self._address = ""
         self.timer.stop()
         self.listen_button.setText("开始监听")
         self.status.setText("未监听")
@@ -211,6 +221,9 @@ class ShellPage(Page):
             return
         self._append("PS> %s\n" % text)
         self.command_input.clear()
+        self.logs.debug(
+            "反弹终端", "发送命令", "目标：%s；命令：%s" % (self.server.address, text)
+        )
 
     def _poll(self):
         """取出后台积攒的输出并刷新状态。"""
@@ -220,6 +233,17 @@ class ShellPage(Page):
         if data:
             self._append(data)
         connected = self.server.connected
+        if connected != self._connected:
+            if connected:
+                self.logs.info(
+                    "反弹终端", "目标已连回", "来源：%s" % self.server.address
+                )
+            else:
+                self.logs.warning(
+                    "反弹终端", "目标连接断开", "上一次来源：%s" % self._address
+                )
+            self._connected = connected
+            self._address = self.server.address
         self._set_command_enabled(connected)
         if connected:
             self.status.setText("已连接 %s" % self.server.address)
