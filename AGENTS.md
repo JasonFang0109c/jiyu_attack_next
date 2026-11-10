@@ -82,7 +82,7 @@
 - `app/core/constants.py` 的十六进制报文数组被 ruff 排除，新增报文时沿用现有每行字节数与缩进，不要重排已有行。
 - docstring 用 Google 风格（`Args`、`Returns`、`Yields`、`Raises`、`Attributes`，说明文字中文），只写模块、公共类、公共函数与逻辑复杂的函数。
 - 注释一律整行中文，解释“为什么”而非复述代码；待办写成 `# TODO(负责人): 具体动作`。
-- 提交前用 `ruff format --check .` 与 `ruff check .` 确认没有待格式化或待修复内容；纯排版改动按 `Style` 类型单独提交，不与功能改动混在一起。
+- 提交前用 `ruff format --check .` 与 `ruff check .` 确认没有待格式化或待修复内容；纯排版改动按 `style` 类型单独提交，不与功能改动混在一起。
 
 ## GUI 日志
 
@@ -176,17 +176,24 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1
 
 1. 检查 `git status` 与 `git diff`，确认只包含当前任务的改动。
 2. 只暂存相关文件，不带入无关改动与忽略文件。
-3. 按 [Git Commit Message 规范](https://codeewander.github.io/docs/git-commit) 编写提交信息。
+3. 按 [Conventional Commits 1.0.0](https://www.conventionalcommits.org/zh-hans/v1.0.0/) 与本项目约定编写提交信息；完整类型说明、footer 语法与示例见[开发与提交规范](docs/dev/CONTRIBUTING.md#提交信息)。
 
 ```text
-[类型] 中文摘要
+<type>(<scope>): <中文描述>
 
-说明改动内容与原因，必要时补充实现方式。
+可选正文：说明改动内容与原因，必要时补充实现方式。
+
+可选 footer：机器识别关键字保留英文，说明文字使用中文。
 ```
 
-- 类型：`Feat`、`Fix`、`Docs`、`Style`、`Refactor`、`Test`、`Perf`、`CI`、`Hotfix`。
-- 标题不超过 50 个字符、不以句号结尾；标题与正文间留一个空行，正文每行不超过 72 个字符。
-- 摘要与正文使用中文；代码标识符、文件名与命令参数按原样书写。
+- `type` 使用小写英文，仅限 `feat`、`fix`、`docs`、`style`、`refactor`、`perf`、`test`、`build`、`ci`、`chore`、`revert`；紧急修复也使用 `fix`。
+- `scope` 默认填写，**尽可能要有标注scope**，按[项目作用域表](docs/dev/CONTRIBUTING.md#项目作用域)选择最具体的主功能；跨模块取共同职责或 `repo`。确实没有合适范围时允许省略，使用 `type: 中文描述`，不设硬性校验。填写时使用小写英文，多词用 `-` 连接；类型与作用域独立，例如 `test(files)`、`docs(cli)`。新增作用域须有独立职责并同步表，无需为每个文件夹设置作用域。
+- Header 使用半角圆括号与冒号，冒号后留一个空格。整行不超过 50 个字符（含类型、可选范围、冒号后的空格与可选 `!`，按字符数而非字节数计），不以句号结尾；正文与 Header 间留一个空行，正文每行不超过 72 个字符。这是项目沿用的严格长度约定。
+- description、body 与 footer 的说明文字使用中文；`BREAKING CHANGE`、`Closes`、`Fixes`、`Refs` 等机器识别关键字保留英文，代码标识符、文件名、命令参数、issue 编号与提交哈希按原样书写。
+- 破坏性变更写成 `type(scope)!: 中文描述`（省略范围时为 `type!: 中文描述`），或添加 `BREAKING CHANGE: 中文破坏性变更说明` footer，也可同时使用；须说明不兼容之处与迁移方式，使用 `!` 时描述应直接体现破坏性变更。
+- footer 前留一个空行，每项采用 `Token: 值` 或 `Token #值`；多词 token 用 `-` 连接，`BREAKING CHANGE` 是允许空格的特例。issue 示例使用 `Closes #<实际编号>`、`Fixes #<实际编号>`，占位符须替换为真实关联编号，无关联时省略。
+- `feat`、`fix`、破坏性变更分别表达 SemVer 的 MINOR、PATCH、MAJOR 发布语义；本项目 `0.y.z` 阶段的不兼容改动仍按[版本规范](docs/dev/VERSIONING.md#递增规则)处理。提交不会自动修改版本号，其他类型本身不决定递增级别。
 - 提交信息只描述源码、文档、测试与构建配置的改动，不描述被 `.gitignore` 排除的产物或缓存。
-- 一个任务对应一个明确提交目的；不虚构任务编号、测试结果或未完成的验证。
+- 一个任务对应一个明确提交目的；不虚构 issue、任务编号、测试结果或未完成的验证。
 - 一次对话中每个任务各自提交，不因为对话只结束一次而只提交一次。
+- 新规范从后续提交开始执行，不为统一格式而改写历史提交；需撤销改动时新增 `revert` 提交。

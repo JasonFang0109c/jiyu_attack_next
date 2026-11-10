@@ -1,8 +1,29 @@
-# 标题格式：[类型] 中文摘要
-# 示例：[Feat] 支持多行文本消息
-# 类型使用英文：Feat、Fix、Docs、Style、Refactor、Test、Perf、CI、Hotfix
-# 摘要和正文使用中文；文件名、参数和其他必要标识符保留原样
-# 标题建议不超过 50 个字符，不以句号结尾
-# 标题与正文之间保留一个空行，正文每行不超过 72 个字符
-# 正文按需说明改动内容、改动原因和实现方式
-# 粒度：一个任务一次提交；一次对话有多个任务时，每个任务各自提交
+# Header：<type>(<scope>): <中文描述>
+# 示例：feat(cli): 支持多行文本消息
+# type：feat fix docs style refactor perf test build ci chore revert
+# type 与 scope 使用小写英文；scope 默认填写，尽可能要有标注scope
+# 确实没有合适 scope 时可省略：type: 中文描述；不设硬性校验
+# scope 多词用 - 连接；按主功能选最具体范围，跨模块取共同职责或 repo
+# scope 取值与职责见 docs/dev/CONTRIBUTING.md 的“项目作用域”表
+# 类型与范围独立，例如 test(files)、docs(cli)；不必每个文件夹设 scope
+# GUI 内部 widgets/menu/workers 归 gui，测试 fixtures 归 tests
+# 新增 scope 须有独立职责并同步作用域表
+# 圆括号与冒号使用半角字符，冒号后留一个空格
+# Header 整行不超过 50 个字符（含前缀与 !），不以句号结尾
+# description、body、footer 说明文字使用中文，必要标识符保留原样
+# body 可选，与 Header 间空一行，每行不超过 72 个字符
+# body 按需说明改动内容、原因、实现方式与实际完成的验证
+# 破坏性变更：type(scope)!: 中文描述，或 BREAKING CHANGE footer
+# 省略 scope 时，破坏性变更 Header 写为 type!: 中文描述
+# 使用 ! 时描述须体现不兼容改动，并在描述或正文说明迁移方式
+# BREAKING CHANGE: 中文不兼容影响与迁移说明
+# footer 可选，与前文间空一行；每项为 Token: 值 或 Token #值
+# 多词 token 用 - 连接，BREAKING CHANGE 是允许空格的特例
+# BREAKING CHANGE、Closes、Fixes、Refs 等关键字保留英文
+# issue 占位示例：Closes #<实际编号> / Fixes #<实际编号>
+# 仅引用问题用 Refs: #<实际编号>；替换为真实编号并去掉尖括号
+# 无关联 issue 就省略，不虚构编号；revert 用 Refs: <真实提交哈希>
+# feat/fix/破坏变更是 MINOR/PATCH/MAJOR 发布语义，不会自动更新版本
+# 0.y.z 的递增规则及完整提交规范见 docs/dev/CONTRIBUTING.md
+# 粒度：一个任务一次提交；仅暂存相关文件，保留历史提交
+# 提交信息只描述源码、文档、测试与构建配置，不描述忽略的产物或缓存

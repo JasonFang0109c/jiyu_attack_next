@@ -141,4 +141,4 @@ self.table.blockSignals(True)
 
 - `--check` 只报告不修改，用于确认工作区已格式化；有输出时本地先跑一次不带 `--check` 的命令。
 - 只改 Markdown 时不涉及此步骤。
-- 格式化属于 [`Style`](CONTRIBUTING.md#提交信息) 改动，与功能改动分开提交，便于审阅时跳过纯排版差异。
+- 格式化属于 [`style`](CONTRIBUTING.md#提交信息) 改动，与功能改动分开提交，便于审阅时跳过纯排版差异。
