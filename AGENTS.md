@@ -145,11 +145,12 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1
 
 - 需要构建时，构建失败不得提交。
 - 构建产物由 `.gitignore` 排除，不纳入提交。
+- `output\` 只保留最近一次构建产出的两份 EXE；重新构建后旧版本号的产物直接删除，不留历史版本，详见“残留清理”。
 - 修改构建配置或需排除旧缓存时使用 `-Clean`。
 
 ### 残留清理
 
-构建、测试与截图验证结束后立即清理本次产生的残留，仓库里只保留 `output\JiYuAttackNext-<显示版本>.exe` 与 `output\JiYuAttackNext_Debug-<显示版本>.exe` 两个构建产物（同一版本重复构建时只有一个版本号，保留最新那份即可）：
+构建、测试与截图验证结束后立即清理本次产生的残留，仓库里只保留最近一次构建产出的 `output\JiYuAttackNext-<显示版本>.exe` 与 `output\JiYuAttackNext_Debug-<显示版本>.exe` 两个构建产物：显示版本带提交哈希，重新构建后旧哈希的 EXE 已经没有对应源码，直接删除，不要在 `output\` 里堆历史版本。
 
 - 删除 `build\` 整个目录：它是 PyInstaller 的 `--workpath`，含中间文件、图标与版本资源。
 - 删除验证用的临时脚本与截图，例如 `output\verify_*.png`、`build\tmp\*`。

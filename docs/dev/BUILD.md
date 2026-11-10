@@ -48,7 +48,8 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python "C:\Pytho
 - `-Variant` 取 `both`、`release` 或 `debug`，默认 `both`：一次产出 `JiYuAttackNext-<显示版本>.exe` 与 `JiYuAttackNext_Debug-<显示版本>.exe`，两份代码完全相同，只有构建变体标记不同。`-Variant debug` 只重建调试版本，调试时不必等两份都打包完。
 - 两个变体使用独立的 `--workpath`（`build/release` 与 `build/debug`），避免 PyInstaller 复用另一份变体的分析缓存。
 - `-Version` 覆盖版本号；省略时读取 `app/core/constants.py` 的 `__version__`。版本号须符合语义化版本格式，规则见[版本规范](VERSIONING.md)。
-- 产物名直接带显示版本，例如 `output/JiYuAttackNext-0.1.0-e1f9608.exe` 与 `output/JiYuAttackNext_Debug-0.1.0-e1f9608.exe`；显示版本是版本号加提交哈希，因此本地同时留着多次构建的 EXE 也能分清来源。本地构建不再产出 `JiYuAttackNext.exe` 这类不带版本号的固定名，早期构建留下的固定名文件在构建结束时清掉。
+- 产物名直接带显示版本，例如 `output/JiYuAttackNext-0.1.0-e1f9608.exe` 与 `output/JiYuAttackNext_Debug-0.1.0-e1f9608.exe`；显示版本是版本号加提交哈希，因此从文件名就能看出对应哪次提交。本地构建不再产出 `JiYuAttackNext.exe` 这类不带版本号的固定名，早期构建留下的固定名文件在构建结束时清掉。
+- `output/` 只留最近一次构建的两份 EXE：重新构建后旧哈希的那份已没有对应源码，直接删除，不堆历史版本。
 - 提交哈希省略 `-Commit` 时自动取 `git rev-parse --short=7 HEAD`；显式传 `-Commit ""` 表示不要哈希（正式版发布用它），此时产物名就是 `output/JiYuAttackNext-0.1.0.exe`；不在 Git 仓库内构建时同样只带版本号。
 - 脚本根据自身路径定位项目根目录，也可从其他目录通过绝对路径调用，默认使用项目虚拟环境。
 - 读取 [packaging/JiYuAttackNext.spec](../../packaging/JiYuAttackNext.spec)，并收集 Fluent Widgets 的运行时资源与包元数据。
@@ -59,8 +60,8 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python "C:\Pytho
 
 | 路径 | 内容 | 是否保留 |
 | --- | --- | --- |
-| `output/JiYuAttackNext-<显示版本>.exe` | 单文件程序，GUI 与 CLI 共用；只写 `WARNING` 及以上的日志 | 保留用于运行和分发 |
-| `output/JiYuAttackNext_Debug-<显示版本>.exe` | 同上，但日志从 `DEBUG` 起记录 | 保留，供排查问题使用 |
+| `output/JiYuAttackNext-<显示版本>.exe` | 单文件程序，GUI 与 CLI 共用；只写 `WARNING` 及以上的日志 | 保留用于运行和分发，旧版本号的删除 |
+| `output/JiYuAttackNext_Debug-<显示版本>.exe` | 同上，但日志从 `DEBUG` 起记录 | 保留，供排查问题使用，旧版本号的删除 |
 | `build/release/`、`build/debug/` | 两个变体各自的打包中间文件与分析结果 | 构建后可删除 |
 | `build/assets/variant.txt` | 本次打包的变体标记，运行时打进 EXE | 构建后可删除 |
 | `build/assets/app.ico` | 从 SVG 转换的构建图标 | 构建后可删除 |
