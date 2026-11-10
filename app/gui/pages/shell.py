@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLineEdit
 from qfluentwidgets import BodyLabel, PlainTextEdit, PushButton
 from qfluentwidgets import FluentIcon as FIF
 
+from ... import core
 from ..components import SectionCard, page_heading
 from .common import Page
 
@@ -118,8 +119,6 @@ class ShellPage(Page):
         if self.server is not None:
             self.stop_listen()
             return
-        from ... import core
-
         try:
             port = int(self.port_input.text().strip() or "0")
         except ValueError:
@@ -174,8 +173,6 @@ class ShellPage(Page):
 
     def send_connect_command(self):
         """把下载并执行反弹脚本的命令发给目标。"""
-        from ... import core
-
         if self.server is None:
             self.status.setText("请先开始监听")
             return

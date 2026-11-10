@@ -35,7 +35,6 @@ from .firewall import (
 from .local_info import (
     detect_local_ip,
     local_ip_and_ports,
-    local_networks,
     udp_port_owners,
     validate_listen_ip,
 )
@@ -132,7 +131,6 @@ __all__ = [
     "get_ip",
     "local_info",
     "local_ip_and_ports",
-    "local_networks",
     "normalize_transfer_items",
     "paths",
     "payload_script",

@@ -11,15 +11,13 @@
 """
 
 import json
-import os
 import subprocess
 import sys
-import tempfile
 import time
 from contextlib import suppress
 from pathlib import Path
 
-from .firewall import _is_admin, _run_elevated_process, run_windows_command
+from .firewall import _is_admin, run_elevated_helper, run_windows_command
 from .local_info import netstat_rows, process_rows
 
 # 提权助手进程的入口参数，由 ``app/__main__.py`` 转发给本模块。
@@ -252,45 +250,23 @@ def _terminate(pid):
 
 def _run_student_elevated(target):
     """通过 UAC 启动助手进程结束或启动学生端，返回助手回传的结果。"""
-    handle, result_path = tempfile.mkstemp(prefix="jiyu-student-", suffix=".json")
-    os.close(handle)
-    try:
-        arguments = [
-            STUDENT_HELPER_ARGUMENT,
-            target,
-            STUDENT_RESULT_ARGUMENT,
-            result_path,
-        ]
-        directory = None
-        if not getattr(sys, "frozen", False):
-            # 源码运行时助手必须走 -m app 统一入口，并把仓库根目录设为工作目录，
-            # 否则相对导入失败，助手什么都没干就退出，表现为“没有成功杀掉”。
-            arguments = ["-m", "app", *arguments]
-            directory = str(Path(__file__).resolve().parents[2])
-        exit_code = _run_elevated_process(
-            sys.executable,
-            subprocess.list2cmdline(arguments),
-            directory=directory,
-            action="结束或启动学生端",
-        )
-        try:
-            payload = json.loads(Path(result_path).read_text(encoding="utf-8"))
-        except (OSError, ValueError) as error:
-            raise RuntimeError(
-                "管理员权限进程未返回结果（助手退出码 %d），可能是授权被取消、"
-                "被安全软件拦截或程序路径含中文" % exit_code
-            ) from error
-        if payload.get("error"):
-            raise RuntimeError(payload["error"])
-        results = payload.get("results")
-        if not isinstance(results, list) or not results:
-            raise RuntimeError("管理员权限进程返回的结果无效")
-        if exit_code and not any(item.get("success") for item in results):
-            raise RuntimeError("管理员权限操作失败（退出码 %d）" % exit_code)
-        return results
-    finally:
-        with suppress(OSError):
-            os.unlink(result_path)
+    exit_code, payload = run_elevated_helper(
+        STUDENT_HELPER_ARGUMENT,
+        [target],
+        STUDENT_RESULT_ARGUMENT,
+        "结束或启动学生端",
+        "jiyu-student-",
+        "管理员权限进程未返回结果（助手退出码 %d），可能是授权被取消、"
+        "被安全软件拦截或程序路径含中文",
+    )
+    if payload.get("error"):
+        raise RuntimeError(payload["error"])
+    results = payload.get("results")
+    if not isinstance(results, list) or not results:
+        raise RuntimeError("管理员权限进程返回的结果无效")
+    if exit_code and not any(item.get("success") for item in results):
+        raise RuntimeError("管理员权限操作失败（退出码 %d）" % exit_code)
+    return results
 
 
 def _elevated_stop(pids):
@@ -405,13 +381,16 @@ def _service_directories():
         return []
     directories = []
     for line in process.stdout.splitlines():
-        text = line.strip().strip('"')
+        text = line.strip()
         if not text:
             continue
-        quoted = text.startswith('"')
-        candidate = (
-            text.split('"')[1] if quoted and '"' in text[1:] else text.split()[0]
-        )
+        # PathName 带参数时整段被引号括起，路径本身也可能含空格：
+        # 先取第一对引号里的完整路径，没有引号时才按空白截到命令之前。
+        if text.startswith('"'):
+            end = text.find('"', 1)
+            candidate = text[1:end] if end > 0 else text.strip('"')
+        else:
+            candidate = text.split()[0]
         parent = Path(candidate.strip('"')).parent
         if str(parent) not in directories:
             directories.append(str(parent))

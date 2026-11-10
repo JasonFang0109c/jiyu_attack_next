@@ -261,7 +261,7 @@ def _build_remote(commands):
 
 def _build_local(commands):
     """注册本机工具分组下的子命令。"""
-    info = commands.add_parser("info", help="本机信息：本机地址与学生端端口")
+    info = commands.add_parser("info", help="本机信息：本机 IP 与学生端端口")
     info.set_defaults(**_base_defaults())
     info.set_defaults(e="g")
 
@@ -334,9 +334,9 @@ def build_flat_parser():
         version=runtime_version(),
         help="显示版本号并退出",
     )
-    parser.add_argument("-ip", type=str, help="ip 指定目标IP地址")
+    parser.add_argument("-ip", type=str, help="目标 IPv4 地址或设备备注")
     parser.add_argument(
-        "-p", type=int, default=4705, help="port 指定监听端口，默认端口为4705"
+        "-p", type=int, default=4705, metavar="PORT", help="目标 UDP 端口，默认 4705"
     )
     message_options = parser.add_mutually_exclusive_group()
     message_options.add_argument(
@@ -356,10 +356,21 @@ def build_flat_parser():
         help="传送一个或多个文件、文件夹到目标电脑桌面，文件夹按原结构递归",
     )
     parser.add_argument(
-        "-c", type=str, help='command命令 eg: -c   "cmd.exe /c ipconfig"'
+        "-c",
+        type=str,
+        metavar="COMMAND",
+        help='远程命令，例如 -c "cmd.exe /c ipconfig"',
     )
-    parser.add_argument("-l", type=int, default=1, help="循环次数，默认为1")
-    parser.add_argument("-t", type=int, default=22, help="循环时间间隔，默认是22秒")
+    parser.add_argument(
+        "-l", type=int, default=1, metavar="COUNT", help="重复发送的轮数，默认 1"
+    )
+    parser.add_argument(
+        "-t",
+        type=int,
+        default=22,
+        metavar="SECONDS",
+        help="两轮之间的间隔秒数，默认 22",
+    )
     parser.add_argument(
         "--file-ip", type=str, metavar="IP", help="文件传送时发送端 IP，默认自动检测"
     )
@@ -422,7 +433,7 @@ def build_flat_parser():
         type=int,
         action="append",
         metavar="PID",
-        help="配合 --end-student：只结束指定进程号，可重复",
+        help="只结束指定进程号，可重复；解析后立即执行，不改变其它进程",
     )
     parser.add_argument(
         "--list-student",

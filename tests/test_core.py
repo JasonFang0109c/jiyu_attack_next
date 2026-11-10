@@ -575,10 +575,8 @@ class CoreTests(unittest.TestCase):
             return 1
 
         with (
-            patch.object(
-                self.core.student_process, "_run_elevated_process", side_effect=fake
-            ),
-            patch.object(self.core.student_process, "sys") as fake_sys,
+            patch.object(self.core.firewall, "_run_elevated_process", side_effect=fake),
+            patch.object(self.core.firewall, "sys") as fake_sys,
         ):
             fake_sys.platform = "win32"
             fake_sys.executable = "python.exe"

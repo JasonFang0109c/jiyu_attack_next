@@ -8,6 +8,7 @@ import sys
 import threading
 import time
 import traceback
+from functools import partial
 from pathlib import Path
 from threading import Event
 
@@ -100,7 +101,7 @@ from .theme import (
     window_background,
 )
 from .window_effect import apply_acrylic, apply_mica, clear_material
-from .workers import SendWorker, TaskWorker
+from .workers import ProbeWorker, SendWorker, TaskWorker
 
 APP_NAME = "JiYu Attack Next"
 # 首页快捷卡片里除页面跳转外的目标，统一在这里维护地址。
@@ -152,6 +153,7 @@ class SingleInstance(QObject):
         self.key = key or single_instance_key()
         self.server = None
         self.primary = False
+        self.existing = False
         # 日志存储由主窗口创建后回填；第二次启动拿不到主窗口，此时保持为空。
         self.logs = None
 
@@ -164,6 +166,7 @@ class SingleInstance(QObject):
     def acquire(self):
         """尝试成为主实例，成功返回 True；已有实例时唤醒它并返回 False。"""
         if self.notify_existing():
+            self.existing = True
             self._log(
                 "info",
                 "已有实例在运行，已请求其恢复主窗口",
@@ -371,6 +374,9 @@ class MainWindow(FluentWindow):
         self._studentproc_timer = QTimer(self)
         self._studentproc_timer.setInterval(STUDENT_POLL_INTERVAL)
         self._studentproc_timer.timeout.connect(self._poll_student_processes)
+        # 进程枚举会拉起子进程，只在后台线程里跑，界面线程只取结果。
+        self._student_probe_thread = None
+        self._student_probe_queued = None
         self._first_close_dialog_open = False
         self.tray_icon = None
         self.tray_menu = None
@@ -710,13 +716,8 @@ class MainWindow(FluentWindow):
         分组都在可滚动的导航区里，最小高度只算顶部首页那一行与底部按钮，
         内容再多也只是出现滚动条，不会把窗口顶到超出屏幕。
         """
-        panel = self.navigationInterface.panel
-        # 上下两块布局各自的最小高度就是固定导航项与底部按钮真正需要的空间。
-        needed = (
-            panel.topLayout.minimumSize().height()
-            + panel.bottomLayout.minimumSize().height()
-            + NAVIGATION_HEADER_HEIGHT
-        )
+        # 交给组件库算，否则分隔符与布局间距都要跟着版本自己重数一遍。
+        needed = self.navigationInterface.panel.layoutMinHeight()
         self.navigationInterface.setMinimumHeight(min(needed, NAVIGATION_MAX_HEIGHT))
 
     def _add_navigation_group(self, route, icon, title, children):
@@ -730,7 +731,7 @@ class MainWindow(FluentWindow):
             position=NavigationItemPosition.SCROLL,
             tooltip=title,
         )
-        node = self.navigationInterface.panel.widget(route)
+        node = self._navigation_item(route)
         for key, child_icon, child_title in children:
             self.addSubInterface(self.pages[key], child_icon, child_title, parent=route)
         node.setExpanded(
@@ -789,12 +790,9 @@ class MainWindow(FluentWindow):
         """切换到指定页面，并展开它所属的父级导航项。"""
         # 页面可能从首页快捷入口打开，先恢复所属分组，保持导航位置可见。
         page = self.pages[key]
-        parent_key = getattr(page, "parentRouteKey", None) or getattr(
-            self.navigationInterface.panel.items.get(key), "parentRouteKey", None
-        )
-        node = getattr(
-            self.navigationInterface.panel.items.get(parent_key), "widget", None
-        )
+        item = self.navigationInterface.panel.items.get(key)
+        parent_key = item.parentRouteKey if item is not None else None
+        node = self._navigation_item(parent_key)
         if node is not None and not node.isExpanded:
             node.setExpanded(True, ani=False)
         self.switchTo(page)
@@ -806,6 +804,14 @@ class MainWindow(FluentWindow):
         else:
             self._studentproc_timer.stop()
 
+    def _navigation_item(self, key):
+        """按路由取导航控件；路由为空或未注册时返回 None。"""
+        if not key:
+            return None
+        item = self.navigationInterface.panel.items.get(key)
+        # items 存的是路由登记项，导航控件本身挂在它的 widget 上。
+        return item.widget if item is not None else None
+
     def _reveal_navigation_item(self, key):
         """把当前页面对应的导航项滚进可见区域。
 
@@ -813,7 +819,7 @@ class MainWindow(FluentWindow):
         侧边栏就看不出现在停在哪一页。
         """
         panel = self.navigationInterface.panel
-        item = panel.widget(key)
+        item = self._navigation_item(key)
         if item is None:
             return
         area = panel.scrollArea
@@ -835,7 +841,10 @@ class MainWindow(FluentWindow):
             return
         if not self.isVisible() and self.tray_icon is not None:
             self.tray_icon.showMessage(
-                title, str(message), QSystemTrayIcon.MessageIcon.Information, 4000
+                title,
+                str(message),
+                TRAY_MESSAGE_ICONS.get(level, QSystemTrayIcon.MessageIcon.Information),
+                4000,
             )
             return
         function = {
@@ -853,27 +862,38 @@ class MainWindow(FluentWindow):
             parent=self,
         )
 
-    def _confirm(self, title, content, confirm_text="确认执行"):
-        """弹出确认对话框，返回用户是否点击了确认按钮。"""
+    def _dialog(self, title, content, confirm_text=None):
+        """创建统一尺寸、居中显示的确认对话框。
+
+        Args:
+            title: 对话框标题。
+            content: 正文说明。
+            confirm_text: 确认按钮文案；为空时沿用组件库默认值。
+
+        Returns:
+            FluentDialog: 尚未执行的对话框实例。
+        """
         dialog = FluentDialog(title, content, self)
         dialog.setFixedSize(520, 280)
-        dialog.yesButton.setText(confirm_text)
+        if confirm_text is not None:
+            dialog.yesButton.setText(confirm_text)
         dialog.cancelButton.setText("取消")
         center_dialog(dialog)
-        return bool(dialog.exec())
+        return dialog
+
+    def _confirm(self, title, content, confirm_text="确认执行"):
+        """弹出确认对话框，返回用户是否点击了确认按钮。"""
+        return bool(self._dialog(title, content, confirm_text).exec())
 
     def _options_for_page(self, kind):
         """按页面类型组装发送参数。"""
-        if kind == "message":
-            return self.connection_state.options(
-                message=self.pages[kind].editor.toPlainText()
-            )
-        if kind == "command":
-            return self.connection_state.options(
-                command=self.pages[kind].editor.toPlainText()
-            )
         if kind == "device":
             return self.connection_state.options(extra=self.pages[kind].action())
+        if kind in ("message", "command"):
+            # 两个页面的编辑器同名，字段名与页面键一致，直接按名字取。
+            return self.connection_state.options(
+                **{kind: self.pages[kind].editor.toPlainText()}
+            )
         self.logs.warning("应用", "不支持的发送功能", "功能代码：%s" % kind)
         raise ValueError("不支持的发送功能")
 
@@ -1149,20 +1169,33 @@ class MainWindow(FluentWindow):
         )
         self._notify("文件传送完成", message, "成功")
 
+    def _report_failure(self, category, message, details, titles):
+        """失败收尾：取消按 info、其余按 error 记日志，并弹出对应提示。
+
+        Args:
+            category: 日志功能分类。
+            message: 失败消息，等于 ``操作已取消`` 时按用户取消处理。
+            details: 附加说明。
+            titles: 提示标题，依次为已取消与失败两种。
+        """
+        cancelled = message == "操作已取消"
+        if cancelled:
+            self.logs.info(category, message, details)
+        else:
+            self.logs.error(category, message, details)
+        self._notify(
+            titles[0] if cancelled else titles[1],
+            message,
+            "信息" if cancelled else "错误",
+        )
+
     @Slot(str, str)
     def _file_failed(self, message, details=""):
-        cancelled = message == "操作已取消"
         page = self.pages["file"]
         page.reset_progress()
         page.footer.set_status(message)
-        if cancelled:
-            self.logs.info(CATEGORIES["file"], message, details)
-        else:
-            self.logs.error(CATEGORIES["file"], message, details)
-        self._notify(
-            "传送已取消" if cancelled else "文件传送失败",
-            message,
-            "信息" if cancelled else "错误",
+        self._report_failure(
+            CATEGORIES["file"], message, details, ("传送已取消", "文件传送失败")
         )
 
     def _claim_task(self, category, action):
@@ -1207,58 +1240,85 @@ class MainWindow(FluentWindow):
     def refresh_student_processes(self):
         """刷新本机学生端进程列表。"""
         self.pages["studentproc"].set_busy(True)
-        try:
-            processes = core.find_student_processes()
-        except (RuntimeError, OSError) as error:
-            self.pages["studentproc"].set_processes([])
-            self.pages["studentproc"].set_busy(False)
-            self.logs.error("解除限制", "查询学生端进程失败", "异常：%s" % error)
-            self._notify("查询学生端进程失败", str(error), "错误")
-            return
-        self.pages["studentproc"].set_processes(processes)
-        self.pages["studentproc"].set_busy(False)
-        self.logs.info("解除限制", "已刷新学生端进程列表", "共 %d 个" % len(processes))
-        if not processes:
-            self._notify("未发现学生端", "本机没有正在运行的学生端进程", "信息")
+        self._probe_student_processes("refresh")
 
     @Slot()
     def _poll_student_processes(self):
         """页面可见时刷新学生端状态，让按钮始终表示当前能做的事。"""
         if self.thread is not None:
             return
-        page = self.pages["studentproc"]
-        try:
-            processes = core.find_student_processes()
-        except (RuntimeError, OSError):
+        self._probe_student_processes("poll")
+
+    def _probe_student_processes(self, purpose):
+        """在后台线程枚举学生端进程，结束后按用途分发结果。
+
+        Args:
+            purpose: ``refresh`` 手动刷新，``poll`` 定时轮询，``toggle`` 启停前确认状态。
+        """
+        if self._student_probe_thread is not None:
+            # 轮询可以丢弃，手动操作要排队，否则点了没反应。
+            if purpose != "poll":
+                self._student_probe_queued = purpose
             return
-        # 只在进程集合变化时重绘，避免每两秒刷一次表打断选择。
-        if [item["pid"] for item in processes] == [
-            item["pid"] for item in page.processes
-        ]:
+        thread = ProbeWorker(
+            core.find_student_processes, logs=self.logs, category="解除限制"
+        )
+        thread.completed.connect(partial(self._student_processes_ready, purpose))
+        thread.failed.connect(partial(self._student_processes_failed, purpose))
+        thread.finished.connect(self._student_probe_finished)
+        thread.finished.connect(thread.deleteLater)
+        self._student_probe_thread = thread
+        thread.start()
+
+    def _student_probe_finished(self):
+        """一次探测结束：释放线程，并把排队中的用途接着跑。"""
+        self._student_probe_thread = None
+        purpose, self._student_probe_queued = self._student_probe_queued, None
+        if purpose is not None:
+            self._probe_student_processes(purpose)
+
+    def _student_processes_ready(self, purpose, processes):
+        """拿到进程列表：轮询只在集合变化时重绘，手动操作要给出反馈。"""
+        page = self.pages["studentproc"]
+        if purpose == "poll":
+            if [item["pid"] for item in processes] == [
+                item["pid"] for item in page.processes
+            ]:
+                return
+            page.set_processes(processes)
+            self.logs.debug(
+                "解除限制",
+                "学生端状态变化",
+                "当前进程：%s"
+                % ("、".join(str(item["pid"]) for item in processes) or "无"),
+            )
             return
         page.set_processes(processes)
-        self.logs.debug(
-            "解除限制",
-            "学生端状态变化",
-            "当前进程：%s"
-            % ("、".join(str(item["pid"]) for item in processes) or "无"),
-        )
+        if purpose == "toggle":
+            if processes:
+                self.stop_local_student()
+            else:
+                self.start_local_student()
+            return
+        page.set_busy(False)
+        self.logs.info("解除限制", "已刷新学生端进程列表", "共 %d 个" % len(processes))
+        if not processes:
+            self._notify("未发现学生端", "本机没有正在运行的学生端进程", "信息")
+
+    def _student_processes_failed(self, purpose, message):
+        """查询失败：轮询静默重试，手动刷新与启停要提示用户。"""
+        if purpose == "poll":
+            return
+        page = self.pages["studentproc"]
+        page.set_busy(False)
+        self.logs.error("解除限制", "查询学生端进程失败", "异常：%s" % message)
+        self._notify("查询学生端进程失败", message, "错误")
 
     def toggle_local_student(self):
         """单按钮入口：按当前状态决定启动还是结束学生端。"""
         if not self._claim_task("解除限制", "启停学生端"):
             return
-        try:
-            processes = core.find_student_processes()
-        except (RuntimeError, OSError) as error:
-            self.logs.error("解除限制", "查询学生端进程失败", "异常：%s" % error)
-            self._notify("查询学生端进程失败", str(error), "错误")
-            return
-        self.pages["studentproc"].set_processes(processes)
-        if processes:
-            self.stop_local_student()
-        else:
-            self.start_local_student()
+        self._probe_student_processes("toggle")
 
     def start_local_student(self):
         """确认后启动本机学生端，必要时走 UAC 提权。"""
@@ -1465,20 +1525,13 @@ class MainWindow(FluentWindow):
 
     @Slot(str, str)
     def _send_failed(self, message, details=""):
-        cancelled = message == "操作已取消"
         self.pages[self.active_kind].footer.set_status(message)
-        details = "耗时：%.3f 秒；%s" % (
-            time.monotonic() - self.active_started_at,
-            details or "无异常堆栈",
-        )
-        if cancelled:
-            self.logs.info(CATEGORIES[self.active_kind], message, details)
-        else:
-            self.logs.error(CATEGORIES[self.active_kind], message, details)
-        self._notify(
-            "发送已取消" if cancelled else "发送失败",
+        self._report_failure(
+            CATEGORIES[self.active_kind],
             message,
-            "信息" if cancelled else "错误",
+            "耗时：%.3f 秒；%s"
+            % (time.monotonic() - self.active_started_at, details or "无异常堆栈"),
+            ("发送已取消", "发送失败"),
         )
 
     @Slot(object)
@@ -1513,13 +1566,13 @@ class MainWindow(FluentWindow):
         active = self.pages[self.active_kind]
         if getattr(active, "footer", None) is not None:
             active.footer.set_status(message)
-        self.logs.error(
+        self._report_failure(
             CATEGORIES[self.active_kind],
             message,
             "耗时：%.3f 秒；%s"
             % (time.monotonic() - self.active_started_at, details or "无异常堆栈"),
+            ("操作已取消", "操作失败"),
         )
-        self._notify("操作失败", message, "错误")
 
     def cancel_task(self):
         """清空排队任务，并给正在运行的任务置位取消信号。"""
@@ -1672,12 +1725,12 @@ class MainWindow(FluentWindow):
         """切换运行日志等级，低于该等级的记录不再写入。"""
         previous = self.logs.minimum_level
         normalized = normalize_log_level(level)
-        self.logs.set_level(normalized)
         self.logs.warning(
             "运行日志",
             "运行日志等级已调整",
             "原等级：%s；新等级：%s" % (previous, normalized),
         )
+        self.logs.set_level(normalized)
 
     def _save_text(self, filename, text):
         """写出 UTF-8（带 BOM）文本，失败时提示并记录日志。"""
@@ -1697,6 +1750,10 @@ class MainWindow(FluentWindow):
     def copy_local_ip(self):
         """把本机 IP 复制到剪贴板。"""
         ip = self.pages["local"].ip_label.text()
+        if ip in LOCAL_IP_PLACEHOLDERS:
+            # 标签上还是占位文案，复制过去没有意义。
+            self._notify("尚未查询", "先查询本机信息再复制", "警告")
+            return
         QApplication.clipboard().setText(ip)
         self.logs.info("本机信息", "本机 IP 已复制", "IP：%s" % ip)
         self._notify("已复制", "本机 IP 已复制到剪贴板", "成功")
@@ -1798,6 +1855,9 @@ class MainWindow(FluentWindow):
         self.raise_()
         self.activateWindow()
         self.logs.info("系统托盘", "从系统托盘恢复主窗口")
+        if self.current_page() == "studentproc":
+            self.refresh_student_processes()
+            self._studentproc_timer.start()
 
     def quit_from_tray(self):
         """托盘菜单退出：有任务在跑时等任务结束再退出。"""
@@ -1818,22 +1878,21 @@ class MainWindow(FluentWindow):
         self.tray_icon.show()
         self.setWindowState(self.windowState() & ~Qt.WindowState.WindowMinimized)
         self.hide()
+        # 窗口不可见时页面轮询没有意义，还白白起子进程。
+        self._studentproc_timer.stop()
         self.logs.info("系统托盘", "窗口已隐藏到系统托盘", "关闭行为：保留在系统托盘")
         return True
 
     def _ask_first_close_behavior(self):
         self._first_close_dialog_open = True
-        dialog = FluentDialog(
+        dialog = self._dialog(
             "关闭窗口",
             "是否在关闭窗口时最小化到系统托盘？\n"
             "最小化后后台任务继续运行，可从托盘恢复窗口。",
-            self,
+            "最小化到托盘",
         )
-        dialog.setFixedSize(520, 280)
         dialog.windowTitleLabel.hide()
-        dialog.yesButton.setText("最小化到托盘")
         dialog.cancelButton.setText("直接退出")
-        center_dialog(dialog)
         try:
             minimize_to_tray = bool(dialog.exec())
         finally:
@@ -2027,11 +2086,17 @@ class MainWindow(FluentWindow):
 
 
 # 学生端状态轮询间隔，与参考实现的 2 秒定时器一致；太密会让 tasklist 白跑。
+# 学生端进程轮询间隔：课堂软件不会频繁启停，两秒足够发现状态变化。
 STUDENT_POLL_INTERVAL = 2000
 # 侧边栏最小高度的上限：导航项再多也不该把整个窗口顶到超出屏幕。
 NAVIGATION_MAX_HEIGHT = 680
-# 侧边栏顶部菜单按钮那一行的高度，算进导航项需要的空间里。
-NAVIGATION_HEADER_HEIGHT = 36
+# 本机 IP 尚未查到时标签上的占位文案，复制前要先排除它们。
+LOCAL_IP_PLACEHOLDERS = ("未查询", "未获取")
+# 窗口隐藏时用托盘气泡提示，图标跟着消息等级走。
+TRAY_MESSAGE_ICONS = {
+    "错误": QSystemTrayIcon.MessageIcon.Critical,
+    "警告": QSystemTrayIcon.MessageIcon.Warning,
+}
 
 
 def probe_local(report=None):
@@ -2081,7 +2146,8 @@ def main():
     configure_application(application)
     instance = SingleInstance(parent=application)
     if not instance.acquire():
-        return 0
+        # 已有实例在跑属于正常退出；服务端起不来要留下失败退出码。
+        return 0 if instance.existing else 1
     # 单实例判定之后再询问：已被唤醒的第二次启动不该再弹一次声明。
     if not confirm_usage_notice():
         instance.close()

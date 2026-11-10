@@ -17,7 +17,10 @@ class SidebarTreeWidget(NavigationTreeWidget):
     expansionChanged = Signal(bool)
 
     def setExpanded(self, isExpanded, ani=False):
-        """设置分组状态；树节点即时布局，避免尺寸动画与面板动画竞争。"""
+        """设置分组状态；树节点即时布局，避免尺寸动画与面板动画竞争。
+
+        ``ani`` 只用于兼容组件库的调用签名，本类始终即时布局。
+        """
         changed = self.isExpanded != isExpanded
         self.isExpanded = isExpanded
         self.itemWidget.setExpanded(isExpanded)
@@ -30,8 +33,7 @@ class SidebarTreeWidget(NavigationTreeWidget):
         """切换显示模式，保留逻辑展开状态供下一次展开使用。"""
         NavigationWidget.setCompacted(self, isCompacted)
         self.itemWidget.setCompacted(isCompacted)
-        for child in self.treeChildren:
-            child.setCompacted(isCompacted)
+        # 后代节点由面板的 _setWidgetCompacted 统一遍历，这里只处理自身。
         self._layout_tree()
 
     def insertChild(self, index, child):

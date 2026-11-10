@@ -109,12 +109,13 @@ class CompactHeaderCheckBox(CheckBox):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         size = self.INDICATOR_SIZE
         rect = QRectF((self.width() - size) / 2, (self.height() - size) / 2, size, size)
+        if not self.isEnabled():
+            # 禁用态要连同边框与底色一起压淡，所以必须在绘制之前设置。
+            painter.setOpacity(0.8)
         painter.setPen(self._borderColor())
         painter.setBrush(self._backgroundColor())
         radius = 4.5 * size / 19
         painter.drawRoundedRect(rect, radius, radius)
-        if not self.isEnabled():
-            painter.setOpacity(0.8)
         if self.checkState() == Qt.Checked:
             CheckBoxIcon.ACCEPT.render(painter, rect)
         elif self.checkState() == Qt.PartiallyChecked:
@@ -186,8 +187,15 @@ class LogTableWidget(TableWidget):
         )
 
 
-def table_widget(headers, parent, table_class=TableWidget):
-    """创建统一的只读、按行选择的表格控件。"""
+def table_widget(headers, parent, table_class=TableWidget, *, stretch_last=True):
+    """创建统一的只读、按行选择的表格控件。
+
+    Args:
+        headers: 表头文本列表。
+        parent: 父控件。
+        table_class: 表格子类，默认 ``TableWidget``。
+        stretch_last: 是否让最后一列自适应剩余宽度。
+    """
     table = table_class(parent)
     table.setColumnCount(len(headers))
     table.setHorizontalHeaderLabels(headers)
@@ -197,7 +205,7 @@ def table_widget(headers, parent, table_class=TableWidget):
     table.setWordWrap(False)
     table.setBorderVisible(True)
     table.setBorderRadius(CONTROL_CORNER_RADIUS)
-    table.horizontalHeader().setStretchLastSection(True)
+    table.horizontalHeader().setStretchLastSection(stretch_last)
     return table
 
 

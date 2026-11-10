@@ -84,6 +84,31 @@ class SendWorker(_LoggingWorker):
             self.completed.emit(outcome)
 
 
+class ProbeWorker(_LoggingWorker):
+    """在后台线程执行一次无参查询，把结果或异常交给界面。
+
+    进程枚举要拉起 tasklist 与 netstat，放在界面线程会卡住绘制，这里统一挪到线程里。
+
+    Attributes:
+        function: 要执行的查询函数，调用时不带参数。
+    """
+
+    def __init__(self, function, logs=None, category="应用"):
+        super().__init__(logs=logs, category=category)
+        self.function = function
+
+    def run(self):
+        """执行查询；失败时只回报消息，轮询失败不值得记堆栈。"""
+        name = getattr(self.function, "__name__", "")
+        try:
+            result = self.function()
+        except (RuntimeError, OSError) as error:
+            self._log("debug", "后台查询失败", "函数：%s；异常：%s" % (name, error))
+            self.failed.emit(str(error), "")
+        else:
+            self.completed.emit(result)
+
+
 class TaskWorker(_LoggingWorker):
     """在后台线程执行任意带 ``report`` 回调的函数。
 

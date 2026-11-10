@@ -42,7 +42,7 @@ class LogPage(Page):
         self.search = SearchLineEdit(self)
         self.search.setPlaceholderText("搜索日志")
         self.search.setClearButtonEnabled(True)
-        self.search.textChanged.connect(self.apply_filter)
+        self.search.textChanged.connect(self._on_query_changed)
         self.category = ComboBox(self)
         self.category.addItems(
             [
@@ -85,12 +85,12 @@ class LogPage(Page):
             ["", "时间", "级别", "功能", "内容", "线程", "输出位置"],
             self.content_card,
             LogTableWidget,
+            stretch_last=False,
         )
         self.table.setHorizontalHeader(LogHeaderView(Qt.Horizontal, self.table))
         header = self.table.horizontalHeader()
         self.select_all_checkbox = header.select_all_checkbox
         self.select_all_checkbox.toggled.connect(self._toggle_visible_rows)
-        header.setStretchLastSection(False)
         header.setMinimumSectionSize(40)
         for column, width in (
             (0, 42),
@@ -104,7 +104,6 @@ class LogPage(Page):
             header.setSectionResizeMode(column, QHeaderView.Fixed)
             self.table.setColumnWidth(column, width)
         self.table.itemChanged.connect(self._item_changed)
-        self.table.itemClicked.connect(self._item_clicked)
         self.table.horizontalScrollBar().valueChanged.connect(
             self._position_header_checkbox
         )
@@ -120,6 +119,16 @@ class LogPage(Page):
         self._scroll_timer.setSingleShot(True)
         self._scroll_timer.setInterval(0)
         self._scroll_timer.timeout.connect(self._scroll_to_latest)
+        # 每敲一个字都扫全表会明显顿挫，停顿一下再筛更跟手。
+        self._filter_timer = QTimer(self)
+        self._filter_timer.setSingleShot(True)
+        self._filter_timer.setInterval(150)
+        self._filter_timer.timeout.connect(self.apply_filter)
+        # 连续追加日志时勾选统计只刷新一次，不必每条都动控件。
+        self._selection_timer = QTimer(self)
+        self._selection_timer.setSingleShot(True)
+        self._selection_timer.setInterval(0)
+        self._selection_timer.timeout.connect(self._refresh_selection_controls)
         self._suspend_filter = True
         # 回填历史日志时先关闭重绘，整批插完再统一刷新一次。
         self.table.setUpdatesEnabled(False)
@@ -136,8 +145,7 @@ class LogPage(Page):
     def _append_entry(self, entry):
         if self.category.findText(entry.category) < 0:
             self.category.addItem(entry.category)
-        if self.table.rowCount() >= self.store.entries.maxlen:
-            self._drop_row(0)
+        self._trim_rows()
         row = self.table.rowCount()
         self.table.blockSignals(True)
         try:
@@ -146,7 +154,7 @@ class LogPage(Page):
             checkbox.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
             checkbox.setCheckState(Qt.Unchecked)
             checkbox.setData(Qt.UserRole, entry.uid)
-            checkbox.setToolTip("选择此条日志")
+            checkbox.setToolTip("选中这条日志")
             self.table.setItem(row, 0, checkbox)
             values = [
                 entry.time,
@@ -175,7 +183,16 @@ class LogPage(Page):
         if self._suspend_filter:
             return
         matched = self._refresh_row(row, entry.uid)
-        self._update_selection_controls()
+        # 表里第一次出现可见行时，全选框与导出、删除按钮要从禁用变成可用；
+        # 原来已经是全选时，多一条可见记录也该马上取消全选。这两种情况同步刷，
+        # 其余追加只登记一次合并刷新。
+        if matched and (
+            not self.select_all_checkbox.isEnabled()
+            or self.select_all_checkbox.isChecked()
+        ):
+            self._refresh_selection_controls()
+        else:
+            self._request_selection_update()
         if matched:
             self._request_scroll()
 
@@ -189,18 +206,44 @@ class LogPage(Page):
         if self.isVisible():
             self.table.scrollToBottom()
 
-    def _drop_row(self, row):
-        """删除一行并同步行号映射，避免整表重建。"""
-        uid = self._uid_by_row[row]
-        self.table.removeRow(row)
-        del self._uid_by_row[row]
-        self._row_by_uid.pop(uid, None)
-        self._meta_by_uid.pop(uid, None)
-        self._checked_uids.discard(uid)
-        self._visible_uids.discard(uid)
-        # 被删行之后的记录整体前移一行。
-        for index in range(row, len(self._uid_by_row)):
-            self._row_by_uid[self._uid_by_row[index]] = index
+    def _trim_rows(self):
+        """超过上限一定比例后整批裁掉旧记录。
+
+        每追加一条就删一行会让整表反复前移，日志密集时卡住界面；
+        攒到超出上限一成再删，移动次数摊薄到原来的十分之一以下。
+        """
+        limit = self.store.entries.maxlen
+        excess = self.table.rowCount() - limit
+        if excess <= 0 or self.table.rowCount() <= limit * 1.1:
+            return
+        self._drop_rows(excess)
+
+    def _drop_rows(self, count):
+        """从头部删除若干行并同步行号映射，避免整表重建。"""
+        count = min(count, len(self._uid_by_row))
+        if count <= 0:
+            return
+        dropped = self._uid_by_row[:count]
+        self.table.blockSignals(True)
+        try:
+            for _ in range(count):
+                self.table.removeRow(0)
+        finally:
+            self.table.blockSignals(False)
+        del self._uid_by_row[:count]
+        for uid in dropped:
+            self._row_by_uid.pop(uid, None)
+            self._meta_by_uid.pop(uid, None)
+            self._checked_uids.discard(uid)
+            self._visible_uids.discard(uid)
+        # 剩余记录整体前移，重编号只做一次。
+        for index, uid in enumerate(self._uid_by_row):
+            self._row_by_uid[uid] = index
+
+    @Slot(str)
+    def _on_query_changed(self, _text):
+        """关键字变化后稍等再筛，避免逐字符扫全表。"""
+        self._filter_timer.start()
 
     @Slot(str)
     def _level_changed(self, _level):
@@ -235,13 +278,14 @@ class LogPage(Page):
 
     def selected_uids(self):
         """按日志顺序返回勾选记录的 uid。"""
-        return [
-            entry.uid
-            for entry in self.store.snapshot_entries()
-            if entry.uid in self._checked_uids
-        ]
+        return [entry.uid for entry in self.selected_entries()]
 
-    def _update_selection_controls(self):
+    def _request_selection_update(self):
+        """登记一次勾选统计刷新，同一批追加里只刷新一次。"""
+        if not self._selection_timer.isActive():
+            self._selection_timer.start()
+
+    def _refresh_selection_controls(self):
         visible_count = len(self._visible_uids)
         selected_count = len(self._checked_uids)
         all_checked = visible_count > 0 and self._visible_uids <= self._checked_uids
@@ -251,7 +295,7 @@ class LogPage(Page):
         for button in (self.export_button, self.delete_button):
             button.setEnabled(selected_count > 0)
         self.count_label.setText(
-            "%d / %d 条记录 | 运行等级 %s | 已选 %d 条"
+            "已筛选 %d / %d 条 | 日志等级 %s | 已选 %d 条"
             % (
                 visible_count,
                 self.table.rowCount(),
@@ -279,7 +323,7 @@ class LogPage(Page):
             self._checked_uids |= self._visible_uids
         else:
             self._checked_uids.clear()
-        self._update_selection_controls()
+        self._refresh_selection_controls()
 
     def _position_header_checkbox(self, *_):
         self.table.horizontalHeader().position_checkbox()
@@ -294,11 +338,8 @@ class LogPage(Page):
                 self._checked_uids.add(uid)
             else:
                 self._checked_uids.discard(uid)
-        self._update_selection_controls()
-
-    def _item_clicked(self, item):
-        if item.column() == 0:
-            self._update_selection_controls()
+        # 单次勾选要立刻反映到表头与按钮，不能等合并刷新。
+        self._refresh_selection_controls()
 
     def _export_selected(self):
         entries = self.selected_entries()
@@ -328,7 +369,7 @@ class LogPage(Page):
             self._visible_uids.discard(uid)
         # 删除行会让后续行前移，必须同步更新剩余记录的行号。
         self._row_by_uid = {uid: row for row, uid in enumerate(self._uid_by_row)}
-        self._update_selection_controls()
+        self._refresh_selection_controls()
 
     def _clear_entries(self):
         self.table.setRowCount(0)
@@ -354,11 +395,17 @@ class LogPage(Page):
                     self._visible_uids.add(uid)
                 else:
                     self._visible_uids.discard(uid)
+                    # 勾选只对当前可见记录有效，否则导出的条目在列表里看不到。
+                    if uid in self._checked_uids:
+                        self._checked_uids.discard(uid)
+                        item = table.item(row, 0)
+                        if item is not None:
+                            item.setCheckState(Qt.Unchecked)
                 if table.isRowHidden(row) == matched:
                     table.setRowHidden(row, not matched)
         finally:
             table.setUpdatesEnabled(True)
-        self._update_selection_controls()
+        self._refresh_selection_controls()
 
     def export_text(self, entries=None):
         """把指定记录转成导出文本，None 表示导出全部记录。

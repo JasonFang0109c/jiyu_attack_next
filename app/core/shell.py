@@ -304,6 +304,7 @@ class ShellServer:
 
     def _read_loop(self, client):
         """持续读取目标输出，直到连接断开。"""
+        decoder = _StreamDecoder()
         while not self._closed:
             try:
                 data = client.recv(READ_SIZE)
@@ -311,7 +312,9 @@ class ShellServer:
                 break
             if not data:
                 break
-            self._push(_decode(data))
+            text = decoder.feed(data)
+            if text:
+                self._push(text)
         _shutdown(client)
         # 旧会话断开时新会话可能已经接管，只有当前会话才有资格报断开。
         with self._lock:
@@ -334,22 +337,51 @@ def _shutdown(sock):
         sock.close()
 
 
-def _decode(data):
-    """把目标输出解成文本：控制台默认 GBK，也兼容 UTF-8。"""
-    try:
-        return data.decode("utf-8")
-    except UnicodeDecodeError:
-        return data.decode("gbk", errors="replace")
+class _StreamDecoder:
+    """跨数据块解码目标输出：控制台默认 GBK，也兼容 UTF-8。
+
+    多字节字符可能被 TCP 分块切断，块尾那几个字节要留到下一块再解，
+    否则半个汉字会被当成乱码替换掉。残留超过几个字节说明确实不是这种
+    编码，直接按 GBK 宽松解码，避免一直攒着不输出。
+    """
+
+    MAX_PENDING = 8
+
+    def __init__(self):
+        self._pending = b""
+
+    def feed(self, data):
+        """解码一个新数据块。
+
+        Args:
+            data: 刚收到的字节。
+
+        Returns:
+            str: 解出的文本；没有完整字符可解时返回空串。
+        """
+        buffer = self._pending + data
+        for encoding in ("utf-8", "gbk"):
+            try:
+                text = buffer.decode(encoding)
+            except UnicodeDecodeError as error:
+                # 只处理“截断在块尾”的情况，中间的非法字节说明该换下一种编码。
+                if error.end >= len(buffer) and len(buffer) <= self.MAX_PENDING:
+                    self._pending = buffer
+                    return ""
+                continue
+            self._pending = b""
+            return text
+        self._pending = b""
+        return buffer.decode("gbk", errors="replace")
 
 
-def send_command(host, command, port=4705, local_ip=None, report=None):
+def send_command(host, command, port=4705, report=None):
     """把一条远程命令单播给目标。
 
     Args:
         host: 目标地址。
         command: 命令文本，超出报文容量会抛异常。
         port: 学生端 UDP 端口。
-        local_ip: 组播出口地址，可省略。
         report: 进度回调。
 
     Returns:
@@ -358,10 +390,6 @@ def send_command(host, command, port=4705, local_ip=None, report=None):
     packet = bytes(protocol.pkg_sendlist("-c", command))
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        if local_ip:
-            sock.setsockopt(
-                socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(local_ip)
-            )
         sent = sock.sendto(packet, (host, port))
     finally:
         sock.close()

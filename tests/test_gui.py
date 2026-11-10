@@ -707,14 +707,14 @@ class GuiTests(unittest.TestCase):
         with (
             patch.object(self.window, "_begin_task") as begin_task,
             patch.object(self.window, "thread", None),
-            patch.object(core, "find_student_processes", return_value=[record]),
             patch.object(
                 core,
                 "stop_student_processes",
                 return_value=[{"pid": 17600, "success": True}],
             ) as stop,
         ):
-            self.window.toggle_local_student()
+            # 单按钮先探进程再决定方向，这里直接投递探测结果。
+            self.window._student_processes_ready("toggle", [record])
             worker = begin_task.call_args.args[1]
             self.assertEqual(begin_task.call_args.args[0], "studentproc")
             worker.run()
@@ -727,7 +727,6 @@ class GuiTests(unittest.TestCase):
         with (
             patch.object(self.window, "_begin_task") as begin_task,
             patch.object(self.window, "thread", None),
-            patch.object(core, "find_student_processes", return_value=[]),
             patch.object(
                 core,
                 "start_student_process",
@@ -740,7 +739,7 @@ class GuiTests(unittest.TestCase):
                 ],
             ) as start,
         ):
-            self.window.toggle_local_student()
+            self.window._student_processes_ready("toggle", [])
             self.assertEqual(begin_task.call_args.args[0], "studentproc")
             worker = begin_task.call_args.args[1]
             worker.run()
@@ -790,17 +789,9 @@ class GuiTests(unittest.TestCase):
             "path": "",
             "genuine": False,
         }
-        with (
-            patch.object(self.window, "thread", None),
-            patch.object(core, "find_student_processes", return_value=[record]),
-        ):
-            self.window._poll_student_processes()
+        self.window._student_processes_ready("poll", [record])
         self.assertEqual(page.toggle_button.text(), "结束学生端")
-        with (
-            patch.object(self.window, "thread", None),
-            patch.object(core, "find_student_processes", return_value=[]),
-        ):
-            self.window._poll_student_processes()
+        self.window._student_processes_ready("poll", [])
         self.assertEqual(page.toggle_button.text(), "启动学生端")
 
     def png_bytes(self):
@@ -1836,6 +1827,8 @@ class GuiTests(unittest.TestCase):
         store.add("远程命令", "第二条记录", "错误")
         page = self.window.pages["logs"]
         page.search.setText("第二条")
+        # 输入框带延迟筛选，测试里直接触发一次即时筛选。
+        page.apply_filter()
         self.assertTrue(page.table.isRowHidden(0))
         self.assertFalse(page.table.isRowHidden(1))
         self.assertEqual(len(page.export_text().splitlines()), 2)

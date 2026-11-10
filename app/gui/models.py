@@ -185,10 +185,12 @@ class DeviceAliasStore(QObject):
         self._settings = settings if settings is not None else portable_settings()
         self._aliases = {}
         self.load_error = ""
+        # 只有整体无法解析时才设为只读，避免把损坏的原数据覆盖掉。
+        self._readonly = False
         self._load()
 
     def _load(self):
-        """从设置文件读取备注；数据损坏时记录原因并保留空表。"""
+        """从设置文件读取备注；整体损坏时保留空表并拒绝写回。"""
         raw = self._settings.value(self.SETTINGS_KEY, {})
         try:
             if isinstance(raw, str):
@@ -199,13 +201,21 @@ class DeviceAliasStore(QObject):
                 raise ValueError("备注数据格式无效")
             if not isinstance(data, dict):
                 raise ValueError("备注数据格式无效")
-            aliases = {}
-            for name, address in data.items():
-                aliases[self._normalize_name(name)] = self._normalize_address(address)
         except (TypeError, ValueError, json.JSONDecodeError) as error:
             self.load_error = "设备备注读取失败：%s" % error
+            self._readonly = True
             return
+        aliases = {}
+        invalid = 0
+        for name, address in data.items():
+            try:
+                aliases[self._normalize_name(name)] = self._normalize_address(address)
+            except (TypeError, ValueError):
+                # 一条坏数据不该让整张备注表不可用，跳过它并提示保存会丢弃。
+                invalid += 1
         self._aliases = aliases
+        if invalid:
+            self.load_error = "设备备注中有 %d 条无法读取，保存后会被丢弃" % invalid
 
     @classmethod
     def _normalize_name(cls, name):
@@ -240,10 +250,6 @@ class DeviceAliasStore(QObject):
             ) from error
         return value if "-" in value or "/" in value else hosts[0]
 
-    def names(self):
-        """返回全部备注名，顺序与添加顺序一致。"""
-        return list(self._aliases)
-
     def items(self):
         """返回 (备注名, 地址) 列表，供下拉框与表格使用。"""
         return list(self._aliases.items())
@@ -258,12 +264,8 @@ class DeviceAliasStore(QObject):
 
     def match(self, target):
         """备注名命中时返回 (备注名, 地址)，否则返回 None。"""
-        value = str(target).strip()
-        key = value.casefold()
-        for name, address in self._aliases.items():
-            if name.casefold() == key:
-                return name, address
-        return None
+        name = self._find_name(target)
+        return (name, self._aliases[name]) if name is not None else None
 
     def resolve(self, target):
         """把备注名换成地址，未命中时原样返回输入。"""
@@ -279,7 +281,7 @@ class DeviceAliasStore(QObject):
 
     def _save(self, aliases):
         """写入设置文件；读取阶段出错时拒绝写入，避免覆盖原数据。"""
-        if self.load_error:
+        if self._readonly:
             raise OSError(
                 "%s；为避免覆盖原数据，请先修复或清除该配置项" % self.load_error
             )
@@ -290,6 +292,7 @@ class DeviceAliasStore(QObject):
                 "设备备注保存失败：%s" % (self._settings.message or "写入失败")
             )
         self._aliases = aliases
+        self.load_error = ""
 
     def add(self, name, address):
         """新增一条备注，重名或地址非法时抛出 ValueError。"""
@@ -408,12 +411,6 @@ class ConnectionState(QObject):
         value = self.values["target"] if target is None else target
         return self.aliases.format_target(value)
 
-    def restore(self, values):
-        """从快照恢复会话参数，未知键会被忽略。"""
-        for name, value in values.items():
-            if name in self.DEFAULTS:
-                self.set_value(name, value)
-
     def options(self, **payload):
         """组装发送参数，自动把备注名解析成地址。"""
         values = self.values.copy()
@@ -472,8 +469,6 @@ def normalize_log_level(level):
         return level
     value = str(level).strip().upper()
     normalized = _LEVEL_ALIASES.get(value)
-    if normalized is None:
-        normalized = _LEVEL_ALIASES.get(str(level).strip())
     if normalized is None:
         raise ValueError("未知日志等级：%s" % level)
     return normalized
@@ -586,6 +581,8 @@ class LogStore(QObject):
         self._log_path = None
         self._file_handle = None
         self._lock = threading.RLock()
+        # 文件句柄单独一把锁：写盘比读列表慢得多，不能让追加记录挡住界面刷新。
+        self._file_lock = threading.Lock()
         self._pending_notifications = deque()
         self._draining_notifications = False
         self._notificationReady.connect(self._drain_notifications)
@@ -628,12 +625,13 @@ class LogStore(QObject):
 
     def _close_file(self):
         """关闭持久写入句柄；下次写日志时按需重新打开。"""
-        handle = self._file_handle
-        self._file_handle = None
-        if handle is None:
-            return
-        with suppress(OSError):
-            handle.close()
+        with self._file_lock:
+            handle = self._file_handle
+            self._file_handle = None
+            if handle is None:
+                return
+            with suppress(OSError):
+                handle.close()
 
     def _load(self):
         """读取历史日志；旧版 JSONL 记录会被转换成规范文本。"""
@@ -714,9 +712,10 @@ class LogStore(QObject):
         """按时间顺序追加一行；写失败只记录状态，不打断任务。
 
         句柄跨条复用并在每条之后刷盘：重新打开文件比写一行本身贵两个数量级，
-        逐条刷盘仍能保证进程异常退出时已写入的记录不会丢。
+        逐条刷盘仍能保证进程异常退出时已写入的记录不会丢。这里只占文件锁，
+        写一行磁盘不会挡住同时发生的列表快照与筛选。
         """
-        with self._lock:
+        with self._file_lock:
             if self._log_path is None:
                 return
             try:
@@ -795,6 +794,9 @@ class LogStore(QObject):
         skip=3,
     ):
         normalized = normalize_log_level(level)
+        # 低于阈值的记录不会落库，先判等级可以省掉一次调用栈回溯。
+        if normalized.rank < self._minimum_level.rank:
+            return None
         if logger_name is None:
             logger_name, captured_line = self._caller_location(skip)
             line_number = captured_line

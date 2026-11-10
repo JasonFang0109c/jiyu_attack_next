@@ -222,19 +222,35 @@ def _run_elevated_process(executable, parameters, directory=None, action="操作
         kernel32.CloseHandle(info.hProcess)
 
 
-def _run_firewall_elevated(action):
-    handle, result_path = tempfile.mkstemp(prefix="jiyu-firewall-", suffix=".json")
+def run_elevated_helper(
+    helper_argument, parameters, result_argument, action, temp_prefix, missing_result
+):
+    """启动提权助手进程，读回它写在临时文件里的结果。
+
+    防火墙与学生端两个助手只差入口参数与结果语义，这段“起进程、等退出、
+    读 JSON、清理临时文件”的骨架完全一样。
+
+    Args:
+        helper_argument: 助手入口参数，例如 ``"--firewall-helper"``。
+        parameters: 传给助手的业务参数。
+        result_argument: 结果文件路径参数的开关。
+        action: 报错与进度里显示的动作名称。
+        temp_prefix: 结果文件前缀，便于分辨是哪个助手留下的。
+        missing_result: 读不到结果时的报错模板，``%d`` 处填助手退出码。
+
+    Returns:
+        tuple[int, dict]: 助手退出码与它写回的结果内容。
+
+    Raises:
+        RuntimeError: 助手没有留下可读的结果文件。
+    """
+    handle, result_path = tempfile.mkstemp(prefix=temp_prefix, suffix=".json")
     os.close(handle)
     try:
-        arguments = [
-            FIREWALL_HELPER_ARGUMENT,
-            action,
-            FIREWALL_RESULT_ARGUMENT,
-            result_path,
-        ]
+        arguments = [helper_argument, *parameters, result_argument, result_path]
         directory = None
         if not getattr(sys, "frozen", False):
-            # 直接运行源码时要把仓库根目录设为工作目录，用 -m app 走统一入口，
+            # 直接运行源码时要先把仓库根目录设为工作目录，用 -m app 走统一入口，
             # 否则助手进程无法解析相对导入，等于什么都没做。
             arguments = ["-m", "app", *arguments]
             directory = str(Path(__file__).resolve().parents[2])
@@ -242,23 +258,35 @@ def _run_firewall_elevated(action):
             sys.executable,
             subprocess.list2cmdline(arguments),
             directory=directory,
-            action="防火墙操作",
+            action=action,
         )
         try:
             payload = json.loads(Path(result_path).read_text(encoding="utf-8"))
         except (OSError, ValueError) as error:
-            raise RuntimeError("管理员权限进程未返回防火墙结果") from error
-        if payload.get("error"):
-            raise RuntimeError(payload["error"])
-        if exit_code:
-            raise RuntimeError("防火墙操作失败（退出码 %d）" % exit_code)
-        results = payload.get("results")
-        if not isinstance(results, list):
-            raise RuntimeError("管理员权限进程返回的防火墙结果无效")
-        return results
+            raise RuntimeError(missing_result % exit_code) from error
+        return exit_code, payload
     finally:
         with suppress(OSError):
             os.unlink(result_path)
+
+
+def _run_firewall_elevated(action):
+    exit_code, payload = run_elevated_helper(
+        FIREWALL_HELPER_ARGUMENT,
+        [action],
+        FIREWALL_RESULT_ARGUMENT,
+        "防火墙操作",
+        "jiyu-firewall-",
+        "管理员权限进程未返回防火墙结果（助手退出码 %d）",
+    )
+    if payload.get("error"):
+        raise RuntimeError(payload["error"])
+    if exit_code:
+        raise RuntimeError("防火墙操作失败（退出码 %d）" % exit_code)
+    results = payload.get("results")
+    if not isinstance(results, list):
+        raise RuntimeError("管理员权限进程返回的防火墙结果无效")
+    return results
 
 
 def request_firewall_rule(action):

@@ -68,7 +68,7 @@ def is_informational(arguments):
 
 
 def start_logging():
-    """启用命令行日志；等级固定 DEBUG，文件名与界面日志分开。"""
+    """启用命令行日志；写入阈值跟构建变体一致，文件与界面日志分开。"""
     cli_log.configure(portable_cli_log_path())
     log = cli_log.LOG
     if log.storage_error:
@@ -121,8 +121,8 @@ def print_local_info():
         log.warning("未能获取本机 IP 地址", "本机信息")
         return 1
     print()
-    print("Your ip address is: " + ip)
-    print("Your student client possible ports are: " + ",".join(ports))
+    print("本机 IP 地址：" + ip)
+    print("学生端可能占用的端口：" + ",".join(ports))
     log.info("已获取本机信息", "本机信息", "IP：%s，端口：%s" % (ip, ",".join(ports)))
     return 0
 
@@ -362,7 +362,12 @@ def run_from_cmd(arguments):
     try:
         if arguments.shell or arguments.e == "nc":
             return run_shell(arguments)
-        if arguments.endstudent or arguments.list or arguments.start_student:
+        if (
+            arguments.endstudent
+            or arguments.list
+            or arguments.start_student
+            or arguments.pid
+        ):
             return run_student_command(arguments)
         if arguments.firewall:
             return apply_firewall(arguments.firewall)
@@ -490,8 +495,8 @@ def run_student_command(arguments):
         int: 0 表示成功，1 表示有进程未能启动或结束。
     """
     log = cli_log.LOG
-    processes = find_student_processes()
     if arguments.list:
+        processes = find_student_processes()
         _print_student_list(processes)
         log.info("已列出学生端进程", "解除限制", "共 %d 个" % len(processes))
         return 0
@@ -501,6 +506,8 @@ def run_student_command(arguments):
     if arguments.pid:
         print("结束指定的 %d 个学生端进程" % len(arguments.pid))
         return _stop_student(arguments.pid)
+    # 只有按当前状态决定方向时才需要枚举进程，其余分支不必起子进程。
+    processes = find_student_processes()
     if processes:
         print("检测到 %d 个学生端进程，按当前状态执行结束" % len(processes))
         _print_student_list(processes)
@@ -542,18 +549,18 @@ def main(argv=None):
         "参数：%s" % (" ".join(arguments) if arguments else "无"),
     )
     try:
-        code = run_from_cmd(_select_parser(arguments).parse_args(arguments))
-    except SystemExit as error:
-        # --help 与 --version 也用 SystemExit 结束，退出码 0 属于正常结束。
-        if error.code in (0, None):
-            cli_log.LOG.info("参数解析结束", "命令行", "退出码：%s" % error.code)
-        else:
-            cli_log.LOG.warning("参数解析未通过", "命令行", "退出码：%s" % error.code)
+        try:
+            code = run_from_cmd(_select_parser(arguments).parse_args(arguments))
+        except SystemExit as error:
+            # --help 与 --version 也用 SystemExit 结束，退出码 0 属于正常结束。
+            if error.code in (0, None):
+                cli_log.LOG.info("参数解析结束", "命令行", "退出码：%s" % error.code)
+            else:
+                cli_log.LOG.warning(
+                    "参数解析未通过", "命令行", "退出码：%s" % error.code
+                )
+            raise
+        cli_log.LOG.info("命令行结束", "命令行", "退出码：%s" % code)
+        return code
+    finally:
         cli_log.close()
-        raise
-    except BaseException:
-        cli_log.close()
-        raise
-    cli_log.LOG.info("命令行结束", "命令行", "退出码：%s" % code)
-    cli_log.close()
-    return code

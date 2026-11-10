@@ -58,22 +58,41 @@ def send(
         raise RuntimeError("操作已取消")
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
         client.settimeout(1.0)
-        for times in range(loops):
+        for _ in _iter_rounds(loops, interval, cancel_event, report):
             for host in target_host:
                 for payload in payloads:
                     if cancel_event and cancel_event.is_set():
                         raise RuntimeError("操作已取消")
                     client.sendto(payload, (host, port))
                     sent_count += 1
-            if report:
-                report("第 %d/%d 轮已发送" % (times + 1, loops))
-            if times != loops - 1 and interval:
-                if cancel_event:
-                    if cancel_event.wait(interval):
-                        raise RuntimeError("操作已取消")
-                else:
-                    sleep(interval)
     return sent_count
+
+
+def _iter_rounds(loops, interval, cancel_event, report):
+    """按轮次产出序号，负责轮末进度与两轮之间的等待。
+
+    单播与多目标发送的轮次节奏完全一样，抽出来避免两处各写一遍。
+
+    Args:
+        loops: 发送轮数。
+        interval: 相邻两轮的间隔秒数，0 表示不等待。
+        cancel_event: 取消信号，等待期间置位会立即抛出取消异常。
+        report: 进度回调，可省略。
+
+    Yields:
+        int: 从 0 开始的轮次序号。
+    """
+    for times in range(loops):
+        yield times
+        if report:
+            report("第 %d/%d 轮已发送" % (times + 1, loops))
+        if times == loops - 1 or not interval:
+            continue
+        if cancel_event:
+            if cancel_event.wait(interval):
+                raise RuntimeError("操作已取消")
+        else:
+            sleep(interval)
 
 
 def _check_send_arguments(send_list, port, loops, interval):
@@ -202,7 +221,7 @@ def send_tracked(
                 states[host] = (DeliveryState.UNREACHABLE, str(error))
                 continue
             sockets[host] = client
-        for times in range(loops):
+        for _ in _iter_rounds(loops, interval, cancel_event, report):
             for host in hosts:
                 client = sockets.get(host)
                 if client is None:
@@ -218,14 +237,6 @@ def send_tracked(
                         states.setdefault(host, (DeliveryState.REJECTED, ""))
                     except OSError as error:
                         states.setdefault(host, (DeliveryState.UNREACHABLE, str(error)))
-            if report:
-                report("第 %d/%d 轮已发送" % (times + 1, loops))
-            if times != loops - 1 and interval:
-                if cancel_event:
-                    if cancel_event.wait(interval):
-                        raise RuntimeError("操作已取消")
-                else:
-                    sleep(interval)
         _collect_icmp_errors(sockets, states)
         _probe_silent_hosts(hosts, states)
     finally:
@@ -545,7 +556,7 @@ class _FileTransferRequestHandler(BaseHTTPRequestHandler):
         if sent == size:
             transfer.complete_file(index)
         else:
-            transfer.fail("文件传输不完整")
+            transfer.fail("文件传送不完整")
 
 
 class FileTransferServer:

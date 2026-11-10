@@ -5,7 +5,6 @@
 """
 
 import json
-import re
 from contextlib import suppress
 from pathlib import Path
 
@@ -13,11 +12,10 @@ HEADER = (
     "// JiYu Attack Next 配置文件（JSON with comments）",
     "// 允许 // 与 /* */ 注释和尾逗号；文件由程序重写，手写的注释在下次保存后丢失。",
 )
-_TRAILING_COMMA = re.compile(r",(\s*[}\]])")
 
 
 def _string_end(text, start):
-    """返回从 ``start`` 处引号开始的字符串结束位置（不含结束引号）。"""
+    """返回从 ``start`` 处引号开始的字符串结束位置（结束引号之后）。"""
     index = start + 1
     length = len(text)
     while index < length:
@@ -63,6 +61,40 @@ def strip_comments(text):
     return "".join(pieces)
 
 
+def strip_trailing_commas(text):
+    """去掉对象与数组末尾多余的逗号，字符串内容原样保留。
+
+    用逐字符扫描而不是正则替换：正则无法区分字符串里的 ``,}`` 与真正的尾逗号，
+    会把 ``"a,}"`` 这类值悄悄改掉。
+
+    Args:
+        text: 已去掉注释的 JSON 文本。
+
+    Returns:
+        str: 去掉尾逗号的文本。
+    """
+    pieces = []
+    index = 0
+    length = len(text)
+    while index < length:
+        char = text[index]
+        if char == '"':
+            end = _string_end(text, index)
+            pieces.append(text[index:end])
+            index = end
+            continue
+        if char == ",":
+            look = index + 1
+            while look < length and text[look] in " \t\r\n":
+                look += 1
+            if look < length and text[look] in "}]":
+                index += 1
+                continue
+        pieces.append(char)
+        index += 1
+    return "".join(pieces)
+
+
 def loads(text):
     """解析带注释的 JSON 文本，空内容视为空对象。
 
@@ -76,9 +108,9 @@ def loads(text):
         ValueError: 内容不是合法的 JSON 对象。
     """
     cleaned = strip_comments(text or "")
-    cleaned = _TRAILING_COMMA.sub(r"\1", cleaned)
     if not cleaned.strip():
         return {}
+    cleaned = strip_trailing_commas(cleaned)
     try:
         data = json.loads(cleaned)
     except json.JSONDecodeError as error:
