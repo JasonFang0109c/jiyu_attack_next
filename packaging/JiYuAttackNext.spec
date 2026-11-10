@@ -12,9 +12,11 @@ build_time = root / "build" / "assets" / "build_time.txt"
 version_file = root / "build" / "assets" / "version.txt"
 version_info = root / "build" / "assets" / "version_info.txt"
 variant_file = root / "build" / "assets" / "variant.txt"
-# 构建脚本通过环境变量声明变体：debug 版本换文件名，其余完全一致。
+# 构建脚本通过环境变量声明变体与产物名：debug 版本换前缀，其余完全一致。
+# 产物名直接带版本号，PyInstaller 一次写出最终文件，不再落一份固定名再复制。
 variant = os.environ.get("JY_BUILD_VARIANT", "release").strip().lower()
-exe_name = "JiYuAttackNext_Debug" if variant == "debug" else "JiYuAttackNext"
+default_name = "JiYuAttackNext_Debug" if variant == "debug" else "JiYuAttackNext"
+exe_name = os.environ.get("JY_BUILD_NAME", "").strip() or default_name
 
 a = Analysis(
     [str(root / "app" / "__main__.py")],

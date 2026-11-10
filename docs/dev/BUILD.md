@@ -45,10 +45,11 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python "C:\Pytho
 ```
 
 - 无参数时增量构建，`-Clean` 清理 PyInstaller 缓存后重建，`-Python` 指定其他解释器。
-- `-Variant` 取 `both`、`release` 或 `debug`，默认 `both`：一次产出 `JiYuAttackNext.exe` 与 `JiYuAttackNext_Debug.exe`，两份代码完全相同，只有构建变体标记不同。`-Variant debug` 只重建调试版本，调试时不必等两份都打包完。
+- `-Variant` 取 `both`、`release` 或 `debug`，默认 `both`：一次产出 `JiYuAttackNext-<显示版本>.exe` 与 `JiYuAttackNext_Debug-<显示版本>.exe`，两份代码完全相同，只有构建变体标记不同。`-Variant debug` 只重建调试版本，调试时不必等两份都打包完。
 - 两个变体使用独立的 `--workpath`（`build/release` 与 `build/debug`），避免 PyInstaller 复用另一份变体的分析缓存。
 - `-Version` 覆盖版本号；省略时读取 `app/core/constants.py` 的 `__version__`。版本号须符合语义化版本格式，规则见[版本规范](VERSIONING.md)。
-- 除了固定名，每个变体还会另存一份带版本号的副本，例如`output/JiYuAttackNext-0.1.0-e1f9608.exe` 与 `output/JiYuAttackNext_Debug-0.1.0-e1f9608.exe`，方便与 CI 产物、历史构建对应。提交哈希省略 `-Commit` 时自动取 `git rev-parse --short=7 HEAD`；显式传 `-Commit ""` 表示不要哈希（正式版发布用它），不在 Git 仓库内构建时也只产出固定名。
+- 产物名直接带显示版本，例如 `output/JiYuAttackNext-0.1.0-e1f9608.exe` 与 `output/JiYuAttackNext_Debug-0.1.0-e1f9608.exe`；显示版本是版本号加提交哈希，因此本地同时留着多次构建的 EXE 也能分清来源。本地构建不再产出 `JiYuAttackNext.exe` 这类不带版本号的固定名，早期构建留下的固定名文件在构建结束时清掉。
+- 提交哈希省略 `-Commit` 时自动取 `git rev-parse --short=7 HEAD`；显式传 `-Commit ""` 表示不要哈希（正式版发布用它），此时产物名就是 `output/JiYuAttackNext-0.1.0.exe`；不在 Git 仓库内构建时同样只带版本号。
 - 脚本根据自身路径定位项目根目录，也可从其他目录通过绝对路径调用，默认使用项目虚拟环境。
 - 读取 [packaging/JiYuAttackNext.spec](../../packaging/JiYuAttackNext.spec)，并收集 Fluent Widgets 的运行时资源与包元数据。
 - 每次构建都把当前本地时间打包进 EXE，“关于”页据此显示构建时间；源码运行时显示“源码运行”。
@@ -58,10 +59,8 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python "C:\Pytho
 
 | 路径 | 内容 | 是否保留 |
 | --- | --- | --- |
-| `output/JiYuAttackNext.exe` | 单文件程序，GUI 与 CLI 共用；只写 `WARNING` 及以上的日志 | 保留用于运行和分发 |
-| `output/JiYuAttackNext_Debug.exe` | 同上，但日志从 `DEBUG` 起记录 | 保留，供排查问题使用 |
-| `output/JiYuAttackNext-<版本>.exe` | 正常版本的带版本号副本，内容与固定名完全一致 | 保留，便于归档 |
-| `output/JiYuAttackNext_Debug-<版本>.exe` | 调试版本的带版本号副本 | 保留，便于归档 |
+| `output/JiYuAttackNext-<显示版本>.exe` | 单文件程序，GUI 与 CLI 共用；只写 `WARNING` 及以上的日志 | 保留用于运行和分发 |
+| `output/JiYuAttackNext_Debug-<显示版本>.exe` | 同上，但日志从 `DEBUG` 起记录 | 保留，供排查问题使用 |
 | `build/release/`、`build/debug/` | 两个变体各自的打包中间文件与分析结果 | 构建后可删除 |
 | `build/assets/variant.txt` | 本次打包的变体标记，运行时打进 EXE | 构建后可删除 |
 | `build/assets/app.ico` | 从 SVG 转换的构建图标 | 构建后可删除 |
@@ -85,7 +84,7 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python "C:\Pytho
 
 `_is_qt_translation` 另外滤掉 `PySide6	ranslations` 下的 `.qm`：Qt 自带翻译只有显式 `QTranslator` 加载才生效，界面用的是组件库自带的中文资源。过滤按文件名比对，`_stem` 会去掉扩展名与 ABI 后缀，因此 `_avif.cp313-win_amd64.pyd` 这类带后缀的扩展模块也能命中。
 
-改动这份清单前先确认运行期确实不加载：`pyi-archive_viewer -l output/JiYuAttackNext.exe` 看打进包里的文件，`pyi-archive_viewer -r -b` 看 Python 模块清单。裁剪后必须启动一次打包版界面，并跑 `-h`、`local info`、`restriction student --list`，确认平台插件、图标与命令行都没坏。按当前清单，两份 EXE 从 84 MB 降到 62 MB 左右。
+改动这份清单前先确认运行期确实不加载：`pyi-archive_viewer -l output/JiYuAttackNext-<显示版本>.exe` 看打进包里的文件，`pyi-archive_viewer -r -b` 看 Python 模块清单。裁剪后必须启动一次打包版界面，并跑 `-h`、`local info`、`restriction student --list`，确认平台插件、图标与命令行都没坏。按当前清单，两份 EXE 从 84 MB 降到 62 MB 左右。
 
 ## 运行数据
 
@@ -113,7 +112,7 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json`
 - 推送到 `main` 时按改动路径决定是否运行：只有 `app/`、`packaging/`、`scripts/`、`assets/`、`requirements.txt` 或工作流文件本身发生变化才会触发，纯文档与测试改动不会重新编译 EXE。
 - 也可在 Actions 页面选择该工作流并点击 `Run workflow` 手动运行，手动运行需选择 `main` 分支才会发布；手动运行不受路径过滤限制。
 - 工作流文件首次进入默认分支后，Actions 页面才会显示手动运行入口。
-- 在 `windows-latest` 上使用 Python 3.13 安装依赖、执行离线测试并运行 `packaging/build.ps1 -Clean`。
+- 在 `windows-latest` 上使用 Python 3.13 安装依赖、执行离线检查并运行 `packaging/build.ps1 -Clean`；构建脚本直接产出 `output/JiYuAttackNext-<显示版本>.exe` 与对应的调试版本，工作流再据此准备 `dist/` 下的资产。
 - 构建成功后更新标签为 `nightly`、标题为 `Nightly Build <版本>` 的预发布版本，资产只有两个：`JiYuAttackNext-<显示版本>.exe` 与 `JiYuAttackNext_Debug-<显示版本>.exe`，显示版本是基础版本号加提交哈希（如 `0.1.0-1a8ede3`）。不再发布固定名副本，免得每次推送都在发布页多堆两个文件（GUI 与 CLI 共用同一个 EXE，调试版只差日志等级）。
 - 发布说明包含版本号、构建时间、工作流运行记录、两个资产的 SHA256，`Commits` 章节列出本次构建对应的那条提交。
 - 路径过滤按整个推送的 `before..head` 判定，因此把文档提交与代码提交一起推送时仍会构建；`Commits` 章节据此说明本次构建实际包含哪些改动。
@@ -127,7 +126,7 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json`
 
 - 只支持手动触发，不随推送自动运行；不会自动递增版本号，需先修改 `app/core/constants.py` 的 `__version__` 并提交。
 - 发布前校验版本号与源码一致、正式版不带预发布后缀、标签 `vX.Y.Z` 尚不存在，任一不满足即失败。
-- 资产为固定名 `JiYuAttackNext.exe` 与 `JiYuAttackNext_Debug.exe`，另附版本号副本`JiYuAttackNext-X.Y.Z.exe`；同一文件同时提供 GUI 与 CLI。正式版的产物体内不带提交哈希，工作流以 `-Commit ""` 显式关闭，nightly 则传当前提交哈希。
+- 资产为固定名 `JiYuAttackNext.exe` 与 `JiYuAttackNext_Debug.exe`，另附版本号副本`JiYuAttackNext-X.Y.Z.exe`；同一文件同时提供 GUI 与 CLI。固定名副本由工作流从构建脚本产出的 `output/JiYuAttackNext-X.Y.Z.exe` 复制而来，本地 `output/` 里只有带版本号的那一份。正式版的产物体内不带提交哈希，工作流以 `-Commit ""` 显式关闭，nightly 则传当前提交哈希。
 - 发布说明的 `Changes` 章节列出上一个 `v*` 标签以来的提交标题；`make_latest: true` 使正式版成为最新版本，nightly 不受影响。
 - 可选择以草稿（`draft`）创建，确认后再在 Releases 页面发布；`overwrite_files: false` 保证不会覆盖已发布资产。
 - 使用 `release` 并发组且不取消进行中的运行，避免两次发布互相干扰。

@@ -110,7 +110,8 @@ jobs:
           $names = @("JiYuAttackNext", "JiYuAttackNext_Debug")
           New-Item -ItemType Directory -Path "dist" -Force | Out-Null
           foreach ($name in $names) {
-            $exeSource = "output\$name.exe"
+            # 构建脚本只写带显示版本的文件名，发布资产再按需要补固定名副本。
+            $exeSource = "output\$name-$env:VERSION.exe"
             if (-not (Test-Path -LiteralPath $exeSource -PathType Leaf)) {
               throw "未找到构建产物：$exeSource"
             }

@@ -28,15 +28,6 @@ try {
     if ($Variant -ne "both") {
         $targets = @($targets | Where-Object { $_.Variant -eq $Variant })
     }
-    # 进程名不含扩展名；带 .exe 会让 -Name 匹配不到任何进程，导致保护形同虚设。
-    foreach ($target in $targets) {
-        $runningPath = Join-Path $outputRoot ($target.Name + ".exe")
-        $runningApp = Get-Process -Name $target.Name -ErrorAction SilentlyContinue |
-            Where-Object { $_.Path -eq $runningPath }
-        if ($runningApp) {
-            throw ("请关闭正在运行的 " + $target.Name + ".exe 后再构建。")
-        }
-    }
     & $pythonExe -X utf8 -c "import PySide6.QtWidgets, qfluentwidgets, PyInstaller"
     if ($LASTEXITCODE -ne 0) {
         throw "缺少构建依赖，请先执行：python -m pip install -r requirements.txt"
@@ -73,6 +64,18 @@ try {
         $displayVersion = "$Version-$Commit"
     }
 
+    # 产物名带显示版本，重建同一版本时才会写到已存在（可能正在运行）的文件上。
+    # 进程名不含扩展名；带 .exe 会让 -Name 匹配不到任何进程，导致保护形同虚设。
+    foreach ($target in $targets) {
+        $exeName = $target.Name + "-" + $displayVersion
+        $runningPath = Join-Path $outputRoot ($exeName + ".exe")
+        $runningApp = Get-Process -Name $exeName -ErrorAction SilentlyContinue |
+            Where-Object { $_.Path -eq $runningPath }
+        if ($runningApp) {
+            throw ("请关闭正在运行的 " + $exeName + ".exe 后再构建。")
+        }
+    }
+
     New-Item -ItemType Directory -Path (Join-Path $buildRoot "assets") -Force | Out-Null
     $iconScript = "from PySide6.QtGui import QGuiApplication, QIcon; from PySide6.QtCore import QSize; app = QGuiApplication([]); icon = QIcon('assets/app.svg'); ok = icon.pixmap(QSize(256, 256)).save('build/assets/app.ico', 'ICO'); raise SystemExit(0 if ok else 1)"
     & $pythonExe -X utf8 -c $iconScript
@@ -102,6 +105,9 @@ try {
         # 免得读回来的文本多出不可见字符导致判定失败。
         [System.IO.File]::WriteAllText($variantPath, $target.Variant)
         $env:JY_BUILD_VARIANT = $target.Variant
+        # 产物名带上版本号，PyInstaller 直接写出最终文件名，不再另存固定名副本。
+        $exeName = $target.Name + "-" + $displayVersion
+        $env:JY_BUILD_NAME = $exeName
         # 每个变体用独立 workpath：共用会命中上一次的缓存，产物名字与变体对不上。
         $buildArguments = @(
             "-m", "PyInstaller", "--noconfirm",
@@ -116,26 +122,27 @@ try {
         if ($LASTEXITCODE -ne 0) {
             throw ("PyInstaller 构建 " + $target.Variant + " 版本失败，退出码：" + $LASTEXITCODE)
         }
-        $exePath = Join-Path $outputRoot ($target.Name + ".exe")
+        $exePath = Join-Path $outputRoot ($exeName + ".exe")
         if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
             throw "未找到构建产物：$exePath"
         }
-        # 另存一份带版本号的文件名，方便与 CI 产物、历史构建对应起来；
-        # 固定名的那一份继续保留，文档与自动更新都指向它。
-        $versionedPath = Join-Path $outputRoot ($target.Name + "-" + $displayVersion + ".exe")
-        if ($versionedPath -ne $exePath) {
-            try {
-                Copy-Item -LiteralPath $exePath -Destination $versionedPath -Force
-            } catch {
-                Write-Warning ("未能写出带版本号的副本，可能正在运行：" + $versionedPath)
-            }
-        }
         Write-Host ("构建完成：" + $exePath + "（版本 " + $displayVersion + "，" + $target.Variant + "）") -ForegroundColor Green
-        if (Test-Path -LiteralPath $versionedPath -PathType Leaf) {
-            Write-Host ("带版本号的副本：" + $versionedPath) -ForegroundColor Green
-        }
     }
     Remove-Item Env:\JY_BUILD_VARIANT -ErrorAction SilentlyContinue
+    Remove-Item Env:\JY_BUILD_NAME -ErrorAction SilentlyContinue
+
+    # 早期构建写的是不带版本号的固定名，留着会和带版本号的产物混在一起，一并清掉。
+    foreach ($stale in @("JiYuAttackNext", "JiYuAttackNext_Debug")) {
+        $stalePath = Join-Path $outputRoot ($stale + ".exe")
+        if (-not (Test-Path -LiteralPath $stalePath -PathType Leaf)) {
+            continue
+        }
+        try {
+            Remove-Item -LiteralPath $stalePath -Force
+        } catch {
+            Write-Warning ("旧产物 " + $stale + ".exe 正在运行，无法移除；新版本已构建完成。")
+        }
+    }
 
     $legacyPath = Join-Path $outputRoot "JiyuUdpTest.exe"
     if (Test-Path -LiteralPath $legacyPath -PathType Leaf) {
@@ -148,5 +155,6 @@ try {
 }
 finally {
     Remove-Item Env:\JY_BUILD_VARIANT -ErrorAction SilentlyContinue
+    Remove-Item Env:\JY_BUILD_NAME -ErrorAction SilentlyContinue
     Pop-Location
 }

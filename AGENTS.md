@@ -149,7 +149,7 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1
 
 ### 残留清理
 
-构建、测试与截图验证结束后立即清理本次产生的残留，仓库里只保留 `output\JiYuAttackNext.exe` 与 `output\JiYuAttackNext_Debug.exe` 两个构建产物：
+构建、测试与截图验证结束后立即清理本次产生的残留，仓库里只保留 `output\JiYuAttackNext-<显示版本>.exe` 与 `output\JiYuAttackNext_Debug-<显示版本>.exe` 两个构建产物（同一版本重复构建时只有一个版本号，保留最新那份即可）：
 
 - 删除 `build\` 整个目录：它是 PyInstaller 的 `--workpath`，含中间文件、图标与版本资源。
 - 删除验证用的临时脚本与截图，例如 `output\verify_*.png`、`build\tmp\*`。
