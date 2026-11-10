@@ -48,25 +48,6 @@ def build_parser():
 parser = build_parser()
 
 
-# 只打印帮助或版本号的调用没有任何副作用，也不该在数据目录留下日志文件。
-INFORMATIONAL_ARGUMENTS = ("-h", "--help", "-V", "--version")
-
-
-def is_informational(arguments):
-    """判断本次调用是否只是查看帮助或版本号。
-
-    只认单独一个帮助或版本号参数；``-msg "-h"`` 这类把短横线内容当作
-    参数值传进来的写法仍按普通发送处理，避免误跳过日志。
-
-    Args:
-        arguments: 命令行参数列表。
-
-    Returns:
-        bool: 只查帮助或版本号时为 ``True``。
-    """
-    return len(arguments) == 1 and arguments[0] in INFORMATIONAL_ARGUMENTS
-
-
 def start_logging():
     """启用命令行日志；写入阈值跟构建变体一致，文件与界面日志分开。"""
     cli_log.configure(portable_cli_log_path())
@@ -538,28 +519,27 @@ def main(argv=None):
         return run_firewall_helper(arguments[1:])
     if arguments[:1] == [STUDENT_HELPER_ARGUMENT]:
         return run_student_helper(arguments[1:])
-    if is_informational(arguments):
-        # 帮助与版本号走 argparse 自身的退出路径，不创建数据目录与日志文件。
-        _select_parser(arguments).parse_args(arguments)
-        return 0
-    start_logging()
-    cli_log.LOG.info(
-        "命令行启动",
-        "命令行",
-        "参数：%s" % (" ".join(arguments) if arguments else "无"),
-    )
+    parse_error = None
     try:
-        try:
-            code = run_from_cmd(_select_parser(arguments).parse_args(arguments))
-        except SystemExit as error:
-            # --help 与 --version 也用 SystemExit 结束，退出码 0 属于正常结束。
-            if error.code in (0, None):
-                cli_log.LOG.info("参数解析结束", "命令行", "退出码：%s" % error.code)
-            else:
-                cli_log.LOG.warning(
-                    "参数解析未通过", "命令行", "退出码：%s" % error.code
-                )
+        # 由解析器识别所有层级的帮助与版本参数，避免把参数值误当成帮助。
+        options = _select_parser(arguments).parse_args(arguments)
+    except SystemExit as error:
+        if error.code in (0, None):
             raise
+        parse_error = error
+    try:
+        start_logging()
+        cli_log.LOG.info(
+            "命令行启动",
+            "命令行",
+            "参数：%s" % (" ".join(arguments) if arguments else "无"),
+        )
+        if parse_error is not None:
+            cli_log.LOG.warning(
+                "参数解析未通过", "命令行", "退出码：%s" % parse_error.code
+            )
+            raise parse_error
+        code = run_from_cmd(options)
         cli_log.LOG.info("命令行结束", "命令行", "退出码：%s" % code)
         return code
     finally:

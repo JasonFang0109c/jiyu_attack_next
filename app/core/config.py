@@ -7,6 +7,7 @@
 import json
 from contextlib import suppress
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 HEADER = (
     "// JiYu Attack Next 配置文件（JSON with comments）",
@@ -36,7 +37,10 @@ def strip_comments(text):
         text: 带注释的 JSON 文本。
 
     Returns:
-        str: 仅含数据与空白的文本。
+        str: 仅含数据与空白的文本，保留注释原有的换行与位置。
+
+    Raises:
+        ValueError: 块注释未闭合。
     """
     pieces = []
     index = 0
@@ -49,12 +53,22 @@ def strip_comments(text):
             index = end
             continue
         if text.startswith("//", index):
-            end = text.find("\n", index)
-            index = length if end < 0 else end
+            end = index + 2
+            while end < length and text[end] not in "\r\n":
+                end += 1
+            pieces.append(" " * (end - index))
+            index = end
             continue
         if text.startswith("/*", index):
             end = text.find("*/", index + 2)
-            index = length if end < 0 else end + 2
+            if end < 0:
+                raise ValueError("配置文件包含未闭合的块注释")
+            end += 2
+            # 注释是空白而非空串，避免把 1/**/2 拼成合法的 12。
+            pieces.append(
+                "".join(char if char in "\r\n" else " " for char in text[index:end])
+            )
+            index = end
             continue
         pieces.append(char)
         index += 1
@@ -177,7 +191,7 @@ def read(path):
 
 
 def write(path, data, comments=None):
-    """写入配置文件，先写临时文件再替换，避免中断留下半个文件。
+    """通过同目录下的独立临时文件替换配置，失败时清理本次临时文件。
 
     Args:
         path: 配置文件路径。
@@ -186,14 +200,27 @@ def write(path, data, comments=None):
 
     Raises:
         OSError: 目录不可写或替换失败。
+        TypeError: 数据包含不支持 JSON 序列化的值。
+        UnicodeEncodeError: 文本无法编码为 UTF-8。
     """
+    text = dumps(data, comments)
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = target.with_name(target.name + ".tmp")
+    temp_path = None
     try:
-        temp_path.write_text(dumps(data, comments), encoding="utf-8")
+        with NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=target.parent,
+            prefix=target.name + ".",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary:
+            temp_path = Path(temporary.name)
+            temporary.write(text)
+        # Windows 替换前需要先关闭句柄，独立文件名避免并发保存互相覆盖。
         temp_path.replace(target)
-    except OSError:
-        with suppress(OSError):
-            temp_path.unlink(missing_ok=True)
-        raise
+    finally:
+        if temp_path is not None:
+            with suppress(OSError):
+                temp_path.unlink(missing_ok=True)

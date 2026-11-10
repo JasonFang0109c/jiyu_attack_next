@@ -62,11 +62,12 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Clean
 
 ## 离线检查
 
-按改动范围选择检查：只改 Markdown 时不需要跑测试；改 `app/`、`packaging/` 或 `scripts/` 时执行以下命令；改构建脚本或工作流时另需实际执行一次构建。
+按改动范围选择检查，具体对应关系见 [仓库协作规范](../../AGENTS.md#验证)：只改文档或注释时通读核对；代码改动跑相关测试，跨模块行为变化时跑全量测试；GUI 逻辑变化跑界面测试，外观或交互变化再按需截图。构建、打包配置或依赖变化时实际构建并用 EXE 冒烟，不重复运行无关检查。
+
+下面是全量测试命令；测试可以运行时无需额外执行 `compileall`，只有测试环境受限时才用语法检查补充验证。
 
 ```powershell
 .\.venv\Scripts\python.exe -B -m unittest discover -s tests -v
-.\.venv\Scripts\python.exe -X utf8 -m compileall -q app tests scripts
 ```
 
 ### 本机 IP 自测
@@ -137,7 +138,7 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Clean
 
 **一个任务对应一次提交，不是一次对话对应一次提交。**
 
-“任务”指一个可独立完成、可独立验证的改动目标，与对话轮次无关。一次对话包含多个任务时，每完成一个任务就构建、验证并提交，不要把多个任务合并成一次提交；同一个任务也不拆成多次提交，不混入其他任务的改动。
+“任务”指一个可独立完成、可独立验证的改动目标，与对话轮次无关。一次对话包含多个任务时，每完成一个任务就按改动范围验证、按需构建并提交，不要把多个任务合并成一次提交；同一个任务也不拆成多次提交，不混入其他任务的改动。
 
 ```text
 [Fix] 修复长消息打包越界

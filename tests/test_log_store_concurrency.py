@@ -5,7 +5,7 @@ import threading
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from PySide6.QtCore import QObject, Slot
 from PySide6.QtWidgets import QApplication
@@ -22,6 +22,20 @@ class _ObservedLock:
         if threading.current_thread().name == "gui-mutation":
             self.attempted.set()
         self.lock.acquire()
+        return self
+
+    def __exit__(self, *_exc):
+        self.lock.release()
+
+
+class _TimedLock:
+    def __init__(self, lock):
+        self.lock = lock
+
+    def __enter__(self):
+        # 自锁时及时结束测试，不让回归用例挂住整个测试进程。
+        if not self.lock.acquire(timeout=0.1):
+            raise TimeoutError("日志文件锁重复获取超时")
         return self
 
     def __exit__(self, *_exc):
@@ -88,6 +102,32 @@ class LogStoreConcurrencyTests(unittest.TestCase):
         thread = threading.Thread(target=run, name=name, daemon=True)
         thread.start()
         return thread
+
+    def test_write_error_closes_handle_and_allows_later_append(self):
+        for operation in ("write", "flush"):
+            with self.subTest(operation=operation):
+                self.store.clear()
+                self.store.warning("测试", "原记录")
+                handle = Mock(wraps=self.store._file_handle)
+                getattr(handle, operation).side_effect = OSError("模拟写盘异常")
+                self.store._file_handle = handle
+                events = []
+                self.store.added.connect(events.append)
+                try:
+                    with patch.object(
+                        self.store, "_file_lock", _TimedLock(self.store._file_lock)
+                    ):
+                        failed = self.store.warning("测试", "写盘失败的记录")
+                    self.assertIn("模拟写盘异常", self.store.storage_error)
+                    self.assertIsNone(self.store._file_handle)
+                    handle.close.assert_called_once_with()
+                    recovered = self.store.warning("测试", "恢复后的记录")
+                    self.assertEqual(events, [failed, recovered])
+                    self.assertIn(
+                        recovered.as_text(), self.log_path.read_text(encoding="utf-8")
+                    )
+                finally:
+                    self.store.added.disconnect(events.append)
 
     def test_rewrite_waits_for_inflight_append(self):
         for action in ("remove", "clear", "rewrite", "close", "disable"):

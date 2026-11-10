@@ -1255,6 +1255,8 @@ class MainWindow(FluentWindow):
         Args:
             purpose: ``refresh`` 手动刷新，``poll`` 定时轮询，``toggle`` 启停前确认状态。
         """
+        if self._quit_requested:
+            return
         if self._student_probe_thread is not None:
             # 轮询可以丢弃，手动操作要排队，否则点了没反应。
             if purpose != "poll":
@@ -1270,15 +1272,20 @@ class MainWindow(FluentWindow):
         self._student_probe_thread = thread
         thread.start()
 
+    @Slot()
     def _student_probe_finished(self):
-        """一次探测结束：释放线程，并把排队中的用途接着跑。"""
+        """查询结束后释放引用；退出时丢弃排队请求并继续关闭窗口。"""
         self._student_probe_thread = None
         purpose, self._student_probe_queued = self._student_probe_queued, None
-        if purpose is not None:
+        if self._quit_requested:
+            self._task_dispatch_timer.start(0)
+        elif purpose is not None:
             self._probe_student_processes(purpose)
 
     def _student_processes_ready(self, purpose, processes):
         """拿到进程列表：轮询只在集合变化时重绘，手动操作要给出反馈。"""
+        if self._quit_requested:
+            return
         page = self.pages["studentproc"]
         if purpose == "poll":
             if [item["pid"] for item in processes] == [
@@ -1305,13 +1312,13 @@ class MainWindow(FluentWindow):
         if not processes:
             self._notify("未发现学生端", "本机没有正在运行的学生端进程", "信息")
 
-    def _student_processes_failed(self, purpose, message):
-        """查询失败：轮询静默重试，手动刷新与启停要提示用户。"""
-        if purpose == "poll":
+    def _student_processes_failed(self, purpose, message, details):
+        """查询失败：恢复按钮并记录堆栈，退出过程与轮询不弹提示。"""
+        if self._quit_requested or purpose == "poll":
             return
         page = self.pages["studentproc"]
         page.set_busy(False)
-        self.logs.error("解除限制", "查询学生端进程失败", "异常：%s" % message)
+        self.logs.error("解除限制", "查询学生端进程失败", details or message)
         self._notify("查询学生端进程失败", message, "错误")
 
     def toggle_local_student(self):
@@ -2046,8 +2053,11 @@ class MainWindow(FluentWindow):
             event.ignore()
             return
 
+        self._quit_requested = True
+        self.close_after_task = True
+        self._studentproc_timer.stop()
+        self._student_probe_queued = None
         if self.thread is not None and self.thread.isRunning():
-            self.close_after_task = True
             # 任务可能在设置开始时间之前就被关闭，取不到时按 0 秒记录。
             elapsed = (
                 time.monotonic() - self.active_started_at
@@ -2062,8 +2072,10 @@ class MainWindow(FluentWindow):
             self.cancel_task()
             event.ignore()
             return
-        self._quit_requested = True
-        self.close_after_task = True
+        # 查询线程也会回调页面；等 finished 被处理后再释放窗口与日志。
+        if self._student_probe_thread is not None:
+            event.ignore()
+            return
         self.pages["shell"].stop_listen()
         for page in self.task_pages:
             page.footer.ring.stop()
@@ -2085,7 +2097,6 @@ class MainWindow(FluentWindow):
         self.quitRequested.emit()
 
 
-# 学生端状态轮询间隔，与参考实现的 2 秒定时器一致；太密会让 tasklist 白跑。
 # 学生端进程轮询间隔：课堂软件不会频繁启停，两秒足够发现状态变化。
 STUDENT_POLL_INTERVAL = 2000
 # 侧边栏最小高度的上限：导航项再多也不该把整个窗口顶到超出屏幕。

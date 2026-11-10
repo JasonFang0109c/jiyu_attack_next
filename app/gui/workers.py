@@ -98,13 +98,14 @@ class ProbeWorker(_LoggingWorker):
         self.function = function
 
     def run(self):
-        """执行查询；失败时只回报消息，轮询失败不值得记堆栈。"""
+        """执行查询；异常连同堆栈返回，确保界面可以解除忙碌状态。"""
         name = getattr(self.function, "__name__", "")
         try:
             result = self.function()
-        except (RuntimeError, OSError) as error:
-            self._log("debug", "后台查询失败", "函数：%s；异常：%s" % (name, error))
-            self.failed.emit(str(error), "")
+        except Exception as error:
+            details = traceback.format_exc()
+            self._log("debug", "后台查询失败", "函数：%s\n%s" % (name, details))
+            self.failed.emit(str(error), details)
         else:
             self.completed.emit(result)
 

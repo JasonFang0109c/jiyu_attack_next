@@ -23,8 +23,7 @@ DEFAULT_CATEGORY = "命令行"
 class CliLog:
     """把日志按界面的文本格式追加到 ``cli.log``。
 
-    句柄跨条复用并在每条之后刷盘：重新打开文件比写一行本身贵得多，逐条
-    刷盘仍能保证进程被结束或崩溃时已写入的记录不会丢。
+    复用文件句柄，每条记录写入后刷新文件缓冲，减少重复打开文件的开销。
     """
 
     def __init__(self, path=None, category=DEFAULT_CATEGORY):
@@ -50,7 +49,7 @@ class CliLog:
         return self._path is not None
 
     def close(self):
-        """关闭写入句柄；每行都已刷盘，关闭只影响文件占用。"""
+        """关闭写入句柄并释放文件占用。"""
         handle = self._handle
         self._handle = None
         if handle is None:

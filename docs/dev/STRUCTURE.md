@@ -85,6 +85,8 @@ jiyu_attack_next/
 |-- tests/
 |   |-- __init__.py
 |   |-- test_core.py              # 核心协议、传输与防火墙测试
+|   |-- test_config_io.py         # JSONC 解析与配置原子保存回归
+|   |-- test_cli_lifecycle.py     # 命令行帮助与日志生命周期回归
 |   |-- test_entry.py             # 统一入口与命令行启动测试
 |   |-- test_gui.py               # 界面与线程生命周期测试
 |   |-- test_log_page_gui.py      # 日志筛选、选择与删除回归
@@ -110,7 +112,7 @@ jiyu_attack_next/
 
 - `app/__main__.py` 是唯一入口：无参数时启动 GUI，带参数时调用 `app/cli/main.py`；`--firewall-helper` 与 `--student-helper` 由隐藏提权助手直接执行，不显示控制台。打包产物是窗口化子系统，`_show_cli_console()` 负责在 CLI 模式下把标准流接回调用方的终端或重定向目标，不新建控制台窗口。PyInstaller 也从此文件打包。
 - `app/core/` 提供报文常量、协议构造、UDP 与文件传送、防火墙规则、本机信息探测、本机学生端起停与反弹终端；新增依赖同步写进 `requirements.txt`。CLI 与 GUI 都通过 `from .. import core` 使用这些接口。
-- `app/core/shell.py` 负责反弹终端：在本机起终端监听与只提供启动脚本的临时 HTTP 服务，再经远程命令通道让目标下载脚本并主动连回，命令行输入输出都走这条回连的 TCP 连接；启动脚本不内联在命令里，因为远程命令通道单条只有 163 个字符。
+- `app/core/shell.py` 负责反弹终端：在本机起终端监听与只提供启动脚本的临时 HTTP 服务，再经远程命令通道让目标下载脚本并主动连回，命令行输入输出都走这条回连的 TCP 连接；启动脚本不内联在命令里，因为远程命令通道单条最多容纳 163 个 UTF-16 单元。
 - `app/cli/parser.py` 只定义参数：`build_group_parser()` 按图形界面侧边栏的分组给出子命令，一个页面一条子命令；`build_flat_parser()` 保留来源项目与本程序早期的扁平写法。两者解析出的字段名相同，分发代码因此不必区分写法。`app/cli/main.py` 按首个参数是否属于分组名选择解析器，负责参数校验、单条命令、文件传送、防火墙与启停学生端命令、终端输出；不再作为可单独复制的单文件脚本维护。
 - `app/gui/app.py` 基于 `FluentWindow` 实现侧边导航、任务调度、单实例运行与页面联动。导航按“解除限制／远程攻击／本机工具”三个可折叠分组组织，分组由 `NAVIGATION_GROUPS` 描述，`_add_navigation_group` 注册页面并恢复分组设置。
 - `app/core/student_process.py` 只处理本机学生端：用 `tasklist` 与 `netstat` 找进程与监听端口，用 `Get-Process` 取可执行文件路径，同目录有 `LibTDMaster.dll` 时标记为真身；结束先 `taskkill` 请求正常退出，用 `_wait_gone` 轮询确认进程真的消失，等不到再 `/F` 强制，仍被拒绝且非管理员才整批交给 UAC 助手；定位程序时依次试运行中的真身进程、卸载信息里的 `DisplayIcon`、卸载信息里的 `InstallLocation`、极域服务所在目录与常见安装目录，拉起后用 `_wait_for_start` 轮询确认进程真的出现。`toggle_student_process` 是界面上那个单按钮与命令行默认动作共用的入口。当前进程不是管理员时复用防火墙模块的 UAC 助手启动隐藏子进程，结束与启动结果都经临时 JSON 回传，`--student-helper` 是它在打包产物里的入口参数；直接运行源码时助手用 `-m app` 并以仓库根目录为工作目录启动，否则相对导入会失败，助手什么都没做就退出。
@@ -121,7 +123,7 @@ jiyu_attack_next/
 - `app/gui/theme.py` 只存 WinUI 3 的视觉常量与取值函数，不导入其它界面模块。
 - `app/gui/splash.py` 提供启动遮罩：主窗口显示后用项目图标、应用名、版本号与不确定进度条盖住界面，跟随窗口尺寸，最短停留一段时间后自动关闭。
 - `app/gui/models.py` 保存连接状态、持久化设备备注，并提供带等级、线程、输出位置和异常详情的结构化日志存储；日志写入、快照与文件切换使用同一把锁，状态变更通知按顺序在对象所属线程发送，回调在锁外执行。
-- `app/gui/workers.py` 执行后台发送与本机工具任务，通过信号更新界面。
+- `app/gui/workers.py` 执行后台发送、本机工具任务与状态查询，通过信号传递结果；失败信号携带异常消息和堆栈，由主线程恢复界面状态。
 - `packaging/` 存放 PyInstaller 配置、构建脚本与版本资源生成器；EXE 以普通用户权限启动，防火墙操作在需要时通过 UAC 启动隐藏助手。
 - `.github/workflows/build.yml` 提供可复用的打包流程，`nightly-build.yml` 与 `release.yml` 分别以 nightly、stable 通道调用它。
 - `.github/workflows/nightly-build.yml` 在推送到 `main` 且改动涉及 `app/`、`packaging/`、`scripts/`、`assets/`、依赖清单或工作流文件时构建 EXE，并滚动更新 `nightly` 预发布；纯文档改动不触发。

@@ -49,7 +49,7 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python "C:\Pytho
 - 两个变体使用独立的 `--workpath`（`build/release` 与 `build/debug`），避免 PyInstaller 复用另一份变体的分析缓存。
 - `-Version` 覆盖版本号；省略时读取 `app/core/constants.py` 的 `__version__`。版本号须符合语义化版本格式，规则见[版本规范](VERSIONING.md)。
 - 产物名直接带显示版本，例如 `output/JiYuAttackNext-0.1.0-e1f9608.exe` 与 `output/JiYuAttackNext_Debug-0.1.0-e1f9608.exe`；显示版本是版本号加提交哈希，因此从文件名就能看出对应哪次提交。本地构建不再产出 `JiYuAttackNext.exe` 这类不带版本号的固定名，早期构建留下的固定名文件在构建结束时清掉。
-- `output/` 只留最近一次构建的两份 EXE：重新构建后旧哈希的那份已没有对应源码，直接删除，不堆历史版本。
+- `output/` 只留最近一次构建的两份 EXE：重新构建后删除旧版本产物，避免与当前构建混淆，不保留历史版本。
 - 提交哈希省略 `-Commit` 时自动取 `git rev-parse --short=7 HEAD`；显式传 `-Commit ""` 表示不要哈希（正式版发布用它），此时产物名就是 `output/JiYuAttackNext-0.1.0.exe`；不在 Git 仓库内构建时同样只带版本号。
 - 脚本根据自身路径定位项目根目录，也可从其他目录通过绝对路径调用，默认使用项目虚拟环境。
 - 读取 [packaging/JiYuAttackNext.spec](../../packaging/JiYuAttackNext.spec)，并收集 Fluent Widgets 的运行时资源与包元数据。
@@ -89,7 +89,7 @@ powershell -ExecutionPolicy Bypass -File .\packaging\build.ps1 -Python "C:\Pytho
 
 ## 运行数据
 
-EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json` 保存设备备注（`core` 组）与界面设置（`gui` 组，含关闭窗口行为、窗口材质和主窗口位置），`runtime.log` 保存界面运行日志，`cli.log` 保存命令行模式的运行日志。日志等级由构建变体决定：正常版本只写 `WARNING` 与 `ERROR`，`JiYuAttackNext_Debug.exe` 从 `DEBUG` 起记录。两个 EXE 放在同一目录时共用这个文件夹，调试版本产生的记录与正常版本写进同一份日志。`settings.json` 使用 JSON with comments，允许手写 `//`、`/* */` 注释与尾逗号，程序保存时会重写整个文件。该目录由 `.gitignore` 排除，源码运行时位于项目根目录。
+EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json` 保存设备备注（`core` 组）与界面设置（`gui` 组，含关闭窗口行为、窗口材质和主窗口位置），`runtime.log` 保存界面运行日志，`cli.log` 保存命令行模式的运行日志。正常版本默认从 `WARNING` 起记录，GUI 可在设置页选择 `INFO`、`WARNING` 或 `ERROR`，CLI 始终采用默认阈值；调试版本固定从 `DEBUG` 起记录。两个 EXE 放在同一目录时共用这个文件夹，调试版本产生的记录与正常版本写进同一份日志。`settings.json` 使用 JSON with comments，允许手写 `//`、`/* */` 注释与尾逗号，程序保存时会重写整个文件。该目录由 `.gitignore` 排除，源码运行时位于项目根目录。
 
 - 日志包含毫秒时间、规范级别、线程、输出位置、功能分类、消息与异常详情，便于从用户环境回传排查。
 - 只移动 EXE 而不移动该文件夹时，新位置按默认配置启动。
@@ -136,7 +136,7 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json`
 
 ## 验证
 
-改动 `app/`、构建脚本或打包配置后执行；纯文档改动不需要。
+验证项目按改动范围选择，详见 [开发与提交规范](CONTRIBUTING.md#离线检查)。下面是全量测试与截图验证的命令示例：跨模块行为变化时跑全量测试；只有外观、布局或交互需要视觉确认时才截图。构建脚本、打包配置或依赖变化后，实际构建并用 EXE 冒烟；纯文档改动无需执行。
 
 ```powershell
 .\.venv\Scripts\python.exe -B -m unittest discover -s tests -v

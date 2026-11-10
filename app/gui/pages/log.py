@@ -206,15 +206,15 @@ class LogPage(Page):
         if self.isVisible():
             self.table.scrollToBottom()
 
-    def _trim_rows(self):
-        """超过上限一定比例后整批裁掉旧记录。
+    def _trim_rows(self, *, force=False):
+        """追加期间按批裁剪，刷新统计时收敛到存储上限。
 
-        每追加一条就删一行会让整表反复前移，日志密集时卡住界面；
-        攒到超出上限一成再删，移动次数摊薄到原来的十分之一以下。
+        每追加一条就删一行会让整表反复前移；批内暂留一成缓冲，
+        合并刷新时必须裁掉余量，避免已淘汰记录仍显示为可勾选。
         """
         limit = self.store.entries.maxlen
         excess = self.table.rowCount() - limit
-        if excess <= 0 or self.table.rowCount() <= limit * 1.1:
+        if excess <= 0 or (not force and self.table.rowCount() <= limit * 1.1):
             return
         self._drop_rows(excess)
 
@@ -286,6 +286,8 @@ class LogPage(Page):
             self._selection_timer.start()
 
     def _refresh_selection_controls(self):
+        self._selection_timer.stop()
+        self._trim_rows(force=True)
         visible_count = len(self._visible_uids)
         selected_count = len(self._checked_uids)
         all_checked = visible_count > 0 and self._visible_uids <= self._checked_uids
@@ -353,6 +355,8 @@ class LogPage(Page):
 
     @Slot(object)
     def _remove_entries(self, removed):
+        # 先处理追加留下的淘汰行，避免删除后行数下降掩盖裁剪余量。
+        self._trim_rows(force=True)
         removed_uids = {entry.uid for entry in removed}
         self.table.blockSignals(True)
         try:
@@ -389,20 +393,22 @@ class LogPage(Page):
         # 逐行 setRowHidden 会触发大量重排，先关闭更新再一次性刷新。
         table.setUpdatesEnabled(False)
         try:
-            for row, uid in enumerate(self._uid_by_row):
-                matched = self._matches(uid)
-                if matched:
-                    self._visible_uids.add(uid)
-                else:
-                    self._visible_uids.discard(uid)
-                    # 勾选只对当前可见记录有效，否则导出的条目在列表里看不到。
-                    if uid in self._checked_uids:
-                        self._checked_uids.discard(uid)
-                        item = table.item(row, 0)
-                        if item is not None:
-                            item.setCheckState(Qt.Unchecked)
-                if table.isRowHidden(row) == matched:
-                    table.setRowHidden(row, not matched)
+            # 取消隐藏行的勾选只更新缓存，避免每行再次刷新统计控件。
+            with QSignalBlocker(table):
+                for row, uid in enumerate(self._uid_by_row):
+                    matched = self._matches(uid)
+                    if matched:
+                        self._visible_uids.add(uid)
+                    else:
+                        self._visible_uids.discard(uid)
+                        # 勾选只对当前可见记录有效，否则导出的条目在列表里看不到。
+                        if uid in self._checked_uids:
+                            self._checked_uids.discard(uid)
+                            item = table.item(row, 0)
+                            if item is not None:
+                                item.setCheckState(Qt.Unchecked)
+                    if table.isRowHidden(row) == matched:
+                        table.setRowHidden(row, not matched)
         finally:
             table.setUpdatesEnabled(True)
         self._refresh_selection_controls()

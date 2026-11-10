@@ -26,6 +26,7 @@ from PySide6.QtCore import (
     QRect,
     QSize,
     Qt,
+    QThread,
     QTimer,
 )
 from PySide6.QtGui import QColor, QImage, QMouseEvent
@@ -793,6 +794,75 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(page.toggle_button.text(), "结束学生端")
         self.window._student_processes_ready("poll", [])
         self.assertEqual(page.toggle_button.text(), "启动学生端")
+
+    def test_probe_failure_reports_message_and_traceback(self):
+        with patch.object(
+            core, "find_student_processes", side_effect=OSError("probe failed")
+        ):
+            self.window.refresh_student_processes()
+            self.wait_for(lambda: self.window._student_probe_thread is None)
+        self.notify.assert_called_once_with(
+            "查询学生端进程失败", "probe failed", "错误"
+        )
+        self.assertTrue(self.window.pages["studentproc"].toggle_button.isEnabled())
+        failures = [
+            entry
+            for entry in self.window.logs.snapshot_entries()
+            if entry.message == "查询学生端进程失败"
+        ]
+        self.assertEqual(len(failures), 1)
+        self.assertIn("Traceback", failures[0].details)
+
+    def test_probe_callbacks_run_on_gui_thread(self):
+        threads = []
+        with (
+            patch.object(core, "find_student_processes", return_value=[]),
+            patch.object(
+                self.window,
+                "_student_processes_ready",
+                side_effect=lambda *args: threads.append(QThread.currentThread()),
+            ),
+        ):
+            self.window._probe_student_processes("refresh")
+            self.wait_for(lambda: self.window._student_probe_thread is None)
+        self.assertEqual(threads, [self.application.thread()])
+
+    def test_quit_waits_for_probe_and_discards_queued_refresh(self):
+        started, release = Event(), Event()
+
+        def query():
+            started.set()
+            release.wait(5)
+            return []
+
+        with patch.object(core, "find_student_processes", side_effect=query) as probe:
+            self.window._probe_student_processes("refresh")
+            worker = self.window._student_probe_thread
+            self.wait_for(started.is_set)
+            self.window._probe_student_processes("refresh")
+            try:
+                self.window.quit_application()
+                self.assertFalse(self.window._quit_finished)
+                self.assertFalse(self.window._studentproc_timer.isActive())
+            finally:
+                release.set()
+                worker.wait(5000)
+            self.wait_for(lambda: self.window._student_probe_thread is None)
+            self.wait_for(lambda: self.window._quit_finished)
+            probe.assert_called_once()
+        self.notify.assert_not_called()
+
+    def test_probe_worker_returns_unexpected_exception_details(self):
+        worker = gui.ProbeWorker(lambda: int("invalid"))
+        self.addCleanup(worker.deleteLater)
+        failures = []
+        worker.failed.connect(
+            lambda message, details: failures.append((message, details))
+        )
+        worker.run()
+        self.assertEqual(len(failures), 1)
+        self.assertIn("invalid", failures[0][0])
+        self.assertIn("ValueError", failures[0][1])
 
     def png_bytes(self):
         """生成一张最小的 PNG，用来验证缩略图能真正解析成图片。"""

@@ -581,8 +581,8 @@ class LogStore(QObject):
         self._log_path = None
         self._file_handle = None
         self._lock = threading.RLock()
-        # 文件句柄单独一把锁：写盘比读列表慢得多，不能让追加记录挡住界面刷新。
-        self._file_lock = threading.Lock()
+        # 写盘异常会在持锁期间关闭句柄，文件锁必须允许同一线程重入。
+        self._file_lock = threading.RLock()
         self._pending_notifications = deque()
         self._draining_notifications = False
         self._notificationReady.connect(self._drain_notifications)
@@ -619,7 +619,7 @@ class LogStore(QObject):
             self._log_path = Path(value) if value is not None else None
 
     def close(self):
-        """释放日志文件句柄；每行都已刷盘，关闭只影响句柄占用。"""
+        """关闭日志文件句柄并释放文件占用。"""
         with self._lock:
             self._close_file()
 
@@ -711,9 +711,9 @@ class LogStore(QObject):
     def _append_to_file(self, entry):
         """按时间顺序追加一行；写失败只记录状态，不打断任务。
 
-        句柄跨条复用并在每条之后刷盘：重新打开文件比写一行本身贵两个数量级，
-        逐条刷盘仍能保证进程异常退出时已写入的记录不会丢。这里只占文件锁，
-        写一行磁盘不会挡住同时发生的列表快照与筛选。
+        复用句柄并在每条写入后刷新文件缓冲，减少重复打开文件的开销。
+        调用方持有状态锁，使内存追加、文件写入与通知入队保持相同顺序；
+        句柄操作另用可重入锁保护，写入失败时释放句柄，供后续追加重试。
         """
         with self._file_lock:
             if self._log_path is None:
