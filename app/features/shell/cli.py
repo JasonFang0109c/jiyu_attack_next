@@ -34,29 +34,6 @@ def register(commands, defaults):
     )
 
 
-def add_flat_arguments(parser):
-    """注册本功能兼容的扁平参数。"""
-    parser.add_argument(
-        "--shell",
-        action="store_true",
-        help="启动反弹终端：本机监听并通过远程命令让目标连回来交互",
-    )
-    parser.add_argument(
-        "--shell-port",
-        type=int,
-        default=0,
-        metavar="PORT",
-        help="反弹终端的本机监听端口，默认 0 表示随机",
-    )
-    parser.add_argument(
-        "--shell-ip",
-        type=str,
-        default="",
-        metavar="IP",
-        help="反弹终端写进目标连接命令的本机地址，默认自动探测",
-    )
-
-
 def run_shell(arguments):
     """启动反弹终端：本机监听、下发连接命令，并把本机终端接到会话上。"""
     log = cli_log.LOG

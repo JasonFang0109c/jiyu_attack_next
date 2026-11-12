@@ -35,27 +35,6 @@ def register(commands, defaults):
     )
 
 
-def add_flat_arguments(parser, message_options):
-    """注册本功能兼容的扁平参数。"""
-    message_options.add_argument(
-        "--file",
-        type=str,
-        nargs="+",
-        metavar="PATH",
-        help="传送一个或多个文件、文件夹到目标电脑桌面，文件夹按原结构递归",
-    )
-    parser.add_argument(
-        "--file-ip", type=str, metavar="IP", help="文件传送时发送端 IP，默认自动检测"
-    )
-    parser.add_argument(
-        "--file-timeout",
-        type=int,
-        default=120,
-        metavar="SECONDS",
-        help="等待目标下载文件的秒数，默认 120",
-    )
-
-
 def run_file_transfer(arguments):
     """执行文件传送并输出传送结果。"""
     log = cli_log.LOG

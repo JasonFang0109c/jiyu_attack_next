@@ -12,7 +12,7 @@ from app.features.student import cli as student_cli
 from app.features.student.service import STUDENT_HELPER_ARGUMENT, run_student_helper
 from app.shared.logs import cli as cli_log
 from app.shared.paths import portable_cli_log_path
-from app.start.parser import GROUP_NAMES, build_flat_parser, build_group_parser
+from app.start.parser import build_group_parser
 
 
 def start_logging():
@@ -27,24 +27,22 @@ def start_logging():
 
 
 def log_arguments(arguments):
-    """把本次参数快照写进日志，便于事后复现。"""
+    """记录参数类别与数量，不把消息或命令正文写入日志。"""
     cli_log.LOG.debug(
         "命令行参数",
         "命令行",
-        "ip=%s；port=%s；msg=%s；msg_file=%s；file=%s；c=%s；l=%s；t=%s；e=%s；"
-        "file_ip=%s；file_timeout=%s"
+        "group=%s；command=%s；target=%s；port=%s；message=%s；command_text=%s；"
+        "file_count=%s；loops=%s；interval=%s"
         % (
+            arguments.group,
+            arguments.command,
             arguments.ip,
             arguments.p,
-            arguments.msg,
-            arguments.msg_file,
-            arguments.file,
-            arguments.c,
+            "已提供" if arguments.msg or arguments.msg_file else "未提供",
+            "已提供" if arguments.c else "未提供",
+            len(arguments.file or ()),
             arguments.l,
             arguments.t,
-            arguments.e,
-            arguments.file_ip,
-            arguments.file_timeout,
         ),
     )
 
@@ -54,47 +52,21 @@ def run_from_cmd(arguments):
     log_arguments(arguments)
     log = cli_log.LOG
     try:
-        if arguments.shell or arguments.e == "nc":
-            return shell_cli.run_shell(arguments)
-        if (
-            arguments.endstudent
-            or arguments.list
-            or arguments.start_student
-            or arguments.pid
-        ):
+        if arguments.group == "restriction":
             return student_cli.run_student_command(arguments)
-        if arguments.firewall:
-            return firewall_cli.apply_firewall(arguments.firewall)
-        if arguments.e == "g":
+        if arguments.group == "local":
+            if arguments.command == "firewall":
+                return firewall_cli.apply_firewall(arguments.firewall)
             return local_cli.print_local_info()
-        if arguments.e in {"break", "continue"}:
-            return firewall_cli.run_legacy_action(arguments.e)
-        if arguments.file:
-            if arguments.e or arguments.msg or arguments.msg_file or arguments.c:
-                raise ValueError("文件传送不能与消息、命令或 -e 扩展功能同时使用")
+        if arguments.command == "shell":
+            return shell_cli.run_shell(arguments)
+        if arguments.command == "file":
             return files_cli.run_file_transfer(arguments)
-        if arguments.file_ip or arguments.file_timeout != 120:
-            raise ValueError("--file-ip 和 --file-timeout 仅用于文件传送")
         return send_cli.run_send(arguments)
     except Exception as e:
         print("[-] %s" % e)
         log.error("命令执行失败", "命令行", "异常：%s" % e)
         return 1
-
-
-def _select_parser(arguments):
-    """按首个参数选择分类写法或扁平写法的解析器。
-
-    Args:
-        arguments: 去掉程序名之后的参数列表。
-
-    Returns:
-        argparse.ArgumentParser: 首参数是 ``restriction``/``remote``/``local``
-        时返回分类解析器，否则返回扁平解析器。
-    """
-    if arguments[:1] and arguments[0] in (*GROUP_NAMES, "-h", "--help"):
-        return build_group_parser()
-    return build_flat_parser()
 
 
 def main(argv=None):
@@ -107,17 +79,22 @@ def main(argv=None):
     parse_error = None
     try:
         # 由解析器识别所有层级的帮助与版本参数，避免把参数值误当成帮助。
-        options = _select_parser(arguments).parse_args(arguments)
+        options = build_group_parser().parse_args(arguments)
     except SystemExit as error:
         if error.code in (0, None):
             raise
         parse_error = error
     try:
         start_logging()
+        command_context = (
+            "分组：%s；子命令：%s" % (options.group, options.command)
+            if parse_error is None
+            else "参数解析失败"
+        )
         cli_log.LOG.info(
             "命令行启动",
             "命令行",
-            "参数：%s" % (" ".join(arguments) if arguments else "无"),
+            "参数数量：%d；%s" % (len(arguments), command_context),
         )
         if parse_error is not None:
             cli_log.LOG.warning(

@@ -25,19 +25,6 @@ def register(commands, defaults):
     add_loop(message)
 
 
-def add_flat_arguments(message_options):
-    """注册本功能兼容的扁平参数。"""
-    message_options.add_argument(
-        "-msg", type=str, help="发送文本消息，支持多行；超长内容自动分条"
-    )
-    message_options.add_argument(
-        "--msg-file",
-        type=str,
-        metavar="PATH",
-        help="从 UTF-8 文件读取消息；使用 - 从标准输入读取",
-    )
-
-
 def create_message_packets(arguments):
     """读取消息并按协议容量构造消息报文。"""
     log = cli_log.LOG

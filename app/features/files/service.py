@@ -133,6 +133,25 @@ def build_transfer_command(bootstrap_url):
     return command
 
 
+def _iter_files_sorted(directory):
+    """逐层按路径顺序遍历普通文件，不缓存整棵目录树。"""
+    try:
+        stack = [iter(sorted(directory.iterdir()))]
+        while stack:
+            try:
+                child = next(stack[-1])
+            except StopIteration:
+                stack.pop()
+                continue
+            if child.is_dir():
+                if not child.is_symlink():
+                    stack.append(iter(sorted(child.iterdir())))
+            elif child.is_file():
+                yield child
+    except OSError as error:
+        raise ValueError("无法读取文件夹：%s" % error) from error
+
+
 def collect_transfer_items(paths):
     """把文件/文件夹选择展开为待传送文件列表。
 
@@ -159,17 +178,14 @@ def collect_transfer_items(paths):
         elif path.is_dir():
             candidates = []
             try:
-                children = sorted(path.rglob("*"))
-            except OSError as error:
+                for child in _iter_files_sorted(path):
+                    candidates.append(
+                        (child, child.relative_to(path.parent).as_posix())
+                    )
+            except (OSError, ValueError) as error:
+                if isinstance(error, ValueError):
+                    raise
                 raise ValueError("无法读取文件夹：%s" % error) from error
-            for child in children:
-                try:
-                    if child.is_file():
-                        candidates.append(
-                            (child, child.relative_to(path.parent).as_posix())
-                        )
-                except OSError as error:
-                    raise ValueError("无法读取文件夹：%s" % error) from error
             if not candidates:
                 raise ValueError("文件夹中没有可传送的文件：%s" % path)
         else:

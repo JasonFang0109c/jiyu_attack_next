@@ -29,7 +29,7 @@ jiyu_attack_next/
 |   |-- __main__.py                # python -m app 与 PyInstaller 入口
 |   |-- start/
 |   |   |-- service.py             # GUI / CLI 与隐藏助手入口分流
-|   |   |-- parser.py              # 装配功能子命令与扁平兼容语法
+|   |   |-- parser.py              # 装配功能分组子命令
 |   |   |-- cli.py                 # CLI 分发与日志生命周期
 |   |   |-- console.py             # 接回调用方控制台与标准流
 |   |   `-- gui.py                 # Qt 初始化、单实例与 GUI 生命周期
@@ -165,7 +165,7 @@ jiyu_attack_next/
 
 - `app/__main__.py` 保留 `python -m app` 和 PyInstaller 入口，交给 `app/start/service.py` 分流。无参数时延迟导入 `app/start/gui.py`，带参数时进入 `app/start/cli.py`；CLI 路径不导入 Qt。
 - `app/start/console.py` 的 `_show_cli_console()` 在 CLI 模式下把标准流接回调用方终端或重定向目标，不新建控制台。`--firewall-helper`、`--student-helper` 由启动层转交对应业务服务，不显示控制台。
-- `app/start/parser.py` 负责装配解析器，显式调用各功能 `app/features/*/cli.py` 的 `register()`，由功能模块注册自己的参数。`build_group_parser()` 保留页面对应的分组子命令，`build_flat_parser()` 保留原扁平语法，两者使用一致字段。
+- `app/start/parser.py` 负责装配解析器，显式调用各功能 `app/features/*/cli.py` 的 `register()`，由功能模块注册自己的参数；`build_group_parser()` 提供与页面对应的分组子命令。
 - `app/start/cli.py` 管理解析器选择、日志生命周期和调用分发；功能 CLI 负责终端输入输出并调用自身业务服务或共用发送服务。可复用的业务逻辑不放进参数解析器。
 - `app/start/gui.py` 负责 Qt 应用初始化、单实例、启动遮罩、异常日志与事件循环；`app/gui/__main__.py` 仅转交这个入口。
 
@@ -206,7 +206,7 @@ jiyu_attack_next/
 ## 新增功能
 
 1. 在 `app/features/<功能>/` 建立有独立职责的功能包；业务参数与数据约定按需放入 `data.py`，可复用流程放入无 Qt 的 `service.py`。通用编解码、网络/系统接口和配置继续复用各自基础模块。
-2. 需要 CLI 时，在功能的 `cli.py` 定义 `register()` 并注册本功能参数，在 `app/start/parser.py` 的对应分组显式调用；在 `app/start/cli.py` 接入执行分发。仅在需要兼容已有扁平语法时补 `add_flat_arguments()`，保持两种写法字段一致。
+2. 需要 CLI 时，在功能的 `cli.py` 定义 `register()` 并注册本功能参数，在 `app/start/parser.py` 的对应分组显式调用；在 `app/start/cli.py` 接入执行分发。
 3. 需要 GUI 时，在功能的 `gui/page.py` 定义页面，交互协调按需放入 `gui/service.py`，Qt 数据通知适配按需放入 `gui/data.py`。在 `app/gui/window/main.py` 显式导入、创建页面和服务、连接信号与槽，并更新 `app/gui/window/data.py` 的导航描述及相关菜单装配；仅有内部服务的功能不必创建页面。
 4. 耗时任务交给 `app/gui/workers/` 的线程与任务服务；通用控件复用 `app/gui/widgets/`，业务服务保持独立于窗口和 Qt 对象。新静态资源放入 `app/resources/` 并经 `resource_path()` 读取，新增打包资源时同步 `pack/JiYuAttackNext.spec`。
 5. 业务、报文与参数单元测试放入 `tests/unit/`，CLI/跨模块流程放入 `tests/integration/`，界面与线程行为放入 `tests/gui/`；打包或版本变化补 `tests/pack/`，共用替身复用 `tests/fixtures/offline.py`。按[验证范围](../../AGENTS.md#验证)选择检查。

@@ -1,7 +1,4 @@
-"""防火墙的命令行参数、旧写法适配与输出。"""
-
-from os import system
-from time import sleep
+"""防火墙的命令行参数与输出。"""
 
 from app.features.firewall.service import request_firewall_rule
 from app.shared.logs import cli as cli_log
@@ -33,13 +30,3 @@ def apply_firewall(action):
     print(FIREWALL_RESULTS.get(action, "防火墙规则已更新"))
     log.info("防火墙规则已更新", "防火墙", "动作：%s" % action)
     return 0
-
-
-def run_legacy_action(action):
-    """保留旧扩展参数切换防火墙后的等待与清屏行为。"""
-    code = apply_firewall("block" if action == "break" else "allow")
-    if action == "break":
-        # 规则生效需要一点时间，清屏前稍等。
-        sleep(1)
-        system("cls")
-    return code

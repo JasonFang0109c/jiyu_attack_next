@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from app import __version__ as package_version
 from app.shared import build_info, version
-from app.start.parser import build_flat_parser
+from app.start.parser import build_group_parser
 
 SEMVER_PATTERN = re.compile(
     r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
@@ -28,7 +28,7 @@ class VersionTests(unittest.TestCase):
 
     def test_cli_reports_version(self):
         with self.assertRaises(SystemExit) as raised:
-            build_flat_parser().parse_args(["--version"])
+            build_group_parser().parse_args(["--version"])
         self.assertEqual(raised.exception.code, 0)
 
     def test_version_text_falls_back_to_package_version(self):

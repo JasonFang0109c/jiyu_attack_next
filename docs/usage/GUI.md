@@ -246,7 +246,7 @@ python -m app
 已构建的文件位于 `output\JiYuAttackNext-<显示版本>.exe`（例如 `output\JiYuAttackNext-0.1.0-e1f9608.exe`，调试版是同目录的 `JiYuAttackNext_Debug-<显示版本>.exe`），同一个 EXE 包含 GUI 与 CLI 两种模式，无需安装 Python 或 PySide6：
 
 - **GUI**：双击（无参数）打开图形界面，不显示控制台窗口。
-- **CLI**：在终端带参数运行，保留控制台窗口并显示输出，例如 `.\JiYuAttackNext-<显示版本>.exe -ip 10.49.151.29 -msg "Hello"`。
+- **CLI**：在终端带参数运行，保留控制台窗口并显示输出，例如 `.\JiYuAttackNext-<显示版本>.exe remote message -ip 10.49.151.29 -msg "Hello"`。
 
 cmd 在 EXE 所在目录可直接写 `JiYuAttackNext-<显示版本>.exe ...`；PowerShell 需要 `.\` 前缀，或使用绝对路径。CLI 参数与示例见 [CLI 模式使用说明](CLI.md)。EXE 为单文件程序，首次启动会解压运行时资源，可能需要数秒。
 

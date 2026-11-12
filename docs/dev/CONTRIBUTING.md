@@ -97,10 +97,10 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Clean
 
 ```text
 2026-11-04 13:29:10.527 [10440] [MainThread] DEBUG   app.start.cli.log_arguments:31 - [命令行] 命令行参数
-    ip=10.49.151.29；port=4705；msg=Hello
+    group=remote；command=message；target=10.49.151.29；port=4705；message=已提供；command_text=未提供；file_count=0；loops=1；interval=22
 ```
 
-新增命令行节点时按功能分类调用 `app.shared.logs.cli.LOG.debug/info/warning/error`，参数快照、目标与报文数量、每个目标的送达判定、文件传送路径与监听端口、异常都要落盘；`app/start/cli.py` 的 `main()` 已用 `finally` 关闭句柄，无需在分支里手动关闭。
+新增命令行日志按功能分类记录目标、端口、报文数量、送达判定与异常等诊断信息；只记录消息和命令正文是否提供，不记录正文内容、密码或令牌。`app/start/cli.py` 的 `main()` 已用 `finally` 关闭句柄，无需在分支里手动关闭。
 
 ## 提交信息
 

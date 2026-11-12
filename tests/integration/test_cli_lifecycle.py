@@ -67,7 +67,7 @@ class CliLifecycleTests(unittest.TestCase):
             with (
                 self.subTest(flag=flag),
                 patch.object(cli, handler, return_value=9) as helper,
-                patch.object(cli, "_select_parser") as select,
+                patch.object(cli, "build_group_parser") as select,
                 patch.object(cli.cli_log, "close") as close,
             ):
                 self.assertEqual(cli.main([flag, "result.json"]), 9)
@@ -79,7 +79,9 @@ class CliLifecycleTests(unittest.TestCase):
             self.assertFalse(self.log_path.parent.exists())
 
     def test_help_text_used_as_value_still_dispatches_and_logs(self):
-        self.assertEqual(cli.main(["-msg=--help"]), 0)
+        self.assertEqual(
+            cli.main(["remote", "message", "-ip", "127.0.0.1", "-msg=--help"]), 0
+        )
         self.assertEqual(self.dispatch.call_args.args[0].msg, "--help")
         self.path_lookup.assert_called_once_with()
         self.assertTrue(self.log_path.exists())
@@ -122,7 +124,6 @@ class CliDispatchTests(unittest.TestCase):
                 ("shell_cli", "run_shell"),
                 ("student_cli", "run_student_command"),
                 ("firewall_cli", "apply_firewall"),
-                ("firewall_cli", "run_legacy_action"),
                 ("local_cli", "print_local_info"),
                 ("files_cli", "run_file_transfer"),
                 ("send_cli", "run_send"),
@@ -143,8 +144,6 @@ class CliDispatchTests(unittest.TestCase):
             (["restriction", "student", "--list"], "run_student_command", "options"),
             (["local", "info"], "print_local_info", None),
             (["local", "firewall", "block"], "apply_firewall", "block"),
-            (["-e", "break"], "run_legacy_action", "break"),
-            (["-e", "continue"], "run_legacy_action", "continue"),
         )
         for arguments, name, argument in cases:
             if arguments[0] == "remote":
@@ -152,7 +151,7 @@ class CliDispatchTests(unittest.TestCase):
             with self.subTest(arguments=arguments):
                 for handler in self.handlers.values():
                     handler.reset_mock()
-                options = cli._select_parser(arguments).parse_args(arguments)
+                options = cli.build_group_parser().parse_args(arguments)
                 self.assertEqual(cli.run_from_cmd(options), 17)
                 expected = (options,) if argument == "options" else (argument,)
                 if argument is None:
@@ -164,15 +163,41 @@ class CliDispatchTests(unittest.TestCase):
 
     def test_file_conflicts_stop_before_feature_dispatch(self):
         cases = (
-            ["--file", "fixture.txt", "-c", "echo test"],
-            ["--file", "fixture.txt", "-e", "r"],
-            ["--file-ip", "127.0.0.1"],
-            ["--file-timeout", "1"],
+            [
+                "remote",
+                "file",
+                "-ip",
+                "127.0.0.1",
+                "--file",
+                "fixture.txt",
+                "-c",
+                "echo test",
+            ],
+            [
+                "remote",
+                "message",
+                "-ip",
+                "127.0.0.1",
+                "-msg",
+                "hello",
+                "--file-ip",
+                "127.0.0.1",
+            ],
+            [
+                "remote",
+                "message",
+                "-ip",
+                "127.0.0.1",
+                "-msg",
+                "hello",
+                "--file-timeout",
+                "1",
+            ],
         )
         for arguments in cases:
             with self.subTest(arguments=arguments), redirect_stdout(io.StringIO()):
-                options = cli._select_parser(arguments).parse_args(arguments)
-                self.assertEqual(cli.run_from_cmd(options), 1)
+                with self.assertRaises(SystemExit):
+                    cli.build_group_parser().parse_args(arguments)
                 for handler in self.handlers.values():
                     handler.assert_not_called()
 

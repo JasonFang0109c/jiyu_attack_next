@@ -148,7 +148,7 @@ start /wait JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
 | `local info` | `local info` |
 | `local firewall` | `local firewall block`、`local firewall allow` |
 
-子命令之后的参数与下面“参数参考”完全一致，只是省掉了不属于该页面的部分。旧的扁平写法（`-ip ... -msg ...`、`-c ...`）仍然可用，两种写法解析出的字段相同，可以按习惯自由选择；同一次调用里混用两种写法会报参数错误。
+子命令之后的参数见下方“参数参考”。旧的扁平写法已移除；原命令需要迁移为对应的分组子命令，例如 `-ip 地址 -msg 内容` 改为 `remote message -ip 地址 -msg 内容`。
 
 <br>
 
@@ -200,7 +200,7 @@ start /wait JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
 | `--shutdown` | 开关 | — | 关闭目标电脑，重发来源项目里那份固定的关机报文 |
 | `--logoff` | 开关 | — | 注销目标当前登录用户，通过远程命令执行 `shutdown /l` |
 
-三个动作互斥，必须选一个。重启与关机用来源项目 `-e r` / `-e s` 的固定报文，不带倒计时与提示文字；注销没有独立报文，走远程命令通道执行 `shutdown /l`。
+三个动作互斥，必须选一个。重启与关机重发固定报文，不带倒计时与提示文字；注销没有独立报文，走远程命令通道执行 `shutdown /l`。
 
 ### remote shell（反弹终端）
 
@@ -233,22 +233,9 @@ start /wait JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
 
 `block` 会启动 `MpsSvc`、打开全部配置文件的防火墙，并把名为 `StudentMain.exe` 的规则改成阻断；`allow` 只把该规则改回允许，不还原其他防火墙设置。两项都需要管理员权限，未提升时弹出 UAC，由隐藏的管理员助手完成后回传结果。
 
-### 旧的扁平写法
+### 从旧命令迁移
 
-早期与来源项目的写法（`-ip ... -msg ...`、`-c ...`）仍然可用，与子命令解析出的字段相同：
-
-| 扁平写法 | 等价子命令 |
-| --- | --- |
-| `-msg`、`--msg-file`、`-l`、`-t` | `remote message` |
-| `-c` | `remote command` |
-| `--file`、`--file-ip`、`--file-timeout` | `remote file` |
-| `-e r` / `-e s` / `-e l` | `remote device --reboot` / `--shutdown` / `--logoff` |
-| `--shell`、`-e nc`、`--shell-port`、`--shell-ip` | `remote shell` |
-| `-e g` | `local info` |
-| `-e break` / `-e continue` | `local firewall block` / `allow` |
-| `--end-student`、`--end-student-pid`、`--list-student`、`--start-student`、`--student-exe` | `restriction student` |
-
-同一行里混用两套写法会报参数错误：要么全部用子命令，要么全部用扁平参数。
+旧的扁平命令不再支持；请使用对应的分组子命令。例如，原 `-e r` 改为 `remote device --reboot`，`-e g` 改为 `local info`，`--start-student` 改为 `restriction student --start`。原来一次组合的多项操作需要分别执行多个子命令。
 
 <br>
 
@@ -390,7 +377,7 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 
 不带选项时按状态决定方向，和界面上那个按钮一样：有进程就结束并打印被结束的进程，没有就启动。`--start` 是强制启动（用于确认方向），`--pid` 只结束指定进程，`--list` 只查看。
 
-启动时依次找：手动 `--exe` → 运行中的真身进程 → 卸载信息里的 `DisplayIcon` → 卸载信息里的 `InstallLocation` → 常见安装目录（含 `Mythware\e-Learning Class` 与中文目录）。拉起后会在 5 秒内轮询确认进程真的起来了，没确认到会提示可能被安全软件拦下；本机已经在运行学生端时不会重复启动。扁平写法对应 `--end-student`、`--end-student-pid`、`--list-student`、`--start-student`、`--student-exe`。
+启动时依次找：手动 `--exe` → 运行中的真身进程 → 卸载信息里的 `DisplayIcon` → 卸载信息里的 `InstallLocation` → 常见安装目录（含 `Mythware\e-Learning Class` 与中文目录）。拉起后会在 5 秒内轮询确认进程真的起来了，没确认到会提示可能被安全软件拦下；本机已经在运行学生端时不会重复启动。
 
 ### 用本机 IP 测试
 
@@ -419,13 +406,7 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 .\JiYuAttackNext.exe remote command -ip 10.49.151.29 -c "cmd.exe /c ipconfig"
 ```
 
-早期与来源项目那种一行写完的扁平写法仍然保留，它也支持把消息、命令与开关机放在一次调用里：
-
-```powershell
-.\JiYuAttackNext.exe -ip 10.49.151.29 -msg "Test" -c "cmd.exe /c ipconfig" -e r
-```
-
-扁平写法每轮按消息、命令、重启、关机或注销报文的顺序发送；实际是否执行及执行顺序由目标端决定。子命令写法没有这种合并能力，两条命令之间也不保证先后顺序，需要顺序时等前一条返回再发下一条。
+分组命令一次只做一项操作。需要顺序执行时，应等待前一个命令结束再运行下一个。
 
 ### 发送重启、关机或注销指令
 
@@ -460,7 +441,7 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 
 - **发送结果**：“已送达”只看网络：端口有没有人接、主机在不在线。学生机收下报文但没执行（没开对应功能、版本不同或班级策略不允许），命令行是看不到的，要确认结果只能看目标屏幕。
 - **循环参数**：`-l` 填几轮、`-t` 填每轮之间等几秒。等待发生在两轮之间，不在每台设备之间。
-- **功能组合**：扁平写法下 `-msg`、`-c` 可以与 `-e r`、`-e s`、`-e l` 一起用，一条命令同时发消息和关机；换了子命令则一次只做一件事，要并发就在一行里写两条命令（或用 `;` 连起来）。只管本机的 `local info`、`local firewall` 做完就退出；`remote shell` 与 `restriction student` 是独立分支，不会顺带发消息或命令。
+- **功能组合**：每个分组子命令一次只执行一种操作。需要多项操作时，分别执行对应命令并等待前一项完成。
 - **文本编码**：消息与命令按 `utf-16le` 编码，中文正常，`\n` 也算容量。消息超长自动分条，命令受单条报文容量限制，超了会直接报错。
 - **输出范围**：`remote command` 不会把目标命令的输出传回当前终端，要实时回显请用 `remote shell`。
 
@@ -470,7 +451,7 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 
 CLI 模式也会写运行日志，文件是数据目录下的 `cli.log`，与 GUI 的 `runtime.log` 分开，两个模式可以同时运行、各写各的文件。数据目录与 GUI 相同：EXE 所在目录下的 `JiYuAttackNextData`，源码运行时位于项目根目录。
 
-- 没有等级开关，按构建变体的默认等级写入：正常版本写 `WARNING` 与 `ERROR`（图形界面里调低到 `INFO` 只影响界面自身的日志，命令行始终按默认等级落盘），`JiYuAttackNext_Debug.exe` 从 `DEBUG` 起记录。正常版本保留参数错误、发送失败与异常；排查报文细节时改用 `_Debug` 版本，它还会写入参数快照、目标与报文数量、每个目标的送达判定、文件传送的路径与监听端口。
+- 没有等级开关，按构建变体的默认等级写入：正常版本写 `WARNING` 与 `ERROR`（图形界面里调低到 `INFO` 只影响界面自身的日志，命令行始终按默认等级落盘），`JiYuAttackNext_Debug.exe` 从 `DEBUG` 起记录。正常版本保留参数错误、发送失败与异常；调试版本记录分组、子命令、目标与报文数量等排查信息。启动参数摘要不包含消息或命令正文，但其他调试日志可能包含命令内容或文件路径，请谨慎保存和分享。
 - 只查帮助或版本号（`-h`、`--help`、`-V`、`--version`，包括子命令帮助）不会创建数据目录，也不写日志：这类调用没有副作用，不留下空目录与只有一行的日志文件。
 - 格式与 GUI 日志一致，可以直接用同一个查看器阅读：`2026-11-04 13:29:10.527 [10440] [MainThread] DEBUG   app.start.cli.log_arguments:31 - [命令行] 命令行参数`，多行内容以缩进续行写入。
 - 文件在本次运行期间保持打开，每条记录写入后刷新文件缓冲，命令结束时关闭句柄。

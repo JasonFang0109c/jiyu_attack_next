@@ -11,20 +11,24 @@ import app.shared.logs.cli as cli_log
 from app.features.files import cli as files_cli
 from app.features.send import cli as send_cli
 from app.start import cli
-from app.start.parser import build_flat_parser
+from app.start.parser import build_group_parser
 from tests.fixtures.offline import OfflineCase
 
 
 class CliCommandsTests(OfflineCase):
     def test_cli_device_actions_reuse_fixed_templates(self):
-        parser = build_flat_parser()
-        for extra, key in (("r", "-r"), ("s", "-s")):
-            with self.subTest(extra=extra):
-                arguments = parser.parse_args(["-ip", "192.168.1.10", "-e", extra])
+        parser = build_group_parser()
+        for action, key in (("--reboot", "-r"), ("--shutdown", "-s")):
+            with self.subTest(action=action):
+                arguments = parser.parse_args(
+                    ["remote", "device", "-ip", "192.168.1.10", action]
+                )
                 packets = send_cli.create_send_packets(arguments)
                 self.assertEqual(packets, [constants.basicCMD[key]])
 
-        arguments = parser.parse_args(["-ip", "192.168.1.10", "-e", "l"])
+        arguments = parser.parse_args(
+            ["remote", "device", "-ip", "192.168.1.10", "--logoff"]
+        )
         packets = send_cli.create_send_packets(arguments)
         self.assertEqual(self.command_text(packets[0]), constants.LOGOFF_COMMAND)
 
@@ -54,9 +58,11 @@ class CliCommandsTests(OfflineCase):
         self.assertIn("2 个目标桌面", buffer.getvalue())
 
     def test_file_transfer_cli_parser_and_dispatch(self):
-        parser = build_flat_parser()
+        parser = build_group_parser()
         args = parser.parse_args(
             [
+                "remote",
+                "file",
                 "-ip",
                 "192.168.1.10",
                 "--file",
@@ -71,12 +77,32 @@ class CliCommandsTests(OfflineCase):
         self.assertEqual(args.file_ip, "192.168.1.20")
         self.assertEqual(args.file_timeout, 30)
         with self.assertRaises(SystemExit):
-            parser.parse_args(["--file", "report.pdf", "-msg", "通知"])
+            parser.parse_args(
+                [
+                    "remote",
+                    "file",
+                    "-ip",
+                    "192.168.1.10",
+                    "--file",
+                    "report.pdf",
+                    "-msg",
+                    "通知",
+                ]
+            )
 
     def test_file_option_accepts_multiple_paths(self):
-        parser = build_flat_parser()
+        parser = build_group_parser()
         args = parser.parse_args(
-            ["-ip", "192.168.1.10", "--file", "a.txt", "文件夹", "b.bin"]
+            [
+                "remote",
+                "file",
+                "-ip",
+                "192.168.1.10",
+                "--file",
+                "a.txt",
+                "文件夹",
+                "b.bin",
+            ]
         )
         self.assertEqual(args.file, ["a.txt", "文件夹", "b.bin"])
 
@@ -112,16 +138,37 @@ class CliCommandsTests(OfflineCase):
             patch.object(send_cli, "send_tracked", return_value=outcome),
             redirect_stdout(buffer),
         ):
-            code = cli.main(["-ip", "192.168.1.10", "-msg", "通知"])
+            code = cli.main(
+                ["remote", "message", "-ip", "192.168.1.10", "-msg", "通知"]
+            )
         self.assertEqual(code, 0)
         text = log_path.read_text(encoding="utf-8")
         self.assertIn("命令行启动", text)
         self.assertIn("命令行参数", text)
-        self.assertIn("ip=192.168.1.10", text)
+        self.assertIn("target=192.168.1.10", text)
+        self.assertIn("message=已提供", text)
+        self.assertNotIn("通知", text)
         self.assertIn("开始发送", text)
         self.assertIn("命令行结束", text)
 
-    def test_cli_help_and_version_do_not_create_log(self):
+    def test_command_text_is_not_written_to_cli_log(self):
+        secret_command = "cmd.exe /c echo secret-token"
+        log_path = self.test_root / "cli-command" / "cli.log"
+        outcome = SimpleNamespace(deliveries=[], failed=[])
+        with (
+            patch.object(cli_log, "allows", lambda level: True),
+            patch.object(cli, "portable_cli_log_path", return_value=log_path),
+            patch.object(send_cli, "send_tracked", return_value=outcome),
+            redirect_stdout(io.StringIO()),
+        ):
+            code = cli.main(
+                ["remote", "command", "-ip", "192.168.1.10", "-c", secret_command]
+            )
+        self.assertEqual(code, 0)
+        text = log_path.read_text(encoding="utf-8")
+        self.assertIn("命令字符数", text)
+        self.assertNotIn(secret_command, text)
+
         for arguments in (["-h"], ["--version"]):
             with (
                 patch.object(cli, "portable_cli_log_path") as log_path,
@@ -155,6 +202,8 @@ class CliCommandsTests(OfflineCase):
         ):
             code = cli.main(
                 [
+                    "remote",
+                    "file",
                     "-ip",
                     "192.168.1.10",
                     "--file",
@@ -168,9 +217,11 @@ class CliCommandsTests(OfflineCase):
         self.assertIn("文件传送参数", log_path.read_text(encoding="utf-8"))
 
     def test_send_cli_parser_keeps_existing_options(self):
-        parser = build_flat_parser()
+        parser = build_group_parser()
         args = parser.parse_args(
             [
+                "remote",
+                "message",
                 "-ip",
                 "192.168.1.10",
                 "-p",
@@ -181,16 +232,10 @@ class CliCommandsTests(OfflineCase):
                 "2",
                 "-t",
                 "3",
-                "-e",
-                "r",
             ]
         )
         self.assertEqual(args.msg, "通知")
         self.assertEqual(args.l, 2)
-        self.assertEqual(args.e, "r")
-        args = parser.parse_args(["-ip", "192.168.1.10", "-e", "l"])
-        self.assertEqual(args.e, "l")
-        args = parser.parse_args(["-ip", "192.168.1.10", "-e", "nc"])
-        self.assertEqual(args.e, "nc")
+        self.assertEqual(args.t, 3)
         with self.assertRaises(SystemExit):
-            parser.parse_args(["-ip", "192.168.1.10", "-e", "unknown"])
+            parser.parse_args(["remote", "device", "-ip", "192.168.1.10", "--unknown"])

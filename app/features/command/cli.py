@@ -17,21 +17,11 @@ def register(commands, defaults):
     add_loop(command)
 
 
-def add_flat_arguments(parser):
-    """注册本功能兼容的扁平参数。"""
-    parser.add_argument(
-        "-c",
-        type=str,
-        metavar="COMMAND",
-        help='远程命令，例如 -c "cmd.exe /c ipconfig"',
-    )
-
-
 def create_command_packets(arguments):
     """将远程命令转换为待发送报文。"""
     log = cli_log.LOG
     send_list = []
     if arguments.c:
-        log.debug("已加入命令", "命令", "命令：%s" % arguments.c)
+        log.debug("已加入命令", "命令", "命令字符数：%d" % len(arguments.c))
         send_list.append(pkg_sendlist("-c", arguments.c))
     return send_list

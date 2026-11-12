@@ -51,26 +51,23 @@ def add_loop(parser):
     )
 
 
-def add_flat_target(parser):
-    """保留扁平写法的目标和端口参数。"""
-    parser.add_argument("-ip", type=str, help="目标 IPv4 地址或设备备注")
-    parser.add_argument(
-        "-p", type=int, default=4705, metavar="PORT", help="目标 UDP 端口，默认 4705"
-    )
-
-
 def create_send_packets(arguments):
-    """按兼容写法的消息、命令、设备顺序组合报文。"""
+    """按分组子命令构造消息、命令或设备操作报文。"""
     # 功能注册复用本模块的目标参数，运行时再取构造器以避免导入环。
     from app.features.command.cli import create_command_packets
     from app.features.device.cli import create_device_packets
     from app.features.message.cli import create_message_packets
 
-    return (
-        create_message_packets(arguments)
-        + create_command_packets(arguments)
-        + create_device_packets(arguments)
-    )
+    packet_creators = {
+        "message": create_message_packets,
+        "command": create_command_packets,
+        "device": create_device_packets,
+    }
+    try:
+        create_packets = packet_creators[arguments.command]
+    except KeyError as error:
+        raise ValueError("不支持的远程发送命令：%s" % arguments.command) from error
+    return create_packets(arguments)
 
 
 def print_delivery(outcome):
@@ -109,7 +106,7 @@ def print_delivery(outcome):
 
 
 def run_send(arguments):
-    """执行消息、命令和设备操作的组合发送。"""
+    """执行一个远程消息、命令或设备操作子命令。"""
     log = cli_log.LOG
     send_list = create_send_packets(arguments)
     if send_list:
@@ -135,5 +132,7 @@ def run_send(arguments):
         )
         print_delivery(outcome)
     else:
-        raise ValueError("请至少指定消息、命令或 -e 扩展功能")
+        raise ValueError(
+            "请使用 remote message、remote command 或 remote device 子命令"
+        )
     return 0

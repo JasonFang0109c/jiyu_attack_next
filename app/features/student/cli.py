@@ -49,42 +49,6 @@ def register(commands, defaults):
     )
 
 
-def add_flat_arguments(parser):
-    """注册本功能兼容的扁平参数。"""
-    parser.add_argument(
-        "--end-student",
-        dest="endstudent",
-        action="store_true",
-        help="结束本机正在运行的极域学生端进程，腾出 4705 端口（需要管理员权限）",
-    )
-    parser.add_argument(
-        "--start-student",
-        dest="start_student",
-        action="store_true",
-        help="启动本机极域学生端，恢复课堂管理（需要管理员权限）",
-    )
-    parser.add_argument(
-        "--student-exe",
-        dest="student_exe",
-        metavar="PATH",
-        help="配合 --start-student：指定学生端主程序的完整路径",
-    )
-    parser.add_argument(
-        "--end-student-pid",
-        dest="pid",
-        type=int,
-        action="append",
-        metavar="PID",
-        help="只结束指定进程号，可重复；解析后立即执行，不改变其它进程",
-    )
-    parser.add_argument(
-        "--list-student",
-        dest="list",
-        action="store_true",
-        help="列出本机学生端进程与占用端口，不结束",
-    )
-
-
 def _print_student_list(processes):
     """打印学生端进程列表，返回是否为空。"""
     if not processes:

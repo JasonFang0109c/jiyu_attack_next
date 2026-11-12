@@ -1,4 +1,4 @@
-"""装配各功能子命令与兼容的扁平命令行语法。"""
+"""装配各功能分组子命令。"""
 
 import argparse
 
@@ -8,7 +8,6 @@ from app.features.files import cli as files_cli
 from app.features.firewall import cli as firewall_cli
 from app.features.local import cli as local_cli
 from app.features.message import cli as message_cli
-from app.features.send import cli as send_cli
 from app.features.shell import cli as shell_cli
 from app.features.student import cli as student_cli
 from app.shared.version import runtime_version
@@ -44,7 +43,7 @@ GROUP_NAMES = tuple(GROUPS)
 def _base_defaults():
     """子命令共用的属性默认值。
 
-    分发函数沿用扁平写法的字段名，两条解析路径因此能共用同一套执行代码。
+    统一提供分发逻辑所需的字段，避免每个功能命令重复补默认值。
 
     Returns:
         dict: 属性名到默认值的映射。
@@ -119,43 +118,4 @@ def build_group_parser():
     local_cli.register(local_commands, _base_defaults())
     firewall_cli.register(local_commands, _base_defaults())
 
-    return parser
-
-
-def build_flat_parser():
-    """创建扁平写法解析器。
-
-    兼容来源项目与本程序早期的写法（``-ip ... -msg ...``），保留全部旧参数。
-
-    Returns:
-        argparse.ArgumentParser: 扁平参数解析器。
-    """
-    parser = argparse.ArgumentParser(description="极域课堂 UDP 报文测试工具")
-    # 分类写法才有的字段在这里补成默认值，分发函数因此能共用同一套属性名。
-    parser.set_defaults(**_base_defaults())
-    parser.add_argument(
-        "-V",
-        "--version",
-        action="version",
-        version=runtime_version(),
-        help="显示版本号并退出",
-    )
-    send_cli.add_flat_target(parser)
-    message_options = parser.add_mutually_exclusive_group()
-    message_cli.add_flat_arguments(message_options)
-    files_cli.add_flat_arguments(parser, message_options)
-    command_cli.add_flat_arguments(parser)
-    send_cli.add_loop(parser)
-    # 旧 -e 同时覆盖多个功能，保留在兼容语法装配处。
-    parser.add_argument(
-        "-e",
-        type=str,
-        choices=["r", "s", "l", "g", "break", "continue", "nc"],
-        help=(
-            "额外选项：r 重启、s 关机、l 注销、g 本机信息、"
-            "break 阻断学生端、continue 恢复允许、nc 反弹终端"
-        ),
-    )
-    shell_cli.add_flat_arguments(parser)
-    student_cli.add_flat_arguments(parser)
     return parser
