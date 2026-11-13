@@ -739,10 +739,11 @@ class GuiTests(unittest.TestCase):
             ) as stop,
         ):
             # 单按钮先探进程再决定方向，这里直接投递探测结果。
-            self.window._student_processes_ready("toggle", [record])
+            self.window._student_processes_ready("toggle", {"processes": [record]})
             worker = begin_task.call_args.args[1]
             self.assertEqual(begin_task.call_args.args[0], "studentproc")
             worker.run()
+        self.confirm.assert_called_once()
         # 后台任务会额外传入进度回调，这里只核对结束的进程号。
         self.assertEqual(stop.call_args.args, ([17600],))
 
@@ -764,12 +765,43 @@ class GuiTests(unittest.TestCase):
                 ],
             ) as start,
         ):
-            self.window._student_processes_ready("toggle", [])
+            self.window._student_processes_ready("toggle", {"processes": []})
             self.assertEqual(begin_task.call_args.args[0], "studentproc")
             worker = begin_task.call_args.args[1]
             worker.run()
         # 输入框只有空格时按留空处理，交给核心自动查找路径。
         self.assertEqual(start.call_args.args, (None,))
+
+    def test_stop_action_cancelled_by_user_keeps_page_idle(self):
+        record = {
+            "pid": 17600,
+            "name": "StudentMain.exe",
+            "ports": [4705],
+            "path": "",
+            "genuine": False,
+        }
+        page = self.window.pages["studentproc"]
+        page.set_processes([record])
+        with (
+            patch.object(self.window, "_confirm", return_value=False),
+            patch.object(self.window, "_begin_task") as begin_task,
+            patch.object(self.window, "thread", None),
+        ):
+            self.window._student_processes_ready("toggle", {"processes": [record]})
+        begin_task.assert_not_called()
+        self.assertTrue(page.toggle_button.isEnabled())
+
+    def test_stop_of_empty_snapshot_warns(self):
+        page = self.window.pages["studentproc"]
+        with (
+            patch.object(self.window, "_begin_task") as begin_task,
+            patch.object(self.window, "thread", None),
+        ):
+            self.window._student_processes_ready("stop", {"processes": []})
+        begin_task.assert_not_called()
+        self.notify.assert_called_once()
+        self.assertIn("没有可结束", self.notify.call_args.args[0])
+        self.assertTrue(page.toggle_button.isEnabled())
 
     def test_busy_state_handles_page_without_status_bar(self):
         page = self.window.pages["studentproc"]
@@ -792,11 +824,79 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(page.toggle_button.isEnabled())
         self.window.active_kind = ""
 
-    def test_student_process_page_has_no_manual_refresh_button(self):
+    def test_student_process_page_has_manual_refresh_and_path_actions(self):
         page = self.window.pages["studentproc"]
-        # 列表改成自动刷新，页面上不再保留手动刷新入口。
-        self.assertFalse(hasattr(page, "refresh_button"))
-        self.assertFalse(hasattr(page, "refreshRequested"))
+        # 页面保留一个显式的刷新入口，自动轮询之外还能立刻确认状态。
+        self.assertTrue(hasattr(page, "refreshRequested"))
+        self.assertTrue(hasattr(page, "chooseRequested"))
+        self.assertTrue(hasattr(page, "locateRequested"))
+        self.assertTrue(hasattr(page, "forgetRequested"))
+
+    def test_studentproc_refresh_polls_without_busy_flash(self):
+        page = self.window.pages["studentproc"]
+        with (
+            patch.object(self.window, "_probe_student_processes") as probe,
+            patch.object(page, "set_busy") as busy,
+        ):
+            self.window.pages["studentproc"].refreshRequested.emit()
+            probe.assert_called_once_with("refresh")
+            busy.assert_called_once_with(True)
+        with (
+            patch.object(self.window, "_probe_student_processes") as probe,
+            patch.object(page, "set_busy") as busy,
+        ):
+            self.window._poll_student_processes()
+            # 轮询不闪忙碌状态，避免每两秒切一次按钮。
+            probe.assert_called_once_with("poll")
+            busy.assert_not_called()
+
+    def test_student_snapshot_reports_port_owner_and_path(self):
+        page = self.window.pages["studentproc"]
+        page.set_snapshot(
+            {
+                "processes": [
+                    {
+                        "pid": 17600,
+                        "name": "StudentMain.exe",
+                        "ports": [4705],
+                        "path": "C:/Program Files/Mythware/StudentMain.exe",
+                        "genuine": True,
+                    }
+                ],
+                "exe_path": "C:/Program Files/Mythware/StudentMain.exe",
+                "saved_path": "",
+                "port": 4705,
+                "port_owner": 17600,
+            }
+        )
+        self.assertTrue(page.has_port_owner())
+        self.assertIn("PID 17600", page.status.text())
+        self.assertIn("4705", page.status.text())
+        self.assertIn("StudentMain.exe", page.detail.text())
+        self.assertEqual(page.toggle_button.text(), "结束学生端")
+
+    def test_student_snapshot_without_port_owner_warns(self):
+        page = self.window.pages["studentproc"]
+        page.set_snapshot(
+            {
+                "processes": [
+                    {
+                        "pid": 17600,
+                        "name": "StudentMain.exe",
+                        "ports": [53176],
+                        "path": "",
+                        "genuine": False,
+                    }
+                ],
+                "exe_path": "",
+                "saved_path": "",
+                "port": 4705,
+                "port_owner": 0,
+            }
+        )
+        self.assertFalse(page.has_port_owner())
+        self.assertIn("没有占用", page.status.text())
+        self.assertIn("LibTDMaster.dll", page.detail.text())
 
     def test_show_studentproc_page_starts_polling_timer(self):
         self.window.show_page("studentproc")
@@ -814,27 +914,27 @@ class GuiTests(unittest.TestCase):
             "path": "",
             "genuine": False,
         }
-        self.window._student_processes_ready("poll", [record])
+        self.window._student_processes_ready("poll", {"processes": [record]})
         self.assertEqual(page.toggle_button.text(), "结束学生端")
-        self.window._student_processes_ready("poll", [])
+        self.window._student_processes_ready("poll", {"processes": []})
         self.assertEqual(page.toggle_button.text(), "启动学生端")
 
     def test_probe_failure_reports_message_and_traceback(self):
         with patch.object(
             student_service,
-            "find_student_processes",
+            "student_status",
             side_effect=OSError("probe failed"),
         ):
             self.window.refresh_student_processes()
             self.wait_for(lambda: self.window._student_probe_thread is None)
         self.notify.assert_called_once_with(
-            "查询学生端进程失败", "probe failed", "错误"
+            "查询学生端状态失败", "probe failed", "错误"
         )
         self.assertTrue(self.window.pages["studentproc"].toggle_button.isEnabled())
         failures = [
             entry
             for entry in self.window.logs.snapshot_entries()
-            if entry.message == "查询学生端进程失败"
+            if entry.message == "查询学生端状态失败"
         ]
         self.assertEqual(len(failures), 1)
         self.assertIn("Traceback", failures[0].details)
@@ -842,7 +942,11 @@ class GuiTests(unittest.TestCase):
     def test_probe_callbacks_run_on_gui_thread(self):
         threads = []
         with (
-            patch.object(student_service, "find_student_processes", return_value=[]),
+            patch.object(
+                student_service,
+                "student_status",
+                return_value={"processes": []},
+            ),
             patch.object(
                 self.window,
                 "_student_processes_ready",
@@ -859,10 +963,10 @@ class GuiTests(unittest.TestCase):
         def query():
             started.set()
             release.wait(5)
-            return []
+            return {"processes": []}
 
         with patch.object(
-            student_service, "find_student_processes", side_effect=query
+            student_service, "student_status", side_effect=query
         ) as probe:
             self.window._probe_student_processes("refresh")
             worker = self.window._student_probe_thread

@@ -1,11 +1,14 @@
 """学生端进程的命令行参数与交互输出。"""
 
 from app.features.student.service import (
+    find_student_executable,
     find_student_processes,
     start_student_process,
     stop_student_processes,
 )
 from app.shared.logs import cli as cli_log
+
+CATEGORY = "解除限制"
 
 
 def register(commands, defaults):
@@ -18,7 +21,8 @@ def register(commands, defaults):
         "有学生端在运行就结束它、腾出被独占的 4705 端口；没有就启动它、"
         "恢复课堂管理。非管理员时通过 UAC 提权执行。",
         epilog="示例：restriction student 按状态切换；"
-        "restriction student --list 只查看；restriction student --start 强制启动。",
+        "restriction student --list 只查看；restriction student --path 查看安装位置；"
+        "restriction student --start 强制启动。",
     )
     defaults = dict(defaults)
     defaults["endstudent"] = True
@@ -29,10 +33,16 @@ def register(commands, defaults):
         help="只列出学生端进程与占用端口，不做任何改动",
     )
     student.add_argument(
+        "--path",
+        dest="student_path",
+        action="store_true",
+        help="只查找并打印学生端主程序位置，不做任何改动",
+    )
+    student.add_argument(
         "--start",
         dest="start_student",
         action="store_true",
-        help="启动学生端，路径留空时自动查找 StudentMain.exe",
+        help="启动学生端，路径留空时按记住的路径与安装目录自动查找",
     )
     student.add_argument(
         "--exe",
@@ -46,6 +56,12 @@ def register(commands, defaults):
         action="append",
         metavar="PID",
         help="只结束指定进程号，可重复；不写则按当前状态切换或结束全部",
+    )
+    student.add_argument(
+        "--no-guardian",
+        dest="no_guardian",
+        action="store_true",
+        help="结束后不等待复查，直接返回（默认会等 2 秒确认有没有被守护服务拉起）",
     )
 
 
@@ -80,21 +96,24 @@ def _start_student(arguments):
         print(("[+] " if item["success"] else "[-] ") + str(item.get("output", "")))
         if item["success"]:
             print("已启动学生端：%s" % item["path"])
-            log.info("已启动学生端", "解除限制", "程序：%s" % item["path"])
+            log.info("已启动学生端", CATEGORY, "程序：%s" % item["path"])
         if not item.get("confirmed", True):
             print("[-] 没有检测到学生端进程，可能被安全软件拦下，试试用管理员权限运行")
     failed = [item for item in results if not item["success"]]
     if failed:
-        log.error("启动学生端失败", "解除限制", "程序：%s" % failed[0]["path"])
+        log.error("启动学生端失败", CATEGORY, "程序：%s" % failed[0]["path"])
         return 1
     return 0
 
 
-def _stop_student(pids):
+def _stop_student(pids, guardian=True):
     """结束学生端，返回退出码。"""
     log = cli_log.LOG
-    results = stop_student_processes(pids)
+    results = stop_student_processes(pids, guardian=guardian)
     for item in results:
+        if item.get("respawned"):
+            print("[-] %s" % item["output"])
+            continue
         stage = "强制" if item.get("forced") else "正常"
         print(
             ("[+] " if item["success"] else "[-] ") + "%s：%s" % (stage, item["output"])
@@ -103,45 +122,54 @@ def _stop_student(pids):
     if failed:
         log.error(
             "结束学生端失败",
-            "解除限制",
+            CATEGORY,
             "失败进程：%s" % ", ".join(str(item["pid"]) for item in failed),
         )
         return 1
     print("已结束 %d 个学生端进程" % len(results))
-    log.info("已结束学生端进程", "解除限制", "共 %d 个" % len(results))
+    log.info("已结束学生端进程", CATEGORY, "共 %d 个" % len(results))
     return 0
 
 
 def run_student_command(arguments):
-    """列出、启动或结束本机学生端。
+    """列出、查找、启动或结束本机学生端。
 
     与界面上的单按钮一致：什么都不指定时按当前状态决定方向——有进程就结束，
-    没有就启动。``--list`` 只列进程，``--start`` 强制启动，``--pid`` 只结束
-    指定进程。
+    没有就启动。``--list`` 只列进程，``--path`` 只查位置，``--start`` 强制启动，
+    ``--pid`` 只结束指定进程。
 
     Args:
         arguments: 解析后的参数。
 
     Returns:
-        int: 0 表示成功，1 表示有进程未能启动或结束。
+        int: 0 表示成功，1 表示有进程未能启动、结束或没有找到安装位置。
     """
     log = cli_log.LOG
     if arguments.list:
         processes = find_student_processes()
         _print_student_list(processes)
-        log.info("已列出学生端进程", "解除限制", "共 %d 个" % len(processes))
+        log.info("已列出学生端进程", CATEGORY, "共 %d 个" % len(processes))
         return 0
+    if getattr(arguments, "student_path", False):
+        try:
+            print(find_student_executable())
+        except RuntimeError as error:
+            print("[-] %s" % error)
+            log.warning("未找到学生端安装位置", CATEGORY, "原因：%s" % error)
+            return 1
+        return 0
+    guardian = not getattr(arguments, "no_guardian", False)
     if arguments.start_student:
         print("启动学生端：%s" % (arguments.student_exe or "自动查找安装位置"))
         return _start_student(arguments)
     if arguments.pid:
         print("结束指定的 %d 个学生端进程" % len(arguments.pid))
-        return _stop_student(arguments.pid)
-    # 只有按当前状态决定方向时才需要枚举进程，其余分支不必起子进程。
+        return _stop_student(arguments.pid, guardian)
+    # 只有按当前状态决定方向时才需要枚举进程，其余分支不必重复查询。
     processes = find_student_processes()
     if processes:
         print("检测到 %d 个学生端进程，按当前状态执行结束" % len(processes))
         _print_student_list(processes)
-        return _stop_student(None)
+        return _stop_student(None, guardian)
     print("本机没有学生端进程，按当前状态执行启动")
     return _start_student(arguments)

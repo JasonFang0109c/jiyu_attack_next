@@ -21,6 +21,9 @@ SETTINGS_COMMENTS = {
     "core/device_aliases": (
         "设备备注：备注名到 IPv4 地址的映射，地址支持单地址、末段范围与 /24 网段",
     ),
+    "core/student/exe_path": (
+        "学生端主程序路径：启动学生端时优先使用，留空表示自动查找",
+    ),
     "gui/window/close_behavior": ("关闭窗口行为：tray 保留在系统托盘，quit 直接退出",),
     "gui/window/first_close_prompt_shown": (
         "是否已经询问过首次关闭行为，true 之后不再提示",

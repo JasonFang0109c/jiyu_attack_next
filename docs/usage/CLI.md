@@ -139,7 +139,7 @@ start /wait JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
 
 | 子命令 | 例子 |
 | --- | --- |
-| `restriction student` | `restriction student --list`、`restriction student --start` |
+| `restriction student` | `restriction student --list`、`restriction student --path`、`restriction student --start` |
 | `remote message` | `remote message -ip 192.168.1.10 -msg "下课了"` |
 | `remote file` | `remote file -ip 192.168.1.10 --file 报告.pdf` |
 | `remote device` | `remote device -ip 192.168.1.10 --shutdown` |
@@ -217,9 +217,11 @@ start /wait JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
 | --- | --- | --- | --- |
 | （不带参数） | — | — | 按当前状态切换：有学生端在运行就结束，没有就启动 |
 | `--list` | 开关 | 关 | 只列出进程号、进程名、占用端口与程序路径，不做任何改动 |
-| `--start` | 开关 | 关 | 强制启动学生端，路径留空时自动查找 |
+| `--path` | 开关 | 关 | 只查找并打印学生端主程序位置，不做任何改动 |
+| `--start` | 开关 | 关 | 强制启动学生端，路径留空时按记住的路径与安装目录自动查找 |
 | `--exe PATH` | 路径 | 无 | 配合 `--start` 指定主程序的完整路径 |
 | `--pid PID` | 整数 | 无 | 只结束指定进程，可重复 |
+| `--no-guardian` | 开关 | 关 | 结束后不等待复查，直接返回；默认为停留 2 秒确认没有被守护服务重新拉起 |
 
 ### local info（本机信息）
 
@@ -360,11 +362,17 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 # 只列进程与占用端口，不动进程
 .\JiYuAttackNext.exe restriction student --list
 
+# 只查程序位置：按记住的路径、运行中的进程、卸载信息与常见目录查找
+.\JiYuAttackNext.exe restriction student --path
+
 # 按当前状态切换：有进程就结束，没有就启动，与界面上的单按钮一致
 .\JiYuAttackNext.exe restriction student
 
 # 只结束指定进程
 .\JiYuAttackNext.exe restriction student --pid 17600
+
+# 结束后不等 2 秒复查，直接返回
+.\JiYuAttackNext.exe restriction student --no-guardian
 
 # 启动学生端，留空路径时自动查找安装位置
 .\JiYuAttackNext.exe restriction student --start
@@ -373,11 +381,13 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 .\JiYuAttackNext.exe restriction student --start --exe "C:\Program Files\TopDomain\e-Learning Class Standard\1.00\StudentMain.exe"
 ```
 
-结束分三层：先请学生端正常退出，等不到进程消失再强制结束，仍被拒绝才走管理员授权；学生端不响应正常退出，`taskkill` 不加 `/F` 也会报成功，所以判定以进程是否真的消失为准。启动会依次查运行中的进程、卸载信息、极域服务所在目录与常见安装目录，拉起后等最多 5 秒确认。结束后学生端又被拉起来时，会提示是守护服务重启了它。进程、端口与程序路径来自 `tasklist`、`netstat` 与 `Get-Process`；路径读不到时（例如学生端以 SYSTEM 运行）显示“不可读”，这不影响结束。列表会标注同目录是否带 `LibTDMaster.dll`，没有这个库的同名进程通常是冒牌货。
+结束时先给有窗口的同名进程发关闭消息请它自己退出，等不到进程消失再强制结束，仍被拒绝才走管理员授权；极域学生端不响应正常退出，所以判定以进程是否真的消失为准。结束前会校验进程创建时间，进程号恰好被别的程序复用时不会误杀。默认结束后停留 2 秒复查，学生端又被拉起来时提示是守护服务重启了它，`--no-guardian` 可以跳过这段等待。
 
-不带选项时按状态决定方向，和界面上那个按钮一样：有进程就结束并打印被结束的进程，没有就启动。`--start` 是强制启动（用于确认方向），`--pid` 只结束指定进程，`--list` 只查看。
+识别只认映像名里带 `student` 的进程，同目录有 `LibTDMaster.dll` 才算极域真身；极域安装目录里的 `DispcapHelper.exe`、`GATESRV.exe` 不会被误当成学生端。进程、端口与程序路径来自系统进程表、`GetExtendedUdpTable` / `GetExtendedTcpTable` 与 `QueryFullProcessImageName`，路径读不到时（例如学生端以 SYSTEM 运行）显示“不可读”，这不影响结束。列表会标注同目录是否带 `LibTDMaster.dll`，没有这个库的同名进程通常是冒牌货。
 
-启动时依次找：手动 `--exe` → 运行中的真身进程 → 卸载信息里的 `DisplayIcon` → 卸载信息里的 `InstallLocation` → 常见安装目录（含 `Mythware\e-Learning Class` 与中文目录）。拉起后会在 5 秒内轮询确认进程真的起来了，没确认到会提示可能被安全软件拦下；本机已经在运行学生端时不会重复启动。
+不带选项时按状态决定方向，和界面上那个按钮一样：有进程就结束并打印被结束的进程，没有就启动。`--start` 是强制启动（用于确认方向），`--pid` 只结束指定进程，`--list` 只查看，`--path` 只查找位置。
+
+启动时依次找：`--exe` 指定的路径 → 界面里记住的路径（`settings.json` 的 `core/student/exe_path`）→ 运行中的真身进程 → 卸载信息里的 `DisplayIcon` → 卸载信息里的 `InstallLocation` → 极域服务所在目录 → 常见安装目录（含 `Mythware\e-Learning Class` 与中文目录）。拉起后会在 8 秒内轮询确认进程真的起来了，只有新出现且带 `LibTDMaster.dll` 或占用 `4705` 的进程才算成功；没确认到会提示可能被安全软件拦下，本机已经在运行学生端时不会重复启动。
 
 ### 用本机 IP 测试
 

@@ -67,8 +67,10 @@ def _base_defaults():
         "endstudent": False,
         "start_student": False,
         "student_exe": None,
+        "student_path": False,
         "pid": None,
         "list": False,
+        "no_guardian": False,
     }
 
 

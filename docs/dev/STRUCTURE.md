@@ -42,7 +42,7 @@ jiyu_attack_next/
 |   |   |-- files/                 # service.py、cli.py、gui/：文件传送
 |   |   |-- firewall/              # service.py、cli.py、gui/：防火墙
 |   |   |-- local/                 # service.py、cli.py、gui/：本机信息
-|   |   |-- student/               # service.py、cli.py、gui/：学生端进程
+|   |   |-- student/               # data.py、service.py、cli.py、gui/：学生端进程
 |   |   |-- shell/                 # service.py、cli.py、gui/：终端
 |   |   |-- send/
 |   |   |   |-- data.py            # SendOptions 等发送参数
@@ -98,7 +98,8 @@ jiyu_attack_next/
 |   |   |   `-- udp.py             # UDP 发送与送达结果采集
 |   |   `-- windows/
 |   |       |-- command.py         # Windows 命令执行与输出解码
-|   |       |-- process.py         # 进程与端口枚举
+|   |       |-- process.py         # 进程枚举、路径、存活校验与结束
+|   |       |-- ports.py           # iphlpapi 端口到进程映射
 |   |       `-- elevation.py       # UAC 隐藏助手与结果回传
 |   |-- shared/
 |   |   |-- config.py              # JSONC 解析与原子读写
@@ -176,10 +177,10 @@ jiyu_attack_next/
 | `app/features/<功能>/service.py` | 与界面无关的业务流程；按需调用报文、系统适配与公共基础，不导入 Qt。并非每个功能都需要单独服务，命令和设备功能共用发送服务。 |
 | `app/features/<功能>/data.py` | 功能数据、设置键、默认值与规范化；Qt 信号适配另放在功能的 `gui/data.py`。 |
 | `app/features/send/` | `SendOptions`、参数校验、报文准备和发送协调；供不同页面与 CLI 发送功能复用。 |
-| `app/features/files/`、`firewall/`、`local/`、`student/`、`shell/` | 分别承载文件传送、防火墙、本机信息、学生端进程与终端业务；平台命令、地址解析和套接字操作复用 `app/system/`。 |
+| `app/features/files/`、`firewall/`、`local/`、`student/`、`shell/` | 分别承载文件传送、防火墙、本机信息、学生端进程与终端业务；平台命令、地址解析和套接字操作复用 `app/system/`。学生端的常量与设置键在 `student/data.py`，进程识别、定位、启停与提权助手在 `student/service.py`。 |
 | `app/packets/` | `constants.py` 保存报文数组和命令表，`codec.py` 负责构造、编码与分片，不负责界面或网络生命周期。 |
 | `app/system/net/` | 目标解析、本机地址、UDP 发送、ICMP/ARP 探测与送达结果；结果数据在 `data.py`。 |
-| `app/system/windows/` | Windows 命令、进程枚举与提权助手等系统接口，供具体功能调用。 |
+| `app/system/windows/` | Windows 命令、进程枚举与结束、端口表、提权助手等系统接口，供具体功能调用；进程与端口直接走 `kernel32` 与 `iphlpapi`，不依赖 `tasklist` / `netstat` 的文本输出。 |
 | `app/shared/` | JSONC、设置存储、数据路径、构建信息、版本与日志基础；不依赖界面功能。 |
 | `app/resources/` | 仅放静态资源。唯一图标源为 `icons/app.svg`，运行时通过 `app.shared.resources.resource_path()` 统一定位源码与解包目录，Qt 图标由 `app/gui/resources.py` 适配。 |
 

@@ -49,7 +49,7 @@
     <td width="33%" valign="middle" style="padding: 12px 14px;">
       <h3 style="margin: 0 0 10px 0;">🛡️ 解除限制</h3>
       <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
-        <li><b>启停学生端</b>：单按钮按状态启动或结束本机学生端，按需提权</li>
+        <li><b>启停学生端</b>：状态卡片 + 单按钮按状态启动或结束本机学生端，可自动定位或记住程序路径，按需提权</li>
         <li><b>端口占用</b>：结束被学生端独占的本机 4705 端口</li>
       </ul>
     </td>
