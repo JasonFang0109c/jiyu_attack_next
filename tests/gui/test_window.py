@@ -472,6 +472,14 @@ class GuiTests(unittest.TestCase):
             gui_data.TITLE_BAR_MARGIN,
         )
 
+    def test_tab_strip_uses_secondary_background(self):
+        remote = self.window.pages["remote"]
+        # 标签栏贴住内容区顶边，整条使用比窗口深一档的灰色底。
+        self.assertEqual(remote.vbox.contentsMargins().top(), 0)
+        color = theme.tab_strip_background().name()
+        self.assertIn(color, remote.tab_bar.viewport().styleSheet())
+        self.assertIn(color, remote.tab_bar.styleSheet())
+
     def test_tables_allow_column_resizing(self):
         tables = [
             self.window.pages["studentproc"].table,

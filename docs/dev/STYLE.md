@@ -113,12 +113,13 @@ self.table.blockSignals(True)
 | `CardBackgroundFillColorDefault` | `#B3FFFFFF` | `#0DFFFFFF` | 卡片填充 |
 | `CardStrokeColorDefault` | `#0F000000` | `#19000000` | 卡片描边 |
 | `SolidBackgroundFillColorBase` | `#F3F3F3` | `#202020` | 窗口底色（实色材质） |
+| `SolidBackgroundFillColorSecondary` | `#EEEEEE` | `#1F1F1F` | 标签栏底色（比窗口深一档，托住白色标签） |
 
 浅色下卡片是 70% 的白，压在灰底上刚好浮起一层；描边只有 6% 的黑，负责收边而不是勾轮廓。深色下填充几乎透明，靠 10% 的黑色描边把卡片压在深色背景上。
 
 ### 落点
 
-- `app/gui/theme.py` 存常量与三个取值函数：`card_fill()`、`card_stroke()`、`window_background(dark=None)`。
+- `app/gui/theme.py` 存常量与取值函数：`card_fill()`、`card_stroke()`、`window_background(dark=None)`、`tab_strip_background(dark=None)`。
 - `app/gui/widgets/common.py` 的 `FluentCard` 用 `paintEvent` 画填充与描边，`FluentDialog` 追加一条 QSS 覆盖组件库写死的 10 像素对话框圆角。
 - 新增卡片一律继承 `FluentCard`，不要直接用 `SimpleCardWidget`；新增对话框用 `FluentDialog`，不要直接用 `Dialog`。
 - 云母与亚克力材质开启时窗口必须是全透明，只有实色材质才用窗口底色，主窗口的 `_normalBackgroundColor` 委托给 `app/gui/window/service.py` 的 `WindowService`，窗口材质由该服务的 `apply_window_material` 统一应用。

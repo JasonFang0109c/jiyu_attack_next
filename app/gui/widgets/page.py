@@ -16,10 +16,11 @@ from qfluentwidgets import (
     TabWidget,
     TreeItemDelegate,
     TreeWidget,
+    qconfig,
 )
 from qfluentwidgets.components.widgets.check_box import CheckBoxIcon
 
-from app.gui.theme import CONTROL_CORNER_RADIUS
+from app.gui.theme import CONTROL_CORNER_RADIUS, tab_strip_background
 from app.gui.widgets.common import SectionCard, TargetControls, TaskFooter, page_heading
 
 
@@ -259,7 +260,17 @@ class TabbedPage(Page):
         title_layout.addStretch()
         self.tabs.vBoxLayout.insertWidget(1, title_row)
         self.vbox.addWidget(self.tabs, 1)
+        self._apply_tab_strip_style()
+        qconfig.themeChanged.connect(self._apply_tab_strip_style)
         self._routes = []
+
+    def _apply_tab_strip_style(self, *_args):
+        """给整条标签栏铺灰色底，标签本身仍由组件绘制成白色。"""
+        color = tab_strip_background().name()
+        self.tab_bar.setStyleSheet(
+            "TabBar { background-color: %s; border: none; }" % color
+        )
+        self.tab_bar.viewport().setStyleSheet("background-color: %s;" % color)
 
     def add_tab(self, widget, text, icon=None):
         """加入一个子页面并隐藏它重复的页标题。

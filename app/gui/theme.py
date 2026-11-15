@@ -27,6 +27,11 @@ CARD_STROKE_DARK = "#19000000"
 WINDOW_BACKGROUND_LIGHT = "#f3f3f3"
 WINDOW_BACKGROUND_DARK = "#202020"
 
+# 标签栏底色取 SolidBackgroundFillColorSecondary，比窗口底色深一档，
+# 让默认的白色选中标签从这一长条上浮起来。
+TAB_STRIP_LIGHT = "#eeeeee"
+TAB_STRIP_DARK = "#1f1f1f"
+
 
 def card_fill():
     """返回当前主题下的卡片填充色。"""
@@ -36,6 +41,20 @@ def card_fill():
 def card_stroke():
     """返回当前主题下的卡片描边色。"""
     return QColor(CARD_STROKE_DARK if isDarkTheme() else CARD_STROKE_LIGHT)
+
+
+def tab_strip_background(dark=None):
+    """返回标签栏底色；``None`` 表示跟随当前主题。
+
+    Args:
+        dark: 指定深色或浅色，省略时按当前主题判断。
+
+    Returns:
+        QColor: 对应主题的标签栏底色。
+    """
+    if dark is None:
+        dark = isDarkTheme()
+    return QColor(TAB_STRIP_DARK if dark else TAB_STRIP_LIGHT)
 
 
 def window_background(dark=None):
