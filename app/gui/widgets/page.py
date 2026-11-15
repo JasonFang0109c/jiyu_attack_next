@@ -4,15 +4,22 @@ from PySide6.QtCore import QEvent, QRectF, Qt, Signal
 from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QHBoxLayout,
     QHeaderView,
-    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
-from qfluentwidgets import CheckBox, TabBar, TableWidget, TreeItemDelegate, TreeWidget
+from qfluentwidgets import (
+    CheckBox,
+    SubtitleLabel,
+    TableWidget,
+    TabWidget,
+    TreeItemDelegate,
+    TreeWidget,
+)
 from qfluentwidgets.components.widgets.check_box import CheckBoxIcon
 
-from app.gui.theme import CONTROL_CORNER_RADIUS, OVERLAY_CORNER_RADIUS
+from app.gui.theme import CONTROL_CORNER_RADIUS
 from app.gui.widgets.common import SectionCard, TargetControls, TaskFooter, page_heading
 
 
@@ -217,22 +224,15 @@ class Page(QWidget):
         self.vbox.setSpacing(20)
 
 
-class RoundTabBar(TabBar):
-    """圆角标签栏：去掉组件默认画在标签之间的竖分隔线。"""
-
-    def paintEvent(self, event):
-        """只让滚动区域按样式绘制背景，不额外画分隔线。"""
-        super(TabBar, self).paintEvent(event)
-
-
 class TabbedPage(Page):
-    """用标签栏承载多个子页面的容器页。
+    """用标签页控件承载多个子页面的容器页。
 
     侧边栏只保留一个入口，组内的页面通过顶部标签切换。标签栏关闭加号、
-    关闭按钮与拖动，行为接近 WinUI 的 SelectorBar；子页面原来的页标题
-    会隐藏，避免与标签文字重复。
+    关闭按钮与拖动；子页面原来的页标题会隐藏，避免与标签文字重复。
+    标签栏在组标题上方，下面是当前子页面的内容。
 
     Attributes:
+        tabs: 组件库的 ``TabWidget``，负责标签与内容栈的联动。
         tab_bar: 顶部标签栏。
         stack: 子页面容器，索引与标签一致。
     """
@@ -241,17 +241,21 @@ class TabbedPage(Page):
         super().__init__(name, parent)
         self.vbox.setContentsMargins(28, 12, 28, 24)
         self.vbox.setSpacing(12)
-        # 标签栏在最上面，下面是这一组页面的标题与内容，接近浏览器式标签页。
-        self.tab_bar = RoundTabBar(self)
+        self.tabs = TabWidget(self)
+        self.tab_bar = self.tabs.tabBar
+        self.stack = self.tabs.stackedWidget
+        # 先关掉加号、关闭按钮与拖动，之后新增的标签也沿用这些设置。
         self.tab_bar.setAddButtonVisible(False)
-        self.tab_bar.setTabsClosable(False)
-        self.tab_bar.setMovable(False)
-        self.tab_bar.setTabShadowEnabled(True)
-        self.vbox.addWidget(self.tab_bar)
-        page_heading(self.vbox, title)
-        self.stack = QStackedWidget(self)
-        self.vbox.addWidget(self.stack, 1)
-        self.tab_bar.currentChanged.connect(self.stack.setCurrentIndex)
+        self.tabs.setTabsClosable(False)
+        self.tabs.setMovable(False)
+        self.tabs.vBoxLayout.setSpacing(12)
+        title_row = QWidget(self.tabs)
+        title_layout = QHBoxLayout(title_row)
+        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.addWidget(SubtitleLabel(title, title_row))
+        title_layout.addStretch()
+        self.tabs.vBoxLayout.insertWidget(1, title_row)
+        self.vbox.addWidget(self.tabs, 1)
         self._routes = []
 
     def add_tab(self, widget, text, icon=None):
@@ -268,13 +272,7 @@ class TabbedPage(Page):
         title = widget.findChild(QWidget, "pageTitle")
         if title is not None:
             title.hide()
-        index = self.stack.addWidget(widget)
-        self.tab_bar.addTab(widget.objectName(), text, icon)
-        item = self.tab_bar.tab(widget.objectName())
-        if item is not None:
-            # 参考组件库的圆角标签页效果：更大的上圆角与选中阴影。
-            item.setBorderRadius(OVERLAY_CORNER_RADIUS)
-            item.setShadowEnabled(True)
+        index = self.tabs.addTab(widget, text, icon, routeKey=widget.objectName())
         self._routes.append(widget.objectName())
         return index
 
@@ -282,9 +280,7 @@ class TabbedPage(Page):
         """切换到指定子页面；键不在本容器时忽略。"""
         if key not in self._routes:
             return
-        index = self._routes.index(key)
-        self.tab_bar.setCurrentIndex(index)
-        self.stack.setCurrentIndex(index)
+        self.tabs.setCurrentIndex(self._routes.index(key))
 
     def current_route(self):
         """返回当前子页面的路由键。"""
