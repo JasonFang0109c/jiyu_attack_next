@@ -735,7 +735,6 @@ class GuiTests(unittest.TestCase):
         page.set_processes([])
         self.assertEqual(page.toggle_button.text(), "启动学生端")
         self.assertTrue(page.toggle_button.isEnabled())
-        self.assertTrue(page.exe_input.isEnabled())
         self.assertIn("没有正在运行", page.status.text())
         page.set_processes(
             [
@@ -748,9 +747,8 @@ class GuiTests(unittest.TestCase):
                 }
             ]
         )
-        # 有进程时同一个按钮变成结束，路径输入框锁住以免误改。
+        # 有进程时同一个按钮变成结束。
         self.assertEqual(page.toggle_button.text(), "结束学生端")
-        self.assertFalse(page.exe_input.isEnabled())
         self.assertEqual(page.table.item(0, 2).text(), "4705、51767")
         self.assertTrue(page.is_running())
         # 任务进行中按钮要禁用，避免重复提权。
@@ -786,8 +784,6 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(stop.call_args.args, ([17600],))
 
     def test_toggle_local_student_starts_when_idle(self):
-        page = self.window.pages["studentproc"]
-        page.exe_input.setText(" ")
         with (
             patch.object(self.window, "_begin_task") as begin_task,
             patch.object(self.window, "thread", None),
@@ -807,8 +803,8 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(begin_task.call_args.args[0], "studentproc")
             worker = begin_task.call_args.args[1]
             worker.run()
-        # 输入框只有空格时按留空处理，交给核心自动查找路径。
-        self.assertEqual(start.call_args.args, (None,))
+        # 程序位置由核心自动查找，界面不再传路径。
+        self.assertEqual(start.call_args.args, ())
 
     def test_stop_action_cancelled_by_user_keeps_page_idle(self):
         record = {
@@ -862,79 +858,23 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(page.toggle_button.isEnabled())
         self.window.active_kind = ""
 
-    def test_student_process_page_has_manual_refresh_and_path_actions(self):
+    def test_student_page_is_fully_automatic(self):
         page = self.window.pages["studentproc"]
-        # 页面保留一个显式的刷新入口，自动轮询之外还能立刻确认状态。
-        self.assertTrue(hasattr(page, "refreshRequested"))
-        self.assertTrue(hasattr(page, "chooseRequested"))
-        self.assertTrue(hasattr(page, "locateRequested"))
-        self.assertTrue(hasattr(page, "forgetRequested"))
-
-    def test_studentproc_refresh_polls_without_busy_flash(self):
-        page = self.window.pages["studentproc"]
-        with (
-            patch.object(self.window, "_probe_student_processes") as probe,
-            patch.object(page, "set_busy") as busy,
+        # 程序路径与刷新都是自动的，页面上不再保留这些控件与信号。
+        for name in (
+            "exe_input",
+            "choose_button",
+            "locate_button",
+            "refresh_button",
+            "chooseRequested",
+            "locateRequested",
+            "forgetRequested",
+            "copyPathRequested",
+            "refreshRequested",
         ):
-            self.window.pages["studentproc"].refreshRequested.emit()
-            probe.assert_called_once_with("refresh")
-            busy.assert_called_once_with(True)
-        with (
-            patch.object(self.window, "_probe_student_processes") as probe,
-            patch.object(page, "set_busy") as busy,
-        ):
-            self.window._poll_student_processes()
-            # 轮询不闪忙碌状态，避免每两秒切一次按钮。
-            probe.assert_called_once_with("poll")
-            busy.assert_not_called()
-
-    def test_student_snapshot_reports_port_owner_and_path(self):
-        page = self.window.pages["studentproc"]
-        page.set_snapshot(
-            {
-                "processes": [
-                    {
-                        "pid": 17600,
-                        "name": "StudentMain.exe",
-                        "ports": [4705],
-                        "path": "C:/Program Files/Mythware/StudentMain.exe",
-                        "genuine": True,
-                    }
-                ],
-                "exe_path": "C:/Program Files/Mythware/StudentMain.exe",
-                "saved_path": "",
-                "port": 4705,
-                "port_owner": 17600,
-            }
-        )
-        self.assertTrue(page.has_port_owner())
-        self.assertIn("PID 17600", page.status.text())
-        self.assertIn("4705", page.status.text())
-        self.assertIn("StudentMain.exe", page.detail.text())
-        self.assertEqual(page.toggle_button.text(), "结束学生端")
-
-    def test_student_snapshot_without_port_owner_warns(self):
-        page = self.window.pages["studentproc"]
-        page.set_snapshot(
-            {
-                "processes": [
-                    {
-                        "pid": 17600,
-                        "name": "StudentMain.exe",
-                        "ports": [53176],
-                        "path": "",
-                        "genuine": False,
-                    }
-                ],
-                "exe_path": "",
-                "saved_path": "",
-                "port": 4705,
-                "port_owner": 0,
-            }
-        )
-        self.assertFalse(page.has_port_owner())
-        self.assertIn("没有占用", page.status.text())
-        self.assertIn("LibTDMaster.dll", page.detail.text())
+            self.assertFalse(hasattr(page, name), name)
+        self.window.show_page("studentproc")
+        self.assertTrue(self.window._studentproc_timer.isActive())
 
     def test_show_studentproc_page_starts_polling_timer(self):
         self.window.show_page("studentproc")
@@ -963,7 +903,7 @@ class GuiTests(unittest.TestCase):
             "student_status",
             side_effect=OSError("probe failed"),
         ):
-            self.window.refresh_student_processes()
+            self.window._probe_student_processes("refresh")
             self.wait_for(lambda: self.window._student_probe_thread is None)
         self.notify.assert_called_once_with(
             "查询学生端状态失败", "probe failed", "错误"

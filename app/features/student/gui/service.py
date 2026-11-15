@@ -12,20 +12,14 @@ class StudentService:
     def __init__(self, window):
         self.window = window
 
-    def refresh_student_processes(self, purpose="refresh"):
+    def refresh_student_processes(self, purpose="poll"):
         """刷新学生端状态。
 
         Args:
-            purpose: ``refresh`` 手动刷新（显示忙碌与结果提示）、``poll``
-                定时轮询（静默）或 ``toggle`` / ``stop`` / ``start`` 动作前的
-                状态确认；非手动刷新不闪忙碌状态，避免每两秒切一次按钮。
+            purpose: 默认 ``poll`` 静默轮询；``toggle`` / ``stop`` / ``start``
+                表示动作前的状态确认。页面不再提供手动刷新入口。
         """
-        window = self.window
-        page = window.pages["studentproc"]
-        if purpose == "refresh":
-            page.set_busy(True)
-            page.set_working("正在读取学生端状态…")
-        window._probe_student_processes(purpose)
+        self.window._probe_student_processes(purpose)
 
     def _poll_student_processes(self):
         """页面可见时刷新学生端状态，让按钮始终表示当前能做的事。"""
@@ -113,11 +107,6 @@ class StudentService:
                 self._stop(snapshot)
             else:
                 self._start()
-            return
-        page.set_busy(False)
-        window.logs.info("解除限制", "已刷新学生端状态", "共 %d 个" % len(processes))
-        if not processes:
-            window._notify("未发现学生端", "本机没有正在运行的学生端进程", "信息")
 
     def _student_processes_failed(self, purpose, message, details):
         """查询失败：恢复按钮并记录堆栈，退出过程与轮询不弹提示。"""
@@ -138,7 +127,6 @@ class StudentService:
         window = self.window
         if not window._claim_task("解除限制", "启停学生端"):
             return
-        window.pages["studentproc"].set_working("正在确认学生端状态…")
         window._probe_student_processes("toggle")
 
     def _start(self):
@@ -149,8 +137,8 @@ class StudentService:
             window._notify("学生端已在运行", "先结束再启动", "警告")
             page.set_busy(False)
             return
-        path = page.exe_path()
-        shown = path or page.manual_path() or page.saved_path or "自动查找安装位置"
+        # 程序位置由核心自动查找（优先用之前记住的路径）。
+        shown = "自动查找安装位置"
         if not window._confirm(
             "启动学生端",
             "将按需以管理员权限启动本机极域学生端：\n%s\n\n"
@@ -164,7 +152,7 @@ class StudentService:
         page.set_busy(True)
         window._begin_task(
             "studentproc",
-            TaskWorker(student_service.start_student_process, path),
+            TaskWorker(student_service.start_student_process),
             window._start_student_finished,
             window._local_failed,
         )
@@ -292,81 +280,3 @@ class StudentService:
                 "成功",
             )
         window.refresh_student_processes("poll")
-
-    # ---- 程序位置 ---------------------------------------------------------
-
-    def choose_student_executable(self):
-        """用文件对话框挑选 StudentMain.exe，选中后记住并回填。"""
-        from PySide6.QtWidgets import QFileDialog
-
-        window = self.window
-        page = window.pages["studentproc"]
-        start = page.manual_path() or page.saved_path or "C:\\Program Files"
-        filename, _ = QFileDialog.getOpenFileName(
-            window,
-            "选择学生端主程序",
-            start,
-            "学生端主程序 (StudentMain*.exe Student.exe);;可执行文件 (*.exe)",
-        )
-        if not filename:
-            return
-        student_service.save_executable(filename)
-        page.set_exe_text(filename)
-        window.logs.info("解除限制", "已记住学生端程序位置", "程序：%s" % filename)
-        self.refresh_student_processes("poll")
-
-    def locate_student_executable(self):
-        """按记住的路径、运行中的进程、注册表与常见目录查找程序位置。"""
-        window = self.window
-        page = window.pages["studentproc"]
-        try:
-            found = student_service.find_student_executable()
-        except RuntimeError as error:
-            window.logs.warning(
-                "解除限制", "没有找到学生端安装位置", "原因：%s" % error
-            )
-            window._notify("没有找到学生端", str(error), "警告")
-            return
-        student_service.save_executable(found)
-        page.set_exe_text(found)
-        window.logs.info("解除限制", "已定位学生端程序位置", "程序：%s" % found)
-        window._notify("已找到学生端", found, "成功")
-        self.refresh_student_processes("poll")
-
-    def forget_student_executable(self):
-        """清除记住的路径，之后按自动查找处理。"""
-        window = self.window
-        page = window.pages["studentproc"]
-        student_service.save_executable("")
-        page.set_exe_text("")
-        page.saved_path = ""
-        window.logs.info("解除限制", "已清除记住的学生端路径")
-        window._notify("已清除记忆", "下次启动会重新自动查找程序位置", "信息")
-
-    def copy_student_path(self):
-        """复制优先显示的路径到剪贴板。"""
-        window = self.window
-        page = window.pages["studentproc"]
-        text = page.path_for_copy()
-        if not text:
-            window._notify("没有可复制的路径", "先定位或选择 StudentMain.exe", "警告")
-            return
-        if page.copy_text(text):
-            window.logs.info("解除限制", "已复制学生端路径", "路径：%s" % text)
-            window._notify("已复制路径", text, "成功")
-
-    def copy_student_port(self):
-        """复制 4705 端口号，方便填到远程页面。"""
-        window = self.window
-        page = window.pages["studentproc"]
-        if page.copy_text(str(student_service.STUDENT_PORT)):
-            window.logs.info("解除限制", "已复制学生端端口")
-            window._notify("已复制端口", str(student_service.STUDENT_PORT), "成功")
-
-    def copy_row_path(self, path):
-        """双击进程行时复制那一行的程序路径。"""
-        window = self.window
-        page = window.pages["studentproc"]
-        if page.copy_text(path):
-            window.logs.info("解除限制", "已复制学生端路径", "路径：%s" % path)
-            window._notify("已复制路径", path, "成功")

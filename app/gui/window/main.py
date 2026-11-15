@@ -313,21 +313,8 @@ class MainWindow(FluentWindow):
         self.pages["local"].copyRequested.connect(self.copy_local_ip)
         self.pages["firewall"].footer.requested.connect(self.start_firewall)
         self.pages["studentproc"].toggleRequested.connect(self.toggle_local_student)
-        self.pages["studentproc"].chooseRequested.connect(
-            self.choose_student_executable
-        )
-        self.pages["studentproc"].locateRequested.connect(
-            self.locate_student_executable
-        )
-        self.pages["studentproc"].forgetRequested.connect(
-            self.forget_student_executable
-        )
-        self.pages["studentproc"].copyPathRequested.connect(self.copy_student_path)
         self.pages["studentproc"].copyPortRequested.connect(self.copy_student_port)
         self.pages["studentproc"].rowPathRequested.connect(self.copy_student_row_path)
-        self.pages["studentproc"].refreshRequested.connect(
-            self.refresh_student_processes
-        )
         for page in self.task_pages:
             page.footer.cancelled.connect(self.cancel_task)
             page.footer.viewLogs.connect(lambda: self.show_page("logs"))
@@ -449,18 +436,6 @@ class MainWindow(FluentWindow):
 
     def _stop_student_finished(self, results):
         return self._student_service._stop_student_finished(results)
-
-    def choose_student_executable(self):
-        return self._student_service.choose_student_executable()
-
-    def locate_student_executable(self):
-        return self._student_service.locate_student_executable()
-
-    def forget_student_executable(self):
-        return self._student_service.forget_student_executable()
-
-    def copy_student_path(self):
-        return self._student_service.copy_student_path()
 
     def copy_student_port(self):
         return self._student_service.copy_student_port()

@@ -1,16 +1,9 @@
-"""启停学生端页：列出本机极域学生端，按状态启动或结束，并可直接指定程序位置。"""
+"""启停学生端页：自动识别本机极域学生端，按状态启动或结束。"""
 
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtWidgets import QHBoxLayout, QTableWidgetItem
-from qfluentwidgets import (
-    BodyLabel,
-    CaptionLabel,
-    LineEdit,
-    PushButton,
-    isDarkTheme,
-    setFont,
-)
+from qfluentwidgets import BodyLabel, CaptionLabel, PushButton, isDarkTheme, setFont
 from qfluentwidgets import FluentIcon as FIF
 
 from app.features.student.data import STUDENT_PORT
@@ -50,20 +43,17 @@ def _tone_color(color):
 class StudentProcessPage(Page):
     """展示本机学生端进程，按钮按运行状态在启动与结束之间切换。
 
+    程序位置与进程列表全部自动识别：进入页面后周期性刷新，不需要填路径，
+    也没有手动刷新入口。
+
     Attributes:
         processes: 当前列表里展示的进程记录，每项含 pid、name、ports、
             path、genuine 与 creation。
         port_owner: 占用 4705 的学生端进程号，0 表示没人占用。
-        saved_path: 上次记住的程序路径，输入框留空时启动就用它。
     """
 
     toggleRequested = Signal()
-    chooseRequested = Signal()
-    locateRequested = Signal()
-    forgetRequested = Signal()
-    copyPathRequested = Signal()
     copyPortRequested = Signal()
-    refreshRequested = Signal()
     # 双击某一行时把这一行的路径交给界面服务复制并写日志。
     rowPathRequested = Signal(str)
 
@@ -71,18 +61,9 @@ class StudentProcessPage(Page):
         super().__init__("studentproc", parent)
         self.processes = []
         self.port_owner = 0
-        self.saved_path = ""
         page_heading(self.vbox, "启停学生端")
-        hint = BodyLabel(
-            "本机同时运行极域学生端时，它会独占教师端地址的 4705 端口，"
-            "模拟教师端收不到学生的回包；需要恢复极域的课堂管理时又要把它拉起来。"
-            "下面的按钮会按当前状态自动决定启动还是结束，必要时弹出管理员授权。",
-            self,
-        )
-        hint.setWordWrap(True)
-        self.vbox.addWidget(hint)
 
-        # 状态卡片：一句话说明当前情况，右侧放刷新这类轻量操作。
+        # 状态卡片：一句话说明当前情况，下面是程序位置等补充信息。
         status_card = SectionCard(self, spacing=6)
         status_row = QHBoxLayout()
         status_row.setSpacing(10)
@@ -92,11 +73,6 @@ class StudentProcessPage(Page):
         self.status = BodyLabel("正在读取学生端状态…", status_card)
         self.status.setWordWrap(True)
         status_row.addWidget(self.status, 1)
-        status_row.addWidget(
-            tool_button(
-                FIF.SYNC, "立即刷新状态", status_card, self.refreshRequested.emit
-            )
-        )
         status_card.body.addLayout(status_row)
         self.detail = CaptionLabel("", status_card)
         self.detail.setWordWrap(True)
@@ -107,49 +83,10 @@ class StudentProcessPage(Page):
         self.content_card = SectionCard(self)
         action_row = QHBoxLayout()
         action_row.setSpacing(8)
-        self.exe_input = LineEdit(self.content_card)
-        self.exe_input.setPlaceholderText(
-            "StudentMain.exe 的完整路径，留空则自动查找安装位置"
-        )
-        self.exe_input.setClearButtonEnabled(True)
-        self.exe_input.setMinimumWidth(220)
-        action_row.addWidget(self.exe_input, 1)
-        self.choose_button = PushButton(FIF.FOLDER, "选择程序", self.content_card)
-        self.choose_button.setToolTip("从磁盘上挑选 StudentMain.exe，选中后记住")
-        self.choose_button.clicked.connect(lambda: self.chooseRequested.emit())
-        action_row.addWidget(self.choose_button)
-        self.locate_button = PushButton(FIF.SEARCH, "自动定位", self.content_card)
-        self.locate_button.setToolTip(
-            "按记住的路径、运行中的进程、卸载信息与常见安装目录查找"
-        )
-        self.locate_button.clicked.connect(lambda: self.locateRequested.emit())
-        action_row.addWidget(self.locate_button)
-        action_row.addWidget(
-            tool_button(
-                FIF.COPY,
-                "复制程序路径",
-                self.content_card,
-                lambda: self.copyPathRequested.emit(),
-            )
-        )
-        action_row.addWidget(
-            tool_button(
-                FIF.DELETE,
-                "忘记记住的路径",
-                self.content_card,
-                lambda: self.forgetRequested.emit(),
-            )
-        )
-        self.content_card.body.addLayout(action_row)
-
-        table_row = QHBoxLayout()
-        table_row.setSpacing(8)
         self.port_label = BodyLabel("目标端口 %d" % STUDENT_PORT, self.content_card)
-        self.port_label.setToolTip(
-            "学生端运行时独占该端口；复制它可以直接填到远程页面的端口框"
-        )
-        table_row.addWidget(self.port_label)
-        table_row.addWidget(
+        self.port_label.setToolTip("学生端运行时独占该端口")
+        action_row.addWidget(self.port_label)
+        action_row.addWidget(
             tool_button(
                 FIF.COPY,
                 "复制 %d 端口" % STUDENT_PORT,
@@ -157,36 +94,25 @@ class StudentProcessPage(Page):
                 lambda: self.copyPortRequested.emit(),
             )
         )
-        table_row.addStretch()
+        action_row.addStretch()
         self.toggle_button = PushButton(START_ICON, START_LABEL, self.content_card)
         self.toggle_button.setMinimumHeight(34)
         self.toggle_button.setMinimumWidth(128)
         self.toggle_button.setToolTip(START_HINT)
         self.toggle_button.clicked.connect(lambda: self.toggleRequested.emit())
-        table_row.addWidget(self.toggle_button)
-        self.content_card.body.addLayout(table_row)
+        action_row.addWidget(self.toggle_button)
+        self.content_card.body.addLayout(action_row)
 
         self.table = table_widget(list(PROCESS_COLUMNS), self.content_card)
         self.table.setColumnWidth(0, 96)
         self.table.setColumnWidth(1, 170)
-        self.table.setColumnWidth(2, 140)
+        self.table.setColumnWidth(2, 170)
         self.table.setToolTip("双击一行可以复制它的程序路径")
         self.table.cellDoubleClicked.connect(self._copy_row)
         self.content_card.body.addWidget(self.table, 1)
         self.vbox.addWidget(self.content_card, 1)
 
     # ---- 数据 -------------------------------------------------------------
-
-    def exe_path(self):
-        """返回自己填写的学生端路径，留空时返回 None（交给自动查找）。"""
-        text = self.exe_input.text().strip()
-        if not text or text == self.saved_path:
-            return None
-        return text
-
-    def manual_path(self):
-        """返回输入框里的原始文本。"""
-        return self.exe_input.text().strip()
 
     def is_running(self):
         """本机是否有学生端在运行，决定按钮当前表示启动还是结束。"""
@@ -199,7 +125,7 @@ class StudentProcessPage(Page):
     # ---- 状态刷新 ---------------------------------------------------------
 
     def _update_toggle(self, busy=False):
-        """按运行状态刷新按钮文案、图标、提示与可用性。"""
+        """按运行状态刷新按钮文案、图标与提示。"""
         running = self.is_running()
         label = STOP_LABEL if running else START_LABEL
         self.toggle_button.setText(label)
@@ -207,13 +133,6 @@ class StudentProcessPage(Page):
         self.toggle_button.setToolTip(STOP_HINT if running else START_HINT)
         self.toggle_button.setAccessibleName(label)
         self.toggle_button.setEnabled(not busy)
-        # 运行中锁住路径，避免按钮含义随输入框一起变得模糊。
-        for widget in (
-            self.exe_input,
-            self.choose_button,
-            self.locate_button,
-        ):
-            widget.setEnabled(not busy and not running)
 
     def _set_status(self, text, tone=COLOR_NEUTRAL, icon="", detail=""):
         """更新状态行；``detail`` 为空时隐藏第二行。"""
@@ -231,18 +150,13 @@ class StudentProcessPage(Page):
 
         Args:
             snapshot: ``student_status`` 的返回值，含 ``processes``、
-                ``exe_path``、``saved_path``、``port`` 与 ``port_owner``；
-                也接受旧式的进程列表。
+                ``exe_path``、``port`` 与 ``port_owner``；也接受旧式的
+                进程列表。
         """
         if isinstance(snapshot, list):
             self.set_processes(snapshot)
             return
         snapshot = snapshot or {}
-        self.saved_path = snapshot.get("saved_path") or ""
-        # 用户正在输入时不要用设置里的旧值盖掉他刚敲的内容。
-        if not self.exe_input.hasFocus() and not self.exe_input.text().strip():
-            self.exe_input.setText(self.saved_path)
-            self.exe_input.setCursorPosition(0)
         self.set_processes(
             snapshot.get("processes") or [],
             port_owner=snapshot.get("port_owner", 0),
@@ -327,17 +241,7 @@ class StudentProcessPage(Page):
         """任务执行期间禁用按钮，避免重复触发。"""
         self._update_toggle(busy)
 
-    def set_working(self, message):
-        """任务进行中的进度文字。"""
-        if message:
-            self._set_status(message, COLOR_NEUTRAL, "…")
-
     # ---- 小动作 -----------------------------------------------------------
-
-    def set_exe_text(self, path):
-        """把路径写进输入框，供“选择程序”与“自动定位”回填。"""
-        self.exe_input.setText(path or "")
-        self.exe_input.setCursorPosition(0)
 
     def copy_text(self, text):
         """把文本复制到剪贴板，返回是否真的复制了。"""
@@ -345,15 +249,6 @@ class StudentProcessPage(Page):
             return False
         QGuiApplication.clipboard().setText(text)
         return True
-
-    def path_for_copy(self):
-        """返回优先复制的路径：输入框里的，否则是列表里的第一个。"""
-        text = self.manual_path()
-        if text:
-            return text
-        return next(
-            (item.get("path") for item in self.processes if item.get("path")), ""
-        )
 
     def _copy_row(self, row, _column):
         """双击进程行时把这一行的程序路径交给界面服务复制。"""
