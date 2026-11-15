@@ -28,9 +28,9 @@ class MessageService:
                 text = source.read()
             page = window.pages["message"]
             page.editor.setPlainText(text)
-            page.filename.setText(
+            page.set_filename(
                 page.filename.fontMetrics().elidedText(
-                    Path(filename).name, Qt.ElideMiddle, 225
+                    Path(filename).name, Qt.ElideMiddle, 300
                 )
             )
             page.filename.setToolTip(filename)

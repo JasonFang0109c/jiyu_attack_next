@@ -10,7 +10,7 @@ import time
 import unittest
 from pathlib import Path
 from threading import Event
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 os.environ.setdefault(
     "QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen"
@@ -57,6 +57,7 @@ import app.features.names.data as names_data
 import app.features.send.service as send_service
 import app.features.settings.data as settings_data
 import app.features.settings.service as settings_service
+import app.features.shell.service as shell_service_business
 import app.features.student.service as student_service
 import app.shared.config as shared_config
 import app.shared.paths as data_paths
@@ -1299,6 +1300,69 @@ class GuiTests(unittest.TestCase):
         execute.assert_called_once()
         self.assertEqual(self.state.values["target"], "")
 
+    def test_shell_page_reuses_shared_target_controls(self):
+        shell = self.window.pages["shell"]
+        self.assertIs(shell.targets.state, self.state)
+        self.message.targets.target_input.setText("10.1.2.3")
+        self.message.targets.port_input.setValue(4800)
+        self.assertEqual(shell.targets.target_input.text(), "10.1.2.3")
+        self.assertEqual(shell.targets.port_input.value(), 4800)
+        # 反弹终端不再自带目标地址、本机地址与监听端口输入框。
+        for name in ("local_input", "udp_port_input", "port_input", "target_input"):
+            self.assertFalse(hasattr(shell, name), name)
+
+    def test_shell_listen_auto_selects_local_address_and_port(self):
+        shell = self.window.pages["shell"]
+        self.state.set_value("target", "10.1.2.3")
+        fake = MagicMock()
+        fake.port = 51234
+        fake.http_port = 51235
+        fake.callback_host.return_value = "10.1.2.99"
+        fake.connected = False
+        with patch.object(
+            shell_service_business, "ShellServer", return_value=fake
+        ) as server_class:
+            shell.toggle_listen()
+        try:
+            server_class.assert_called_once_with(
+                port=0, local_ip=None, target="10.1.2.3"
+            )
+            fake.start.assert_called_once_with()
+            self.assertIn("51234", shell.status.text())
+            self.assertIn("10.1.2.99", shell.status.text())
+            self.assertTrue(shell.timer.isActive())
+        finally:
+            shell.stop_listen()
+        self.assertEqual(shell.status.text(), "未监听")
+
+    def test_shell_connect_command_uses_shared_target_and_port(self):
+        shell = self.window.pages["shell"]
+        self.state.set_value("target", "10.1.2.3")
+        self.state.set_value("port", 4800)
+        fake = MagicMock()
+        fake.command.return_value = "powershell -c 1"
+        shell.server = fake
+        try:
+            with patch.object(
+                shell_service_business, "send_command", return_value=42
+            ) as send:
+                shell.send_connect_command()
+        finally:
+            shell.server = None
+        send.assert_called_once_with("10.1.2.3", "powershell -c 1", port=4800)
+        self.assertIn("已向 10.1.2.3 发送连接命令", shell.status.text())
+        self.assertEqual(fake.target, "10.1.2.3")
+
+    def test_shell_connect_command_requires_shared_target(self):
+        shell = self.window.pages["shell"]
+        self.state.set_value("target", "")
+        shell.server = MagicMock()
+        try:
+            shell.send_connect_command()
+        finally:
+            shell.server = None
+        self.assertIn("请先填写目标设备", shell.status.text())
+
     def test_connection_fields_are_shared_between_pages(self):
         self.command.targets.target_input.setText("10.0.0.8")
         self.message.targets.port_input.setValue(8800)
@@ -1331,7 +1395,7 @@ class GuiTests(unittest.TestCase):
     def test_each_page_only_sends_its_own_payload(self):
         self.message.editor.setPlainText("通知")
         self.command.editor.setPlainText("whoami")
-        self.device.shutdown.setChecked(True)
+        self.device.set_action("s")
         message = self.window._options_for_page("message")
         command = self.window._options_for_page("command")
         device = self.window._options_for_page("device")
@@ -1342,11 +1406,14 @@ class GuiTests(unittest.TestCase):
             (command.message, command.command, command.extra), ("", "whoami", "")
         )
         self.assertEqual((device.message, device.command, device.extra), ("", "", "s"))
-        self.assertFalse(self.device.reboot.isChecked())
-        self.device.logoff.setChecked(True)
+        self.assertEqual(self.device.action(), "s")
+        self.device.set_action("l")
         self.assertEqual(self.device.action(), "l")
         self.assertEqual(self.device.footer.send_button.text(), "执行注销")
+        self.assertIn("shutdown /l", self.device.power_hint.text())
         self.assertEqual(self.window._options_for_page("device").extra, "l")
+        self.device.set_action("r")
+        self.assertEqual(self.device.footer.send_button.text(), "执行重启")
 
     def test_target_preview_is_local_parsing_only(self):
         with patch.object(

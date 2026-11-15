@@ -153,7 +153,7 @@ class MainWindow(FluentWindow):
         self.pages = {
             "home": HomePage(self),
             "message": MessagePage(self.connection_state, self),
-            "shell": ShellPage(self.logs, self),
+            "shell": ShellPage(self.connection_state, self.logs, self),
             "command": CommandPage(self.connection_state, self),
             "device": DevicePage(self.connection_state, self),
             "file": FilePage(self.connection_state, self),

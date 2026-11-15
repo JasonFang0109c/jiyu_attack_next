@@ -378,7 +378,9 @@ class TargetControls(QWidget):
     """目标地址、端口、轮数与间隔的组合输入区。
 
     输入值直接写回共享的 ``ConnectionState``，其它页面通过它的 changed
-    信号保持同步；地址未填完整时右侧会显示“地址未完成”。
+    信号保持同步；地址未填完整时右侧会显示“地址未完成”。文本消息、文件
+    传送、设备操作、远程命令与反弹终端共用同一份目标，页面上不重复出现
+    第二套目标输入。
     """
 
     def __init__(self, state, parent=None, show_round_options=True):
@@ -402,14 +404,14 @@ class TargetControls(QWidget):
         self.device_button.clicked.connect(self.choose_device)
         self.port_input = ReadableSpinBox(self)
         self.port_input.setRange(1, 65535)
-        self.port_input.setFixedWidth(152)
+        self.port_input.setFixedWidth(140)
         self.loop_input = ReadableSpinBox(self)
         self.loop_input.setRange(1, 10000)
-        self.loop_input.setFixedWidth(136)
+        self.loop_input.setFixedWidth(124)
         self.interval_input = ReadableDoubleSpinBox(self)
         self.interval_input.setRange(0, 86400)
         self.interval_input.setDecimals(1)
-        self.interval_input.setFixedWidth(160)
+        self.interval_input.setFixedWidth(140)
         self.fields = {
             "target": self.target_input,
             "port": self.port_input,
@@ -436,7 +438,7 @@ class TargetControls(QWidget):
         layout.addLayout(target_column)
 
         options_row = QHBoxLayout()
-        options_row.setSpacing(12)
+        options_row.setSpacing(16)
         labels = {"port": "UDP 端口", "loops": "发送轮数", "interval": "间隔（秒）"}
         option_names = (
             ("port", "loops", "interval") if show_round_options else ("port",)

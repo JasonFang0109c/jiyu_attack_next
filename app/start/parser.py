@@ -59,8 +59,6 @@ def _base_defaults():
         "t": 22,
         "e": None,
         "shell": False,
-        "shell_port": 0,
-        "shell_ip": "",
         "file_ip": None,
         "file_timeout": 120,
         "firewall": None,

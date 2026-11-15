@@ -109,7 +109,7 @@
 
 | 模式 | 启动方式 | 说明 |
 | --- | --- | --- |
-| GUI | 双击 EXE；源码 `python -m app` | 无参数启动，先显示使用须知，同意后打开图形界面 |
+| GUI | 双击 EXE；源码 `python -m app` | 无参数启动，首次启动显示使用须知，确认后打开图形界面 |
 | CLI | `JiYuAttackNext.exe remote message -ip ...`；源码 `python -m app remote message -ip ...` | 带参数启动，在终端显示输出 |
 
 命令行按图形界面的三组分类组织，一个页面一条子命令：`restriction`（解除限制）、`remote`（远程攻击）、`local`（本机工具），例如 `restriction student --start`、`remote message`、`local info`。旧的扁平写法已移除，请迁移到分组子命令。

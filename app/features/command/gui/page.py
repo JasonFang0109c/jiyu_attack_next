@@ -16,7 +16,10 @@ class CommandPage(NetworkPage):
     def __init__(self, state, parent=None):
         super().__init__("command", "远程命令", state, "发送命令", parent)
         row = QHBoxLayout()
+        row.setSpacing(10)
         row.addWidget(BodyLabel("命令正文", self.content_card))
+        self.statistics = CaptionLabel("", self.content_card)
+        row.addWidget(self.statistics)
         row.addStretch()
         self.clear_button = tool_button(
             FIF.DELETE, "清空命令", self.content_card, lambda: self.editor.clear()
@@ -28,8 +31,6 @@ class CommandPage(NetworkPage):
         self.editor.setFont(QFont("Consolas", 11))
         self.editor.textChanged.connect(self.update_statistics)
         self.body.addWidget(self.editor, 1)
-        self.statistics = CaptionLabel("", self)
-        self.body.addWidget(self.statistics)
         self.update_statistics()
 
     def update_statistics(self):
