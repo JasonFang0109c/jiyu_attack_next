@@ -175,7 +175,7 @@ class MainWindow(FluentWindow):
             ),
             "about": AboutPage(self),
         }
-        # 组内页面收进标签页容器，侧边栏只保留一级入口。
+        # 组内页面收进导航容器，侧边栏只保留一级入口。
         for host_key, _icon, title, children in TAB_GROUPS:
             host = TabbedPage(host_key, title, self)
             for child_key, child_icon, child_title in children:

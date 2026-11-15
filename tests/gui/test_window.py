@@ -47,6 +47,7 @@ from qfluentwidgets import (
     LineEdit,
     NavigationDisplayMode,
     NavigationItemHeader,
+    SegmentedWidget,
     SmoothScrollArea,
     StrongBodyLabel,
     Theme,
@@ -193,7 +194,7 @@ class GuiTests(unittest.TestCase):
         self.assertIsInstance(self.window, FluentWindow)
         self.assertEqual(self.window.windowTitle(), gui.APP_NAME)
         self.assertFalse(self.window.windowIcon().isNull())
-        # 首页、启停学生端、两个标签页容器（远程攻击与本机工具）、设备备注、
+        # 首页、启停学生端、两个分段导航容器（远程攻击与本机工具）、设备备注、
         # 运行日志、设置与关于，共 8 个一级页面。
         self.assertEqual(self.window.stackedWidget.count(), 8)
         self.assertEqual(self.window.current_page(), "home")
@@ -472,13 +473,25 @@ class GuiTests(unittest.TestCase):
             gui_data.TITLE_BAR_MARGIN,
         )
 
-    def test_tab_strip_uses_secondary_background(self):
+    def test_top_nav_uses_segmented_widget(self):
         remote = self.window.pages["remote"]
-        # 标签栏贴住内容区顶边，整条使用比窗口深一档的灰色底。
+        # 导航栏贴住内容区顶边，首项默认选中并画出指示条。
         self.assertEqual(remote.vbox.contentsMargins().top(), 0)
-        color = theme.tab_strip_background().name()
-        self.assertIn(color, remote.tab_bar.viewport().styleSheet())
-        self.assertIn(color, remote.tab_bar.styleSheet())
+        self.assertIsInstance(remote.pivot, SegmentedWidget)
+        self.assertEqual(remote.vbox.indexOf(remote.pivot.parentWidget()), 0)
+        self.assertEqual(remote.pivot.currentRouteKey(), "message")
+        self.assertEqual(remote.stack.currentIndex(), 0)
+        # 点击分段项切到对应子页面。
+        self.window.show()
+        self.window.show_page("remote")
+        self.application.processEvents()
+        # 导航栏只占自身宽度，不能被行内的多余空间撑开。
+        self.assertEqual(remote.pivot.width(), remote.pivot.sizeHint().width())
+        QTest.mouseClick(remote.pivot.items["file"], Qt.MouseButton.LeftButton)
+        self.application.processEvents()
+        self.assertEqual(remote.pivot.currentRouteKey(), "file")
+        self.assertEqual(remote.stack.currentIndex(), 1)
+        self.assertEqual(self.window.current_page(), "file")
 
     def test_tables_allow_column_resizing(self):
         tables = [
@@ -538,17 +551,14 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(panel.widget(route).treeChildren, [])
         remote = self.window.pages["remote"]
         self.assertEqual(
-            [remote.tab_bar.tabText(index) for index in range(remote.tab_bar.count())],
+            [item.text() for item in remote.pivot.items.values()],
             ["文本消息", "文件传送", "设备操作", "远程命令", "反弹终端"],
         )
         local = self.window.pages["localtools"]
         self.assertEqual(
-            [local.tab_bar.tabText(index) for index in range(local.tab_bar.count())],
+            [item.text() for item in local.pivot.items.values()],
             ["本机信息", "防火墙"],
         )
-        # 标签栏不带加号和关闭按钮。
-        self.assertFalse(remote.tab_bar.addButton.isVisible())
-        self.assertFalse(remote.tab_bar.tabsClosable())
 
     def test_navigation_groups_have_no_header_text(self):
         # 分组靠缩进表达层级，侧边栏不再出现灰色小字分类标题。

@@ -37,7 +37,7 @@ TRAY_MESSAGE_ICONS = {
     "警告": QSystemTrayIcon.MessageIcon.Warning,
 }
 
-# 侧边栏只保留一级入口；组内页面在容器页里用标签栏切换，不再展开子项。
+# 侧边栏只保留一级入口；组内页面在容器页里用顶部导航栏切换，不再展开子项。
 TAB_GROUPS = (
     (
         "remote",
