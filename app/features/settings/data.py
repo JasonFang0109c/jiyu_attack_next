@@ -4,6 +4,8 @@ import sys
 
 SETTINGS_FILE_NAME = "settings.json"
 
+USAGE_NOTICE_ACCEPTED_SETTINGS_KEY = "gui/notice/accepted"
+
 CLOSE_BEHAVIOR_SETTINGS_KEY = "gui/window/close_behavior"
 
 FIRST_CLOSE_PROMPT_SETTINGS_KEY = "gui/window/first_close_prompt_shown"

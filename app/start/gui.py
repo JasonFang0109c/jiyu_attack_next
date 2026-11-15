@@ -10,19 +10,27 @@ from PySide6.QtCore import (
     QEvent,
     QLocale,
     QObject,
+    Qt,
     Signal,
 )
 from PySide6.QtGui import QColor, QFont, QFontDatabase
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication
 from qfluentwidgets import (
+    CaptionLabel,
     FluentTranslator,
+    LineEdit,
     Theme,
     setFontFamilies,
     setTheme,
     setThemeColor,
 )
 
+from app.features.settings.data import (
+    USAGE_NOTICE_ACCEPTED_SETTINGS_KEY,
+    normalize_switch,
+)
+from app.features.settings.service import portable_settings
 from app.gui.resources import app_icon
 from app.gui.splash import create_splash
 from app.gui.widgets.common import FluentDialog, center_dialog
@@ -30,6 +38,7 @@ from app.gui.window.data import (
     APP_NAME,
 )
 from app.gui.window.main import MainWindow
+from app.shared.paths import portable_data_dir
 
 SINGLE_INSTANCE_KEY = "JiYuAttackNext-single-instance"
 
@@ -42,9 +51,11 @@ USAGE_NOTICE_TEXT = (
     "不得用于任何未授权的目标，也不得用于干扰他人正常使用。\n\n"
     "使用前请确认你已取得目标设备与网络的管理或测试授权；"
     "因违规或恶意使用造成的一切后果由使用者自行承担，"
-    "作者与本项目不承担任何责任。\n\n"
-    "点击“同意并继续”表示你已阅读并接受上述声明。"
+    "作者与本项目不承担任何责任。"
 )
+
+# 首次启动需要用户逐字输入的确认语句，内容与提示文字完全一致才算读过。
+USAGE_NOTICE_CONFIRM_PHRASE = "我已阅读并同意上述声明"
 
 
 def single_instance_key():
@@ -195,25 +206,97 @@ def configure_application(application):
     setThemeColor(QColor("#0067c0"), save=False)
 
 
-def confirm_usage_notice(parent=None):
-    """弹出使用须知，返回用户是否同意继续启动。
+def usage_notice_accepted(settings=None):
+    """读取存储目录里的记录，判断使用须知是否已经确认过。
 
-    每次启动都会询问：本工具面向授权测试，不保存“已同意”状态，
-    避免与设备备注、界面设置混在一起，也让后来的使用者看到声明。
+    Args:
+        settings: 便携设置对象；省略时读取默认数据目录下的 ``settings.json``。
+
+    Returns:
+        bool: 已经确认过时为 True，首次启动或记录无法识别时为 False。
+    """
+    store = settings if settings is not None else portable_settings()
+    return normalize_switch(
+        store.value(USAGE_NOTICE_ACCEPTED_SETTINGS_KEY, False), False
+    )
+
+
+def _mark_usage_notice_accepted(settings=None):
+    """把“已确认”写入设置文件，写入失败时下次启动会再询问一次。"""
+    store = settings if settings is not None else portable_settings()
+    store.set_value(USAGE_NOTICE_ACCEPTED_SETTINGS_KEY, True)
+    store.sync()
+
+
+def build_usage_notice_dialog(parent=None):
+    """创建使用须知对话框并要求逐字输入确认语句。
+
+    拆成独立函数便于测试和截图：返回值里的输入框已经接好校验，
+    输入内容与确认语句完全一致时“同意并继续”才可用。
 
     Args:
         parent: 对话框父窗口；启动阶段主窗口尚未创建，通常为 None。
 
     Returns:
-        bool: 选择“同意并继续”返回 True，选择退出或关闭对话框返回 False。
+        tuple[FluentDialog, LineEdit]: 对话框与确认输入框。
     """
     dialog = FluentDialog(USAGE_NOTICE_TITLE, USAGE_NOTICE_TEXT, parent)
-    dialog.setFixedSize(560, 300)
+    dialog.setFixedSize(600, 340)
     dialog.windowTitleLabel.hide()
     dialog.yesButton.setText("同意并继续")
     dialog.cancelButton.setText("不同意，退出")
+    # 声明是用户需要逐字比对的文本，允许选中复制，不必手动重抄。
+    dialog.setContentCopyable(True)
+    # 对话框比正文高时，默认垂直居中会在标题下留一大片空白，这里贴顶排列。
+    dialog.contentLabel.setAlignment(
+        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
+    )
+
+    prompt = CaptionLabel("为确认已阅读，请输入下面这句话：", dialog)
+    prompt.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+    field = LineEdit(dialog)
+    field.setPlaceholderText(USAGE_NOTICE_CONFIRM_PHRASE)
+    field.setClearButtonEnabled(True)
+    field.setMinimumHeight(34)
+    dialog.textLayout.addWidget(prompt)
+    dialog.textLayout.addWidget(field)
+    # 多出来的高度交给末尾的弹性空白，标题、正文与输入框之间保持固定间距。
+    dialog.textLayout.addStretch(1)
+
+    def sync_button():
+        """输入内容与确认语句完全一致时才允许继续。"""
+        dialog.yesButton.setEnabled(field.text().strip() == USAGE_NOTICE_CONFIRM_PHRASE)
+
+    def submit():
+        if dialog.yesButton.isEnabled():
+            dialog.yesButton.click()
+
+    dialog.yesButton.setEnabled(False)
+    field.textChanged.connect(sync_button)
+    field.returnPressed.connect(submit)
     center_dialog(dialog)
-    return bool(dialog.exec())
+    return dialog, field
+
+
+def confirm_usage_notice(settings=None, parent=None):
+    """弹出使用须知并要求逐字输入确认语句，返回用户是否同意继续启动。
+
+    只有第一次启动会询问：确认后把记录写进 ``settings.json``，之后直接进入
+    界面；记录文件被删除或无法读取时会重新询问。声明正文可以选中复制，
+    输入框里的灰色提示就是需要输入的语句，两者完全一致时“同意并继续”才可用。
+
+    Args:
+        settings: 便携设置对象；省略时写入默认数据目录。
+        parent: 对话框父窗口；启动阶段主窗口尚未创建，通常为 None。
+
+    Returns:
+        bool: 选择“同意并继续”返回 True，选择退出或关闭对话框返回 False。
+    """
+    dialog, _field = build_usage_notice_dialog(parent)
+    accepted = bool(dialog.exec())
+    if accepted:
+        _mark_usage_notice_accepted(settings)
+    return accepted
 
 
 def main():
@@ -231,7 +314,8 @@ def main():
         # 已有实例在跑属于正常退出；服务端起不来要留下失败退出码。
         return 0 if instance.existing else 1
     # 单实例判定之后再询问：已被唤醒的第二次启动不该再弹一次声明。
-    if not confirm_usage_notice():
+    settings = portable_settings(portable_data_dir())
+    if not usage_notice_accepted(settings) and not confirm_usage_notice(settings):
         instance.close()
         return 0
     window = MainWindow()

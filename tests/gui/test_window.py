@@ -38,6 +38,7 @@ from qfluentwidgets import (
     Dialog,
     FluentWindow,
     HyperlinkButton,
+    LineEdit,
     NavigationDisplayMode,
     NavigationItemHeader,
     SmoothScrollArea,
@@ -2719,35 +2720,113 @@ class GuiTests(unittest.TestCase):
 
 
 class UsageNoticeTests(unittest.TestCase):
-    """校验启动时的使用须知：未同意不进入主界面。"""
+    """校验启动时的使用须知：首次询问、逐字确认与记录持久化。"""
 
-    def test_notice_follows_dialog_answer(self):
-        with patch.object(startup, "FluentDialog") as dialog_class:
-            dialog_class.return_value.exec.return_value = 0
-            self.assertFalse(startup.confirm_usage_notice())
-            dialog_class.return_value.exec.return_value = 1
-            self.assertTrue(startup.confirm_usage_notice())
+    @classmethod
+    def setUpClass(cls):
+        cls.application = QApplication.instance() or QApplication([])
+        startup.configure_application(cls.application)
+
+    def setUp(self):
+        self.temp_root = (
+            Path("build") / "jiyu-gui-test" / self._testMethodName.replace("/", "_")
+        )
+        shutil.rmtree(self.temp_root, ignore_errors=True)
+        self.temp_root.mkdir(parents=True, exist_ok=True)
+        self.addCleanup(lambda: shutil.rmtree(self.temp_root, ignore_errors=True))
+        self.settings = settings_service.portable_settings(self.temp_root)
+
+    def _answer_notice(self, answer):
+        """模拟用户在对话框中逐字输入确认语句，返回对话框退出码。"""
+        seen = {}
+
+        def probe(dialog):
+            field = dialog.findChild(LineEdit)
+            seen["initially_enabled"] = dialog.yesButton.isEnabled()
+            field.setText("我同意")
+            seen["wrong_enabled"] = dialog.yesButton.isEnabled()
+            field.setText(startup.USAGE_NOTICE_CONFIRM_PHRASE)
+            seen["matched_enabled"] = dialog.yesButton.isEnabled()
+            return answer
+
+        with patch.object(startup.FluentDialog, "exec", probe):
+            accepted = startup.confirm_usage_notice(self.settings)
+        return accepted, seen
+
+    def test_notice_requires_exact_confirmation_phrase(self):
+        accepted, seen = self._answer_notice(1)
+        self.assertTrue(accepted)
+        # 初始不可点，输错不可点，逐字输入后才允许继续。
+        self.assertFalse(seen["initially_enabled"])
+        self.assertFalse(seen["wrong_enabled"])
+        self.assertTrue(seen["matched_enabled"])
         self.assertIn("授权", startup.USAGE_NOTICE_TEXT)
         self.assertIn("恶意使用", startup.USAGE_NOTICE_TEXT)
+        # 声明正文里不再保留“点击按钮即表示同意”的说明。
+        self.assertNotIn("点击“同意并继续”", startup.USAGE_NOTICE_TEXT)
+
+    def test_declining_keeps_the_notice_for_next_launch(self):
+        accepted, _ = self._answer_notice(0)
+        self.assertFalse(accepted)
+        self.assertFalse(startup.usage_notice_accepted(self.settings))
+
+    def test_accepting_is_recorded_in_settings_file(self):
+        accepted, _ = self._answer_notice(1)
+        self.assertTrue(accepted)
+        self.assertTrue(startup.usage_notice_accepted(self.settings))
+        reloaded = settings_service.portable_settings(self.temp_root)
+        self.assertTrue(
+            reloaded.value(settings_data.USAGE_NOTICE_ACCEPTED_SETTINGS_KEY, False)
+        )
+
+    def test_notice_content_is_copyable(self):
+        captured = {}
+
+        def probe(dialog):
+            captured["copyable"] = bool(
+                dialog.contentLabel.textInteractionFlags()
+                & Qt.TextInteractionFlag.TextSelectableByMouse
+            )
+            return 0
+
+        with patch.object(startup.FluentDialog, "exec", probe):
+            startup.confirm_usage_notice(self.settings)
+        self.assertTrue(captured["copyable"])
 
     def test_startup_stops_when_notice_is_declined(self):
         with (
             patch.object(startup, "QApplication"),
             patch.object(startup, "configure_application"),
             patch.object(startup, "SingleInstance") as instance_class,
+            patch.object(startup, "usage_notice_accepted", return_value=False),
             patch.object(startup, "confirm_usage_notice", return_value=False) as notice,
             patch.object(startup, "MainWindow") as window_class,
         ):
             self.assertEqual(startup.main(), 0)
-        notice.assert_called_once_with()
+        notice.assert_called_once()
         window_class.assert_not_called()
         instance_class.return_value.close.assert_called_once_with()
+
+    def test_startup_skips_notice_when_already_accepted(self):
+        with (
+            patch.object(startup, "QApplication"),
+            patch.object(startup, "configure_application"),
+            patch.object(startup, "SingleInstance"),
+            patch.object(startup, "usage_notice_accepted", return_value=True),
+            patch.object(startup, "confirm_usage_notice") as notice,
+            patch.object(startup, "install_exception_logging"),
+            patch.object(startup, "MainWindow") as window_class,
+        ):
+            startup.main()
+        notice.assert_not_called()
+        window_class.return_value.show.assert_called_once_with()
 
     def test_startup_opens_window_after_agreement(self):
         with (
             patch.object(startup, "QApplication"),
             patch.object(startup, "configure_application"),
             patch.object(startup, "SingleInstance"),
+            patch.object(startup, "usage_notice_accepted", return_value=False),
             patch.object(startup, "confirm_usage_notice", return_value=True),
             patch.object(startup, "install_exception_logging"),
             patch.object(startup, "MainWindow") as window_class,
@@ -2760,6 +2839,7 @@ class UsageNoticeTests(unittest.TestCase):
             patch.object(startup, "QApplication"),
             patch.object(startup, "configure_application"),
             patch.object(startup, "SingleInstance"),
+            patch.object(startup, "usage_notice_accepted", return_value=True),
             patch.object(startup, "confirm_usage_notice", return_value=True),
             patch.object(startup, "install_exception_logging"),
             patch.object(startup, "MainWindow"),
