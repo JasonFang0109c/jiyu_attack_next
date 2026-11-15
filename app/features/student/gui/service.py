@@ -84,7 +84,9 @@ class StudentService:
             else list(snapshot or [])
         )
         if purpose == "poll":
-            if self._signature(processes) == self._signature(page.processes):
+            if page.loaded and self._signature(processes) == self._signature(
+                page.processes
+            ):
                 return
             page.set_snapshot(snapshot)
             window.logs.debug(

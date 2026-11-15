@@ -61,6 +61,8 @@ class StudentProcessPage(Page):
         super().__init__("studentproc", parent)
         self.processes = []
         self.port_owner = 0
+        # 首次查询即使结果为空也要写入页面，不能因为“和初始列表一样”而跳过。
+        self.loaded = False
         page_heading(self.vbox, "启停学生端")
 
         # 状态卡片：一句话说明当前情况，下面是程序位置等补充信息。
@@ -172,6 +174,7 @@ class StudentProcessPage(Page):
             exe_path: 可执行文件路径，用于状态说明的第二行。
         """
         self.processes = list(processes or [])
+        self.loaded = True
         if port_owner is None:
             port_owner = next(
                 (

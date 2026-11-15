@@ -873,6 +873,16 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(page.toggle_button.isEnabled())
         self.window.active_kind = ""
 
+    def test_student_poll_shows_first_result_even_when_empty(self):
+        page = self.window.pages["studentproc"]
+        self.assertFalse(page.loaded)
+        # 首次查询没有进程时也要把占位文字换成真实状态。
+        self.window._student_processes_ready(
+            "poll", {"processes": [], "port_owner": 0, "exe_path": "", "port": 4705}
+        )
+        self.assertTrue(page.loaded)
+        self.assertIn("没有正在运行", page.status.text())
+
     def test_student_page_is_fully_automatic(self):
         page = self.window.pages["studentproc"]
         # 程序路径与刷新都是自动的，页面上不再保留这些控件与信号。
