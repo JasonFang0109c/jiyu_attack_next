@@ -239,8 +239,9 @@ class TabbedPage(Page):
 
     def __init__(self, name, title, parent=None):
         super().__init__(name, parent)
-        self.vbox.setContentsMargins(28, 12, 28, 24)
-        self.vbox.setSpacing(12)
+        # 标签栏贴住内容区最上方，不再缩在页面边距里面。
+        self.vbox.setContentsMargins(0, 0, 0, 0)
+        self.vbox.setSpacing(0)
         self.tabs = TabWidget(self)
         self.tab_bar = self.tabs.tabBar
         self.stack = self.tabs.stackedWidget
@@ -248,10 +249,12 @@ class TabbedPage(Page):
         self.tab_bar.setAddButtonVisible(False)
         self.tabs.setTabsClosable(False)
         self.tabs.setMovable(False)
+        # 标签本身留一点左缘留白，其余内容仍按页面惯例对齐 28 像素。
+        self.tab_bar.itemLayout.setContentsMargins(14, 5, 5, 5)
         self.tabs.vBoxLayout.setSpacing(12)
         title_row = QWidget(self.tabs)
         title_layout = QHBoxLayout(title_row)
-        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setContentsMargins(28, 6, 28, 0)
         title_layout.addWidget(SubtitleLabel(title, title_row))
         title_layout.addStretch()
         self.tabs.vBoxLayout.insertWidget(1, title_row)
