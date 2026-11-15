@@ -2,8 +2,14 @@
 
 from PySide6.QtCore import QEvent, QRectF, Qt, Signal
 from PySide6.QtGui import QPainter
-from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QVBoxLayout, QWidget
-from qfluentwidgets import CheckBox, TableWidget, TreeItemDelegate, TreeWidget
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QHeaderView,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
+from qfluentwidgets import CheckBox, TabBar, TableWidget, TreeItemDelegate, TreeWidget
 from qfluentwidgets.components.widgets.check_box import CheckBoxIcon
 
 from app.gui.theme import CONTROL_CORNER_RADIUS
@@ -209,6 +215,67 @@ class Page(QWidget):
         self.vbox = QVBoxLayout(self)
         self.vbox.setContentsMargins(28, 24, 28, 24)
         self.vbox.setSpacing(20)
+
+
+class TabbedPage(Page):
+    """用标签栏承载多个子页面的容器页。
+
+    侧边栏只保留一个入口，组内的页面通过顶部标签切换。标签栏关闭加号、
+    关闭按钮与拖动，行为接近 WinUI 的 SelectorBar；子页面原来的页标题
+    会隐藏，避免与标签文字重复。
+
+    Attributes:
+        tab_bar: 顶部标签栏。
+        stack: 子页面容器，索引与标签一致。
+    """
+
+    def __init__(self, name, title, parent=None):
+        super().__init__(name, parent)
+        page_heading(self.vbox, title)
+        self.tab_bar = TabBar(self)
+        self.tab_bar.setAddButtonVisible(False)
+        self.tab_bar.setTabsClosable(False)
+        self.tab_bar.setMovable(False)
+        self.tab_bar.setTabShadowEnabled(False)
+        self.stack = QStackedWidget(self)
+        self.vbox.addWidget(self.tab_bar)
+        self.vbox.addWidget(self.stack, 1)
+        self.tab_bar.currentChanged.connect(self.stack.setCurrentIndex)
+        self._routes = []
+
+    def add_tab(self, widget, text, icon=None):
+        """加入一个子页面并隐藏它重复的页标题。
+
+        Args:
+            widget: 子页面，``objectName`` 同时作为标签的路由键。
+            text: 标签文字。
+            icon: 标签图标，可以是 ``FluentIcon``。
+
+        Returns:
+            int: 子页面在容器中的索引。
+        """
+        title = widget.findChild(QWidget, "pageTitle")
+        if title is not None:
+            title.hide()
+        index = self.stack.addWidget(widget)
+        self.tab_bar.addTab(widget.objectName(), text, icon)
+        self._routes.append(widget.objectName())
+        return index
+
+    def set_current(self, key):
+        """切换到指定子页面；键不在本容器时忽略。"""
+        if key not in self._routes:
+            return
+        index = self._routes.index(key)
+        self.tab_bar.setCurrentIndex(index)
+        self.stack.setCurrentIndex(index)
+
+    def current_route(self):
+        """返回当前子页面的路由键。"""
+        index = self.tab_bar.currentIndex()
+        if 0 <= index < len(self._routes):
+            return self._routes[index]
+        return self.objectName()
 
 
 class NetworkPage(Page):

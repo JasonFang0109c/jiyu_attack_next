@@ -23,7 +23,6 @@ from PySide6.QtCore import (
     QEvent,
     QPoint,
     QPointF,
-    QRect,
     QSize,
     Qt,
     QThread,
@@ -31,7 +30,14 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import QColor, QImage, QMouseEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QDialog, QLabel, QSystemTrayIcon, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QDialog,
+    QHeaderView,
+    QLabel,
+    QSystemTrayIcon,
+    QWidget,
+)
 from qfluentwidgets import (
     BodyLabel,
     CaptionLabel,
@@ -186,9 +192,9 @@ class GuiTests(unittest.TestCase):
         self.assertIsInstance(self.window, FluentWindow)
         self.assertEqual(self.window.windowTitle(), gui.APP_NAME)
         self.assertFalse(self.window.windowIcon().isNull())
-        # 首页加 13 个页面：文本消息、文件传送、设备操作、远程命令、反弹终端、
-        # 设备备注、启停学生端、本机信息、防火墙等，另有设置与关于。
-        self.assertEqual(self.window.stackedWidget.count(), 13)
+        # 首页、启停学生端、两个标签页容器（远程攻击与本机工具）、设备备注、
+        # 运行日志、设置与关于，共 8 个一级页面。
+        self.assertEqual(self.window.stackedWidget.count(), 8)
         self.assertEqual(self.window.current_page(), "home")
         self.assertEqual(self.state.values["target"], "")
         self.assertEqual(self.state.values["port"], 4705)
@@ -422,17 +428,79 @@ class GuiTests(unittest.TestCase):
         )
         self.assertGreaterEqual(gap, 5)
 
+    def test_caption_buttons_are_vertically_centered(self):
+        self.window.show()
+        self.application.processEvents()
+        bar = self.window.titleBar
+        center = bar.height() / 2
+        for button in (bar.minBtn, bar.maxBtn, bar.closeBtn):
+            point = button.mapTo(bar, button.rect().center()).y()
+            self.assertLessEqual(abs(point - center), 1)
+
+    def test_return_button_appears_off_home_and_shifts_menu(self):
+        self.window.show()
+        self.window.expand_navigation()
+        panel = self.window.navigationInterface.panel
+        self.window.show_page("home")
+        self.application.processEvents()
+        self.assertFalse(panel.returnButton.isVisible())
+        home_x = panel.menuButton.x()
+        self.window.show_page("message")
+        self.application.processEvents()
+        self.assertTrue(panel.returnButton.isVisible())
+        menu_x = panel.menuButton.x()
+        self.assertGreater(menu_x, panel.returnButton.x())
+        # 返回按钮回到上一次浏览的页面。
+        panel.returnButton.click()
+        self.application.processEvents()
+        self.assertEqual(self.window.current_page(), "home")
+        self.assertFalse(panel.returnButton.isVisible())
+        self.assertEqual(panel.menuButton.x(), home_x)
+
+    def test_tables_allow_column_resizing(self):
+        tables = [
+            self.window.pages["studentproc"].table,
+            self.window.pages["device"].preview,
+            self.window.pages["logs"].table,
+            self.window.pages["aliases"].table,
+            self.window.pages["local"].port_table,
+            self.window.pages["firewall"].result_table,
+        ]
+        for table in tables:
+            header = table.horizontalHeader()
+            for column in range(table.columnCount()):
+                self.assertEqual(
+                    header.sectionResizeMode(column),
+                    QHeaderView.Interactive,
+                    (table.objectName(), column),
+                )
+
     def test_sidebar_routes_preserve_drafts(self):
         self.message.editor.setPlainText("测试通知")
         self.command.editor.setPlainText("whoami")
-        for key in self.window.pages:
+        routes = (
+            "home",
+            "studentproc",
+            "message",
+            "file",
+            "device",
+            "command",
+            "shell",
+            "aliases",
+            "local",
+            "firewall",
+            "logs",
+            "settings",
+            "about",
+        )
+        for key in routes:
             self.window.show_page(key)
             self.assertEqual(self.window.current_page(), key)
         self.assertEqual(self.message.editor.toPlainText(), "测试通知")
         self.assertEqual(self.command.editor.toPlainText(), "whoami")
 
-    def test_navigation_groups_pages_in_expected_order(self):
-        # 分组顺序固定：解除限制、远程攻击、设备备注、本机工具。
+    def test_navigation_items_are_flat_and_tabbed(self):
+        # 一级入口顺序固定，展开的子项改为容器页里的标签。
         panel = self.window.navigationInterface.panel
         top = [
             item.routeKey
@@ -441,21 +509,23 @@ class GuiTests(unittest.TestCase):
             and item.routeKey not in ("logs", "settings", "about")
         ]
         self.assertEqual(
-            top,
-            ["home", "group_restriction", "group_remote", "aliases", "group_local"],
+            top, ["home", "studentproc", "remote", "aliases", "localtools"]
         )
+        for route in ("studentproc", "remote", "aliases", "localtools"):
+            self.assertEqual(panel.widget(route).treeChildren, [])
+        remote = self.window.pages["remote"]
         self.assertEqual(
-            [child.text() for child in panel.widget("group_remote").treeChildren],
+            [remote.tab_bar.tabText(index) for index in range(remote.tab_bar.count())],
             ["文本消息", "文件传送", "设备操作", "远程命令", "反弹终端"],
         )
+        local = self.window.pages["localtools"]
         self.assertEqual(
-            [child.text() for child in panel.widget("group_local").treeChildren],
+            [local.tab_bar.tabText(index) for index in range(local.tab_bar.count())],
             ["本机信息", "防火墙"],
         )
-        self.assertEqual(
-            [child.text() for child in panel.widget("group_restriction").treeChildren],
-            ["启停学生端"],
-        )
+        # 标签栏不带加号和关闭按钮。
+        self.assertFalse(remote.tab_bar.addButton.isVisible())
+        self.assertFalse(remote.tab_bar.tabsClosable())
 
     def test_navigation_groups_have_no_header_text(self):
         # 分组靠缩进表达层级，侧边栏不再出现灰色小字分类标题。
@@ -494,66 +564,41 @@ class GuiTests(unittest.TestCase):
             QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
             self.application.processEvents()
 
-    def test_switching_to_child_page_expands_its_group(self):
+    def test_switching_to_child_page_selects_tab_and_sidebar_item(self):
         panel = self.window.navigationInterface.panel
-        # 侧边栏首次使用是收起的，先展开才能看到分组里的子项。
-        self.window.navigationInterface.expand(useAni=False)
-        group = panel.widget("group_local")
-        group.setExpanded(False, ani=False)
         self.window.show_page("firewall")
-        self.assertTrue(group.isExpanded)
         self.assertEqual(self.window.current_page(), "firewall")
+        self.assertIs(
+            self.window.stackedWidget.currentWidget(),
+            self.window.pages["localtools"],
+        )
+        self.assertEqual(self.window.pages["localtools"].current_route(), "firewall")
+        self.assertTrue(panel.widget("localtools").isSelected)
+        self.assertFalse(panel.widget("remote").isSelected)
 
-    def test_selected_children_do_not_leak_into_collapsed_sidebar(self):
+    def test_collapsed_sidebar_keeps_flat_items_selected(self):
         self.window.apply_window_material(settings_data.MATERIAL_SOLID)
         self.window.show()
         panel = self.window.navigationInterface.panel
-        for route in ("message", "device", "firewall"):
+        for route in ("remote", "localtools"):
             with self.subTest(route=route):
                 self.window.expand_navigation()
-                self.window.show_page("home")
-                self.window._reveal_navigation_item(route)
+                self.window.show_page(route)
                 self.application.processEvents()
-                leaf = panel.widget(route)
-                group = leaf.treeParent
-                QTest.mouseClick(leaf.itemWidget, Qt.LeftButton)
+                item = panel.widget(route)
+                self.assertEqual(item.treeChildren, [])
                 panel.collapse()
-                for delay in (0, 30):
-                    QTest.qWait(delay)
-                    self.assertTrue(leaf.isHidden())
-                    self.assertEqual(group.height(), 36)
-                    self.assertTrue(panel.indicator.isHidden())
                 self.wait_for(
                     lambda: panel.expandAni.state() == QAbstractAnimation.State.Stopped
                 )
                 self.assertEqual(panel.width(), 48)
-                self.assertTrue(group.itemWidget._canDrawIndicator())
-                # 检查实际绘制的蓝色像素，避免只验父节点尺寸而漏掉选中条残影。
-                image = panel.grab().toImage()
-                ratio = image.devicePixelRatio()
-                origin = group.itemWidget.mapTo(panel, QPoint())
-                expected = QRect(origin.x(), origin.y() + 9, 5, 19)
-                colored = []
-                for y in range(image.height()):
-                    for x in range(image.width()):
-                        color = image.pixelColor(x, y)
-                        if (
-                            color.blue() > color.red() + 60
-                            and color.green() > color.red() + 20
-                        ):
-                            point = QPoint(int(x / ratio), int(y / ratio))
-                            colored.append(point)
-                            self.assertTrue(expected.contains(point), (route, point))
-                self.assertTrue(colored, "选中标记应该画在当前父项左侧")
+                self.assertFalse(item.isHidden())
+                self.assertTrue(item.itemWidget._canDrawIndicator())
                 panel.expand(useAni=False)
                 self.application.processEvents()
-                self.assertFalse(leaf.isHidden())
-                self.assertEqual(self.window.current_page(), route)
-                self.assertEqual(group.itemWidget.width(), 190)
-                for item in panel.items.values():
-                    self.assertEqual(
-                        item.widget.expandAni.state(), QAbstractAnimation.State.Stopped
-                    )
+                expected = {"remote": "message", "localtools": "local"}[route]
+                self.assertEqual(self.window.current_page(), expected)
+                self.assertEqual(item.itemWidget.width(), 190)
 
     def test_sidebar_animation_reverses_and_preserves_window_height(self):
         self.window.show()
@@ -564,7 +609,7 @@ class GuiTests(unittest.TestCase):
             panel.expand()
             QTest.qWait(25)
             panel.collapse()
-            self.assertTrue(panel.widget("message").isHidden())
+            self.assertEqual(self.window.current_page(), "message")
             QTest.qWait(20)
             panel.expand()
             self.window.resize(1200, self.window.height() - 15)
@@ -574,7 +619,7 @@ class GuiTests(unittest.TestCase):
             self.assertFalse(panel.isCollapsed())
             self.assertEqual(panel.width(), 200)
             self.assertEqual(panel.height(), self.window.navigationInterface.height())
-            self.assertFalse(panel.widget("message").isHidden())
+            self.assertFalse(panel.widget("remote").isHidden())
         panel.collapse()
         self.wait_for(
             lambda: panel.expandAni.state() == QAbstractAnimation.State.Stopped
@@ -582,28 +627,18 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(panel.width(), 48)
         self.assertEqual(self.window.navigationInterface.width(), 48)
 
-    def test_group_state_survives_compact_mode_and_programmatic_navigation(self):
+    def test_flat_items_survive_compact_mode_and_programmatic_navigation(self):
         panel = self.window.navigationInterface.panel
         self.window.expand_navigation()
-        local = panel.widget("group_local")
-        local.setExpanded(False)
-        attack = panel.widget("message").treeParent
         panel.collapse()
         self.wait_for(
             lambda: panel.expandAni.state() == QAbstractAnimation.State.Stopped
         )
-        self.assertFalse(local.isExpanded)
-        self.assertTrue(attack.isExpanded)
         self.window.show_page("firewall")
-        self.assertTrue(local.isExpanded)
-        self.assertTrue(panel.widget("firewall").isHidden())
-        self.assertEqual(local.height(), 36)
+        self.assertEqual(self.window.current_page(), "firewall")
+        self.assertFalse(panel.widget("localtools").isHidden())
         panel.expand(useAni=False)
-        self.assertFalse(panel.widget("firewall").isHidden())
-        self.assertTrue(attack.isExpanded)
-        self.assertTrue(
-            self.window.settings.value("gui/window/navigation_group_local", False)
-        )
+        self.assertFalse(panel.widget("localtools").isHidden())
 
     def test_sidebar_narrow_overlay_returns_to_interface(self):
         self.window.show()
@@ -648,11 +683,11 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(panel.displayMode, NavigationDisplayMode.MENU)
         self.assertEqual(self.window.navigationInterface.width(), 48)
 
-    def test_compact_sidebar_updates_parent_marker_when_switching_groups(self):
+    def test_compact_sidebar_updates_selection_marker(self):
         self.window.show()
         panel = self.window.navigationInterface.panel
-        first = panel.widget("message").treeParent
-        second = panel.widget("firewall").treeParent
+        first = panel.widget("remote")
+        second = panel.widget("localtools")
         self.window.show_page("message")
         self.application.processEvents()
         self.assertTrue(first.itemWidget._canDrawIndicator())
@@ -666,11 +701,11 @@ class GuiTests(unittest.TestCase):
             second_update.assert_called()
         self.assertFalse(first.itemWidget._canDrawIndicator())
         self.assertTrue(second.itemWidget._canDrawIndicator())
-        self.assertTrue(panel.widget("firewall").isHidden())
+        self.assertFalse(second.isHidden())
 
     def test_sidebar_flyout_clone_keeps_leaf_clicks_free_of_geometry_animation(self):
         panel = self.window.navigationInterface.panel
-        original = panel.widget("message")
+        original = panel.widget("remote")
         clone = original.clone()
         self.addCleanup(clone.deleteLater)
         self.assertIsInstance(clone, SidebarTreeWidget)
@@ -679,7 +714,8 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.window.current_page(), "message")
         self.assertEqual(clone.expandAni.state(), QAbstractAnimation.State.Stopped)
         self.assertEqual(original.expandAni.state(), QAbstractAnimation.State.Stopped)
-        self.assertTrue(original.isHidden())
+        # 一级入口没有子项，收起时仍以图标形式可见。
+        self.assertFalse(original.isHidden())
         self.assertTrue(panel.isCollapsed())
 
     def test_ipv4_assignment_preserves_existing_signal_block(self):
@@ -1016,7 +1052,8 @@ class GuiTests(unittest.TestCase):
         # 功能卡片覆盖除首页、设置、关于与快捷入口以外的全部页面，点击即跳转。
         self.assertEqual(
             set(home.cards),
-            set(self.window.pages) - {"home", "settings", "about", "aliases"},
+            set(self.window.pages)
+            - {"home", "settings", "about", "aliases", "remote", "localtools"},
         )
         self.assertEqual(home.cards["message"].objectName(), "homeCard_message")
         home.cards["logs"].clicked.emit()
@@ -2845,6 +2882,24 @@ class UsageNoticeTests(unittest.TestCase):
         self.assertTrue(
             reloaded.value(settings_data.USAGE_NOTICE_ACCEPTED_SETTINGS_KEY, False)
         )
+
+    def test_confirmation_phrase_shows_above_and_inside_the_field(self):
+        captured = {}
+
+        def probe(dialog):
+            phrases = [
+                label.text()
+                for label in dialog.findChildren(CaptionLabel)
+                if startup.USAGE_NOTICE_CONFIRM_PHRASE in label.text()
+            ]
+            captured["prompt"] = bool(phrases)
+            captured["placeholder"] = dialog.findChild(LineEdit).placeholderText()
+            return 0
+
+        with patch.object(startup.FluentDialog, "exec", probe):
+            startup.confirm_usage_notice(self.settings)
+        self.assertTrue(captured["prompt"])
+        self.assertEqual(captured["placeholder"], startup.USAGE_NOTICE_CONFIRM_PHRASE)
 
     def test_notice_content_is_copyable(self):
         captured = {}

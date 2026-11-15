@@ -1,12 +1,7 @@
 """设备操作页：重启、关机、注销目标电脑。"""
 
 from PySide6.QtCore import Slot
-from PySide6.QtWidgets import (
-    QAbstractItemView,
-    QHBoxLayout,
-    QHeaderView,
-    QTableWidgetItem,
-)
+from PySide6.QtWidgets import QAbstractItemView, QHBoxLayout, QTableWidgetItem
 from qfluentwidgets import BodyLabel, CaptionLabel, SegmentedWidget
 from qfluentwidgets import FluentIcon as FIF
 
@@ -57,13 +52,9 @@ class DevicePage(NetworkPage):
 
         self.preview = table_widget(["目标地址", "UDP 端口"], self.content_card)
         self.preview.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self.preview.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.Stretch
-        )
-        self.preview.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeMode.Fixed
-        )
-        self.preview.setColumnWidth(1, 140)
+        # 只给初始宽度，列宽留给用户拖动，和其它表格一致。
+        self.preview.setColumnWidth(0, 360)
+        self.preview.setColumnWidth(1, 160)
         self.body.addWidget(self.preview, 1)
 
         state.changed.connect(self._on_target_changed)

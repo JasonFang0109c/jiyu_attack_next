@@ -3,7 +3,6 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QHBoxLayout,
-    QHeaderView,
     QSizePolicy,
     QTableWidgetItem,
     QVBoxLayout,
@@ -82,10 +81,9 @@ class AliasPage(Page):
         self.table = table_widget(["备注名", "IP 地址"], self.table_card)
         # 表格铺满卡片，圆角与卡片保持一致，避免出现两条错位弧线。
         self.table.setBorderRadius(CONTROL_CORNER_RADIUS)
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeToContents
-        )
+        # 列宽可拖动，末尾列仍按剩余宽度自适应。
+        self.table.setColumnWidth(0, 260)
+        self.table.setColumnWidth(1, 220)
         self.table_card.body.addWidget(self.table)
         self.vbox.addWidget(self.table_card, 1)
 

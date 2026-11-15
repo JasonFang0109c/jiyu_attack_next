@@ -1,7 +1,15 @@
 """侧边导航：分组状态与可见性分离，只有面板宽度参与动画。"""
 
-from PySide6.QtCore import QEasingCurve, QPoint, QRect, QSize, QVariantAnimation, Signal
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import (
+    QEasingCurve,
+    QPoint,
+    QRect,
+    QSize,
+    Qt,
+    QVariantAnimation,
+    Signal,
+)
+from PySide6.QtWidgets import QApplication, QGridLayout, QVBoxLayout, QWidget
 from qfluentwidgets import (
     NavigationDisplayMode,
     NavigationItemPosition,
@@ -97,6 +105,9 @@ class SidebarPanel(NavigationPanel):
     def __init__(self, parent):
         self._expanded = False
         super().__init__(parent)
+        # 组件库把返回按钮竖排在最前面，这里改成同一行的两个按钮：
+        # 返回占据菜单按钮原来的位置，菜单按钮向右让位。
+        self._install_tool_row()
         # 选中标记由可见条目绘制，避免浮动标记跨布局移动到已隐藏的子项位置。
         self.setIndicatorAnimationEnabled(False)
         # 只动画宽度；窗口高度变化不再被旧的 geometry 动画值覆盖。
@@ -106,6 +117,53 @@ class SidebarPanel(NavigationPanel):
         self.expandAni.setEasingCurve(QEasingCurve.OutQuad)
         self.expandAni.valueChanged.connect(self._set_width)
         self.expandAni.finished.connect(self._onExpandAniFinished)
+
+    def _install_tool_row(self):
+        """把返回与菜单按钮装进顶部的一行，供两种排列切换。"""
+        self.vBoxLayout.removeItem(self.topLayout)
+        self.topLayout.deleteLater()
+        self.topLayout = QVBoxLayout()
+        self.topLayout.setContentsMargins(4, 0, 4, 0)
+        self.topLayout.setSpacing(0)
+        self._tool_row = QWidget(self)
+        self._tool_layout = QGridLayout(self._tool_row)
+        self._tool_layout.setContentsMargins(0, 0, 0, 0)
+        self._tool_layout.setSpacing(0)
+        self._tool_horizontal = None
+        self.topLayout.addWidget(self._tool_row, 0, Qt.AlignTop)
+        self.vBoxLayout.insertLayout(0, self.topLayout, 0)
+        self._layout_tool_buttons()
+
+    def _layout_tool_buttons(self):
+        """展开时并排（返回在左、菜单在右），收起时上下排列避免 48 像素裁切。"""
+        horizontal = not self.isCollapsed()
+        showing = self._isReturnButtonVisible
+        if horizontal != self._tool_horizontal:
+            # 同一个网格只换行列位置，不重建布局，切换后能立即重新排布。
+            self._tool_layout.removeWidget(self.returnButton)
+            self._tool_layout.removeWidget(self.menuButton)
+            self._tool_layout.addWidget(self.returnButton, 0, 0, Qt.AlignTop)
+            column = 1 if horizontal else 0
+            row = 0 if horizontal else 1
+            self._tool_layout.addWidget(self.menuButton, row, column, Qt.AlignTop)
+            self._tool_horizontal = horizontal
+        height = 36 if horizontal or not showing else 72
+        width = 80 if horizontal else 40
+        self._tool_row.setFixedSize(width, height)
+        self._tool_layout.invalidate()
+        self._tool_layout.activate()
+        self._tool_row.updateGeometry()
+        self.topLayout.invalidate()
+        self.topLayout.activate()
+
+    def setReturnButtonVisible(self, isVisible):
+        """显示或隐藏返回按钮，并让菜单按钮随之移动。"""
+        super().setReturnButtonVisible(isVisible)
+        self._layout_tool_buttons()
+
+    def _setWidgetCompacted(self, isCompacted):
+        super()._setWidgetCompacted(isCompacted)
+        self._layout_tool_buttons()
 
     def insertItem(
         self,

@@ -17,11 +17,11 @@ from app.features.settings.data import (
 )
 from app.gui.menu.sidebar import install_sidebar
 from app.gui.widgets.common import soften_scroll_bars
+from app.gui.widgets.page import TabbedPage
 from app.gui.window.data import (
     HOME_LINKS,
-    NAVIGATION_ALIASES_AFTER,
-    NAVIGATION_GROUPS,
-    NAVIGATION_MAX_HEIGHT,
+    NAVIGATION_ITEMS,
+    PAGE_TABS,
 )
 
 
@@ -32,24 +32,19 @@ class NavigationService:
         self.window = window
 
     def _build_navigation(self):
-        """按功能分组装配左侧导航，底部放日志、设置与关于。"""
+        """装配一级导航，底部放日志、设置与关于。"""
         window = self.window
         panel = install_sidebar(window.navigationInterface)
         window.navigationInterface.setExpandWidth(200)
         window.navigationInterface.setMinimumExpandWidth(1050)
+        # 首页没有“返回”目标，先隐藏；切到其它页面时再按需显示。
         window.navigationInterface.setReturnButtonVisible(False)
         window.addSubInterface(window.pages["home"], FIF.HOME, "首页")
         window.navigationInterface.addSeparator(NavigationItemPosition.SCROLL)
-        for route, icon, title, children in NAVIGATION_GROUPS:
-            window._add_navigation_group(route, icon, title, children)
-            if route == NAVIGATION_ALIASES_AFTER:
-                # 设备备注是独立入口，位置在远程攻击与本机工具之间。
-                window.addSubInterface(
-                    window.pages["aliases"],
-                    FIF.QUICK_NOTE,
-                    "设备备注",
-                    NavigationItemPosition.SCROLL,
-                )
+        for key, icon, title in NAVIGATION_ITEMS:
+            window.addSubInterface(
+                window.pages[key], icon, title, NavigationItemPosition.SCROLL
+            )
         window.navigationInterface.addSeparator(NavigationItemPosition.SCROLL)
         window.addSubInterface(
             window.pages["logs"], FIF.HISTORY, "运行日志", NavigationItemPosition.BOTTOM
@@ -62,6 +57,7 @@ class NavigationService:
         )
         panel.expandedChanged.connect(window._save_navigation_expanded)
         panel.layoutSettled.connect(window._refresh_navigation)
+        window.stackedWidget.currentChanged.connect(window._update_return_button)
         if normalize_switch(
             window.settings.value(NAVIGATION_EXPANDED_SETTINGS_KEY, None),
             DEFAULT_NAVIGATION_EXPANDED,
@@ -82,58 +78,19 @@ class NavigationService:
         window = self.window
         window.navigationInterface.expand(useAni=False)
 
-    def _remember_navigation_group(self, route, expanded):
-        """保存用户选择的分组状态，显示模式变化不改写它。"""
-        window = self.window
-        window.settings.set_value("gui/window/navigation_%s" % route, expanded)
-        window.settings.sync()
-
     def _save_navigation_expanded(self, expanded):
         """把侧边栏最后一次收展请求写进设置。"""
         window = self.window
         window.settings.set_value(NAVIGATION_EXPANDED_SETTINGS_KEY, expanded)
         window.settings.sync()
 
-    def _apply_navigation_minimum_height(self):
-        """按导航内容设置侧边栏最小高度，但不让它把窗口顶高。
-
-        分组都在可滚动的导航区里，最小高度只算顶部首页那一行与底部按钮，
-        内容再多也只是出现滚动条，不会把窗口顶到超出屏幕。
-        """
+    def _update_return_button(self, _index=0):
+        """非首页显示返回按钮，菜单按钮随之右移；回到首页后还原。"""
         window = self.window
-        # 交给组件库算，否则分隔符与布局间距都要跟着版本自己重数一遍。
-        needed = window.navigationInterface.panel.layoutMinHeight()
-        window.navigationInterface.setMinimumHeight(min(needed, NAVIGATION_MAX_HEIGHT))
-
-    def _add_navigation_group(self, route, icon, title, children):
-        """创建一个只承载子项的分组节点，并按其顺序挂上子页面。"""
-        window = self.window
-        # 分组本身不是页面，所以不可选中，点击只切换展开状态。
-        window.navigationInterface.addItem(
-            routeKey=route,
-            icon=icon,
-            text=title,
-            selectable=False,
-            position=NavigationItemPosition.SCROLL,
-            tooltip=title,
+        current = window.stackedWidget.currentWidget()
+        window.navigationInterface.setReturnButtonVisible(
+            current is not None and current is not window.pages["home"]
         )
-        node = window._navigation_item(route)
-        for key, child_icon, child_title in children:
-            window.addSubInterface(
-                window.pages[key], child_icon, child_title, parent=route
-            )
-        node.setExpanded(
-            normalize_switch(
-                window.settings.value("gui/window/navigation_%s" % route, None), True
-            )
-        )
-        node.expansionChanged.connect(
-            lambda expanded, route=route: window._remember_navigation_group(
-                route, expanded
-            )
-        )
-        window._apply_navigation_minimum_height()
-        return node
 
     def _open_home_link(self, target):
         """处理首页卡片：页面键直接跳转，其余按外部链接打开。"""
@@ -146,23 +103,32 @@ class NavigationService:
             QDesktopServices.openUrl(QUrl(url))
 
     def show_page(self, key):
-        """切换到指定页面，并展开它所属的父级导航项。"""
+        """切换到指定页面；组内页面先切到容器页再选中对应标签。"""
         window = self.window
-        # 页面可能从首页快捷入口打开，先恢复所属分组，保持导航位置可见。
-        page = window.pages[key]
-        item = window.navigationInterface.panel.items.get(key)
-        parent_key = item.parentRouteKey if item is not None else None
-        node = window._navigation_item(parent_key)
-        if node is not None and not node.isExpanded:
-            node.setExpanded(True, ani=False)
-        window.switchTo(page)
-        window._reveal_navigation_item(key)
+        host_key = PAGE_TABS.get(key)
+        if host_key is not None:
+            host = window.pages[host_key]
+            window.switchTo(host)
+            host.set_current(key)
+        else:
+            window.switchTo(window.pages[key])
+        window._reveal_navigation_item(host_key or key)
         # 进页先查一次，随后开轮询；离开本页就停，避免后台白白扫进程。
         if key == "studentproc":
             window.refresh_student_processes()
             window._studentproc_timer.start()
         else:
             window._studentproc_timer.stop()
+
+    def current_page(self):
+        """返回当前页面的路由键；停在容器页时返回当前标签的路由。"""
+        window = self.window
+        current = window.stackedWidget.currentWidget()
+        if current is None:
+            return ""
+        if isinstance(current, TabbedPage):
+            return current.current_route()
+        return current.objectName()
 
     def _navigation_item(self, key):
         """按路由取导航控件；路由为空或未注册时返回 None。"""
@@ -176,7 +142,7 @@ class NavigationService:
     def _reveal_navigation_item(self, key):
         """把当前页面对应的导航项滚进可见区域。
 
-        分组都在可滚动的导航区里，页面一多当前项就可能落在可视范围之外，
+        导航项都在可滚动的导航区里，页面一多当前项就可能落在可视范围之外，
         侧边栏就看不出现在停在哪一页。
         """
         window = self.window
@@ -185,14 +151,6 @@ class NavigationService:
         if item is None:
             return
         area = panel.scrollArea
-        # 图标模式下定位父项，隐藏子项的旧坐标不参与滚动。
-        while item.isHidden() and item.treeParent is not None:
-            item = item.treeParent
         panel.scrollLayout.activate()
         area.ensureWidgetVisible(item, area.viewport().width(), 12)
         area.horizontalScrollBar().setValue(0)
-
-    def current_page(self):
-        """返回当前页面名。"""
-        window = self.window
-        return window.stackedWidget.currentWidget().objectName()

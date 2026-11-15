@@ -54,9 +54,12 @@ from app.gui.theme import (
     WINDOW_BACKGROUND_LIGHT,
     window_background,
 )
+from app.gui.widgets.page import TabbedPage
 from app.gui.window.data import (
     APP_NAME,
+    CAPTION_BUTTON_MARGIN,
     STUDENT_POLL_INTERVAL,
+    TAB_GROUPS,
 )
 from app.gui.window.service import WindowService
 from app.gui.window.tray import TrayService
@@ -140,6 +143,10 @@ class MainWindow(FluentWindow):
         self._configure_file_logging()
         self.setWindowTitle(APP_NAME)
         self.titleBar.hBoxLayout.setContentsMargins(6, 0, 0, 0)
+        # 组件库把三个窗口按钮顶对齐在 48 像素标题栏里，补上等分留白才居中。
+        self.titleBar.buttonLayout.setContentsMargins(
+            0, CAPTION_BUTTON_MARGIN, 0, CAPTION_BUTTON_MARGIN
+        )
         self.setWindowIcon(app_icon())
         self._setup_tray()
         self.blur_enabled = False
@@ -167,6 +174,12 @@ class MainWindow(FluentWindow):
             ),
             "about": AboutPage(self),
         }
+        # 组内页面收进标签页容器，侧边栏只保留一级入口。
+        for host_key, _icon, title, children in TAB_GROUPS:
+            host = TabbedPage(host_key, title, self)
+            for child_key, child_icon, child_title in children:
+                host.add_tab(self.pages[child_key], child_title, child_icon)
+            self.pages[host_key] = host
         # 网络页都带目标输入区与底栏，忙碌状态由主窗口统一开关。
         self.network_pages = [
             self.pages[key] for key in ("message", "command", "device")
@@ -277,19 +290,14 @@ class MainWindow(FluentWindow):
     def expand_navigation(self):
         return self._navigation_service.expand_navigation()
 
-    def _remember_navigation_group(self, route, expanded):
-        return self._navigation_service._remember_navigation_group(route, expanded)
-
     def _save_navigation_expanded(self, expanded):
         return self._navigation_service._save_navigation_expanded(expanded)
 
+    def _update_return_button(self, _index=0):
+        return self._navigation_service._update_return_button(_index)
+
     def _apply_navigation_minimum_height(self):
         return self._navigation_service._apply_navigation_minimum_height()
-
-    def _add_navigation_group(self, route, icon, title, children):
-        return self._navigation_service._add_navigation_group(
-            route, icon, title, children
-        )
 
     def _connect_actions(self):
         """把各页面的按钮与信号接到主窗口的处理方法。"""

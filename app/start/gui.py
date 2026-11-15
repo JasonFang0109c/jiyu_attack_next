@@ -252,7 +252,9 @@ def build_usage_notice_dialog(parent=None):
         Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
     )
 
-    prompt = CaptionLabel("为确认已阅读，请输入下面这句话：", dialog)
+    prompt = CaptionLabel(
+        "为确认已阅读，请在下方输入：%s" % USAGE_NOTICE_CONFIRM_PHRASE, dialog
+    )
     prompt.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
     field = LineEdit(dialog)
     field.setPlaceholderText(USAGE_NOTICE_CONFIRM_PHRASE)

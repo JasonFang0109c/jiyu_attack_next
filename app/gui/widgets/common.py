@@ -168,14 +168,21 @@ def center_dialog(dialog):
 
 
 def page_heading(layout, title, action=None):
-    """在页面顶部插入“标题 + 右侧操作区”的一行。"""
+    """在页面顶部插入“标题 + 右侧操作区”的一行。
+
+    标题带上 ``pageTitle`` 对象名：页面被放进标签页容器时，容器可以按它
+    隐藏重复的页标题，只保留标签栏上的名字。
+    """
     row = QHBoxLayout()
     row.setSpacing(12)
-    row.addWidget(SubtitleLabel(title))
+    label = SubtitleLabel(title)
+    label.setObjectName("pageTitle")
+    row.addWidget(label)
     row.addStretch()
     if action is not None:
         row.addWidget(action)
     layout.addLayout(row)
+    return label
 
 
 class FluentCard(SimpleCardWidget):

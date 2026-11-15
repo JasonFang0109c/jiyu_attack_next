@@ -25,6 +25,9 @@ STUDENT_POLL_INTERVAL = 2000
 
 NAVIGATION_MAX_HEIGHT = 680
 
+# 标题栏三个窗口按钮高 32、标题栏高 48，补齐上下的等分留白才能居中。
+CAPTION_BUTTON_MARGIN = 8
+
 LOCAL_IP_PLACEHOLDERS = ("未查询", "未获取")
 
 TRAY_MESSAGE_ICONS = {
@@ -32,17 +35,10 @@ TRAY_MESSAGE_ICONS = {
     "警告": QSystemTrayIcon.MessageIcon.Warning,
 }
 
-NAVIGATION_ALIASES_AFTER = "group_remote"
-
-NAVIGATION_GROUPS = (
+# 侧边栏只保留一级入口；组内页面在容器页里用标签栏切换，不再展开子项。
+TAB_GROUPS = (
     (
-        "group_restriction",
-        FIF.SPEED_OFF,
-        "解除限制",
-        (("studentproc", FIF.POWER_BUTTON, "启停学生端"),),
-    ),
-    (
-        "group_remote",
+        "remote",
         FIF.GLOBE,
         "远程攻击",
         (
@@ -54,7 +50,7 @@ NAVIGATION_GROUPS = (
         ),
     ),
     (
-        "group_local",
+        "localtools",
         FIF.DEVELOPER_TOOLS,
         "本机工具",
         (
@@ -63,3 +59,17 @@ NAVIGATION_GROUPS = (
         ),
     ),
 )
+
+NAVIGATION_ITEMS = (
+    ("studentproc", FIF.POWER_BUTTON, "启停学生端"),
+    ("remote", FIF.GLOBE, "远程攻击"),
+    ("aliases", FIF.QUICK_NOTE, "设备备注"),
+    ("localtools", FIF.DEVELOPER_TOOLS, "本机工具"),
+)
+
+# 子页面到容器页的映射，供 show_page 与当前页面识别使用。
+PAGE_TABS = {
+    child: host
+    for host, _icon, _title, children in TAB_GROUPS
+    for child, _, _ in children
+}

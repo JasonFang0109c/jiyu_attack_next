@@ -1,7 +1,7 @@
 """运行日志页：筛选、勾选、导出与删除运行日志。"""
 
 from PySide6.QtCore import QSignalBlocker, Qt, QTimer, Signal, Slot
-from PySide6.QtWidgets import QHBoxLayout, QHeaderView, QTableWidgetItem
+from PySide6.QtWidgets import QHBoxLayout, QTableWidgetItem
 from qfluentwidgets import CaptionLabel, ComboBox, SearchLineEdit
 from qfluentwidgets import FluentIcon as FIF
 
@@ -92,6 +92,7 @@ class LogPage(Page):
         self.select_all_checkbox = header.select_all_checkbox
         self.select_all_checkbox.toggled.connect(self._toggle_visible_rows)
         header.setMinimumSectionSize(40)
+        # 初始宽度之后列宽可以拖动；内容列仍随窗口宽度自适应。
         for column, width in (
             (0, 42),
             (1, 190),
@@ -101,7 +102,6 @@ class LogPage(Page):
             (5, 145),
             (6, 165),
         ):
-            header.setSectionResizeMode(column, QHeaderView.Fixed)
             self.table.setColumnWidth(column, width)
         self.table.itemChanged.connect(self._item_changed)
         self.table.horizontalScrollBar().valueChanged.connect(
