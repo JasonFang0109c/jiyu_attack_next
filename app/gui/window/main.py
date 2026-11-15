@@ -296,9 +296,6 @@ class MainWindow(FluentWindow):
     def _update_return_button(self, _index=0):
         return self._navigation_service._update_return_button(_index)
 
-    def _apply_navigation_minimum_height(self):
-        return self._navigation_service._apply_navigation_minimum_height()
-
     def _connect_actions(self):
         """把各页面的按钮与信号接到主窗口的处理方法。"""
         for kind in ("message", "command", "device"):

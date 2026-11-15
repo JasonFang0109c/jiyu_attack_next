@@ -1,4 +1,4 @@
-"""侧边导航：分组状态与可见性分离，只有面板宽度参与动画。"""
+"""侧边导航：一级入口、面板宽度动画与顶部工具按钮排列。"""
 
 from PySide6.QtCore import (
     QEasingCurve,
@@ -116,6 +116,8 @@ class SidebarPanel(NavigationPanel):
         self.expandAni.setDuration(150)
         self.expandAni.setEasingCurve(QEasingCurve.OutQuad)
         self.expandAni.valueChanged.connect(self._set_width)
+        # 宽度跨过 80 像素时再决定按钮并排还是上下，动画过程中不来回跳。
+        self.expandAni.valueChanged.connect(lambda _value: self._layout_tool_buttons())
         self.expandAni.finished.connect(self._onExpandAniFinished)
 
     def _install_tool_row(self):
@@ -130,25 +132,28 @@ class SidebarPanel(NavigationPanel):
         self._tool_layout.setContentsMargins(0, 0, 0, 0)
         self._tool_layout.setSpacing(0)
         self._tool_horizontal = None
+        self._tool_showing = None
         self.topLayout.addWidget(self._tool_row, 0, Qt.AlignTop)
         self.vBoxLayout.insertLayout(0, self.topLayout, 0)
         self._layout_tool_buttons()
 
     def _layout_tool_buttons(self):
-        """展开时并排（返回在左、菜单在右），收起时上下排列避免 48 像素裁切。"""
-        horizontal = not self.isCollapsed()
+        """宽度足够时并排（返回在左、菜单在右），图标栏里上下排列避免裁切。"""
+        horizontal = self.width() >= 80
         showing = self._isReturnButtonVisible
-        if horizontal != self._tool_horizontal:
+        if horizontal != self._tool_horizontal or showing != self._tool_showing:
             # 同一个网格只换行列位置，不重建布局，切换后能立即重新排布。
             self._tool_layout.removeWidget(self.returnButton)
             self._tool_layout.removeWidget(self.menuButton)
             self._tool_layout.addWidget(self.returnButton, 0, 0, Qt.AlignTop)
-            column = 1 if horizontal else 0
-            row = 0 if horizontal else 1
+            # 返回按钮隐藏时菜单独占原来的位置，位置与动画前完全一致。
+            column = 1 if horizontal and showing else 0
+            row = 0 if horizontal or not showing else 1
             self._tool_layout.addWidget(self.menuButton, row, column, Qt.AlignTop)
             self._tool_horizontal = horizontal
+            self._tool_showing = showing
         height = 36 if horizontal or not showing else 72
-        width = 80 if horizontal else 40
+        width = 80 if horizontal and showing else 40
         self._tool_row.setFixedSize(width, height)
         self._tool_layout.invalidate()
         self._tool_layout.activate()
