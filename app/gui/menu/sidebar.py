@@ -18,6 +18,8 @@ from qfluentwidgets import (
 )
 from qfluentwidgets.components.navigation.navigation_widget import NavigationWidget
 
+from app.gui.window.data import TITLE_BAR_MARGIN, TITLE_BAR_SHIFTED_MARGIN
+
 
 class SidebarTreeWidget(NavigationTreeWidget):
     """保留分组选择，同时在图标模式下彻底隐藏后代节点。"""
@@ -152,6 +154,17 @@ class SidebarPanel(NavigationPanel):
             self._tool_layout.addWidget(self.menuButton, row, column, Qt.AlignTop)
             self._tool_horizontal = horizontal
             self._tool_showing = showing
+        # 并排时菜单按钮伸进标题栏，图标与标题右移一个按钮宽，避免互相覆盖。
+        title_bar = getattr(self.window(), "titleBar", None)
+        if title_bar is not None and hasattr(title_bar, "hBoxLayout"):
+            title_bar.hBoxLayout.setContentsMargins(
+                TITLE_BAR_SHIFTED_MARGIN
+                if horizontal and showing
+                else TITLE_BAR_MARGIN,
+                0,
+                0,
+                0,
+            )
         height = 36 if horizontal or not showing else 72
         width = 80 if horizontal and showing else 40
         self._tool_row.setFixedSize(width, height)
@@ -268,6 +281,8 @@ class SidebarPanel(NavigationPanel):
 
     def _set_width(self, width):
         self.resize(int(width), self.height())
+        # 立即展开时没有动画信号，这里按新宽度重新决定按钮排列。
+        self._layout_tool_buttons()
 
     def _onExpandAniFinished(self):
         super()._onExpandAniFinished()

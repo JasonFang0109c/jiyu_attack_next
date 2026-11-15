@@ -65,6 +65,7 @@ import app.features.settings.data as settings_data
 import app.features.settings.service as settings_service
 import app.features.shell.service as shell_service_business
 import app.features.student.service as student_service
+import app.gui.window.data as gui_data
 import app.shared.config as shared_config
 import app.shared.paths as data_paths
 import app.shared.settings as settings_store
@@ -450,12 +451,26 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(panel.returnButton.isVisible())
         menu_x = panel.menuButton.x()
         self.assertGreater(menu_x, panel.returnButton.x())
+        # 菜单按钮伸进标题栏时，图标与标题整体右移，二者不能重叠。
+        icon = self.window.titleBar.iconLabel
+        self.assertLess(
+            panel.menuButton.mapTo(self.window, panel.menuButton.rect().topRight()).x(),
+            icon.mapTo(self.window, icon.rect().topLeft()).x(),
+        )
+        self.assertEqual(
+            self.window.titleBar.hBoxLayout.contentsMargins().left(),
+            gui_data.TITLE_BAR_SHIFTED_MARGIN,
+        )
         # 返回按钮回到上一次浏览的页面。
         panel.returnButton.click()
         self.application.processEvents()
         self.assertEqual(self.window.current_page(), "home")
         self.assertFalse(panel.returnButton.isVisible())
         self.assertEqual(panel.menuButton.x(), home_x)
+        self.assertEqual(
+            self.window.titleBar.hBoxLayout.contentsMargins().left(),
+            gui_data.TITLE_BAR_MARGIN,
+        )
 
     def test_tables_allow_column_resizing(self):
         tables = [

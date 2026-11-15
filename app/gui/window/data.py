@@ -26,6 +26,10 @@ STUDENT_POLL_INTERVAL = 2000
 # 标题栏三个窗口按钮高 32、标题栏高 48，补齐上下的等分留白才能居中。
 CAPTION_BUTTON_MARGIN = 8
 
+# 标题栏左缘留白；返回按钮占用菜单按钮左侧时，图标与标题整体右移一个按钮宽。
+TITLE_BAR_MARGIN = 6
+TITLE_BAR_SHIFTED_MARGIN = 46
+
 LOCAL_IP_PLACEHOLDERS = ("未查询", "未获取")
 
 TRAY_MESSAGE_ICONS = {

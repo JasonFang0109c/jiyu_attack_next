@@ -60,6 +60,7 @@ from app.gui.window.data import (
     CAPTION_BUTTON_MARGIN,
     STUDENT_POLL_INTERVAL,
     TAB_GROUPS,
+    TITLE_BAR_MARGIN,
 )
 from app.gui.window.service import WindowService
 from app.gui.window.tray import TrayService
@@ -142,7 +143,7 @@ class MainWindow(FluentWindow):
         self.logs = LogStore(self, log_path=portable_log_path(self.data_dir))
         self._configure_file_logging()
         self.setWindowTitle(APP_NAME)
-        self.titleBar.hBoxLayout.setContentsMargins(6, 0, 0, 0)
+        self.titleBar.hBoxLayout.setContentsMargins(TITLE_BAR_MARGIN, 0, 0, 0)
         # 组件库把三个窗口按钮顶对齐在 48 像素标题栏里，补上等分留白才居中。
         self.titleBar.buttonLayout.setContentsMargins(
             0, CAPTION_BUTTON_MARGIN, 0, CAPTION_BUTTON_MARGIN

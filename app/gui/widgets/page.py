@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
 from qfluentwidgets import CheckBox, TabBar, TableWidget, TreeItemDelegate, TreeWidget
 from qfluentwidgets.components.widgets.check_box import CheckBoxIcon
 
-from app.gui.theme import CONTROL_CORNER_RADIUS
+from app.gui.theme import CONTROL_CORNER_RADIUS, OVERLAY_CORNER_RADIUS
 from app.gui.widgets.common import SectionCard, TargetControls, TaskFooter, page_heading
 
 
@@ -217,6 +217,14 @@ class Page(QWidget):
         self.vbox.setSpacing(20)
 
 
+class RoundTabBar(TabBar):
+    """圆角标签栏：去掉组件默认画在标签之间的竖分隔线。"""
+
+    def paintEvent(self, event):
+        """只让滚动区域按样式绘制背景，不额外画分隔线。"""
+        super(TabBar, self).paintEvent(event)
+
+
 class TabbedPage(Page):
     """用标签栏承载多个子页面的容器页。
 
@@ -231,14 +239,17 @@ class TabbedPage(Page):
 
     def __init__(self, name, title, parent=None):
         super().__init__(name, parent)
-        page_heading(self.vbox, title)
-        self.tab_bar = TabBar(self)
+        self.vbox.setContentsMargins(28, 12, 28, 24)
+        self.vbox.setSpacing(12)
+        # 标签栏在最上面，下面是这一组页面的标题与内容，接近浏览器式标签页。
+        self.tab_bar = RoundTabBar(self)
         self.tab_bar.setAddButtonVisible(False)
         self.tab_bar.setTabsClosable(False)
         self.tab_bar.setMovable(False)
-        self.tab_bar.setTabShadowEnabled(False)
-        self.stack = QStackedWidget(self)
+        self.tab_bar.setTabShadowEnabled(True)
         self.vbox.addWidget(self.tab_bar)
+        page_heading(self.vbox, title)
+        self.stack = QStackedWidget(self)
         self.vbox.addWidget(self.stack, 1)
         self.tab_bar.currentChanged.connect(self.stack.setCurrentIndex)
         self._routes = []
@@ -259,6 +270,11 @@ class TabbedPage(Page):
             title.hide()
         index = self.stack.addWidget(widget)
         self.tab_bar.addTab(widget.objectName(), text, icon)
+        item = self.tab_bar.tab(widget.objectName())
+        if item is not None:
+            # 参考组件库的圆角标签页效果：更大的上圆角与选中阴影。
+            item.setBorderRadius(OVERLAY_CORNER_RADIUS)
+            item.setShadowEnabled(True)
         self._routes.append(widget.objectName())
         return index
 
