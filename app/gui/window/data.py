@@ -33,8 +33,6 @@ TITLE_BAR_OFFSET = 46
 # 返回与菜单按钮并排叠在侧边栏左上角，尺寸与组件库的工具按钮一致。
 SIDEBAR_BUTTON_WIDTH = 40
 SIDEBAR_BUTTON_HEIGHT = 36
-# 图标与标题让开顶部按钮，位置固定，返回按钮出现时也不会被挡住。
-TITLE_BAR_TEXT_INSET = 46
 # 首个按钮的左上角，对应 WinUI 面板头部里工具按钮的内缩。
 SIDEBAR_BUTTON_INSET = 5
 SIDEBAR_BUTTON_TOP = 6

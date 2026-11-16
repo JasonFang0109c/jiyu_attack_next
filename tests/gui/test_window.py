@@ -476,6 +476,7 @@ class GuiTests(unittest.TestCase):
             self.window, panel.menuButton.rect().topLeft()
         )
         self.assertEqual(home_menu.x(), gui_data.SIDEBAR_BUTTON_INSET)
+        home_icon = bar.iconLabel.mapTo(self.window, bar.iconLabel.rect().topLeft()).x()
         self.window.show_page("message")
         self.application.processEvents()
         self.assertTrue(panel.returnButton.isVisible())
@@ -490,9 +491,11 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(menu_left.x(), return_left.x() + gui_data.SIDEBAR_BUTTON_WIDTH)
         self.assertEqual(menu_left.y(), return_left.y())
         icon_left = bar.iconLabel.mapTo(self.window, bar.iconLabel.rect().topLeft()).x()
-        self.assertGreaterEqual(
+        # 图标与标题紧跟按钮右侧：按钮多一个，它们就整体右移一个按钮宽。
+        self.assertEqual(icon_left - home_icon, gui_data.SIDEBAR_BUTTON_WIDTH)
+        self.assertEqual(
             icon_left - (menu_left.x() + gui_data.SIDEBAR_BUTTON_WIDTH),
-            gui_data.TITLE_BAR_MARGIN,
+            home_icon - (home_menu.x() + gui_data.SIDEBAR_BUTTON_WIDTH),
         )
         self.assertEqual(bar.x(), gui_data.TITLE_BAR_OFFSET)
         # 返回按钮回到上一次浏览的页面，菜单按钮回到标题栏最左侧。

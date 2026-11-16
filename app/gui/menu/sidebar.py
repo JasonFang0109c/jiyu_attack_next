@@ -24,7 +24,7 @@ from app.gui.window.data import (
     SIDEBAR_BUTTON_TOP,
     SIDEBAR_BUTTON_WIDTH,
     SIDEBAR_HEADER_INSET,
-    TITLE_BAR_TEXT_INSET,
+    TITLE_BAR_MARGIN,
 )
 
 
@@ -145,9 +145,6 @@ class SidebarPanel(NavigationPanel):
             button.setParent(self._tools)
             button.setFixedSize(SIDEBAR_BUTTON_WIDTH, SIDEBAR_BUTTON_HEIGHT)
             layout.addWidget(button, 0, Qt.AlignTop)
-        self.window().titleBar.hBoxLayout.setContentsMargins(
-            TITLE_BAR_TEXT_INSET, 0, 0, 0
-        )
         self.topLayout.setContentsMargins(4, SIDEBAR_HEADER_INSET, 4, 0)
         self.topLayout.setSpacing(4)
         self._settle_tools()
@@ -158,7 +155,12 @@ class SidebarPanel(NavigationPanel):
         self._settle_tools()
 
     def _settle_tools(self):
-        """按返回按钮的显隐定宽，并压在面板与标题栏之上。"""
+        """按返回按钮的显隐定宽，并紧跟着排出图标与标题。
+
+        按钮是浮层，标题栏不知道它有多宽；这里把按钮多出来的宽度补成标题栏
+        布局的左内边距，图标与标题因此始终贴在按钮右侧，间距保持一致。侧边栏
+        收展不改变按钮宽度，也就不会牵动这一列。
+        """
         tools = getattr(self, "_tools", None)
         if tools is None:
             # 构造基类时就会设置返回按钮的可见性，此时按钮还没装上。
@@ -173,6 +175,12 @@ class SidebarPanel(NavigationPanel):
             SIDEBAR_BUTTON_HEIGHT,
         )
         tools.raise_()
+        # 标题栏从固定的 46 像素起，按钮排在它左侧，因此只需把多出来的那个
+        # 按钮宽度补成左内边距，图标与标题就始终跟在按钮右侧，间距两种状态一致。
+        title_bar = self.window().titleBar
+        title_bar.hBoxLayout.setContentsMargins(
+            TITLE_BAR_MARGIN + width - SIDEBAR_BUTTON_WIDTH, 0, 0, 0
+        )
 
     def insertItem(
         self,
