@@ -43,10 +43,7 @@ class FilePage(Page):
         self._total_size = 0
         self._syncing = False
         self._busy = False
-        self.info_button = info_button(
-            "勾选项发送到目标桌面并保留文件夹结构；目标需支持远程命令和 curl。", self
-        )
-        page_heading(self.vbox, "文件传送", self.info_button)
+        page_heading(self.vbox, "文件传送")
         self.target_card = SectionCard(self)
         self.targets = TargetControls(state, self.target_card, show_round_options=False)
         self.target_card.body.addWidget(self.targets)
@@ -58,6 +55,12 @@ class FilePage(Page):
         row.addWidget(BodyLabel("待传送文件", self.content_card))
         self.count_label = CaptionLabel("0 个文件", self.content_card)
         row.addWidget(self.count_label)
+        # 说明挂在页标题行里会被顶部导航容器整行隐藏，所以放在控件行内。
+        self.info_button = info_button(
+            "勾选项发送到目标桌面并保留文件夹结构；目标需支持远程命令和 curl。",
+            self.content_card,
+        )
+        row.addWidget(self.info_button)
         row.addStretch()
         self.delete_button = tool_button(
             FIF.DELETE, "删除选中文件", self.content_card, self.deleteRequested.emit

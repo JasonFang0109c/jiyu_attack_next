@@ -2,7 +2,7 @@
 
 from PySide6.QtCore import Slot
 from PySide6.QtWidgets import QAbstractItemView, QHBoxLayout, QTableWidgetItem
-from qfluentwidgets import BodyLabel, CaptionLabel, SegmentedWidget
+from qfluentwidgets import BodyLabel, CaptionLabel, ComboBox
 from qfluentwidgets import FluentIcon as FIF
 
 import app.system.net.targets as system_net_targets
@@ -15,8 +15,6 @@ DEVICE_ACTIONS = (
     ("l", "注销", FIF.RETURN),
 )
 
-POWER_HINT = "重启与关机会发出固定的重启、关机报文；注销改用远程命令执行 shutdown /l。"
-
 
 class DevicePage(NetworkPage):
     """选择设备操作，并预览当前目标会展开成哪些 IP。"""
@@ -26,20 +24,15 @@ class DevicePage(NetworkPage):
         row = QHBoxLayout()
         row.setSpacing(14)
         row.addWidget(BodyLabel("操作", self.content_card))
-        # 分段选择器与 WinUI 的 SelectorBar 一致，三项占一行、当前项高亮，
-        # 比三个单选按钮更容易一眼看出现在选的是哪一个。
-        self.action_selector = SegmentedWidget(self.content_card)
+        # 三项操作是互斥的单选，下拉框与设置页的选择器同款，占位也比
+        # 分段选择器小，页面留出的高度都让给下面的预览表。
+        self.action_box = ComboBox(self.content_card)
         for key, text, icon in DEVICE_ACTIONS:
-            self.action_selector.addItem(key, text, icon=icon)
-        self.action_selector.setFixedHeight(36)
-        self.action_selector.setMinimumWidth(300)
-        row.addWidget(self.action_selector)
+            self.action_box.addItem(text, icon=icon, userData=key)
+        self.action_box.setMinimumWidth(180)
+        row.addWidget(self.action_box)
         row.addStretch()
         self.body.addLayout(row)
-
-        self.power_hint = CaptionLabel(POWER_HINT, self.content_card)
-        self.power_hint.setWordWrap(True)
-        self.body.addWidget(self.power_hint)
 
         preview_row = QHBoxLayout()
         preview_row.setSpacing(8)
@@ -58,24 +51,24 @@ class DevicePage(NetworkPage):
         self.body.addWidget(self.preview, 1)
 
         state.changed.connect(self._on_target_changed)
-        self.action_selector.currentItemChanged.connect(self._update_action)
-        self.action_selector.setCurrentItem("r")
+        self.action_box.currentIndexChanged.connect(self._update_action)
         self.update_preview()
 
     def action(self):
         """返回当前选中的设备操作代码（r/s/l）。"""
-        return self.action_selector.currentRouteKey() or "r"
+        return self.action_box.currentData() or "r"
 
     def set_action(self, key):
         """切换当前操作，供“设为当前目标”一类外部入口复用。"""
-        self.action_selector.setCurrentItem(key)
+        index = self.action_box.findData(key)
+        if index >= 0:
+            self.action_box.setCurrentIndex(index)
 
-    @Slot(str)
-    def _update_action(self, key=None):
-        """切换后同步发送按钮文案。"""
-        key = key or self.action()
+    @Slot(int)
+    def _update_action(self, index=0):
+        """切换后同步发送按钮文案；``index`` 由下拉框信号传入，不参与判断。"""
         labels = {"r": "执行重启", "s": "执行关机", "l": "执行注销"}
-        self.footer.send_button.setText(labels[key])
+        self.footer.send_button.setText(labels[self.action()])
 
     @Slot(str, object)
     def _on_target_changed(self, name, value):
@@ -119,6 +112,6 @@ class DevicePage(NetworkPage):
         self.preview_count.setText("、".join(parts))
 
     def set_busy(self, busy, cancellable=False, queueable=False):
-        """在基类忙碌状态之外锁定操作选择条。"""
+        """在基类忙碌状态之外锁定操作下拉框。"""
         super().set_busy(busy, cancellable, queueable)
-        self.action_selector.setEnabled(not busy)
+        self.action_box.setEnabled(not busy)

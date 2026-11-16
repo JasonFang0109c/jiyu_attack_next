@@ -36,6 +36,24 @@ WINDOW_MATERIAL_LABELS = {
 
 DEFAULT_WINDOW_MATERIAL = MATERIAL_MICA
 
+THEME_ACCENT_SETTINGS_KEY = "gui/theme/accent"
+
+ACCENT_SYSTEM = "system"
+
+ACCENT_BLUE = "blue"
+
+ACCENT_ORANGE = "orange"
+
+THEME_ACCENTS = (ACCENT_SYSTEM, ACCENT_BLUE, ACCENT_ORANGE)
+
+THEME_ACCENT_LABELS = {
+    ACCENT_SYSTEM: "跟随系统",
+    ACCENT_BLUE: "蓝色",
+    ACCENT_ORANGE: "橙色",
+}
+
+DEFAULT_THEME_ACCENT = ACCENT_BLUE
+
 SWITCH_TRUE_VALUES = ("true", "1", "yes", "on")
 
 SWITCH_FALSE_VALUES = ("false", "0", "no", "off")
@@ -87,6 +105,22 @@ def normalize_switch(value, default):
     if text in SWITCH_FALSE_VALUES:
         return False
     return default
+
+
+def normalize_theme_accent(value):
+    """把设置值转换为受支持的主题色。
+
+    Args:
+        value: 从 ``settings.json`` 读出的主题色标识或显示名。
+
+    Returns:
+        str: ``THEME_ACCENTS`` 中的标识，无法识别时退回默认的蓝色。
+    """
+    text = str(value or "").strip().casefold()
+    for accent in THEME_ACCENTS:
+        if text in (accent, THEME_ACCENT_LABELS[accent].casefold()):
+            return accent
+    return DEFAULT_THEME_ACCENT
 
 
 def _windows_build():

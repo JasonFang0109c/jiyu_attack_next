@@ -1568,7 +1568,7 @@ class GuiTests(unittest.TestCase):
         self.device.set_action("l")
         self.assertEqual(self.device.action(), "l")
         self.assertEqual(self.device.footer.send_button.text(), "执行注销")
-        self.assertIn("shutdown /l", self.device.power_hint.text())
+        self.assertEqual(self.device.action_box.currentText(), "注销")
         self.assertEqual(self.window._options_for_page("device").extra, "l")
         self.device.set_action("r")
         self.assertEqual(self.device.footer.send_button.text(), "执行重启")
@@ -1785,7 +1785,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(
             page.select_all_checkbox.objectName(), "fileTreeSelectAllCheckbox"
         )
-        self.assertIs(page.info_button.parent(), page)
+        self.assertIs(page.info_button.parent(), page.content_card)
         self.assertEqual(
             page.info_button.toolTip(),
             "勾选项发送到目标桌面并保留文件夹结构；目标需支持远程命令和 curl。",
@@ -2552,7 +2552,7 @@ class GuiTests(unittest.TestCase):
                 label = row.itemAt(0).widget()
                 if isinstance(label, BodyLabel):
                     labels.append(label.text())
-        self.assertEqual(labels, ["颜色模式", "窗口材质"])
+        self.assertEqual(labels, ["颜色模式", "窗口材质", "主题色"])
         behavior_layout = settings_page.findChild(
             components.SectionCard, "settingsBehaviorCard"
         ).body
@@ -2602,6 +2602,53 @@ class GuiTests(unittest.TestCase):
             settings_data.WINDOW_MATERIALS.index(settings_data.MATERIAL_MICA)
         )
         self.assertEqual(self.window.window_material, settings_data.MATERIAL_MICA)
+
+    def test_theme_accent_reflects_settings_and_persists(self):
+        settings_page = self.window.pages["settings"]
+        self.assertEqual(
+            settings_page.accent_box.itemText(0),
+            settings_data.THEME_ACCENT_LABELS[settings_data.ACCENT_SYSTEM],
+        )
+        self.assertEqual(
+            settings_page.accent_box.itemData(1), settings_data.ACCENT_BLUE
+        )
+        self.assertEqual(self.window.theme_accent, settings_data.DEFAULT_THEME_ACCENT)
+        self.assertEqual(
+            qconfig.themeColor.value.name(),
+            theme.ACCENT_COLORS[settings_data.ACCENT_BLUE],
+        )
+
+        settings_page.accent_box.setCurrentIndex(
+            settings_data.THEME_ACCENTS.index(settings_data.ACCENT_ORANGE)
+        )
+        self.assertEqual(self.window.theme_accent, settings_data.ACCENT_ORANGE)
+        self.assertEqual(
+            qconfig.themeColor.value.name(),
+            theme.ACCENT_COLORS[settings_data.ACCENT_ORANGE],
+        )
+        reloaded = settings_service.portable_settings(self.data_dir)
+        self.assertEqual(
+            settings_data.normalize_theme_accent(
+                reloaded.value(settings_data.THEME_ACCENT_SETTINGS_KEY)
+            ),
+            settings_data.ACCENT_ORANGE,
+        )
+
+        settings_page.accent_box.setCurrentIndex(0)
+        self.assertEqual(self.window.theme_accent, settings_data.ACCENT_SYSTEM)
+        self.assertEqual(
+            qconfig.themeColor.value.name(), theme.system_accent_color().name()
+        )
+        # 系统强调色随桌面变化，测试结束恢复到默认蓝色，避免影响后续用例。
+        self.window.set_theme_accent(settings_data.ACCENT_BLUE)
+        self.assertEqual(
+            qconfig.themeColor.value.name(),
+            theme.ACCENT_COLORS[settings_data.ACCENT_BLUE],
+        )
+        self.assertEqual(
+            settings_data.normalize_theme_accent("未知主题色"),
+            settings_data.DEFAULT_THEME_ACCENT,
+        )
 
     def test_legacy_blur_switch_maps_to_window_material(self):
         self.assertEqual(

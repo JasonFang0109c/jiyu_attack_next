@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import (
+    QEvent,
     QTimer,
     Signal,
     Slot,
@@ -151,6 +152,8 @@ class MainWindow(FluentWindow):
         self.blur_enabled = False
         self.window_material = self._load_window_material()
         self.apply_window_material(self.window_material)
+        self.theme_accent = self._load_theme_accent()
+        self.system_accent_color = QColor()
         self.setCustomBackgroundColor(WINDOW_BACKGROUND_LIGHT, WINDOW_BACKGROUND_DARK)
         self.setMinimumSize(960, 640)
         self.resize(1180, 1000)
@@ -169,7 +172,11 @@ class MainWindow(FluentWindow):
             "studentproc": StudentProcessPage(self),
             "logs": LogPage(self.logs, self),
             "settings": SettingsPage(
-                self.logs, self.close_behavior, self.window_material, self
+                self.logs,
+                self.close_behavior,
+                self.window_material,
+                self.theme_accent,
+                self,
             ),
             "about": AboutPage(self),
         }
@@ -191,6 +198,7 @@ class MainWindow(FluentWindow):
         ]
         self._build_navigation()
         self._connect_actions()
+        self.apply_theme_accent(self.theme_accent)
         self._tune_scroll_bars()
         self.logs.info(
             "应用",
@@ -233,6 +241,18 @@ class MainWindow(FluentWindow):
     def apply_window_material(self, material):
         return self._window_service.apply_window_material(material)
 
+    def _load_theme_accent(self):
+        return self._window_service._load_theme_accent()
+
+    def apply_theme_accent(self, accent):
+        return self._window_service.apply_theme_accent(accent)
+
+    def set_theme_accent(self, accent):
+        return self._window_service.set_theme_accent(accent)
+
+    def refresh_system_accent(self):
+        return self._window_service.refresh_system_accent()
+
     def _refresh_background_effect(self):
         """重新应用材质，系统在窗口显示与主题切换时会把背景重置回云母。"""
         if self.window_material == MATERIAL_SOLID:
@@ -245,6 +265,12 @@ class MainWindow(FluentWindow):
         self._refresh_background_effect()
         # 滚动区要等窗口真正显示才有尺寸，等这一轮事件走完再滚到当前页面。
         self._navigation_refresh_timer.start()
+
+    def changeEvent(self, event):
+        """窗口重新获得焦点时跟随系统强调色的变化。"""
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.ActivationChange and self.isActiveWindow():
+            self.refresh_system_accent()
 
     def _refresh_navigation(self):
         """把当前页面所在的可见导航项滚进视口。"""
@@ -327,6 +353,7 @@ class MainWindow(FluentWindow):
         self.pages["logs"].deleteSelectedRequested.connect(self.delete_selected_logs)
         self.pages["logs"].cancelRequested.connect(self.cancel_task)
         self.pages["settings"].themeRequested.connect(self.set_theme)
+        self.pages["settings"].themeColorRequested.connect(self.set_theme_accent)
         self.pages["settings"].materialRequested.connect(self.set_window_material)
         self.pages["settings"].closeBehaviorRequested.connect(self.set_close_behavior)
         self.pages["settings"].logLevelRequested.connect(self.set_log_level)

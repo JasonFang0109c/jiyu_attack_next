@@ -46,7 +46,7 @@ class SelectAllHeaderView(QHeaderView):
         self.select_all_checkbox.raise_()
 
     def _create_select_all_checkbox(self, parent):
-        return CheckBox(parent)
+        return StickySizeCheckBox(parent, self.CHECKBOX_SIZE)
 
     def position_checkbox(self):
         """把全选框居中放到表头首列。"""
@@ -81,8 +81,8 @@ class FileTreeHeader(SelectAllHeaderView):
         checkbox = CompactHeaderCheckBox(parent)
         checkbox.setObjectName("fileTreeSelectAllCheckbox")
         checkbox.setStyleSheet(
-            checkbox.styleSheet() + "\nCheckBox#fileTreeSelectAllCheckbox {"
-            " min-width: 16px; min-height: 16px; padding: 0; margin: 0; }"
+            checkbox.styleSheet()
+            + "\nCheckBox#fileTreeSelectAllCheckbox { padding: 0; margin: 0; }"
         )
         return checkbox
 
@@ -105,10 +105,30 @@ class FileTreeHeader(SelectAllHeaderView):
         self.select_all_checkbox.move(x, y)
 
 
-class CompactHeaderCheckBox(CheckBox):
+class StickySizeCheckBox(CheckBox):
+    """表头全选框：样式刷新后重新锁定尺寸。
+
+    主题切换会重设 Fluent 复选框样式表，Qt 会顺带清掉由样式表推导出来的
+    最小尺寸，控件随即撑到文字宽度；这里在样式变化后补回固定尺寸。
+    """
+
+    def __init__(self, parent=None, size=18):
+        super().__init__(parent)
+        self._locked_size = size
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.StyleChange:
+            self.setFixedSize(self._locked_size, self._locked_size)
+
+
+class CompactHeaderCheckBox(StickySizeCheckBox):
     """以与文件行相同的 16px Fluent 样式绘制表头全选框。"""
 
     INDICATOR_SIZE = 16
+
+    def __init__(self, parent=None):
+        super().__init__(parent, self.INDICATOR_SIZE)
 
     def paintEvent(self, event):
         """按文件树行复选框的尺寸绘制表头复选框。"""
@@ -284,7 +304,7 @@ class TabbedPage(Page):
             self.stack.setCurrentIndex(self._routes.index(key))
 
     def add_tab(self, widget, text, icon=None):
-        """加入一个子页面并隐藏它重复的页标题。
+        """加入一个子页面并隐藏它重复的页标题行。
 
         Args:
             widget: 子页面，``objectName`` 同时作为导航项的路由键。
@@ -294,9 +314,9 @@ class TabbedPage(Page):
         Returns:
             int: 子页面在容器中的索引。
         """
-        title = widget.findChild(QWidget, "pageTitle")
-        if title is not None:
-            title.hide()
+        heading = widget.findChild(QWidget, "pageHeading")
+        if heading is not None:
+            heading.hide()
         index = self.stack.addWidget(widget)
         route = widget.objectName()
         # 点击导航项由组件库自己切换选中状态，这里只登记文字与图标。

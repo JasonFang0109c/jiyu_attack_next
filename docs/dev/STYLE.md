@@ -167,6 +167,9 @@ self.table.blockSignals(True)
 | 语义色 error | `#C42B1C` | `#FF99A4` | 失败、越界、被占用等错误 |
 | 语义色 neutral | `#605E5C` | `#A0A0A0` | 中性说明文字 |
 | 滚动条滑块 | 黑色 27% | 白色 24% | 滚动时短暂出现的细滑块 |
+| 强调色 blue | `#0067c0` | 同左 | 默认主题色：选中条、主按钮、开关 |
+| 强调色 orange | `#f98524` | 同左 | 可选主题色，色相取自 WinUI 的橙 |
+| 强调色 system | 读系统强调色 | 同左 | “跟随系统”时使用，取不到回落 `#0078d4` |
 
 浅色下卡片是 70% 的白，压在灰底上刚好浮起一层；描边只有 6% 的黑，负责收边而不是勾轮廓。深色下填充几乎透明，靠 10% 的黑色描边把卡片压在深色背景上。语义色只用于文字与图标，不给背景上色。
 
@@ -177,6 +180,7 @@ self.table.blockSignals(True)
 - 新增卡片一律继承 `FluentCard`，不要直接用 `SimpleCardWidget`；新增对话框用 `FluentDialog`，不要直接用 `Dialog`。
 - 浮出层圆角只覆盖项目自绘的容器：`FluentDialog` 用 `OVERLAY_CORNER_RADIUS`；`RoundMenu`、`ToolTip`、`TeachingTip` 的圆角、描边与阴影由组件库自己绘制，按上节“复用组件库”的要求直接调用，不追加覆盖样式。
 - 状态文字的颜色一律走 `tone_color()`，不在页面里写 `#c42b1c` 这类字面量；滚动条滑块同理，用 `scroll_colors()` 取色。
+- 强调色走 `accent_color(accent)`，由 `WindowService.apply_theme_accent` 调组件库的 `setThemeColor` 下发；组件库 1.11 没有读取系统强调色的接口，`system_accent_color()` 自己读 `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent` 的 `AccentColorMenu`（ABGR 排列），读不到再退 `DWM\AccentColor`，最后回落 `#0078d4`。选择存在 `settings.json` 的 `gui/theme/accent`，默认蓝色。
 - 云母与亚克力材质开启时窗口必须是全透明，只有实色材质才用窗口底色，主窗口的 `_normalBackgroundColor` 委托给 `app/gui/window/service.py` 的 `WindowService`，窗口材质由该服务的 `apply_window_material` 统一应用。
 
 ## 每次写完代码跑格式化

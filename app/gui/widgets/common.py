@@ -171,18 +171,23 @@ def center_dialog(dialog):
 def page_heading(layout, title, action=None):
     """在页面顶部插入“标题 + 右侧操作区”的一行。
 
-    标题带上 ``pageTitle`` 对象名：页面被放进顶部导航容器时，容器可以按它
-    隐藏重复的页标题，只保留顶部导航栏上的名字。
+    整行装进带 ``pageHeading`` 对象名的容器：页面被放进顶部导航容器时，
+    容器隐藏这一行就够了。只隐藏标题文字的话，行里空出来的高度仍会按页面
+    边距把下面的卡片推下去，和没有操作区的页面差出一截。
     """
-    row = QHBoxLayout()
+    row_widget = QWidget()
+    row_widget.setObjectName("pageHeading")
+    row = QHBoxLayout(row_widget)
+    row.setContentsMargins(0, 0, 0, 0)
     row.setSpacing(12)
-    label = SubtitleLabel(title)
+    label = SubtitleLabel(title, row_widget)
     label.setObjectName("pageTitle")
     row.addWidget(label)
     row.addStretch()
     if action is not None:
+        action.setParent(row_widget)
         row.addWidget(action)
-    layout.addLayout(row)
+    layout.addWidget(row_widget)
     return label
 
 

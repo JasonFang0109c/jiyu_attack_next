@@ -16,8 +16,11 @@ from qfluentwidgets import FluentIcon as FIF
 
 from app.features.logs.data import LOG_LEVELS, normalize_log_level
 from app.features.settings.data import (
+    THEME_ACCENT_LABELS,
+    THEME_ACCENTS,
     WINDOW_MATERIAL_LABELS,
     WINDOW_MATERIALS,
+    normalize_theme_accent,
     normalize_window_material,
     window_material_available,
 )
@@ -58,12 +61,15 @@ class SettingsPage(Page):
     """集中放置全局开关，所有改动通过信号交给主窗口处理。"""
 
     themeRequested = Signal(object)
+    themeColorRequested = Signal(str)
     materialRequested = Signal(str)
     closeBehaviorRequested = Signal(str)
     logLevelRequested = Signal(str)
     clearDataRequested = Signal()
 
-    def __init__(self, log_store, close_behavior, window_material, parent=None):
+    def __init__(
+        self, log_store, close_behavior, window_material, theme_accent, parent=None
+    ):
         super().__init__("settings", parent)
         self.log_store = log_store
         page_heading(self.vbox, "设置")
@@ -110,6 +116,23 @@ class SettingsPage(Page):
         self.material_box.currentIndexChanged.connect(self._select_material)
         material_row.addWidget(self.material_box)
         theme_card.body.addLayout(material_row)
+
+        accent_row = QHBoxLayout()
+        accent_row.addWidget(setting_label("主题色", self))
+        accent_row.addStretch()
+        self.accent_box = ComboBox(self)
+        for accent in THEME_ACCENTS:
+            self.accent_box.addItem(THEME_ACCENT_LABELS[accent], userData=accent)
+        self.accent_box.setCurrentIndex(
+            THEME_ACCENTS.index(normalize_theme_accent(theme_accent))
+        )
+        self.accent_box.setMinimumWidth(180)
+        self.accent_box.setToolTip(
+            "跟随系统时使用 Windows 设置里的强调色，切换系统强调色后回到窗口即同步"
+        )
+        self.accent_box.currentIndexChanged.connect(self._select_accent)
+        accent_row.addWidget(self.accent_box)
+        theme_card.body.addLayout(accent_row)
         self.vbox.addWidget(theme_card)
 
         settings_card = SectionCard(self, spacing=16)
@@ -182,6 +205,22 @@ class SettingsPage(Page):
 
     def _select_theme(self, index):
         self.themeRequested.emit([Theme.LIGHT, Theme.DARK, Theme.AUTO][index])
+
+    def _select_accent(self, index):
+        if 0 <= index < len(THEME_ACCENTS):
+            self.themeColorRequested.emit(THEME_ACCENTS[index])
+
+    def set_theme_accent(self, accent):
+        """按当前配置同步主题色下拉框，期间屏蔽下拉框自身的信号。
+
+        Args:
+            accent: 当前生效的主题色标识。
+        """
+        index = THEME_ACCENTS.index(normalize_theme_accent(accent))
+        if self.accent_box.currentIndex() == index:
+            return
+        with QSignalBlocker(self.accent_box):
+            self.accent_box.setCurrentIndex(index)
 
     def _select_material(self, index):
         if 0 <= index < len(WINDOW_MATERIALS):

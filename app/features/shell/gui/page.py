@@ -33,11 +33,6 @@ class ShellPage(Page):
         self._connected = False
         self._address = ""
         page_heading(self.vbox, "反弹终端")
-        hint = BodyLabel(
-            "远程攻击：目标主动连回本机，得到一条可持续交互的命令行。", self
-        )
-        hint.setWordWrap(True)
-        self.vbox.addWidget(hint)
 
         # 目标与端口来自远程攻击共用的连接状态，和其它页面保持一致。
         self.target_card = SectionCard(self)

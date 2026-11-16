@@ -10,25 +10,31 @@ from PySide6.QtWidgets import QApplication
 from qfluentwidgets import (
     isDarkTheme,
     setTheme,
+    setThemeColor,
 )
 
 from app.features.settings.data import (
+    ACCENT_SYSTEM,
     CLOSE_BEHAVIOR_SETTINGS_KEY,
     DEFAULT_CLOSE_BEHAVIOR,
     FIRST_CLOSE_PROMPT_SETTINGS_KEY,
     MATERIAL_ACRYLIC,
     MATERIAL_SOLID,
     MICA_SETTINGS_KEY,
+    THEME_ACCENT_LABELS,
+    THEME_ACCENT_SETTINGS_KEY,
     WINDOW_GEOMETRY_SETTINGS_KEY,
     WINDOW_MATERIAL_LABELS,
     WINDOW_MATERIAL_SETTINGS_KEY,
     WINDOW_MATERIALS,
     normalize_close_behavior,
     normalize_switch,
+    normalize_theme_accent,
     normalize_window_material,
     window_material_available,
 )
 from app.gui.theme import (
+    accent_color,
     window_background,
 )
 from app.gui.window_effect import apply_acrylic, apply_mica, clear_material
@@ -65,6 +71,73 @@ class WindowService:
         raw = window.settings.value(WINDOW_MATERIAL_SETTINGS_KEY, None)
         legacy = normalize_switch(window.settings.value(MICA_SETTINGS_KEY, None), None)
         return normalize_window_material(raw, legacy)
+
+    def _load_theme_accent(self):
+        """读取主题色设置，配置缺失或无法识别时用默认蓝色。"""
+        raw = self.window.settings.value(THEME_ACCENT_SETTINGS_KEY, None)
+        return normalize_theme_accent(raw)
+
+    def apply_theme_accent(self, accent):
+        """把主题色交给组件库并重绘页面。
+
+        选中态、指示条与链接色都在控件绘制时取 ``themeColor()``，改完颜色
+        必须重绘，否则要等下一次悬停或切页才刷新。
+
+        Args:
+            accent: ``THEME_ACCENTS`` 中的主题色标识。
+        """
+        window = self.window
+        window.system_accent_color = accent_color(accent)
+        setThemeColor(window.system_accent_color)
+        for page in window.pages.values():
+            page.update()
+        window.update()
+
+    def set_theme_accent(self, accent):
+        """保存主题色并立即生效，写盘失败时回滚。
+
+        Args:
+            accent: 设置页选中的主题色标识。
+        """
+        window = self.window
+        target = normalize_theme_accent(accent)
+        previous = window.theme_accent
+        window.theme_accent = target
+        self.apply_theme_accent(target)
+        window.pages["settings"].set_theme_accent(target)
+        window.settings.set_value(THEME_ACCENT_SETTINGS_KEY, target)
+        window.settings.sync()
+        if window.settings.status() != STATUS_NO_ERROR:
+            window.logs.error(
+                "设置",
+                "主题色保存失败",
+                "设置文件：%s；状态：%s"
+                % (window.settings.file_name(), window.settings.status()),
+            )
+            window.theme_accent = previous
+            self.apply_theme_accent(previous)
+            window.pages["settings"].set_theme_accent(previous)
+            window._notify("设置保存失败", "无法写入设置文件", "错误")
+            return
+        window.logs.info(
+            "设置", "主题色已更新", "主题色：%s" % THEME_ACCENT_LABELS[target]
+        )
+
+    def refresh_system_accent(self):
+        """跟随系统时，系统强调色变了就重新应用一次。
+
+        注册表没有变更通知，只在窗口重新激活时比对一次颜色，代价很小。
+        """
+        window = self.window
+        if window.theme_accent != ACCENT_SYSTEM:
+            return
+        color = accent_color(ACCENT_SYSTEM)
+        if color == window.system_accent_color:
+            return
+        window.logs.info(
+            "设置", "系统强调色变化，已重新应用主题色", "颜色：%s" % color.name()
+        )
+        self.apply_theme_accent(ACCENT_SYSTEM)
 
     def apply_window_material(self, material):
         """按材质切换窗口背景效果。

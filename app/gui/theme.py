@@ -12,10 +12,15 @@
 - 窗口底色：``SolidBackgroundFillColorBase``，浅色 ``#F3F3F3``、
   深色 ``#202020``。
 - 状态提示：正常、提醒、错误与中性四种语气色，深浅主题各取一档。
+- 强调色：默认蓝色 ``#0067C0``、橙色 ``#F98524``，也可以跟随 Windows
+  设置里的强调色；跟随系统时读注册表里的 ``AccentColorMenu``。
 """
 
+from PySide6.QtCore import QSettings
 from PySide6.QtGui import QColor
 from qfluentwidgets import isDarkTheme
+
+from app.features.settings.data import ACCENT_BLUE, ACCENT_ORANGE, ACCENT_SYSTEM
 
 CONTROL_CORNER_RADIUS = 4
 OVERLAY_CORNER_RADIUS = 8
@@ -41,6 +46,54 @@ SCROLL_HANDLE_LIGHT = (0, 0, 0, 70)
 SCROLL_HANDLE_DARK = (255, 255, 255, 60)
 SCROLL_GROOVE_LIGHT = (0, 0, 0, 0)
 SCROLL_GROOVE_DARK = (255, 255, 255, 0)
+
+# 强调色：蓝色沿用项目原来的默认值，橙色取 WinUI 状态橙的浅色档。
+ACCENT_COLORS = {
+    ACCENT_BLUE: "#0067c0",
+    ACCENT_ORANGE: "#f98524",
+}
+
+SYSTEM_ACCENT_FALLBACK = "#0078d4"
+
+# 强调色在注册表里按 ABGR 存放，先读“设置里选的强调色”，再退回 DWM 的窗口色。
+SYSTEM_ACCENT_REGISTRY = (
+    (
+        "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Accent",
+        "AccentColorMenu",
+    ),
+    ("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\DWM", "AccentColor"),
+)
+
+
+def system_accent_color():
+    """返回 Windows 设置里的强调色。
+
+    强调色以 ``0xAABBGGRR`` 存在注册表里，按 ABGR 取出 RGB；注册表读不到
+    （非 Windows 或键被清理）时退回 Windows 11 的系统默认蓝。
+
+    Returns:
+        QColor: 系统强调色。
+    """
+    for path, name in SYSTEM_ACCENT_REGISTRY:
+        store = QSettings(path, QSettings.Format.NativeFormat)
+        value = store.value(name)
+        if isinstance(value, int) and value & 0xFFFFFF:
+            return QColor(value & 0xFF, (value >> 8) & 0xFF, (value >> 16) & 0xFF)
+    return QColor(SYSTEM_ACCENT_FALLBACK)
+
+
+def accent_color(accent):
+    """把设置页选中的主题色换算成颜色。
+
+    Args:
+        accent: ``system``、``blue`` 或 ``orange``；未知值按蓝色处理。
+
+    Returns:
+        QColor: 该选项对应的强调色。
+    """
+    if accent == ACCENT_SYSTEM:
+        return system_accent_color()
+    return QColor(ACCENT_COLORS.get(accent, ACCENT_COLORS[ACCENT_BLUE]))
 
 
 def card_fill():
