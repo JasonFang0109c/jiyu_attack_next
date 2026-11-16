@@ -105,7 +105,7 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Python "C:\Python313\
 
 ## 运行数据
 
-EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json` 保存设备备注（`core` 组）与界面设置（`gui` 组，含关闭窗口行为、窗口材质和主窗口位置），`runtime.log` 保存界面运行日志，`cli.log` 保存命令行模式的运行日志。正常版本默认从 `WARNING` 起记录，GUI 可在设置页选择 `INFO`、`WARNING` 或 `ERROR`，CLI 始终采用默认阈值；调试版本固定从 `DEBUG` 起记录。两个 EXE 放在同一目录时共用这个文件夹，调试版本产生的记录与正常版本写进同一份日志。`settings.json` 使用 JSON with comments，允许手写 `//`、`/* */` 注释与尾逗号，程序保存时会重写整个文件。该目录由 `.gitignore` 排除，源码运行时位于项目根目录。
+EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹，目录内容与不可写时的表现见[运行数据](../usage/GUI.md#运行数据)。与构建相关的差异只有日志等级：正常版本默认从 `WARNING` 起记录，GUI 可在设置页选择 `INFO`、`WARNING` 或 `ERROR`，CLI 始终采用默认阈值；调试版本固定从 `DEBUG` 起记录。两个 EXE 放在同一目录时共用这个文件夹，调试版本产生的记录与正常版本写进同一份日志。该目录由 `.gitignore` 排除，源码运行时位于项目根目录。
 
 - 日志包含毫秒时间、规范级别、线程、输出位置、功能分类、消息与异常详情，便于从用户环境回传排查。
 - 只移动 EXE 而不移动该文件夹时，新位置按默认配置启动。

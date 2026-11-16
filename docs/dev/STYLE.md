@@ -136,6 +136,20 @@ self.table.blockSignals(True)
 | 选中指示条 | 16×3，下缘留 4 | `PivotHeaderItem` 模板的 `SelectedPipe`，即 `setIndicatorLength(16)` |
 | 导航栏宽度 | 自身 `sizeHint` | 用 `addWidget(pivot, 0, Qt.AlignLeft)`；组件库 `sizePolicy` 是 `Minimum`，行内加 `addStretch()` 会把多余宽度平分给它 |
 
+### 侧边导航
+
+左侧导航栏（`SidebarPanel`）与右侧内容区共用一条顶部基线，但比内容区略低，标题栏则始终让在导航栏右侧，避免盖住导航按钮：
+
+| 项 | 值 | 依据 |
+| --- | --- | --- |
+| 导航首项顶边 | 内容区顶边 + 5 | 对应 WinUI 的 `NavigationViewPaneContentGridMargin` 上 3 像素与 `NavigationViewItemButtonMargin` 上 2 像素 |
+| 工具按钮与首项间距 | 11（`SIDEBAR_TOOL_ROW_GAP`） | 工具行 36 + 11 = 47，减去面板自身 6 像素后首项正好落在 +5 |
+| 标题栏左缘（展开） | 导航栏宽度 | 展开时按钮伸到 80 像素宽，标题栏从面板右缘开始才点得到 |
+| 标题栏左缘（收起） | 46（`TITLE_BAR_COLLAPSED_OFFSET`） | 面板收起后宽 48，减 2 让标题栏压住面板右缘而不是留下缝 |
+| 标题栏文字左留白 | 6（`TITLE_BAR_MARGIN`） | 图标与标题文字的内缩，与按钮内边距对齐 |
+
+导航项本身不自带间距，首项的下沉量要加在工具行与首项之间，所以 `SidebarPanel` 用 `topLayout` 的 `spacing` 而不是下边距——组件库会把“顶部”位置的导航项插进同一个布局，用边距只会把下面的滚动区一起推下去。改动这些数值时同步改 `app/gui/window/data.py` 的常量，不要在 `sidebar.py` 里另写一份。
+
 ### 颜色
 
 | 令牌 | 浅色 | 深色 | 用在哪 |
