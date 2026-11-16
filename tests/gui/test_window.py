@@ -460,8 +460,12 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(panel.returnButton.isVisible())
         menu_x = panel.menuButton.x()
         self.assertGreater(menu_x, panel.returnButton.x())
-        # 菜单按钮伸出侧边栏时，标题栏让到侧边栏右侧，按钮不会落在它下面。
-        self.assertEqual(self.window.titleBar.x(), panel.width())
+        # 标题栏只让出按钮占用的宽度，图标与标题留在左侧紧跟按钮。
+        self.assertEqual(
+            self.window.titleBar.x(),
+            panel.tool_row_right() + gui_data.TITLE_BAR_TOOL_GAP,
+        )
+        self.assertLess(self.window.titleBar.x(), panel.width())
         icon = self.window.titleBar.iconLabel
         self.assertLess(
             panel.menuButton.mapTo(self.window, panel.menuButton.rect().topRight()).x(),

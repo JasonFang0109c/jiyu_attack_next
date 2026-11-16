@@ -155,10 +155,7 @@ class SidebarPanel(NavigationPanel):
             self._tool_layout.addWidget(self.menuButton, row, column, Qt.AlignTop)
             self._tool_horizontal = horizontal
             self._tool_showing = showing
-        # 并排时菜单按钮会伸进标题栏原来的范围，先让标题栏整体右移到侧边栏右侧。
-        sync = getattr(self.window(), "_sync_title_bar_offset", None)
-        if sync is not None:
-            sync()
+        # 并排时菜单按钮会伸进标题栏原来的范围，先让标题栏让出这段宽度。
         height = 36 if horizontal or not showing else 72
         width = 80 if horizontal and showing else 40
         self._tool_row.setFixedSize(width, height)
@@ -167,6 +164,22 @@ class SidebarPanel(NavigationPanel):
         self._tool_row.updateGeometry()
         self.topLayout.invalidate()
         self.topLayout.activate()
+        # 尺寸定下来之后再同步标题栏，它要读工具行的实际宽度。
+        sync = getattr(self.window(), "_sync_title_bar_offset", None)
+        if sync is not None:
+            sync()
+
+    def tool_row_right(self):
+        """返回顶部工具行右缘在窗口里的横坐标。
+
+        Returns:
+            工具行右缘的窗口横坐标；还没挂到窗口上时返回 0。
+        """
+        window = self.window()
+        if window is None:
+            return 0
+        offset = self._tool_row.mapTo(window, QPoint(0, 0)).x()
+        return offset + self._tool_row.width()
 
     def setReturnButtonVisible(self, isVisible):
         """显示或隐藏返回按钮，并让菜单按钮随之移动。"""
