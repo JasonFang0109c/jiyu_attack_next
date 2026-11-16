@@ -1,4 +1,4 @@
-"""侧边导航：一级入口、面板宽度动画与顶部工具按钮排列。"""
+"""侧边导航：一级入口、面板宽度动画与标题栏顶部按钮。"""
 
 from PySide6.QtCore import (
     QEasingCurve,
@@ -9,7 +9,7 @@ from PySide6.QtCore import (
     QVariantAnimation,
     Signal,
 )
-from PySide6.QtWidgets import QApplication, QGridLayout, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QWidget
 from qfluentwidgets import (
     NavigationDisplayMode,
     NavigationItemPosition,
@@ -18,7 +18,12 @@ from qfluentwidgets import (
 )
 from qfluentwidgets.components.navigation.navigation_widget import NavigationWidget
 
-from app.gui.window.data import SIDEBAR_TOOL_ROW_GAP
+from app.gui.window.data import (
+    SIDEBAR_BUTTON_HEIGHT,
+    SIDEBAR_BUTTON_WIDTH,
+    SIDEBAR_HEADER_INSET,
+    TITLE_BAR_MARGIN,
+)
 
 
 class SidebarTreeWidget(NavigationTreeWidget):
@@ -107,9 +112,7 @@ class SidebarPanel(NavigationPanel):
     def __init__(self, parent):
         self._expanded = False
         super().__init__(parent)
-        # 组件库把返回按钮竖排在最前面，这里改成同一行的两个按钮：
-        # 返回占据菜单按钮原来的位置，菜单按钮向右让位。
-        self._install_tool_row()
+        self._install_tools()
         # 选中标记由可见条目绘制，避免浮动标记跨布局移动到已隐藏的子项位置。
         self.setIndicatorAnimationEnabled(False)
         # 只动画宽度；窗口高度变化不再被旧的 geometry 动画值覆盖。
@@ -118,111 +121,57 @@ class SidebarPanel(NavigationPanel):
         self.expandAni.setDuration(150)
         self.expandAni.setEasingCurve(QEasingCurve.OutQuad)
         self.expandAni.valueChanged.connect(self._set_width)
-        # 宽度跨过 80 像素时再决定按钮并排还是上下，动画过程中不来回跳。
-        self.expandAni.valueChanged.connect(lambda _value: self._layout_tool_buttons())
         self.expandAni.finished.connect(self._onExpandAniFinished)
 
-    def _install_tool_row(self):
-        """把返回与菜单按钮装进顶部的一行，供两种排列切换。"""
-        self.vBoxLayout.removeItem(self.topLayout)
-        self.topLayout.deleteLater()
-        self.topLayout = QVBoxLayout()
-        # 工具按钮与首项之间留出空隙，让首项落在内容区顶边之下。
-        self.topLayout.setContentsMargins(4, 0, 4, 0)
-        self.topLayout.setSpacing(SIDEBAR_TOOL_ROW_GAP)
-        self._tool_row = QWidget(self)
-        self._tool_layout = QGridLayout(self._tool_row)
-        self._tool_layout.setContentsMargins(0, 0, 0, 0)
-        self._tool_layout.setSpacing(0)
-        self._tool_horizontal = None
-        self._tool_showing = None
-        self._menu_in_title_bar = False
-        self._menu_button_host = None
-        self.topLayout.addWidget(self._tool_row, 0, Qt.AlignTop)
-        self.vBoxLayout.insertLayout(0, self.topLayout, 0)
-        self._layout_tool_buttons()
+    def _install_tools(self):
+        """把返回与菜单按钮并排装进标题栏。
 
-    def _layout_tool_buttons(self):
-        """展开时两个按钮并排；收进图标栏时把菜单按钮挪到标题栏。
+        两个按钮只在标题栏里出现一次，展开与收起都不再搬动宿主，面板宽度只
+        决定导航项是否显示，标题栏左缘因此始终保持组件库给的固定值；按钮不
+        参与收起动画，也就不会闪一下再偏移，图标与标题同样不动。
 
-        图标栏只有 48 像素宽，两个按钮并排放不下；上下排列又会让菜单按钮落进
-        导航项里，看起来像跑到侧边栏去。改为收起时返回按钮留在原位，菜单按钮
-        搬进标题栏紧跟在返回按钮后面，两者的先后顺序不变。
+        面板顶部的留白用 ``topLayout`` 的上边距给出：组件库会把“顶部”位置的
+        导航项插进同一个布局，用间距只会把下面的滚动区一起推下去。
         """
-        horizontal = self.width() >= 80
-        showing = self._isReturnButtonVisible
-        in_title_bar = showing and not horizontal
-        if in_title_bar != self._menu_in_title_bar:
-            self._place_menu_button(in_title_bar)
-        if horizontal != self._tool_horizontal or showing != self._tool_showing:
-            # 同一个网格只换行列位置，不重建布局，切换后能立即重新排布。
-            self._tool_layout.removeWidget(self.returnButton)
-            self._tool_layout.removeWidget(self.menuButton)
-            self._tool_layout.addWidget(self.returnButton, 0, 0, Qt.AlignTop)
-            if not in_title_bar:
-                # 返回按钮隐藏时菜单独占原来的位置，位置与动画前完全一致。
-                column = 1 if horizontal and showing else 0
-                self._tool_layout.addWidget(self.menuButton, 0, column, Qt.AlignTop)
-            self._tool_horizontal = horizontal
-            self._tool_showing = showing
-        # 并排时菜单按钮会伸进标题栏原来的范围，先让标题栏让出这段宽度。
-        height = 36
-        width = 80 if horizontal and showing else 40
-        self._tool_row.setFixedSize(width, height)
-        self._tool_layout.invalidate()
-        self._tool_layout.activate()
-        self._tool_row.updateGeometry()
-        self.topLayout.invalidate()
-        self.topLayout.activate()
-        # 尺寸定下来之后再同步标题栏，它要读工具行的实际宽度。
-        sync = getattr(self.window(), "_sync_title_bar_offset", None)
-        if sync is not None:
-            sync()
-
-    def _place_menu_button(self, in_title_bar):
-        """把菜单按钮在图标栏与标题栏之间搬一次。
-
-        Args:
-            in_title_bar: 为真时放进标题栏图标左侧，否则放回侧边栏工具行。
-        """
-        holder = self._menu_button_host
-        if holder is not None:
-            holder.hBoxLayout.removeWidget(self.menuButton)
-            self._menu_button_host = None
-        self._tool_layout.removeWidget(self.menuButton)
-        title_bar = getattr(self.window(), "titleBar", None)
-        if in_title_bar and title_bar is not None:
-            self.menuButton.setFixedSize(40, 36)
-            title_bar.hBoxLayout.insertWidget(
-                0, self.menuButton, 0, Qt.AlignLeft | Qt.AlignVCenter
-            )
-            self._menu_button_host = title_bar
-            self._menu_in_title_bar = True
-            return
-        self.menuButton.setFixedSize(40, 36)
-        self._tool_layout.addWidget(self.menuButton, 0, 0, Qt.AlignTop)
-        self._menu_in_title_bar = False
-
-    def tool_row_right(self):
-        """返回顶部工具行右缘在窗口里的横坐标。
-
-        Returns:
-            工具行右缘的窗口横坐标；还没挂到窗口上时返回 0。
-        """
-        window = self.window()
-        if window is None:
-            return 0
-        offset = self._tool_row.mapTo(window, QPoint(0, 0)).x()
-        return offset + self._tool_row.width()
+        title_bar = self.window().titleBar
+        self._tools = QWidget(title_bar)
+        layout = QHBoxLayout(self._tools)
+        # 右侧留出与图标之间的间距，两个按钮本身保持 40 像素宽。
+        layout.setContentsMargins(0, 0, TITLE_BAR_MARGIN, 0)
+        layout.setSpacing(0)
+        self.topLayout.removeWidget(self.returnButton)
+        self.topLayout.removeWidget(self.menuButton)
+        for button in (self.returnButton, self.menuButton):
+            button.setParent(self._tools)
+            button.setFixedSize(SIDEBAR_BUTTON_WIDTH, SIDEBAR_BUTTON_HEIGHT)
+            layout.addWidget(button, 0, Qt.AlignTop)
+        title_bar.hBoxLayout.insertWidget(
+            0, self._tools, 0, Qt.AlignLeft | Qt.AlignVCenter
+        )
+        self.topLayout.setContentsMargins(4, SIDEBAR_HEADER_INSET, 4, 0)
+        self.topLayout.setSpacing(4)
 
     def setReturnButtonVisible(self, isVisible):
-        """显示或隐藏返回按钮，并让菜单按钮随之移动。"""
-        super().setReturnButtonVisible(isVisible)
-        self._layout_tool_buttons()
+        """切换返回按钮并立即重排顶部按钮。
 
-    def _setWidgetCompacted(self, isCompacted):
-        super()._setWidgetCompacted(isCompacted)
-        self._layout_tool_buttons()
+        隐藏控件要等下一轮事件才会让出位置，标题栏里的菜单按钮与图标会先停在
+        空位右侧再跳回来；这里强制激活标题栏布局，一步排到位。
+        """
+        super().setReturnButtonVisible(isVisible)
+        self._settle_tools()
+
+    def _settle_tools(self):
+        """让标题栏立即吸收按钮显隐带来的宽度变化。"""
+        tools = getattr(self, "_tools", None)
+        if tools is None:
+            # 构造基类时就会设置返回按钮的可见性，此时顶部按钮还没装好。
+            return
+        if tools.layout() is not None:
+            tools.layout().activate()
+        tools.adjustSize()
+        title_bar = self.window().titleBar
+        title_bar.hBoxLayout.invalidate()
+        title_bar.hBoxLayout.activate()
 
     def insertItem(
         self,
@@ -283,6 +232,8 @@ class SidebarPanel(NavigationPanel):
                 self.setParent(self.window())
                 self.move(position)
                 self.show()
+        # 浮出的面板会盖住标题栏，按钮在标题栏里，得把标题栏重新抬到最上层。
+        self.window().titleBar.raise_()
         self.displayModeChanged.emit(self.displayMode)
         if changed:
             self.expandedChanged.emit(True)
@@ -322,8 +273,6 @@ class SidebarPanel(NavigationPanel):
 
     def _set_width(self, width):
         self.resize(int(width), self.height())
-        # 立即展开时没有动画信号，这里按新宽度重新决定按钮排列。
-        self._layout_tool_buttons()
 
     def _onExpandAniFinished(self):
         super()._onExpandAniFinished()

@@ -60,9 +60,7 @@ from app.gui.window.data import (
     CAPTION_BUTTON_MARGIN,
     STUDENT_POLL_INTERVAL,
     TAB_GROUPS,
-    TITLE_BAR_COLLAPSED_OFFSET,
     TITLE_BAR_MARGIN,
-    TITLE_BAR_TOOL_GAP,
 )
 from app.gui.window.service import WindowService
 from app.gui.window.tray import TrayService
@@ -304,30 +302,6 @@ class MainWindow(FluentWindow):
 
     def _sync_page_polling(self):
         return self._navigation_service._sync_page_polling()
-
-    def _sync_title_bar_offset(self):
-        """让标题栏从侧边栏顶部按钮之后开始，图标与标题留在左侧。
-
-        组件库会在 ``resizeEvent`` 里把标题栏固定挪到 46 像素处并抬到最上层，
-        侧边栏展开或返回按钮并排时菜单按钮就落在它下面，点了没有反应；
-        而把标题栏整块推到导航栏右侧又会让图标与标题跑到内容区边上。
-        这里按工具行的实际右缘取偏移：只有按钮占用的宽度会被让出来。
-        """
-        panel = getattr(getattr(self, "navigationInterface", None), "panel", None)
-        if panel is None:
-            # 构造基类时就会走到 resizeEvent，此时还没有导航面板。
-            return
-        offset = TITLE_BAR_COLLAPSED_OFFSET
-        if not panel.isCollapsed():
-            offset = max(offset, panel.tool_row_right() + TITLE_BAR_TOOL_GAP)
-        self.titleBar.move(offset, 0)
-        self.titleBar.resize(max(self.width() - offset, 0), self.titleBar.height())
-        self.titleBar.raise_()
-
-    def resizeEvent(self, event):
-        """窗口尺寸变化后重新把标题栏放到侧边栏右侧。"""
-        super().resizeEvent(event)
-        self._sync_title_bar_offset()
 
     def _connect_actions(self):
         """把各页面的按钮与信号接到主窗口的处理方法。"""

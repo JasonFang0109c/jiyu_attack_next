@@ -446,86 +446,112 @@ class GuiTests(unittest.TestCase):
             point = button.mapTo(bar, button.rect().center()).y()
             self.assertLessEqual(abs(point - center), 1)
 
+    def _chrome_snapshot(self):
+        """取标题栏与顶部按钮的窗口坐标，用于判断是否发生位移。"""
+        window = self.window
+        panel = window.navigationInterface.panel
+        bar = window.titleBar
+
+        def left(widget):
+            return widget.mapTo(window, widget.rect().topLeft())
+
+        return (
+            bar.x(),
+            left(panel.returnButton),
+            left(panel.menuButton),
+            left(bar.iconLabel),
+            left(bar.titleLabel),
+        )
+
     def test_return_button_appears_off_home_and_shifts_menu(self):
         self.window.show()
         self.window.expand_navigation()
         self.application.processEvents()
         panel = self.window.navigationInterface.panel
+        bar = self.window.titleBar
         self.window.show_page("home")
         self.application.processEvents()
         self.assertFalse(panel.returnButton.isVisible())
-        home_x = panel.menuButton.x()
+        home_menu = panel.menuButton.mapTo(
+            self.window, panel.menuButton.rect().topLeft()
+        )
+        self.assertEqual(home_menu.x(), bar.x() + gui_data.TITLE_BAR_MARGIN)
         self.window.show_page("message")
         self.application.processEvents()
         self.assertTrue(panel.returnButton.isVisible())
-        menu_x = panel.menuButton.x()
-        self.assertGreater(menu_x, panel.returnButton.x())
-        # 标题栏只让出按钮占用的宽度，图标与标题留在左侧紧跟按钮。
-        self.assertEqual(
-            self.window.titleBar.x(),
-            panel.tool_row_right() + gui_data.TITLE_BAR_TOOL_GAP,
+        # 返回按钮排在菜单按钮左侧，菜单按钮连同图标右移一个按钮宽。
+        return_left = panel.returnButton.mapTo(
+            self.window, panel.returnButton.rect().topLeft()
         )
-        self.assertLess(self.window.titleBar.x(), panel.width())
-        icon = self.window.titleBar.iconLabel
-        self.assertLess(
-            panel.menuButton.mapTo(self.window, panel.menuButton.rect().topRight()).x(),
-            icon.mapTo(self.window, icon.rect().topLeft()).x(),
+        menu_left = panel.menuButton.mapTo(
+            self.window, panel.menuButton.rect().topLeft()
         )
-        # 返回按钮回到上一次浏览的页面。
+        self.assertEqual(return_left, home_menu)
+        self.assertEqual(menu_left.x(), return_left.x() + gui_data.SIDEBAR_BUTTON_WIDTH)
+        self.assertEqual(menu_left.y(), return_left.y())
+        icon_left = bar.iconLabel.mapTo(self.window, bar.iconLabel.rect().topLeft()).x()
+        self.assertGreaterEqual(
+            icon_left - (menu_left.x() + gui_data.SIDEBAR_BUTTON_WIDTH),
+            gui_data.TITLE_BAR_MARGIN,
+        )
+        self.assertEqual(bar.x(), gui_data.TITLE_BAR_OFFSET)
+        # 返回按钮回到上一次浏览的页面，菜单按钮回到标题栏最左侧。
         panel.returnButton.click()
         self.application.processEvents()
         self.assertEqual(self.window.current_page(), "home")
         self.assertFalse(panel.returnButton.isVisible())
-        self.assertEqual(panel.menuButton.x(), home_x)
+        self.assertEqual(
+            panel.menuButton.mapTo(self.window, panel.menuButton.rect().topLeft()),
+            home_menu,
+        )
 
-    def test_collapsed_panel_keeps_return_button_and_shifts_menu(self):
+    def test_sidebar_tools_stay_put_when_collapsing(self):
         self.window.show()
-        panel = self.window.navigationInterface.panel
-        self.window.show_page("home")
-        self.application.processEvents()
-        icon = self.window.titleBar.iconLabel
-        icon_home = icon.mapTo(self.window, icon.rect().topLeft()).x()
         self.window.expand_navigation()
         self.application.processEvents()
+        panel = self.window.navigationInterface.panel
         self.window.show_page("message")
         self.application.processEvents()
-        return_expanded = panel.returnButton.mapTo(
-            self.window, panel.returnButton.rect().topLeft()
+        tools = panel._tools
+        self.assertIs(panel.menuButton.parent(), tools)
+        self.assertIs(panel.returnButton.parent(), tools)
+        before = self._chrome_snapshot()
+        # 动画每一帧都取一次坐标，中途换宿主或挪位置会立刻被记下来。
+        frames = []
+        panel.expandAni.valueChanged.connect(
+            lambda _value: frames.append(self._chrome_snapshot())
         )
-        icon_expanded = icon.mapTo(self.window, icon.rect().topLeft()).x()
         panel.menuButton.click()
-        # 折叠动画收窄后按钮才换位置，等面板真正变窄再判断。
-        self.wait_for(lambda: panel.width() <= 48)
+        self.wait_for(lambda: panel.isCollapsed() and panel.width() <= 48)
         self.application.processEvents()
-        self.assertTrue(panel.isCollapsed())
-        self.assertEqual(self.window.titleBar.x(), gui_data.TITLE_BAR_COLLAPSED_OFFSET)
-        # 返回按钮留在原位，菜单按钮搬进标题栏，两者不交换位置。
-        self.assertEqual(
-            panel.returnButton.mapTo(self.window, panel.returnButton.rect().topLeft()),
-            return_expanded,
-        )
-        self.assertIs(panel.menuButton.parent(), self.window.titleBar)
-        self.assertGreater(
-            panel.menuButton.mapTo(self.window, panel.menuButton.rect().topLeft()).x(),
-            panel.returnButton.mapTo(
-                self.window, panel.returnButton.rect().bottomLeft()
-            ).x(),
-        )
-        # 图标与标题在展开、收起之间不挪动。
-        self.assertEqual(
-            icon.mapTo(self.window, icon.rect().topLeft()).x(), icon_expanded
-        )
-        # 点返回回到首页后菜单按钮回到侧边栏左上角。
+        self.assertTrue(frames)
+        self.assertTrue(all(frame == before for frame in frames), frames)
+        self.assertEqual(self._chrome_snapshot(), before)
+        self.assertEqual(self.window.titleBar.x(), gui_data.TITLE_BAR_OFFSET)
+        self.assertIs(panel.menuButton.parent(), tools)
+        # 收起后返回按钮仍在，点它回到首页，菜单按钮依旧不动。
+        self.assertTrue(panel.returnButton.isVisible())
         panel.returnButton.click()
         self.application.processEvents()
         self.assertEqual(self.window.current_page(), "home")
-        self.assertIsNot(panel.menuButton.parent(), self.window.titleBar)
-        self.assertEqual(icon.mapTo(self.window, icon.rect().topLeft()).x(), icon_home)
-        # 首页展开与收起时图标也不跳。
-        self.window.expand_navigation()
-        self.wait_for(lambda: not panel.isCollapsed())
+        self.assertEqual(
+            panel.menuButton.mapTo(self.window, panel.menuButton.rect().topLeft()).x(),
+            gui_data.TITLE_BAR_OFFSET + gui_data.TITLE_BAR_MARGIN,
+        )
+
+    def test_expanding_keeps_title_bar_and_tools_still(self):
+        self.window.show()
         self.application.processEvents()
-        self.assertEqual(icon.mapTo(self.window, icon.rect().topLeft()).x(), icon_home)
+        panel = self.window.navigationInterface.panel
+        panel.collapse()
+        self.wait_for(lambda: panel.isCollapsed() and panel.width() <= 48)
+        self.window.show_page("message")
+        self.application.processEvents()
+        before = self._chrome_snapshot()
+        panel.expand()
+        self.wait_for(lambda: not panel.isCollapsed() and panel.width() >= 200)
+        self.application.processEvents()
+        self.assertEqual(self._chrome_snapshot(), before)
 
     def test_navigation_click_starts_student_polling(self):
         self.window.show()

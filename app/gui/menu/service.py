@@ -84,11 +84,10 @@ class NavigationService:
         window.settings.sync()
 
     def _on_current_page_changed(self, _index=0):
-        """页面变化后同步返回按钮、侧边栏轮询与标题栏位置。"""
+        """页面变化后同步返回按钮与侧边栏轮询。"""
         window = self.window
         window._update_return_button()
         window._sync_page_polling()
-        window._sync_title_bar_offset()
 
     def _sync_page_polling(self):
         """进学生端页先查一次再开轮询，离开就停，避免后台白白扫进程。"""

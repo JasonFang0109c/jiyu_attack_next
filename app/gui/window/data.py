@@ -28,14 +28,15 @@ CAPTION_BUTTON_MARGIN = 8
 
 # 标题栏左侧文字留白。
 TITLE_BAR_MARGIN = 6
-# 折叠时标题栏左缘：比侧边栏的 48 少 2 像素，标题文字才能和图标栏按钮对齐。
-TITLE_BAR_COLLAPSED_OFFSET = 46
-# 标题栏左缘在工具行右缘之后再让 1 像素：单个按钮时与折叠偏移同为 46，
-# 展开与收起来回切换时图标和标题不会左右跳动。
-TITLE_BAR_TOOL_GAP = 1
-# 工具按钮与侧边栏首项之间留 11 像素，首项正好落在内容区顶边之下 5 像素
-# （WinUI 的 PaneContentGrid 3 像素加条目 2 像素），与右侧标题和卡片错开。
-SIDEBAR_TOOL_ROW_GAP = 11
+# 组件库把标题栏固定在左侧 46 像素处。返回与菜单按钮直接排在标题栏里，
+# 项目不再移动标题栏，侧边栏收展时标题栏、按钮与图标的位置都不变。
+TITLE_BAR_OFFSET = 46
+# 标题栏里返回与菜单按钮的尺寸，与组件库的工具按钮一致。
+SIDEBAR_BUTTON_WIDTH = 40
+SIDEBAR_BUTTON_HEIGHT = 36
+# 侧边栏顶部留白：面板内容从第 6 像素开始，首项要比内容区顶边（48）低 5 像素，
+# 所以顶部留 47（WinUI 的 PaneContentGrid 3 像素加条目 2 像素）。
+SIDEBAR_HEADER_INSET = 47
 
 LOCAL_IP_PLACEHOLDERS = ("未查询", "未获取")
 
