@@ -3,8 +3,10 @@
 数值来自 Windows 11 的 WinUI 3 主题资源，改动时请一并更新
 ``docs/dev/STYLE.md`` 的对照表：
 
-- 圆角：``ControlCornerRadius`` 4 像素用于控件与内容面，
-  ``OverlayCornerRadius`` 8 像素用于对话框、浮出层这类覆盖在内容之上的容器。
+- 圆角：``ControlCornerRadius`` 4 像素用于按钮、输入框、列表底衬这类控件；
+  卡片这类大容器取 8 像素（WinUI 对大尺寸组件的圆角放大一档，Windows 11
+  设置里的卡片实测 8 像素、按钮 4 像素）；``OverlayCornerRadius`` 8 像素
+  用于对话框、菜单这类覆盖在内容之上的容器，``ToolTip`` 例外仍用 4 像素。
 - 卡片填充：``CardBackgroundFillColorDefault``，浅色 ``#B3FFFFFF``、
   深色 ``#0DFFFFFF``。
 - 卡片描边：``CardStrokeColorDefault``，浅色 ``#0F000000``、
@@ -22,7 +24,11 @@ from qfluentwidgets import isDarkTheme
 
 from app.features.settings.data import ACCENT_BLUE, ACCENT_ORANGE, ACCENT_SYSTEM
 
+# 控件：按钮、输入框、下拉框、表格与树的底衬。
 CONTROL_CORNER_RADIUS = 4
+# 大容器：页面卡片、快捷入口与功能入口卡片。
+SURFACE_CORNER_RADIUS = 8
+# 浮出层：对话框、菜单。
 OVERLAY_CORNER_RADIUS = 8
 
 CARD_FILL_LIGHT = "#B3FFFFFF"

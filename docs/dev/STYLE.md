@@ -107,14 +107,15 @@ self.table.blockSignals(True)
 
 界面数值以 Windows 11 的 WinUI 3 主题资源为准，写在 `app/gui/theme.py`，改界面时先取这里的常量，不要就地写字面量。`qfluentwidgets` 的默认值只作参考：浅色下它的卡片描边比 WinUI 淡，窗口底色也偏蓝。
 
-### 两个圆角
+### 三档圆角
 
 | 令牌 | 值 | 用在哪 |
 | --- | --- | --- |
-| `ControlCornerRadius` | 4 | 控件与内容面：卡片、表格、树、输入框、按钮 |
-| `OverlayCornerRadius` | 8 | 浮出层：对话框、弹出菜单（含下拉框展开的菜单、托盘菜单）、悬停提示气泡 |
+| `ControlCornerRadius` | 4 | 控件与列表底衬：按钮、输入框、下拉框、表格、树 |
+| `SurfaceCornerRadius` | 8 | 大容器：页面卡片、快捷入口与功能入口卡片 |
+| `OverlayCornerRadius` | 8 | 浮出层：对话框、弹出菜单（含下拉框展开的菜单、托盘菜单） |
 
-小圆角让内容面显得紧凑、成排卡片之间不打架；浮出层面积大、离背景更远，圆角大一点才和阴影一起成立。项目里对应 `CONTROL_CORNER_RADIUS` 与 `OVERLAY_CORNER_RADIUS`。
+WinUI 3 的全局资源只有两个：`ControlCornerRadius`（4）与 `OverlayCornerRadius`（8）。官方[几何文档](https://learn.microsoft.com/windows/apps/design/signature-experiences/geometry)把 4 像素分给“页内元素，如按钮与列表底衬”，把 8 像素分给“窗口、浮出层、对话框这类顶层容器”，并明确 `ToolTip` 因尺寸小而例外保留 4 像素；[Fluent 2 形状](https://fluent2.microsoft.design/shapes)补充说明大尺寸组件的圆角放大到 8 像素。卡片比控件大得多，Windows 11 设置里的设置卡片实测圆角 8 像素、同页按钮 4 像素，所以项目单独加一档 `SURFACE_CORNER_RADIUS` 给卡片；卡片里的表格与树仍用控件圆角 4 像素，嵌套时才不会互相打架。项目里对应 `theme.py` 的 `CONTROL_CORNER_RADIUS`、`SURFACE_CORNER_RADIUS` 与 `OVERLAY_CORNER_RADIUS`。
 
 ### 页面骨架
 
@@ -178,7 +179,8 @@ self.table.blockSignals(True)
 - `app/gui/theme.py` 存常量与取值函数：`card_fill()`、`card_stroke()`、`window_background(dark=None)`、`tone_color(tone)`（`ok`/`warning`/`error`/`neutral`）、`scroll_colors()`。
 - `app/gui/widgets/common.py` 的 `FluentCard` 用 `paintEvent` 画填充与描边，`FluentDialog` 追加一条 QSS 覆盖组件库写死的 10 像素对话框圆角。
 - 新增卡片一律继承 `FluentCard`，不要直接用 `SimpleCardWidget`；新增对话框用 `FluentDialog`，不要直接用 `Dialog`。
-- 浮出层圆角统一覆盖到 `OVERLAY_CORNER_RADIUS`：`FluentDialog` 追加 `#centerWidget` 的圆角；菜单用 `round_menu()` 把组件库写死的 9 像素改成 8（下拉框走 `FluentComboBox`、托盘菜单在创建后调用），悬停气泡用 `round_tool_tip()` 把 4 像素改成 8（`tool_button()`、`info_button()` 装的是 `FluentToolTipFilter`，每次显示前补一次，主题切换重刷样式后仍然生效）。描边与阴影仍由组件库绘制，只是不再保留它自己的圆角数值。
+- 卡片圆角由 `FluentCard.__init__` 统一设成 `SURFACE_CORNER_RADIUS`，`SectionCard`、`ShortcutCard`、`ActionCard` 都继承它，不再各自写字面量。
+- 浮出层圆角覆盖到 `OVERLAY_CORNER_RADIUS`：`FluentDialog` 追加 `#centerWidget` 的圆角；菜单用 `round_menu()` 把组件库写死的 9 像素改成 8（下拉框走 `FluentComboBox`、托盘菜单在创建后调用）。`ToolTip` 不去覆盖，组件库给的 4 像素正是规范里的例外值。描边与阴影仍由组件库绘制，只是不再保留它自己的菜单圆角数值。
 - 状态文字的颜色一律走 `tone_color()`，不在页面里写 `#c42b1c` 这类字面量；滚动条滑块同理，用 `scroll_colors()` 取色。
 - 强调色走 `accent_color(accent)`，由 `WindowService.apply_theme_accent` 调组件库的 `setThemeColor` 下发；组件库 1.11 没有读取系统强调色的接口，`system_accent_color()` 自己读 `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent` 的 `AccentColorMenu`（ABGR 排列），读不到再退 `DWM\AccentColor`，最后回落 `#0078d4`。选择存在 `settings.json` 的 `gui/theme/accent`，默认蓝色。
 - 云母与亚克力材质开启时窗口必须是全透明，只有实色材质才用窗口底色，主窗口的 `_normalBackgroundColor` 委托给 `app/gui/window/service.py` 的 `WindowService`，窗口材质由该服务的 `apply_window_material` 统一应用。

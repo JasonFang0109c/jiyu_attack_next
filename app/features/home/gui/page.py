@@ -12,7 +12,6 @@ from qfluentwidgets import (
 )
 from qfluentwidgets import FluentIcon as FIF
 
-from app.gui.theme import CONTROL_CORNER_RADIUS
 from app.gui.widgets.common import FluentCard
 from app.gui.widgets.page import Page
 from app.shared.build_info import version_text
@@ -28,7 +27,6 @@ class ShortcutCard(FluentCard):
 
     def __init__(self, icon, title, description, parent=None):
         super().__init__(parent)
-        self.setBorderRadius(CONTROL_CORNER_RADIUS)
         self.setClickEnabled(True)
         self.setMinimumWidth(self.MINIMUM_WIDTH)
         self.setCursor(Qt.PointingHandCursor)
@@ -76,7 +74,6 @@ class ActionCard(FluentCard):
 
     def __init__(self, icon, title, description, parent=None):
         super().__init__(parent)
-        self.setBorderRadius(CONTROL_CORNER_RADIUS)
         self.setClickEnabled(True)
         self.setMinimumHeight(84)
         self.setCursor(Qt.PointingHandCursor)

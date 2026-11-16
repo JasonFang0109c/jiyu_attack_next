@@ -240,7 +240,7 @@ class GuiTests(unittest.TestCase):
             [button.text() for button in about.findChildren(HyperlinkButton)],
         )
         self.assertEqual(about.author_card.objectName(), "aboutInfoCard")
-        self.assertEqual(about.author_card.borderRadius, theme.CONTROL_CORNER_RADIUS)
+        self.assertEqual(about.author_card.borderRadius, theme.SURFACE_CORNER_RADIUS)
         self.assertEqual(about.author_card.detail.text(), "JasonFang0109c")
         hero = about.findChild(QWidget, "aboutHero")
         self.assertIsNotNone(hero)
@@ -254,7 +254,7 @@ class GuiTests(unittest.TestCase):
         # 版本与构建时间合并到“版本信息”，组件版本改名为“组件信息”。
         self.assertEqual(about.version_card.heading.text(), "版本信息")
         self.assertEqual(about.version_card.objectName(), "aboutDetailCard")
-        self.assertEqual(about.version_card.borderRadius, theme.CONTROL_CORNER_RADIUS)
+        self.assertEqual(about.version_card.borderRadius, theme.SURFACE_CORNER_RADIUS)
         self.assertEqual(about.version_value.text(), build_info.version_text())
         self.assertEqual(about.version_value.objectName(), "aboutVersion")
         self.assertEqual(about.build_time_value.text(), "源码运行")
@@ -407,7 +407,7 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(home.cards)
         self.assertTrue(
             all(
-                card.borderRadius == theme.CONTROL_CORNER_RADIUS
+                card.borderRadius == theme.SURFACE_CORNER_RADIUS
                 for card in home.cards.values()
             )
         )
@@ -417,7 +417,7 @@ class GuiTests(unittest.TestCase):
             cards = page.findChildren(components.SectionCard)
             self.assertGreaterEqual(len(cards), 1, page.objectName())
             self.assertTrue(
-                all(card.borderRadius == theme.CONTROL_CORNER_RADIUS for card in cards)
+                all(card.borderRadius == theme.SURFACE_CORNER_RADIUS for card in cards)
             )
 
     def test_title_bar_keeps_icon_and_title(self):
@@ -2575,7 +2575,7 @@ class GuiTests(unittest.TestCase):
         settings_page = self.window.pages["settings"]
         self.assertEqual(settings_page.theme_card.objectName(), "settingsThemeCard")
         self.assertEqual(
-            settings_page.theme_card.borderRadius, theme.CONTROL_CORNER_RADIUS
+            settings_page.theme_card.borderRadius, theme.SURFACE_CORNER_RADIUS
         )
         self.assertEqual(
             settings_page.material_box.itemText(0),
@@ -2651,30 +2651,34 @@ class GuiTests(unittest.TestCase):
             settings_data.DEFAULT_THEME_ACCENT,
         )
 
-    def test_overlay_surfaces_follow_overlay_corner_radius(self):
-        radius = "border-radius: %dpx" % theme.OVERLAY_CORNER_RADIUS
+    def test_surfaces_follow_winui_corner_radius(self):
+        overlay = "border-radius: %dpx" % theme.OVERLAY_CORNER_RADIUS
         settings_page = self.window.pages["settings"]
         menu = settings_page.accent_box._createComboMenu()
-        self.assertIn(radius, menu.view.styleSheet())
+        self.assertIn(overlay, menu.view.styleSheet())
         self.assertNotIn(
             "MenuActionListWidget { border-radius: 9px", menu.view.styleSheet()
         )
 
+        tray_menu = self.window.tray_menu
+        if tray_menu is not None:
+            self.assertIn(overlay, tray_menu.view.styleSheet())
+
+        # 卡片是大容器，圆角比控件大一档；控件与列表底衬仍是 4 像素
+        self.assertEqual(theme.SURFACE_CORNER_RADIUS, 8)
+        self.assertEqual(
+            settings_page.data_card.borderRadius, theme.SURFACE_CORNER_RADIUS
+        )
+        self.assertEqual(theme.CONTROL_CORNER_RADIUS, 4)
+        self.assertNotEqual(theme.SURFACE_CORNER_RADIUS, theme.CONTROL_CORNER_RADIUS)
+
+        # 悬停气泡按官方例外保持组件库的 4 像素，不参与覆盖
         button = components.tool_button(
             FluentIcon.DELETE, "清理", self.window, lambda: None
         )
-        filters = button.findChildren(components.FluentToolTipFilter)
-        self.assertEqual(len(filters), 1)
-        tooltip = filters[0]._createToolTip()
-        self.assertIn(radius, tooltip.styleSheet())
-        self.assertIn(radius, tooltip.container.styleSheet())
-        # 重复套用不会叠加样式，切换主题后显示前会补一次
-        components.round_tool_tip(tooltip)
-        self.assertEqual(tooltip.styleSheet().count(radius), 1)
-
-        tray_menu = self.window.tray_menu
-        if tray_menu is not None:
-            self.assertIn(radius, tray_menu.view.styleSheet())
+        tooltip = button.findChildren(components.ToolTipFilter)[0]._createToolTip()
+        self.assertNotIn(overlay, tooltip.styleSheet())
+        self.assertIn("border-radius: 4px", tooltip.styleSheet())
 
     def test_legacy_blur_switch_maps_to_window_material(self):
         self.assertEqual(

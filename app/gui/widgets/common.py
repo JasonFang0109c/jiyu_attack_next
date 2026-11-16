@@ -43,8 +43,8 @@ from qfluentwidgets import (
 
 import app.system.net.targets as system_net_targets
 from app.gui.theme import (
-    CONTROL_CORNER_RADIUS,
     OVERLAY_CORNER_RADIUS,
+    SURFACE_CORNER_RADIUS,
     card_fill,
     card_stroke,
     scroll_colors,
@@ -80,16 +80,6 @@ def round_menu(menu):
         _append_qss(view, "MenuActionListWidget")
 
 
-def round_tool_tip(tooltip):
-    """覆盖悬停气泡的圆角，组件库自己给的是 4 像素。
-
-    Args:
-        tooltip: ``ToolTip`` 实例，可见的圆角面在它的 ``container`` 上。
-    """
-    _append_qss(tooltip, "ToolTip")
-    _append_qss(tooltip.container, "#container")
-
-
 class FluentComboBox(ComboBox):
     """下拉框：弹出的菜单跟着浮出层圆角走。"""
 
@@ -97,21 +87,6 @@ class FluentComboBox(ComboBox):
         menu = super()._createComboMenu()
         round_menu(menu)
         return menu
-
-
-class FluentToolTipFilter(ToolTipFilter):
-    """工具提示：气泡跟着浮出层圆角走。"""
-
-    def _createToolTip(self):
-        tooltip = super()._createToolTip()
-        round_tool_tip(tooltip)
-        return tooltip
-
-    def showToolTip(self):
-        # 切换主题会重刷气泡样式，显示前补一次
-        if self._tooltip is not None:
-            round_tool_tip(self._tooltip)
-        super().showToolTip()
 
 
 def _keep_thin(bar):
@@ -165,7 +140,7 @@ def tool_button(icon, text, parent, callback):
     button.setAccessibleName(text)
     button.setFixedSize(34, 34)
     button.installEventFilter(
-        FluentToolTipFilter(button, showDelay=300, position=ToolTipPosition.TOP)
+        ToolTipFilter(button, showDelay=300, position=ToolTipPosition.TOP)
     )
     button.clicked.connect(lambda checked=False: callback())
     return button
@@ -181,7 +156,7 @@ def info_button(text, parent):
     button.setFixedSize(28, 28)
     button.setIconSize(QSize(16, 16))
     button.installEventFilter(
-        FluentToolTipFilter(button, showDelay=300, position=ToolTipPosition.TOP)
+        ToolTipFilter(button, showDelay=300, position=ToolTipPosition.TOP)
     )
     return button
 
@@ -258,6 +233,10 @@ class FluentCard(SimpleCardWidget):
     与 Windows 11 原生卡片的深浅一致。
     """
 
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setBorderRadius(SURFACE_CORNER_RADIUS)
+
     def paintEvent(self, event):
         """用主题令牌绘制圆角卡片。"""
         painter = QPainter(self)
@@ -288,7 +267,6 @@ class SectionCard(FluentCard):
 
     def __init__(self, parent=None, spacing=12, margins=(20, 18, 20, 18)):
         super().__init__(parent)
-        self.setBorderRadius(CONTROL_CORNER_RADIUS)
         self.body = QVBoxLayout(self)
         self.body.setContentsMargins(*margins)
         self.body.setSpacing(spacing)
