@@ -20,9 +20,11 @@ from qfluentwidgets.components.navigation.navigation_widget import NavigationWid
 
 from app.gui.window.data import (
     SIDEBAR_BUTTON_HEIGHT,
+    SIDEBAR_BUTTON_INSET,
+    SIDEBAR_BUTTON_TOP,
     SIDEBAR_BUTTON_WIDTH,
     SIDEBAR_HEADER_INSET,
-    TITLE_BAR_MARGIN,
+    TITLE_BAR_TEXT_INSET,
 )
 
 
@@ -124,20 +126,18 @@ class SidebarPanel(NavigationPanel):
         self.expandAni.finished.connect(self._onExpandAniFinished)
 
     def _install_tools(self):
-        """把返回与菜单按钮并排装进标题栏。
+        """把返回与菜单按钮并排叠在侧边栏左上角。
 
-        两个按钮只在标题栏里出现一次，展开与收起都不再搬动宿主，面板宽度只
-        决定导航项是否显示，标题栏左缘因此始终保持组件库给的固定值；按钮不
-        参与收起动画，也就不会闪一下再偏移，图标与标题同样不动。
+        按钮是窗口顶层的浮层，不参与面板与标题栏的布局，因此侧边栏收展只改
+        变导航项，按钮、图标与标题都不会被排队、搬动或重算位置。按钮贴着面
+        板左缘，展开时压在面板顶部，收起时正好落在 48 像素的图标栏里。
 
         面板顶部的留白用 ``topLayout`` 的上边距给出：组件库会把“顶部”位置的
         导航项插进同一个布局，用间距只会把下面的滚动区一起推下去。
         """
-        title_bar = self.window().titleBar
-        self._tools = QWidget(title_bar)
+        self._tools = QWidget(self.window())
         layout = QHBoxLayout(self._tools)
-        # 右侧留出与图标之间的间距，两个按钮本身保持 40 像素宽。
-        layout.setContentsMargins(0, 0, TITLE_BAR_MARGIN, 0)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         self.topLayout.removeWidget(self.returnButton)
         self.topLayout.removeWidget(self.menuButton)
@@ -145,33 +145,34 @@ class SidebarPanel(NavigationPanel):
             button.setParent(self._tools)
             button.setFixedSize(SIDEBAR_BUTTON_WIDTH, SIDEBAR_BUTTON_HEIGHT)
             layout.addWidget(button, 0, Qt.AlignTop)
-        title_bar.hBoxLayout.insertWidget(
-            0, self._tools, 0, Qt.AlignLeft | Qt.AlignVCenter
+        self.window().titleBar.hBoxLayout.setContentsMargins(
+            TITLE_BAR_TEXT_INSET, 0, 0, 0
         )
         self.topLayout.setContentsMargins(4, SIDEBAR_HEADER_INSET, 4, 0)
         self.topLayout.setSpacing(4)
+        self._settle_tools()
 
     def setReturnButtonVisible(self, isVisible):
-        """切换返回按钮并立即重排顶部按钮。
-
-        隐藏控件要等下一轮事件才会让出位置，标题栏里的菜单按钮与图标会先停在
-        空位右侧再跳回来；这里强制激活标题栏布局，一步排到位。
-        """
+        """切换返回按钮并立即让出或收回按钮宽度。"""
         super().setReturnButtonVisible(isVisible)
         self._settle_tools()
 
     def _settle_tools(self):
-        """让标题栏立即吸收按钮显隐带来的宽度变化。"""
+        """按返回按钮的显隐定宽，并压在面板与标题栏之上。"""
         tools = getattr(self, "_tools", None)
         if tools is None:
-            # 构造基类时就会设置返回按钮的可见性，此时顶部按钮还没装好。
+            # 构造基类时就会设置返回按钮的可见性，此时按钮还没装上。
             return
-        if tools.layout() is not None:
-            tools.layout().activate()
-        tools.adjustSize()
-        title_bar = self.window().titleBar
-        title_bar.hBoxLayout.invalidate()
-        title_bar.hBoxLayout.activate()
+        width = SIDEBAR_BUTTON_WIDTH
+        if self.returnButton.isVisibleTo(tools):
+            width *= 2
+        tools.setGeometry(
+            SIDEBAR_BUTTON_INSET,
+            SIDEBAR_BUTTON_TOP,
+            width,
+            SIDEBAR_BUTTON_HEIGHT,
+        )
+        tools.raise_()
 
     def insertItem(
         self,
@@ -232,8 +233,8 @@ class SidebarPanel(NavigationPanel):
                 self.setParent(self.window())
                 self.move(position)
                 self.show()
-        # 浮出的面板会盖住标题栏，按钮在标题栏里，得把标题栏重新抬到最上层。
-        self.window().titleBar.raise_()
+        # 浮出的面板是窗口的子控件，新排进最上层后要先让按钮浮回面板之上。
+        self._tools.raise_()
         self.displayModeChanged.emit(self.displayMode)
         if changed:
             self.expandedChanged.emit(True)
@@ -277,6 +278,7 @@ class SidebarPanel(NavigationPanel):
     def _onExpandAniFinished(self):
         super()._onExpandAniFinished()
         self._stopIndicatorAnimation()
+        self._tools.raise_()
         self.layout().activate()
         self.scrollLayout.activate()
         self.layoutSettled.emit()

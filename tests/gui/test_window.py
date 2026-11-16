@@ -475,7 +475,7 @@ class GuiTests(unittest.TestCase):
         home_menu = panel.menuButton.mapTo(
             self.window, panel.menuButton.rect().topLeft()
         )
-        self.assertEqual(home_menu.x(), bar.x() + gui_data.TITLE_BAR_MARGIN)
+        self.assertEqual(home_menu.x(), gui_data.SIDEBAR_BUTTON_INSET)
         self.window.show_page("message")
         self.application.processEvents()
         self.assertTrue(panel.returnButton.isVisible())
@@ -536,8 +536,22 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.window.current_page(), "home")
         self.assertEqual(
             panel.menuButton.mapTo(self.window, panel.menuButton.rect().topLeft()).x(),
-            gui_data.TITLE_BAR_OFFSET + gui_data.TITLE_BAR_MARGIN,
+            gui_data.SIDEBAR_BUTTON_INSET,
         )
+
+    def test_tools_are_clickable_over_the_expanded_panel(self):
+        # 窄窗口里侧边栏浮在内容之上，按钮必须是那一坐标上的顶层控件。
+        self.window.resize(1000, 800)
+        self.window.show()
+        self.window.expand_navigation()
+        panel = self.window.navigationInterface.panel
+        self.wait_for(lambda: not panel.isCollapsed() and panel.width() >= 200)
+        self.application.processEvents()
+        point = panel.menuButton.mapTo(self.window, panel.menuButton.rect().center())
+        self.assertIs(self.window.childAt(point), panel.menuButton)
+        self.assertFalse(panel.isCollapsed())
+        panel.menuButton.click()
+        self.wait_for(lambda: panel.isCollapsed())
 
     def test_expanding_keeps_title_bar_and_tools_still(self):
         self.window.show()

@@ -28,14 +28,19 @@ CAPTION_BUTTON_MARGIN = 8
 
 # 标题栏左侧文字留白。
 TITLE_BAR_MARGIN = 6
-# 组件库把标题栏固定在左侧 46 像素处。返回与菜单按钮直接排在标题栏里，
-# 项目不再移动标题栏，侧边栏收展时标题栏、按钮与图标的位置都不变。
+# 组件库把标题栏固定在左侧 46 像素处，项目不改这个位置。
 TITLE_BAR_OFFSET = 46
-# 标题栏里返回与菜单按钮的尺寸，与组件库的工具按钮一致。
+# 返回与菜单按钮并排叠在侧边栏左上角，尺寸与组件库的工具按钮一致。
 SIDEBAR_BUTTON_WIDTH = 40
 SIDEBAR_BUTTON_HEIGHT = 36
-# 侧边栏顶部留白：面板内容从第 6 像素开始，首项要比内容区顶边（48）低 5 像素，
-# 所以顶部留 47（WinUI 的 PaneContentGrid 3 像素加条目 2 像素）。
+# 图标与标题让开顶部按钮，位置固定，返回按钮出现时也不会被挡住。
+TITLE_BAR_TEXT_INSET = 46
+# 首个按钮的左上角，对应 WinUI 面板头部里工具按钮的内缩。
+SIDEBAR_BUTTON_INSET = 5
+SIDEBAR_BUTTON_TOP = 6
+# 侧边栏顶部留白：首项要比内容区顶边（48）低 5 像素，按钮占 36 与 11 的间隙，
+# 面板内容又从第 6 像素开始，所以顶部留 47（WinUI 的 PaneContentGrid 3 像
+# 素加条目 2 像素）。
 SIDEBAR_HEADER_INSET = 47
 
 LOCAL_IP_PLACEHOLDERS = ("未查询", "未获取")

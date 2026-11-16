@@ -138,18 +138,19 @@ self.table.blockSignals(True)
 
 ### 侧边导航
 
-左侧导航栏（`SidebarPanel`）与右侧内容区共用一条顶部基线，但比内容区略低；返回与菜单按钮直接排在标题栏里，侧边栏收展只改变导航项的可见性，标题栏、按钮与图标都不移动：
+左侧导航栏（`SidebarPanel`）与右侧内容区共用一条顶部基线，但比内容区略低；返回与菜单按钮叠在面板左上角，侧边栏收展只改变导航项的可见性，按钮、图标与标题都不移动：
 
 | 项 | 值 | 依据 |
 | --- | --- | --- |
 | 导航首项顶边 | 内容区顶边 + 5 | 对应 WinUI 的 `NavigationViewPaneContentGridMargin` 上 3 像素与 `NavigationViewItemButtonMargin` 上 2 像素 |
 | 侧边栏顶部留白 | 47（`SIDEBAR_HEADER_INSET`） | 面板内容从第 6 像素开始，加 47 后首项正好落在内容区顶边之下 5 像素 |
-| 标题栏左缘 | 46（`TITLE_BAR_OFFSET`） | 组件库固定值，项目不再移动标题栏，收展前后位置一致 |
-| 标题栏文字左留白 | 6（`TITLE_BAR_MARGIN`） | 图标与标题文字的内缩，同时作为按钮与图标之间的间距 |
-| 顶部按钮 | 40×36（`SIDEBAR_BUTTON_WIDTH`、`SIDEBAR_BUTTON_HEIGHT`） | 与组件库工具按钮同尺寸，在 48 像素标题栏里垂直居中 |
-| 按钮顺序 | 返回在左、菜单在右 | 返回按钮只在非首页出现，出现时把菜单按钮与图标各右移一个按钮宽 |
+| 顶部按钮位置 | 面板左上角 (5, 6)（`SIDEBAR_BUTTON_INSET`、`SIDEBAR_BUTTON_TOP`） | 与 WinUI 面板头部里工具按钮的内缩一致，紧贴面板左缘，不再跟着标题栏起点后移 |
+| 顶部按钮 | 40×36（`SIDEBAR_BUTTON_WIDTH`、`SIDEBAR_BUTTON_HEIGHT`） | 与组件库工具按钮同尺寸，在 48 像素高的顶部区里垂直居中 |
+| 按钮顺序 | 返回在左、菜单在右 | 返回按钮只在非首页出现，出现时把菜单按钮右移一个按钮宽 |
+| 标题栏左缘 | 46（`TITLE_BAR_OFFSET`） | 组件库固定值，项目不改 |
+| 图标与标题左留白 | 46 加 6（`TITLE_BAR_TEXT_INSET`、`TITLE_BAR_MARGIN`） | 让开顶部按钮，按钮显隐与侧边栏收展都不改变这一列的位置 |
 
-两个按钮由 `SidebarPanel._install_tools` 一次性搬进标题栏的容器里，此后不再换宿主；`setReturnButtonVisible` 之后由 `_settle_tools` 立即激活标题栏布局，避免隐藏的按钮等到下一轮事件才让位而闪一帧。收起侧边栏不改动任何一个顶部控件的位置。
+两个按钮由 `SidebarPanel._install_tools` 建成窗口顶层的浮层，不参与面板与标题栏的布局，因此既不会被面板宽度排队，也不会被标题栏的几何覆盖；`setReturnButtonVisible` 之后由 `_settle_tools` 按显隐定宽并 `raise_()` 压在面板之上。收起与展开侧边栏都不改动任何一个顶部控件的位置。
 
 导航项本身不自带间距，首项的下沉量加在侧边栏顶部，所以 `SidebarPanel` 用 `topLayout` 的上边距——组件库会把“顶部”位置的导航项插进同一个布局，用间距只会把它们排在按钮之后。改动这些数值时同步改 `app/gui/window/data.py` 的常量，不要在 `sidebar.py` 里另写一份。
 
