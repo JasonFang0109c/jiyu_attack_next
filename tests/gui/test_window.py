@@ -2669,6 +2669,12 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(
             settings_page.data_card.borderRadius, theme.SURFACE_CORNER_RADIUS
         )
+        # 设备备注页的表格铺满卡片，圆角跟卡片同值，避免里外两条弧线
+        aliases_page = self.window.pages["aliases"]
+        self.assertEqual(aliases_page.table_card.borderRadius, 8)
+        table_radius = aliases_page.table.styleSheet()
+        self.assertIn("border-radius: 8px", table_radius)
+        self.assertNotIn("border-radius: 4px", table_radius)
         self.assertEqual(theme.CONTROL_CORNER_RADIUS, 4)
         self.assertNotEqual(theme.SURFACE_CORNER_RADIUS, theme.CONTROL_CORNER_RADIUS)
 

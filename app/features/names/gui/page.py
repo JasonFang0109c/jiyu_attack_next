@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
 from qfluentwidgets import CaptionLabel, LineEdit, PrimaryPushButton, PushButton
 from qfluentwidgets import FluentIcon as FIF
 
-from app.gui.theme import CONTROL_CORNER_RADIUS, tone_color
+from app.gui.theme import SURFACE_CORNER_RADIUS, tone_color
 from app.gui.widgets.common import (
     FluentDialog,
     Ipv4TargetInput,
@@ -78,9 +78,10 @@ class AliasPage(Page):
         self.vbox.addWidget(form_card)
 
         self.table_card = SectionCard(self, spacing=0, margins=(0, 0, 0, 0))
-        self.table = table_widget(["备注名", "IP 地址"], self.table_card)
-        # 表格铺满卡片，圆角与卡片保持一致，避免出现两条错位弧线。
-        self.table.setBorderRadius(CONTROL_CORNER_RADIUS)
+        # 表格铺满卡片，圆角跟卡片同值，避免里外两条错位弧线。
+        self.table = table_widget(
+            ["备注名", "IP 地址"], self.table_card, radius=SURFACE_CORNER_RADIUS
+        )
         # 列宽可拖动，末尾列仍按剩余宽度自适应。
         self.table.setColumnWidth(0, 260)
         self.table.setColumnWidth(1, 220)

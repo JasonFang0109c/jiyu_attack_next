@@ -214,7 +214,14 @@ class LogTableWidget(TableWidget):
         )
 
 
-def table_widget(headers, parent, table_class=TableWidget, *, stretch_last=True):
+def table_widget(
+    headers,
+    parent,
+    table_class=TableWidget,
+    *,
+    stretch_last=True,
+    radius=CONTROL_CORNER_RADIUS,
+):
     """创建统一的只读、按行选择的表格控件。
 
     Args:
@@ -222,6 +229,7 @@ def table_widget(headers, parent, table_class=TableWidget, *, stretch_last=True)
         parent: 父控件。
         table_class: 表格子类，默认 ``TableWidget``。
         stretch_last: 是否让最后一列自适应剩余宽度。
+        radius: 表格自身的圆角，铺满卡片时传卡片的圆角值。
     """
     table = table_class(parent)
     table.setColumnCount(len(headers))
@@ -231,7 +239,7 @@ def table_widget(headers, parent, table_class=TableWidget, *, stretch_last=True)
     table.setSelectionBehavior(QAbstractItemView.SelectRows)
     table.setWordWrap(False)
     table.setBorderVisible(True)
-    table.setBorderRadius(CONTROL_CORNER_RADIUS)
+    table.setBorderRadius(radius)
     table.horizontalHeader().setStretchLastSection(stretch_last)
     return table
 

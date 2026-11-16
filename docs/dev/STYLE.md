@@ -115,7 +115,7 @@ self.table.blockSignals(True)
 | `SurfaceCornerRadius` | 8 | 大容器：页面卡片、快捷入口与功能入口卡片 |
 | `OverlayCornerRadius` | 8 | 浮出层：对话框、弹出菜单（含下拉框展开的菜单、托盘菜单） |
 
-WinUI 3 的全局资源只有两个：`ControlCornerRadius`（4）与 `OverlayCornerRadius`（8）。官方[几何文档](https://learn.microsoft.com/windows/apps/design/signature-experiences/geometry)把 4 像素分给“页内元素，如按钮与列表底衬”，把 8 像素分给“窗口、浮出层、对话框这类顶层容器”，并明确 `ToolTip` 因尺寸小而例外保留 4 像素；[Fluent 2 形状](https://fluent2.microsoft.design/shapes)补充说明大尺寸组件的圆角放大到 8 像素。卡片比控件大得多，Windows 11 设置里的设置卡片实测圆角 8 像素、同页按钮 4 像素，所以项目单独加一档 `SURFACE_CORNER_RADIUS` 给卡片；卡片里的表格与树仍用控件圆角 4 像素，嵌套时才不会互相打架。项目里对应 `theme.py` 的 `CONTROL_CORNER_RADIUS`、`SURFACE_CORNER_RADIUS` 与 `OVERLAY_CORNER_RADIUS`。
+WinUI 3 的全局资源只有两个：`ControlCornerRadius`（4）与 `OverlayCornerRadius`（8）。官方[几何文档](https://learn.microsoft.com/windows/apps/design/signature-experiences/geometry)把 4 像素分给“页内元素，如按钮与列表底衬”，把 8 像素分给“窗口、浮出层、对话框这类顶层容器”，并明确 `ToolTip` 因尺寸小而例外保留 4 像素；[Fluent 2 形状](https://fluent2.microsoft.design/shapes)补充说明大尺寸组件的圆角放大到 8 像素。卡片比控件大得多，Windows 11 设置里的设置卡片实测圆角 8 像素、同页按钮 4 像素，所以项目单独加一档 `SURFACE_CORNER_RADIUS` 给卡片；卡片里的表格与树仍用控件圆角 4 像素，嵌套时才不会互相打架；表格铺满卡片时（`SectionCard` 边距为 0）要把表格圆角传成卡片的值（`table_widget(..., radius=SURFACE_CORNER_RADIUS)`），否则卡片与表格各画一条弧线，看起来是两层圆角。项目里对应 `theme.py` 的 `CONTROL_CORNER_RADIUS`、`SURFACE_CORNER_RADIUS` 与 `OVERLAY_CORNER_RADIUS`。
 
 ### 页面骨架
 
