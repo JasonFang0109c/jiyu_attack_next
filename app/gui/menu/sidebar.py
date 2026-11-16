@@ -18,7 +18,7 @@ from qfluentwidgets import (
 )
 from qfluentwidgets.components.navigation.navigation_widget import NavigationWidget
 
-from app.gui.window.data import TITLE_BAR_MARGIN, TITLE_BAR_SHIFTED_MARGIN
+from app.gui.window.data import SIDEBAR_TOOL_ROW_GAP
 
 
 class SidebarTreeWidget(NavigationTreeWidget):
@@ -127,8 +127,9 @@ class SidebarPanel(NavigationPanel):
         self.vBoxLayout.removeItem(self.topLayout)
         self.topLayout.deleteLater()
         self.topLayout = QVBoxLayout()
+        # 工具按钮与首项之间留出空隙，让首项落在内容区顶边之下。
         self.topLayout.setContentsMargins(4, 0, 4, 0)
-        self.topLayout.setSpacing(0)
+        self.topLayout.setSpacing(SIDEBAR_TOOL_ROW_GAP)
         self._tool_row = QWidget(self)
         self._tool_layout = QGridLayout(self._tool_row)
         self._tool_layout.setContentsMargins(0, 0, 0, 0)
@@ -154,17 +155,10 @@ class SidebarPanel(NavigationPanel):
             self._tool_layout.addWidget(self.menuButton, row, column, Qt.AlignTop)
             self._tool_horizontal = horizontal
             self._tool_showing = showing
-        # 并排时菜单按钮伸进标题栏，图标与标题右移一个按钮宽，避免互相覆盖。
-        title_bar = getattr(self.window(), "titleBar", None)
-        if title_bar is not None and hasattr(title_bar, "hBoxLayout"):
-            title_bar.hBoxLayout.setContentsMargins(
-                TITLE_BAR_SHIFTED_MARGIN
-                if horizontal and showing
-                else TITLE_BAR_MARGIN,
-                0,
-                0,
-                0,
-            )
+        # 并排时菜单按钮会伸进标题栏原来的范围，先让标题栏整体右移到侧边栏右侧。
+        sync = getattr(self.window(), "_sync_title_bar_offset", None)
+        if sync is not None:
+            sync()
         height = 36 if horizontal or not showing else 72
         width = 80 if horizontal and showing else 40
         self._tool_row.setFixedSize(width, height)

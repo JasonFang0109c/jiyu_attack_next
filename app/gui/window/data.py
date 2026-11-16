@@ -26,9 +26,13 @@ STUDENT_POLL_INTERVAL = 2000
 # 标题栏三个窗口按钮高 32、标题栏高 48，补齐上下的等分留白才能居中。
 CAPTION_BUTTON_MARGIN = 8
 
-# 标题栏左缘留白；返回按钮占用菜单按钮左侧时，图标与标题整体右移一个按钮宽。
+# 标题栏左侧文字留白。
 TITLE_BAR_MARGIN = 6
-TITLE_BAR_SHIFTED_MARGIN = 46
+# 折叠时标题栏左缘：比侧边栏的 48 少 2 像素，标题文字才能和图标栏按钮对齐。
+TITLE_BAR_COLLAPSED_OFFSET = 46
+# 工具按钮与侧边栏首项之间留 11 像素，首项正好落在内容区顶边之下 5 像素
+# （WinUI 的 PaneContentGrid 3 像素加条目 2 像素），与右侧标题和卡片错开。
+SIDEBAR_TOOL_ROW_GAP = 11
 
 LOCAL_IP_PLACEHOLDERS = ("未查询", "未获取")
 

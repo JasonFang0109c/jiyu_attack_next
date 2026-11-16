@@ -45,7 +45,6 @@ class NavigationService:
             window.addSubInterface(
                 window.pages[key], icon, title, NavigationItemPosition.SCROLL
             )
-        window.navigationInterface.addSeparator(NavigationItemPosition.SCROLL)
         window.addSubInterface(
             window.pages["logs"], FIF.HISTORY, "运行日志", NavigationItemPosition.BOTTOM
         )
@@ -57,7 +56,7 @@ class NavigationService:
         )
         panel.expandedChanged.connect(window._save_navigation_expanded)
         panel.layoutSettled.connect(window._refresh_navigation)
-        window.stackedWidget.currentChanged.connect(window._update_return_button)
+        window.stackedWidget.currentChanged.connect(window._on_current_page_changed)
         if normalize_switch(
             window.settings.value(NAVIGATION_EXPANDED_SETTINGS_KEY, None),
             DEFAULT_NAVIGATION_EXPANDED,
@@ -83,6 +82,22 @@ class NavigationService:
         window = self.window
         window.settings.set_value(NAVIGATION_EXPANDED_SETTINGS_KEY, expanded)
         window.settings.sync()
+
+    def _on_current_page_changed(self, _index=0):
+        """页面变化后同步返回按钮、侧边栏轮询与标题栏位置。"""
+        window = self.window
+        window._update_return_button()
+        window._sync_page_polling()
+        window._sync_title_bar_offset()
+
+    def _sync_page_polling(self):
+        """进学生端页先查一次再开轮询，离开就停，避免后台白白扫进程。"""
+        window = self.window
+        if window.current_page() == "studentproc":
+            window.refresh_student_processes()
+            window._studentproc_timer.start()
+        else:
+            window._studentproc_timer.stop()
 
     def _update_return_button(self, _index=0):
         """非首页显示返回按钮，菜单按钮随之右移；回到首页后还原。"""
@@ -113,12 +128,6 @@ class NavigationService:
         else:
             window.switchTo(window.pages[key])
         window._reveal_navigation_item(host_key or key)
-        # 进页先查一次，随后开轮询；离开本页就停，避免后台白白扫进程。
-        if key == "studentproc":
-            window.refresh_student_processes()
-            window._studentproc_timer.start()
-        else:
-            window._studentproc_timer.stop()
 
     def current_page(self):
         """返回当前页面的路由键；停在容器页时返回当前标签的路由。"""

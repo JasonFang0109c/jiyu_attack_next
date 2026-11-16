@@ -180,6 +180,11 @@ class GuiTests(unittest.TestCase):
         QTest.qWait(30)
 
     def dispose_window(self):
+        # 学生端查询线程在 qWait 空转时抢不到 GIL，先让它跑完再关窗口。
+        probe = getattr(self.window, "_student_probe_thread", None)
+        if probe is not None:
+            probe.wait(10000)
+            self.application.processEvents()
         self.window.close()
         if not self.window._quit_finished:
             self.wait_for(lambda: self.window._quit_finished)
@@ -444,6 +449,7 @@ class GuiTests(unittest.TestCase):
     def test_return_button_appears_off_home_and_shifts_menu(self):
         self.window.show()
         self.window.expand_navigation()
+        self.application.processEvents()
         panel = self.window.navigationInterface.panel
         self.window.show_page("home")
         self.application.processEvents()
@@ -454,15 +460,12 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(panel.returnButton.isVisible())
         menu_x = panel.menuButton.x()
         self.assertGreater(menu_x, panel.returnButton.x())
-        # 菜单按钮伸进标题栏时，图标与标题整体右移，二者不能重叠。
+        # 菜单按钮伸出侧边栏时，标题栏让到侧边栏右侧，按钮不会落在它下面。
+        self.assertEqual(self.window.titleBar.x(), panel.width())
         icon = self.window.titleBar.iconLabel
         self.assertLess(
             panel.menuButton.mapTo(self.window, panel.menuButton.rect().topRight()).x(),
             icon.mapTo(self.window, icon.rect().topLeft()).x(),
-        )
-        self.assertEqual(
-            self.window.titleBar.hBoxLayout.contentsMargins().left(),
-            gui_data.TITLE_BAR_SHIFTED_MARGIN,
         )
         # 返回按钮回到上一次浏览的页面。
         panel.returnButton.click()
@@ -470,10 +473,43 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.window.current_page(), "home")
         self.assertFalse(panel.returnButton.isVisible())
         self.assertEqual(panel.menuButton.x(), home_x)
-        self.assertEqual(
-            self.window.titleBar.hBoxLayout.contentsMargins().left(),
-            gui_data.TITLE_BAR_MARGIN,
+
+    def test_collapsed_title_bar_sits_left_of_sidebar_buttons(self):
+        self.window.show()
+        panel = self.window.navigationInterface.panel
+        self.window.expand_navigation()
+        self.application.processEvents()
+        panel.collapse()
+        # 折叠动画收窄后按钮才回到上下排列，等面板真正变窄再判断。
+        self.wait_for(lambda: panel.width() <= 48)
+        self.application.processEvents()
+        self.window.show_page("message")
+        self.application.processEvents()
+        self.assertTrue(panel.isCollapsed())
+        self.assertEqual(self.window.titleBar.x(), gui_data.TITLE_BAR_COLLAPSED_OFFSET)
+        # 折叠时两个按钮上下排列，都在标题栏左缘之外，点得到。
+        bar = self.window.titleBar.x()
+        for button in (panel.returnButton, panel.menuButton):
+            right = button.mapTo(self.window, button.rect().topRight()).x()
+            self.assertLessEqual(right, bar)
+
+    def test_navigation_click_starts_student_polling(self):
+        self.window.show()
+        self.window.show_page("home")
+        self.application.processEvents()
+        self.assertFalse(self.window._studentproc_timer.isActive())
+        # 侧边栏直接点进去要走和 show_page 相同的轮询与首查逻辑。
+        item = self.window._navigation_item("studentproc")
+        item.clicked.emit(True)
+        self.application.processEvents()
+        self.assertEqual(self.window.current_page(), "studentproc")
+        self.assertTrue(self.window._studentproc_timer.isActive())
+        self.assertIsNotNone(
+            self.window._student_probe_thread or self.window.pages["studentproc"].loaded
         )
+        self.window.show_page("remote")
+        self.application.processEvents()
+        self.assertFalse(self.window._studentproc_timer.isActive())
 
     def test_top_nav_uses_pivot(self):
         remote = self.window.pages["remote"]

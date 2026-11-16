@@ -60,6 +60,7 @@ from app.gui.window.data import (
     CAPTION_BUTTON_MARGIN,
     STUDENT_POLL_INTERVAL,
     TAB_GROUPS,
+    TITLE_BAR_COLLAPSED_OFFSET,
     TITLE_BAR_MARGIN,
 )
 from app.gui.window.service import WindowService
@@ -296,6 +297,32 @@ class MainWindow(FluentWindow):
 
     def _update_return_button(self, _index=0):
         return self._navigation_service._update_return_button(_index)
+
+    def _on_current_page_changed(self, _index=0):
+        return self._navigation_service._on_current_page_changed(_index)
+
+    def _sync_page_polling(self):
+        return self._navigation_service._sync_page_polling()
+
+    def _sync_title_bar_offset(self):
+        """标题栏左缘对齐侧边栏右缘，避免盖住侧边栏顶部的按钮。
+
+        组件库会在 ``resizeEvent`` 里把标题栏固定挪到 46 像素处并抬到最上层，
+        侧边栏展开或返回按钮并排时菜单按钮就落在它下面，点了没有反应。
+        """
+        panel = getattr(getattr(self, "navigationInterface", None), "panel", None)
+        if panel is None:
+            # 构造基类时就会走到 resizeEvent，此时还没有导航面板。
+            return
+        offset = TITLE_BAR_COLLAPSED_OFFSET if panel.isCollapsed() else panel.width()
+        self.titleBar.move(offset, 0)
+        self.titleBar.resize(max(self.width() - offset, 0), self.titleBar.height())
+        self.titleBar.raise_()
+
+    def resizeEvent(self, event):
+        """窗口尺寸变化后重新把标题栏放到侧边栏右侧。"""
+        super().resizeEvent(event)
+        self._sync_title_bar_offset()
 
     def _connect_actions(self):
         """把各页面的按钮与信号接到主窗口的处理方法。"""
