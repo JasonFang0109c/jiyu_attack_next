@@ -112,7 +112,7 @@ self.table.blockSignals(True)
 | 令牌 | 值 | 用在哪 |
 | --- | --- | --- |
 | `ControlCornerRadius` | 4 | 控件与内容面：卡片、表格、树、输入框、按钮 |
-| `OverlayCornerRadius` | 8 | 项目自绘的浮出层：对话框；弹出菜单与提示气泡由组件库自绘，不再覆盖 |
+| `OverlayCornerRadius` | 8 | 浮出层：对话框、弹出菜单（含下拉框展开的菜单、托盘菜单）、悬停提示气泡 |
 
 小圆角让内容面显得紧凑、成排卡片之间不打架；浮出层面积大、离背景更远，圆角大一点才和阴影一起成立。项目里对应 `CONTROL_CORNER_RADIUS` 与 `OVERLAY_CORNER_RADIUS`。
 
@@ -178,7 +178,7 @@ self.table.blockSignals(True)
 - `app/gui/theme.py` 存常量与取值函数：`card_fill()`、`card_stroke()`、`window_background(dark=None)`、`tone_color(tone)`（`ok`/`warning`/`error`/`neutral`）、`scroll_colors()`。
 - `app/gui/widgets/common.py` 的 `FluentCard` 用 `paintEvent` 画填充与描边，`FluentDialog` 追加一条 QSS 覆盖组件库写死的 10 像素对话框圆角。
 - 新增卡片一律继承 `FluentCard`，不要直接用 `SimpleCardWidget`；新增对话框用 `FluentDialog`，不要直接用 `Dialog`。
-- 浮出层圆角只覆盖项目自绘的容器：`FluentDialog` 用 `OVERLAY_CORNER_RADIUS`；`RoundMenu`、`ToolTip`、`TeachingTip` 的圆角、描边与阴影由组件库自己绘制，按上节“复用组件库”的要求直接调用，不追加覆盖样式。
+- 浮出层圆角统一覆盖到 `OVERLAY_CORNER_RADIUS`：`FluentDialog` 追加 `#centerWidget` 的圆角；菜单用 `round_menu()` 把组件库写死的 9 像素改成 8（下拉框走 `FluentComboBox`、托盘菜单在创建后调用），悬停气泡用 `round_tool_tip()` 把 4 像素改成 8（`tool_button()`、`info_button()` 装的是 `FluentToolTipFilter`，每次显示前补一次，主题切换重刷样式后仍然生效）。描边与阴影仍由组件库绘制，只是不再保留它自己的圆角数值。
 - 状态文字的颜色一律走 `tone_color()`，不在页面里写 `#c42b1c` 这类字面量；滚动条滑块同理，用 `scroll_colors()` 取色。
 - 强调色走 `accent_color(accent)`，由 `WindowService.apply_theme_accent` 调组件库的 `setThemeColor` 下发；组件库 1.11 没有读取系统强调色的接口，`system_accent_color()` 自己读 `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent` 的 `AccentColorMenu`（ABGR 排列），读不到再退 `DWM\AccentColor`，最后回落 `#0078d4`。选择存在 `settings.json` 的 `gui/theme/accent`，默认蓝色。
 - 云母与亚克力材质开启时窗口必须是全透明，只有实色材质才用窗口底色，主窗口的 `_normalBackgroundColor` 委托给 `app/gui/window/service.py` 的 `WindowService`，窗口材质由该服务的 `apply_window_material` 统一应用。

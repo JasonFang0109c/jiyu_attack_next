@@ -5,7 +5,6 @@ from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout
 from qfluentwidgets import (
     BodyLabel,
     CaptionLabel,
-    ComboBox,
     PushButton,
     SwitchButton,
     Theme,
@@ -24,7 +23,7 @@ from app.features.settings.data import (
     normalize_window_material,
     window_material_available,
 )
-from app.gui.widgets.common import SectionCard, page_heading
+from app.gui.widgets.common import FluentComboBox, SectionCard, page_heading
 from app.gui.widgets.page import Page
 from app.shared.logs.levels import FORCED_LEVEL
 
@@ -79,7 +78,7 @@ class SettingsPage(Page):
         theme_row = QHBoxLayout()
         theme_row.addWidget(setting_label("颜色模式", self))
         theme_row.addStretch()
-        self.theme_box = ComboBox(self)
+        self.theme_box = FluentComboBox(self)
         self.theme_box.addItems(["浅色", "深色", "跟随系统"])
         themes = [Theme.LIGHT, Theme.DARK, Theme.AUTO]
         # 配置被手改成未知值时退回“跟随系统”，避免设置页构造失败。
@@ -95,7 +94,7 @@ class SettingsPage(Page):
         material_row = QHBoxLayout()
         material_row.addWidget(setting_label("窗口材质", self))
         material_row.addStretch()
-        self.material_box = ComboBox(self)
+        self.material_box = FluentComboBox(self)
         for material in WINDOW_MATERIALS:
             self.material_box.addItem(
                 WINDOW_MATERIAL_LABELS[material], userData=material
@@ -120,7 +119,7 @@ class SettingsPage(Page):
         accent_row = QHBoxLayout()
         accent_row.addWidget(setting_label("主题色", self))
         accent_row.addStretch()
-        self.accent_box = ComboBox(self)
+        self.accent_box = FluentComboBox(self)
         for accent in THEME_ACCENTS:
             self.accent_box.addItem(THEME_ACCENT_LABELS[accent], userData=accent)
         self.accent_box.setCurrentIndex(
@@ -157,7 +156,7 @@ class SettingsPage(Page):
         log_row = QHBoxLayout()
         log_row.addWidget(setting_label("运行日志等级", self))
         log_row.addStretch()
-        self.log_level_box = ComboBox(self)
+        self.log_level_box = FluentComboBox(self)
         levels = [str(level) for level in LOG_LEVELS]
         self.log_level_box.addItems(levels)
         current = str(self.log_store.minimum_level)

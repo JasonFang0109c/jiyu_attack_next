@@ -2,10 +2,11 @@
 
 from PySide6.QtCore import Slot
 from PySide6.QtWidgets import QAbstractItemView, QHBoxLayout, QTableWidgetItem
-from qfluentwidgets import BodyLabel, CaptionLabel, ComboBox
+from qfluentwidgets import BodyLabel, CaptionLabel
 from qfluentwidgets import FluentIcon as FIF
 
 import app.system.net.targets as system_net_targets
+from app.gui.widgets.common import FluentComboBox
 from app.gui.widgets.page import NetworkPage, table_widget
 
 # 操作代码、显示名与图标：代码沿用发送层已有的 r/s/l。
@@ -26,7 +27,7 @@ class DevicePage(NetworkPage):
         row.addWidget(BodyLabel("操作", self.content_card))
         # 三项操作是互斥的单选，下拉框与设置页的选择器同款，占位也比
         # 分段选择器小，页面留出的高度都让给下面的预览表。
-        self.action_box = ComboBox(self.content_card)
+        self.action_box = FluentComboBox(self.content_card)
         for key, text, icon in DEVICE_ACTIONS:
             self.action_box.addItem(text, icon=icon, userData=key)
         self.action_box.setMinimumWidth(180)

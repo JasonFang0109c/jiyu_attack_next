@@ -1,10 +1,15 @@
 """防火墙页：阻断或恢复 StudentMain.exe 的联网规则。"""
 
 from PySide6.QtWidgets import QHBoxLayout, QHeaderView, QTableWidgetItem
-from qfluentwidgets import BodyLabel, ComboBox, setFont
+from qfluentwidgets import BodyLabel, setFont
 from qfluentwidgets import FluentIcon as FIF
 
-from app.gui.widgets.common import SectionCard, TaskFooter, page_heading
+from app.gui.widgets.common import (
+    FluentComboBox,
+    SectionCard,
+    TaskFooter,
+    page_heading,
+)
 from app.gui.widgets.page import Page, table_widget
 
 
@@ -20,7 +25,7 @@ class FirewallPage(Page):
         setFont(rule, 16)
         row.addWidget(rule)
         row.addStretch()
-        self.action_box = ComboBox(self)
+        self.action_box = FluentComboBox(self)
         self.action_box.addItems(["阻断连接", "恢复允许"])
         self.action_box.setMinimumWidth(170)
         row.addWidget(self.action_box)

@@ -2,11 +2,16 @@
 
 from PySide6.QtCore import QSignalBlocker, Qt, QTimer, Signal, Slot
 from PySide6.QtWidgets import QHBoxLayout, QTableWidgetItem
-from qfluentwidgets import CaptionLabel, ComboBox, SearchLineEdit
+from qfluentwidgets import CaptionLabel, SearchLineEdit
 from qfluentwidgets import FluentIcon as FIF
 
 from app.features.logs.data import LOG_LEVELS
-from app.gui.widgets.common import SectionCard, page_heading, tool_button
+from app.gui.widgets.common import (
+    FluentComboBox,
+    SectionCard,
+    page_heading,
+    tool_button,
+)
 from app.gui.widgets.page import LogHeaderView, LogTableWidget, Page, table_widget
 
 
@@ -43,7 +48,7 @@ class LogPage(Page):
         self.search.setPlaceholderText("搜索日志")
         self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(self._on_query_changed)
-        self.category = ComboBox(self)
+        self.category = FluentComboBox(self)
         self.category.addItems(
             [
                 "全部功能",
@@ -59,7 +64,7 @@ class LogPage(Page):
         )
         self.category.currentIndexChanged.connect(self.apply_filter)
         self.category.setMinimumWidth(130)
-        self.level_filter = ComboBox(self)
+        self.level_filter = FluentComboBox(self)
         self.level_filter.addItems(["全部级别"] + [str(level) for level in LOG_LEVELS])
         self.level_filter.currentIndexChanged.connect(self.apply_filter)
         self.level_filter.setMinimumWidth(120)

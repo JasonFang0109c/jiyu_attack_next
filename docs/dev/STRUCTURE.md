@@ -73,7 +73,7 @@ jiyu_attack_next/
 |   |   |-- splash.py              # 启动遮罩
 |   |   |-- window_effect.py       # 窗口材质适配
 |   |   |-- widgets/
-|   |   |   |-- common.py          # FluentCard、连接参数与任务栏
+|   |   |   |-- common.py          # 卡片、浮出层圆角与连接参数
 |   |   |   `-- page.py            # 页面基类、顶部导航容器、文件树与日志表格
 |   |   |-- menu/
 |   |   |   |-- sidebar.py         # 侧边栏绘制与宽度动画
@@ -191,7 +191,7 @@ jiyu_attack_next/
 - `app/gui/window/main.py` 的 `MainWindow` 显式创建页面和服务、连接信号并保留 Qt 槽与事件入口；具体交互交给 `app/gui/service.py`、`app/gui/menu/service.py`、`app/gui/workers/service.py`、`app/gui/window/service.py`、`app/gui/window/tray.py` 和各功能的 `gui/service.py`。
 - 页面位于 `app/features/<功能>/gui/page.py`；消息、文件、防火墙、本机信息、学生端和日志功能的 GUI 服务与页面同目录。CLI 与 GUI 复用无 Qt 的业务服务，文件对话框、提示、信号和控件状态保留在 GUI 适配层。
 - 导航常量位于 `app/gui/window/data.py`，`app/gui/menu/service.py` 注册一级入口、页面路由与返回按钮；`app/gui/menu/sidebar.py` 处理侧边栏绘制、宽度动画与顶部工具按钮排列。侧边栏只有一级入口，组内页面由 `TabbedPage` 用 `Pivot` 承载。
-- `app/gui/widgets/common.py` 提供 `FluentCard`、`FluentDialog`、连接参数与任务栏，`app/gui/widgets/page.py` 提供页面基类、文件树和日志表格；`app/gui/theme.py` 集中保存视觉数值。
+- `app/gui/widgets/common.py` 提供 `FluentCard`、`FluentDialog`、`FluentComboBox`、浮出层圆角的覆盖函数，连接参数与任务栏，`app/gui/widgets/page.py` 提供页面基类、文件树和日志表格；`app/gui/theme.py` 集中保存视觉数值。
 - `app/gui/workers/tasks.py` 定义后台线程与结果信号，`app/gui/workers/service.py` 管理排队、取消和线程收尾。失败信号携带异常消息与堆栈，由 GUI 主线程恢复界面状态。
 - `app/gui/data.py` 仅保留 `ConnectionState`。设备备注的数据约定与业务在 `app/features/names/data.py`、`service.py`，`gui/data.py` 的 `DeviceAliasStore` 只做 Qt 信号适配；日志实体在 `app/features/logs/data.py`，带线程通知与持久化的 `LogStore` 位于 `gui/data.py`；设置键与存储入口在 `app/features/settings/data.py`、`service.py`，页面在 `gui/page.py`。
 - `settings.json` 中的 `core`、`gui` 分组是既有持久化格式，不随源代码目录划分改变。通用 JSONC 与分组存储分别由 `app/shared/config.py`、`app/shared/settings.py` 提供。

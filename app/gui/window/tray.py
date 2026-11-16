@@ -14,6 +14,7 @@ from app.features.settings.data import (
     CLOSE_BEHAVIOR_TRAY,
     FIRST_CLOSE_PROMPT_SETTINGS_KEY,
 )
+from app.gui.widgets.common import round_menu
 from app.gui.window.data import APP_NAME
 from app.shared.settings import STATUS_NO_ERROR
 
@@ -37,6 +38,7 @@ class TrayService:
         window.tray_icon = QSystemTrayIcon(window.windowIcon(), window)
         window.tray_icon.setToolTip(APP_NAME)
         window.tray_menu = SystemTrayMenu(parent=window)
+        round_menu(window.tray_menu)
         window.tray_menu.addActions(
             [
                 Action("显示主窗口", triggered=window.show_from_tray),

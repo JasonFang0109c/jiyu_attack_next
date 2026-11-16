@@ -42,6 +42,7 @@ from qfluentwidgets import (
     BodyLabel,
     CaptionLabel,
     Dialog,
+    FluentIcon,
     FluentWindow,
     HyperlinkButton,
     LineEdit,
@@ -2649,6 +2650,31 @@ class GuiTests(unittest.TestCase):
             settings_data.normalize_theme_accent("未知主题色"),
             settings_data.DEFAULT_THEME_ACCENT,
         )
+
+    def test_overlay_surfaces_follow_overlay_corner_radius(self):
+        radius = "border-radius: %dpx" % theme.OVERLAY_CORNER_RADIUS
+        settings_page = self.window.pages["settings"]
+        menu = settings_page.accent_box._createComboMenu()
+        self.assertIn(radius, menu.view.styleSheet())
+        self.assertNotIn(
+            "MenuActionListWidget { border-radius: 9px", menu.view.styleSheet()
+        )
+
+        button = components.tool_button(
+            FluentIcon.DELETE, "清理", self.window, lambda: None
+        )
+        filters = button.findChildren(components.FluentToolTipFilter)
+        self.assertEqual(len(filters), 1)
+        tooltip = filters[0]._createToolTip()
+        self.assertIn(radius, tooltip.styleSheet())
+        self.assertIn(radius, tooltip.container.styleSheet())
+        # 重复套用不会叠加样式，切换主题后显示前会补一次
+        components.round_tool_tip(tooltip)
+        self.assertEqual(tooltip.styleSheet().count(radius), 1)
+
+        tray_menu = self.window.tray_menu
+        if tray_menu is not None:
+            self.assertIn(radius, tray_menu.view.styleSheet())
 
     def test_legacy_blur_switch_maps_to_window_material(self):
         self.assertEqual(

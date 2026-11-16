@@ -56,6 +56,64 @@ SCROLL_BAR_FADE_MS = 900
 SCROLL_BAR_HANDLE_SIZE = 2
 
 
+def _overlay_radius_qss(selector):
+    """生成把悬浮层圆角改成本项目浮出层圆角的 QSS 片段。"""
+    return "%s { border-radius: %dpx; }" % (selector, OVERLAY_CORNER_RADIUS)
+
+
+def _append_qss(widget, selector):
+    """把圆角片段追加到控件样式表，已追加过就不再重复。"""
+    rule = _overlay_radius_qss(selector)
+    if rule in widget.styleSheet():
+        return
+    widget.setStyleSheet(widget.styleSheet() + "\n" + rule)
+
+
+def round_menu(menu):
+    """覆盖菜单主体的圆角，组件库自己给的是 9 像素。
+
+    Args:
+        menu: ``RoundMenu`` 或其子类，菜单主体在它的 ``view`` 上。
+    """
+    view = getattr(menu, "view", None)
+    if view is not None:
+        _append_qss(view, "MenuActionListWidget")
+
+
+def round_tool_tip(tooltip):
+    """覆盖悬停气泡的圆角，组件库自己给的是 4 像素。
+
+    Args:
+        tooltip: ``ToolTip`` 实例，可见的圆角面在它的 ``container`` 上。
+    """
+    _append_qss(tooltip, "ToolTip")
+    _append_qss(tooltip.container, "#container")
+
+
+class FluentComboBox(ComboBox):
+    """下拉框：弹出的菜单跟着浮出层圆角走。"""
+
+    def _createComboMenu(self):
+        menu = super()._createComboMenu()
+        round_menu(menu)
+        return menu
+
+
+class FluentToolTipFilter(ToolTipFilter):
+    """工具提示：气泡跟着浮出层圆角走。"""
+
+    def _createToolTip(self):
+        tooltip = super()._createToolTip()
+        round_tool_tip(tooltip)
+        return tooltip
+
+    def showToolTip(self):
+        # 切换主题会重刷气泡样式，显示前补一次
+        if self._tooltip is not None:
+            round_tool_tip(self._tooltip)
+        super().showToolTip()
+
+
 def _keep_thin(bar):
     """把滑块压回固定尺寸；组件库会在悬停动画里把它改宽。"""
     if bar.orientation() == Qt.Orientation.Vertical:
@@ -107,7 +165,7 @@ def tool_button(icon, text, parent, callback):
     button.setAccessibleName(text)
     button.setFixedSize(34, 34)
     button.installEventFilter(
-        ToolTipFilter(button, showDelay=300, position=ToolTipPosition.TOP)
+        FluentToolTipFilter(button, showDelay=300, position=ToolTipPosition.TOP)
     )
     button.clicked.connect(lambda checked=False: callback())
     return button
@@ -123,7 +181,7 @@ def info_button(text, parent):
     button.setFixedSize(28, 28)
     button.setIconSize(QSize(16, 16))
     button.installEventFilter(
-        ToolTipFilter(button, showDelay=300, position=ToolTipPosition.TOP)
+        FluentToolTipFilter(button, showDelay=300, position=ToolTipPosition.TOP)
     )
     return button
 
@@ -538,7 +596,7 @@ class TargetControls(QWidget):
     def _create_device_dialog(self):
         dialog = FluentDialog("选择设备", "选择一个设备备注作为当前目标：", self)
         dialog.setFixedSize(420, 236)
-        selector = ComboBox(dialog)
+        selector = FluentComboBox(dialog)
         selector.setMinimumWidth(340)
         for name, address in self.state.aliases.items():
             selector.addItem("%s  ·  %s" % (name, address), userData=name)
