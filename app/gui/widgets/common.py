@@ -14,7 +14,6 @@ from PySide6.QtCore import (
     Slot,
 )
 from PySide6.QtGui import (
-    QColor,
     QIntValidator,
     QPainter,
     QRegularExpressionValidator,
@@ -48,6 +47,7 @@ from app.gui.theme import (
     OVERLAY_CORNER_RADIUS,
     card_fill,
     card_stroke,
+    scroll_colors,
 )
 
 # 滚动条出现后停留的时长：滚动停下后过一会儿就消失。
@@ -70,8 +70,9 @@ def _fade_scroll_bar(bar):
     """让滚动条只在滚动时短暂出现，且始终是一条很细的淡色滑块。"""
     if getattr(bar, "_transient_scroll_timer", None) is not None:
         return
-    bar.setGrooveColor(QColor(0, 0, 0, 0), QColor(255, 255, 255, 0))
-    bar.setHandleColor(QColor(0, 0, 0, 70), QColor(255, 255, 255, 60))
+    groove_light, groove_dark, handle_light, handle_dark = scroll_colors()
+    bar.setGrooveColor(groove_light, groove_dark)
+    bar.setHandleColor(handle_light, handle_dark)
     bar.setHandleDisplayMode(ScrollBarHandleDisplayMode.ALWAYS)
     _keep_thin(bar)
     bar.handle.setOpacity(0)

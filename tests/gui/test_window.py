@@ -501,6 +501,17 @@ class GuiTests(unittest.TestCase):
         self.application.processEvents()
         # 导航栏只占自身宽度，不能被行内的多余空间撑开。
         self.assertEqual(remote.pivot.width(), remote.pivot.sizeHint().width())
+        # 组标题的顶部留白与普通页一致，换页时标题不会上下跳。
+        title = remote.findChild(SubtitleLabel)
+        self.window.show_page("studentproc")
+        self.application.processEvents()
+        plain = self.window.pages["studentproc"].findChild(SubtitleLabel)
+        self.assertEqual(
+            title.mapTo(self.window, title.rect().topLeft()).y(),
+            plain.mapTo(self.window, plain.rect().topLeft()).y(),
+        )
+        self.window.show_page("remote")
+        self.application.processEvents()
         QTest.mouseClick(remote.pivot.items["file"], Qt.MouseButton.LeftButton)
         self.application.processEvents()
         self.assertEqual(remote.pivot.currentRouteKey(), "file")

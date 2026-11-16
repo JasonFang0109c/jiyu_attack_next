@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
 from qfluentwidgets import CaptionLabel, LineEdit, PrimaryPushButton, PushButton
 from qfluentwidgets import FluentIcon as FIF
 
-from app.gui.theme import CONTROL_CORNER_RADIUS
+from app.gui.theme import CONTROL_CORNER_RADIUS, tone_color
 from app.gui.widgets.common import (
     FluentDialog,
     Ipv4TargetInput,
@@ -164,7 +164,9 @@ class AliasPage(Page):
 
     def _set_status(self, text, error=False):
         self.status.setText(text)
-        self.status.setStyleSheet("color: #c42b1c;" if error else "")
+        self.status.setStyleSheet(
+            "color: %s;" % tone_color("error").name() if error else ""
+        )
         self.status.setVisible(bool(text))
 
     def _reset_form(self):

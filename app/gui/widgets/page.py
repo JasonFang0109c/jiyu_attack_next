@@ -252,7 +252,8 @@ class TabbedPage(Page):
         self.vbox.setSpacing(0)
         title_row = QWidget(self)
         title_layout = QHBoxLayout(title_row)
-        title_layout.setContentsMargins(28, 16, 28, 0)
+        # 顶部留白与普通页的 24 像素一致，组标签页的标题才和“启停学生端”对齐。
+        title_layout.setContentsMargins(28, 24, 28, 0)
         title_layout.addWidget(SubtitleLabel(title, title_row))
         title_layout.addStretch()
         self.vbox.addWidget(title_row)
@@ -262,9 +263,10 @@ class TabbedPage(Page):
         self.pivot.setIndicatorLength(16)
         nav_row = QWidget(self)
         nav_layout = QHBoxLayout(nav_row)
-        # 导航项自带上下各 10 像素内边距，标题到文字的间距要靠这里补，
-        # 让“标题→导航”和“指示条→卡片”看起来一样宽。
-        nav_layout.setContentsMargins(16, 12, 16, 0)
+        # 导航项自带上下各 10 像素内边距，所以这里只补 6 像素：标题到导航文字
+        # 16、指示条到卡片 24，正好是 WinUI 间距规范里“控件与标头 8、内容区域
+        # 之间 12”的 2:3。
+        nav_layout.setContentsMargins(16, 6, 16, 0)
         nav_layout.setSpacing(0)
         # 靠左对齐让导航栏保持自身宽度，否则行内的多余空间会把它撑开。
         nav_layout.addWidget(self.pivot, 0, Qt.AlignLeft)

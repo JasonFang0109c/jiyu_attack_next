@@ -1,12 +1,13 @@
 """启停学生端页：自动识别本机极域学生端，按状态启动或结束。"""
 
 from PySide6.QtCore import Signal
-from PySide6.QtGui import QColor, QGuiApplication
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QHBoxLayout, QTableWidgetItem
-from qfluentwidgets import BodyLabel, CaptionLabel, PushButton, isDarkTheme, setFont
+from qfluentwidgets import BodyLabel, CaptionLabel, PushButton, setFont
 from qfluentwidgets import FluentIcon as FIF
 
 from app.features.student.data import STUDENT_PORT
+from app.gui.theme import tone_color
 from app.gui.widgets.common import SectionCard, page_heading, tool_button
 from app.gui.widgets.page import Page, table_widget
 
@@ -21,23 +22,6 @@ START_HINT = "本机没有学生端在运行，点一下启动它，恢复极域
 STOP_LABEL = "结束学生端"
 STOP_ICON = FIF.CANCEL_MEDIUM
 STOP_HINT = "学生端正在运行，点一下结束它，腾出被它独占的 4705 端口"
-
-# 状态行的语气色，沿用 Windows 状态提示的配色，深色主题另取一档。
-COLOR_OK = "#107C10"
-COLOR_WARNING = "#9D5D00"
-COLOR_ERROR = "#C42B1C"
-COLOR_NEUTRAL = "#605E5C"
-DARK_COLORS = {
-    COLOR_OK: "#6CCB5F",
-    COLOR_WARNING: "#FCE100",
-    COLOR_ERROR: "#FF99A4",
-    COLOR_NEUTRAL: "#A0A0A0",
-}
-
-
-def _tone_color(color):
-    """按当前主题返回状态色。"""
-    return DARK_COLORS.get(color, color) if isDarkTheme() else color
 
 
 class StudentProcessPage(Page):
@@ -136,11 +120,18 @@ class StudentProcessPage(Page):
         self.toggle_button.setAccessibleName(label)
         self.toggle_button.setEnabled(not busy)
 
-    def _set_status(self, text, tone=COLOR_NEUTRAL, icon="", detail=""):
-        """更新状态行；``detail`` 为空时隐藏第二行。"""
+    def _set_status(self, text, tone="neutral", icon="", detail=""):
+        """更新状态行；``detail`` 为空时隐藏第二行。
+
+        Args:
+            text: 状态说明文字。
+            tone: 文字语气，取 ``ok``、``warning``、``error`` 或 ``neutral``。
+            icon: 状态图标字符。
+            detail: 第二行的补充说明。
+        """
         self.status_icon.setText(icon)
         self.status.setText(text)
-        self.status.setStyleSheet("color: %s;" % _tone_color(tone))
+        self.status.setStyleSheet("color: %s;" % tone_color(tone).name())
         if detail:
             self.detail.setText(detail)
             self.detail.show()
@@ -197,7 +188,7 @@ class StudentProcessPage(Page):
                 cell.setToolTip(value)
                 if column == 2 and STUDENT_PORT in (item.get("ports") or []):
                     # 4705 被占用就是本页存在的理由，单独标出来。
-                    cell.setForeground(QColor(_tone_color(COLOR_ERROR)))
+                    cell.setForeground(tone_color("error"))
                 self.table.setItem(row, column, cell)
             self.table.setRowHeight(row, 38)
         self._refresh_status(exe_path)
@@ -208,7 +199,7 @@ class StudentProcessPage(Page):
         if not count:
             self._set_status(
                 "本机没有正在运行的学生端进程，%d 端口已腾出" % STUDENT_PORT,
-                COLOR_OK,
+                "ok",
                 "✓",
                 "点“启动学生端”可以重新把它拉起来，恢复极域课堂管理。",
             )
@@ -219,13 +210,13 @@ class StudentProcessPage(Page):
                     self.port_owner,
                     STUDENT_PORT,
                 )
-                tone, icon = COLOR_ERROR, "●"
+                tone, icon = "error", "●"
             else:
                 text = "检测到 %d 个学生端进程，但都没有占用 %d" % (
                     count,
                     STUDENT_PORT,
                 )
-                tone, icon = COLOR_WARNING, "!"
+                tone, icon = "warning", "!"
             detail = "共 %d 个学生端进程" % count
             if decoys:
                 detail += (

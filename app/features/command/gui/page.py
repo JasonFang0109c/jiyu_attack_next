@@ -6,6 +6,7 @@ from qfluentwidgets import BodyLabel, CaptionLabel, PlainTextEdit
 from qfluentwidgets import FluentIcon as FIF
 
 import app.packets.constants as packets_constants
+from app.gui.theme import tone_color
 from app.gui.widgets.common import tool_button
 from app.gui.widgets.page import NetworkPage
 
@@ -42,7 +43,9 @@ class CommandPage(NetworkPage):
             return
         limit = packets_constants.COMMAND_MAX_BYTES // 2
         self.statistics.setText("%d / %d 个 UTF-16 单元" % (units, limit))
-        self.statistics.setStyleSheet("color: #c42b1c;" if units > limit else "")
+        self.statistics.setStyleSheet(
+            "color: %s;" % tone_color("error").name() if units > limit else ""
+        )
 
     def set_busy(self, busy, cancellable=False, queueable=False):
         """在基类忙碌状态之外锁定编辑框与清空按钮，避免任务中改内容。"""

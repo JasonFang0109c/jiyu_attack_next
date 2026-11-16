@@ -93,6 +93,16 @@ self.table.blockSignals(True)
 - 待办写成 `# TODO(负责人): 具体动作`，负责人缺省时可省略括号。
 - 术语首次出现时写中文并附英文原词，例如“报文（DMOC）”。
 
+## 组件库资料
+
+界面组件来自 `qfluentwidgets`，只在新增或改动组件用法时查证，调整布局参数、文案或已有控件不必重新翻文档：
+
+- [QFluidWidgets 文档](https://qfluentwidgets.com/)
+- [PySide6 分支源码](https://github.com/zhiyiYo/PyQt-Fluent-Widgets/tree/PySide6)
+- [PySide6 示例](https://github.com/zhiyiYo/PyQt-Fluent-Widgets/tree/PySide6/examples)
+
+以 PySide6 分支与本项目安装的 `PySide6-Fluent-Widgets` 版本为准，不套用 PyQt5/PyQt6 示例。文档、示例与本地版本冲突时，先导入、读源码或写最小测试验证，再改代码。亚克力与云母统一调用组件自带的 `windowEffect`，不自行用 ctypes 操作窗口材质。
+
 ## 界面视觉规范
 
 界面数值以 Windows 11 的 WinUI 3 主题资源为准，写在 `app/gui/theme.py`，改界面时先取这里的常量，不要就地写字面量。`qfluentwidgets` 的默认值只作参考：浅色下它的卡片描边比 WinUI 淡，窗口底色也偏蓝。
@@ -102,9 +112,29 @@ self.table.blockSignals(True)
 | 令牌 | 值 | 用在哪 |
 | --- | --- | --- |
 | `ControlCornerRadius` | 4 | 控件与内容面：卡片、表格、树、输入框、按钮 |
-| `OverlayCornerRadius` | 8 | 浮出层：对话框、弹出菜单、提示气泡 |
+| `OverlayCornerRadius` | 8 | 项目自绘的浮出层：对话框；弹出菜单与提示气泡由组件库自绘，不再覆盖 |
 
 小圆角让内容面显得紧凑、成排卡片之间不打架；浮出层面积大、离背景更远，圆角大一点才和阴影一起成立。项目里对应 `CONTROL_CORNER_RADIUS` 与 `OVERLAY_CORNER_RADIUS`。
+
+### 页面骨架
+
+带顶部导航的容器页（远程攻击、本机工具）自上而下是“组标题 → 导航栏 → 子页面卡片”，三段留白按 WinUI 的间距阶梯固定：
+
+| 位置 | 值 | 依据 |
+| --- | --- | --- |
+| 组标题顶部留白 | 24 | 与普通页 `Page` 的 24 像素上边距一致，换页时标题不上下跳 |
+| 组标题到导航项文字 | 16 | 对应 WinUI“控件与标头 8 epx” |
+| 选中指示条到卡片 | 24 | 对应 WinUI“内容区域之间 12 epx” |
+
+两者按 8:12 排成 2:3：标题与导航同属页头，贴得近；导航与内容换了一组，拉开一档。导航项自带上下各 10 像素内边距，所以布局里只补 6 像素。参见[内容布局和间距](https://learn.microsoft.com/windows/apps/design/style/spacing)。
+
+导航栏用 `Pivot`，规格如表：
+
+| 项 | 值 | 说明 |
+| --- | --- | --- |
+| 导航项字号 | 14（`NAV_ITEM_PIXELS`） | 与卡片正文 `BodyLabel` 同号，比组标题 `SubtitleLabel` 的 20 小一档 |
+| 选中指示条 | 16×3，下缘留 4 | `PivotHeaderItem` 模板的 `SelectedPipe`，即 `setIndicatorLength(16)` |
+| 导航栏宽度 | 自身 `sizeHint` | 用 `addWidget(pivot, 0, Qt.AlignLeft)`；组件库 `sizePolicy` 是 `Minimum`，行内加 `addStretch()` 会把多余宽度平分给它 |
 
 ### 颜色
 
@@ -113,14 +143,21 @@ self.table.blockSignals(True)
 | `CardBackgroundFillColorDefault` | `#B3FFFFFF` | `#0DFFFFFF` | 卡片填充 |
 | `CardStrokeColorDefault` | `#0F000000` | `#19000000` | 卡片描边 |
 | `SolidBackgroundFillColorBase` | `#F3F3F3` | `#202020` | 窗口底色（实色材质） |
+| 语义色 ok | `#107C10` | `#6CCB5F` | 状态行、成功提示 |
+| 语义色 warning | `#9D5D00` | `#FCE100` | 需要留意但可恢复的状态 |
+| 语义色 error | `#C42B1C` | `#FF99A4` | 失败、越界、被占用等错误 |
+| 语义色 neutral | `#605E5C` | `#A0A0A0` | 中性说明文字 |
+| 滚动条滑块 | 黑色 27% | 白色 24% | 滚动时短暂出现的细滑块 |
 
-浅色下卡片是 70% 的白，压在灰底上刚好浮起一层；描边只有 6% 的黑，负责收边而不是勾轮廓。深色下填充几乎透明，靠 10% 的黑色描边把卡片压在深色背景上。
+浅色下卡片是 70% 的白，压在灰底上刚好浮起一层；描边只有 6% 的黑，负责收边而不是勾轮廓。深色下填充几乎透明，靠 10% 的黑色描边把卡片压在深色背景上。语义色只用于文字与图标，不给背景上色。
 
 ### 落点
 
-- `app/gui/theme.py` 存常量与取值函数：`card_fill()`、`card_stroke()`、`window_background(dark=None)`。
+- `app/gui/theme.py` 存常量与取值函数：`card_fill()`、`card_stroke()`、`window_background(dark=None)`、`tone_color(tone)`（`ok`/`warning`/`error`/`neutral`）、`scroll_colors()`。
 - `app/gui/widgets/common.py` 的 `FluentCard` 用 `paintEvent` 画填充与描边，`FluentDialog` 追加一条 QSS 覆盖组件库写死的 10 像素对话框圆角。
 - 新增卡片一律继承 `FluentCard`，不要直接用 `SimpleCardWidget`；新增对话框用 `FluentDialog`，不要直接用 `Dialog`。
+- 浮出层圆角只覆盖项目自绘的容器：`FluentDialog` 用 `OVERLAY_CORNER_RADIUS`；`RoundMenu`、`ToolTip`、`TeachingTip` 的圆角、描边与阴影由组件库自己绘制，按上节“复用组件库”的要求直接调用，不追加覆盖样式。
+- 状态文字的颜色一律走 `tone_color()`，不在页面里写 `#c42b1c` 这类字面量；滚动条滑块同理，用 `scroll_colors()` 取色。
 - 云母与亚克力材质开启时窗口必须是全透明，只有实色材质才用窗口底色，主窗口的 `_normalBackgroundColor` 委托给 `app/gui/window/service.py` 的 `WindowService`，窗口材质由该服务的 `apply_window_material` 统一应用。
 
 ## 每次写完代码跑格式化
