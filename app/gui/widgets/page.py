@@ -1,7 +1,7 @@
 """按功能组织的 Fluent 工作页面。"""
 
-from PySide6.QtCore import QEvent, QRectF, Qt, Signal
-from PySide6.QtGui import QPainter
+from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, Signal
+from PySide6.QtGui import QMouseEvent, QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
@@ -26,7 +26,65 @@ from app.gui.theme import CONTROL_CORNER_RADIUS
 from app.gui.widgets.common import SectionCard, TargetControls, TaskFooter, page_heading
 
 
-class SelectAllHeaderView(QHeaderView):
+class ResizableHeader(QHeaderView):
+    """可拖动列宽的表头。
+
+    Qt 只把列边界两侧各两个像素当作拖动区，缩放比例高的屏幕上很难抓准，
+    点偏了就会当成点选列。这里把热区放宽到两侧各 6 像素，并在悬停到
+    边界时显示左右拖动光标，列宽拖动才和运行日志的表格一样好用。
+    """
+
+    GRIP = 6
+
+    def __init__(self, orientation, parent=None):
+        super().__init__(orientation, parent)
+        self.setSectionsClickable(True)
+        self.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.setMouseTracking(True)
+        # 表头内容画在 viewport 上，光标要两处都设，悬停提示才跟着指针走
+        self.viewport().setMouseTracking(True)
+
+    def _grip_at(self, x):
+        """返回 ``x`` 附近列边界的横坐标，不在热区内返回 None。"""
+        for column in range(self.count()):
+            edge = self.sectionViewportPosition(column) + self.sectionSize(column)
+            if abs(x - edge) <= self.GRIP:
+                return edge
+        return None
+
+    def _show_grip_cursor(self, near):
+        """在表头与 viewport 上切换拖动光标。"""
+        shape = Qt.CursorShape.SplitHCursor if near else Qt.CursorShape.ArrowCursor
+        self.setCursor(shape)
+        self.viewport().setCursor(shape)
+
+    def mouseMoveEvent(self, event):
+        """悬停在列边界时给出拖动光标。"""
+        super().mouseMoveEvent(event)
+        if not event.buttons():
+            self._show_grip_cursor(self._grip_at(event.position().x()) is not None)
+
+    def mousePressEvent(self, event):
+        """按在边界附近时把按点对齐到边界，交给基类进入拖动状态。"""
+        edge = None
+        if event.button() == Qt.MouseButton.LeftButton:
+            edge = self._grip_at(event.position().x())
+        if edge is None:
+            super().mousePressEvent(event)
+            return
+        position = event.position()
+        snapped = QMouseEvent(
+            QEvent.Type.MouseButtonPress,
+            QPointF(edge, position.y()),
+            QPointF(self.viewport().mapToGlobal(QPointF(edge, position.y()).toPoint())),
+            event.button(),
+            event.buttons(),
+            event.modifiers(),
+        )
+        super().mousePressEvent(snapped)
+
+
+class SelectAllHeaderView(ResizableHeader):
     """在表头首列内嵌与行复选框一致的全选控件。"""
 
     CHECKBOX_SIZE = 18
@@ -240,6 +298,7 @@ def table_widget(
     table.setWordWrap(False)
     table.setBorderVisible(True)
     table.setBorderRadius(radius)
+    table.setHorizontalHeader(ResizableHeader(Qt.Orientation.Horizontal, table))
     table.horizontalHeader().setStretchLastSection(stretch_last)
     return table
 

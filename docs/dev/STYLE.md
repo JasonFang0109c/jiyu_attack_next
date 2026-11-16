@@ -181,6 +181,7 @@ WinUI 3 的全局资源只有两个：`ControlCornerRadius`（4）与 `OverlayCo
 - 新增卡片一律继承 `FluentCard`，不要直接用 `SimpleCardWidget`；新增对话框用 `FluentDialog`，不要直接用 `Dialog`。
 - 卡片圆角由 `FluentCard.__init__` 统一设成 `SURFACE_CORNER_RADIUS`，`SectionCard`、`ShortcutCard`、`ActionCard` 都继承它，不再各自写字面量。
 - 浮出层圆角覆盖到 `OVERLAY_CORNER_RADIUS`：`FluentDialog` 追加 `#centerWidget` 的圆角；菜单用 `round_menu()` 把组件库写死的 9 像素改成 8（下拉框走 `FluentComboBox`、托盘菜单在创建后调用）。`ToolTip` 不去覆盖，组件库给的 4 像素正是规范里的例外值。描边与阴影仍由组件库绘制，只是不再保留它自己的菜单圆角数值。
+- 表格表头统一用 `table_widget()` 装好的 `ResizableHeader`：它把列边界两侧各 6 像素都算作拖动区（Qt 自带只有 2 像素，缩放比例高的屏幕上抓不准），悬停时给出左右拖动光标；自定义表格不要再直接 `QHeaderView`，也不要给列设 `Stretch`，末列保持 `stretchLastSection` 跟随剩余宽度即可。
 - 状态文字的颜色一律走 `tone_color()`，不在页面里写 `#c42b1c` 这类字面量；滚动条滑块同理，用 `scroll_colors()` 取色。
 - 强调色走 `accent_color(accent)`，由 `WindowService.apply_theme_accent` 调组件库的 `setThemeColor` 下发；组件库 1.11 没有读取系统强调色的接口，`system_accent_color()` 自己读 `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent` 的 `AccentColorMenu`（ABGR 排列），读不到再退 `DWM\AccentColor`，最后回落 `#0078d4`。选择存在 `settings.json` 的 `gui/theme/accent`，默认蓝色。
 - 云母与亚克力材质开启时窗口必须是全透明，只有实色材质才用窗口底色，主窗口的 `_normalBackgroundColor` 委托给 `app/gui/window/service.py` 的 `WindowService`，窗口材质由该服务的 `apply_window_material` 统一应用。

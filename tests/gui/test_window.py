@@ -2651,6 +2651,47 @@ class GuiTests(unittest.TestCase):
             settings_data.DEFAULT_THEME_ACCENT,
         )
 
+    def test_tables_allow_dragging_column_widths(self):
+        for key, column in (("aliases", 0), ("studentproc", 1), ("logs", 1)):
+            self.window.show_page(key)
+            QTest.qWait(60)
+            table = self.window.pages[key].table
+            header = table.horizontalHeader()
+            self.assertIsInstance(header, page_widgets.ResizableHeader)
+            self.assertEqual(
+                header.sectionResizeMode(column), QHeaderView.ResizeMode.Interactive
+            )
+            viewport = header.viewport()
+            before = table.columnWidth(column)
+            # 按在边界内侧 5 像素也要能拖动，Qt 自带的 2 像素热区抓不到这里
+            edge = header.sectionViewportPosition(column) + header.sectionSize(column)
+            start = QPoint(edge - 5, viewport.height() // 2)
+            hover = QMouseEvent(
+                QEvent.Type.MouseMove,
+                QPointF(start),
+                QPointF(start),
+                Qt.MouseButton.NoButton,
+                Qt.MouseButton.NoButton,
+                Qt.KeyboardModifier.NoModifier,
+            )
+            self.application.sendEvent(viewport, hover)
+            self.assertEqual(viewport.cursor().shape(), Qt.CursorShape.SplitHCursor)
+            QTest.mousePress(
+                viewport,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+                start,
+            )
+            for step in range(1, 7):
+                QTest.mouseMove(viewport, start + QPoint(step * 8, 0))
+            QTest.mouseRelease(
+                viewport,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+                start + QPoint(48, 0),
+            )
+            self.assertGreater(table.columnWidth(column), before)
+
     def test_surfaces_follow_winui_corner_radius(self):
         overlay = "border-radius: %dpx" % theme.OVERLAY_CORNER_RADIUS
         settings_page = self.window.pages["settings"]
