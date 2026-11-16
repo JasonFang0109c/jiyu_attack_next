@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
 )
 from qfluentwidgets import (
     CheckBox,
-    SegmentedWidget,
+    Pivot,
     SubtitleLabel,
     TableWidget,
     TreeItemDelegate,
@@ -229,45 +229,45 @@ class Page(QWidget):
 class TabbedPage(Page):
     """用顶部导航栏承载多个子页面的容器页。
 
-    侧边栏只保留一个入口，组内的页面通过顶部的 ``SegmentedWidget`` 切换。
-    导航栏贴住内容区最上方，左侧与页面内容对齐 28 像素；选中项由组件库
-    绘成浮起的圆角块并带底部指示条，其余项保持透明。组标题位于导航栏下方，
-    子页面原来的页标题会隐藏，避免与分段文字重复。
+    侧边栏只保留一个入口，组内的页面通过组标题下方的 ``Pivot`` 切换。
+    导航栏左缘与页面内容对齐 28 像素，选中项由组件库在文字下方画出主题色
+    指示条并在切换时滑动过去，其余项只有文字。子页面原来的页标题会隐藏，
+    避免与导航文字重复。
 
     Attributes:
-        pivot: 组件库的 ``SegmentedWidget``，顶部导航栏。
-        stack: 子页面容器，索引与分段项一致。
+        pivot: 组件库的 ``Pivot``，组标题下方的导航栏。
+        stack: 子页面容器，索引与导航项一致。
     """
 
     def __init__(self, name, title, parent=None):
         super().__init__(name, parent)
-        # 导航栏贴住内容区最上方，不再缩在页面边距里面。
+        # 标题与导航栏各占一行，内容区不再缩在页面边距里面。
         self.vbox.setContentsMargins(0, 0, 0, 0)
         self.vbox.setSpacing(0)
-        self.pivot = SegmentedWidget(self)
-        self.pivot.setObjectName("pageSegmentedNav")
+        title_row = QWidget(self)
+        title_layout = QHBoxLayout(title_row)
+        title_layout.setContentsMargins(28, 16, 28, 0)
+        title_layout.addWidget(SubtitleLabel(title, title_row))
+        title_layout.addStretch()
+        self.vbox.addWidget(title_row)
+        self.pivot = Pivot(self)
+        self.pivot.setObjectName("pagePivotNav")
         nav_row = QWidget(self)
         nav_layout = QHBoxLayout(nav_row)
-        nav_layout.setContentsMargins(28, 14, 28, 8)
+        nav_layout.setContentsMargins(16, 2, 16, 0)
         nav_layout.setSpacing(0)
         # 靠左对齐让导航栏保持自身宽度，否则行内的多余空间会把它撑开。
         nav_layout.addWidget(self.pivot, 0, Qt.AlignLeft)
         self.vbox.addWidget(nav_row)
-        title_row = QWidget(self)
-        title_layout = QHBoxLayout(title_row)
-        title_layout.setContentsMargins(28, 6, 28, 0)
-        title_layout.addWidget(SubtitleLabel(title, title_row))
-        title_layout.addStretch()
-        self.vbox.addWidget(title_row)
         self.stack = QStackedWidget(self)
         self.vbox.addWidget(self.stack, 1)
         self.pivot.currentItemChanged.connect(self._follow_pivot)
-        # 导航栏的底色与指示条在绘制时按当前主题取值，切主题后重绘一次。
+        # 指示条按当前主题取色，切主题后重绘一次。
         qconfig.themeChanged.connect(self.pivot.update)
         self._routes = []
 
     def _follow_pivot(self, key):
-        """跟随分段项的选择切换子页面。"""
+        """跟随导航项的选择切换子页面。"""
         if key in self._routes:
             self.stack.setCurrentIndex(self._routes.index(key))
 
@@ -275,9 +275,9 @@ class TabbedPage(Page):
         """加入一个子页面并隐藏它重复的页标题。
 
         Args:
-            widget: 子页面，``objectName`` 同时作为分段项的路由键。
-            text: 分段项文字。
-            icon: 分段项图标，可以是 ``FluentIcon``。
+            widget: 子页面，``objectName`` 同时作为导航项的路由键。
+            text: 导航项文字。
+            icon: 导航项图标，可以是 ``FluentIcon``。
 
         Returns:
             int: 子页面在容器中的索引。
@@ -287,10 +287,10 @@ class TabbedPage(Page):
             title.hide()
         index = self.stack.addWidget(widget)
         route = widget.objectName()
-        # 点击分段项由组件库自己切换选中状态，这里只登记文字与图标。
+        # 点击导航项由组件库自己切换选中状态，这里只登记文字与图标。
         self.pivot.addItem(routeKey=route, text=text, icon=icon)
         self._routes.append(route)
-        # 首个分段项直接选中，导航栏才会绘制选中块与指示条。
+        # 首个导航项直接选中，导航栏才会画出指示条。
         if index == 0:
             self.pivot.setCurrentItem(route)
         return index

@@ -170,7 +170,7 @@ def center_dialog(dialog):
 def page_heading(layout, title, action=None):
     """在页面顶部插入“标题 + 右侧操作区”的一行。
 
-    标题带上 ``pageTitle`` 对象名：页面被放进分段导航容器时，容器可以按它
+    标题带上 ``pageTitle`` 对象名：页面被放进顶部导航容器时，容器可以按它
     隐藏重复的页标题，只保留顶部导航栏上的名字。
     """
     row = QHBoxLayout()

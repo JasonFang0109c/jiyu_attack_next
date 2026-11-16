@@ -47,7 +47,7 @@ from qfluentwidgets import (
     LineEdit,
     NavigationDisplayMode,
     NavigationItemHeader,
-    SegmentedWidget,
+    Pivot,
     SmoothScrollArea,
     StrongBodyLabel,
     Theme,
@@ -194,7 +194,7 @@ class GuiTests(unittest.TestCase):
         self.assertIsInstance(self.window, FluentWindow)
         self.assertEqual(self.window.windowTitle(), gui.APP_NAME)
         self.assertFalse(self.window.windowIcon().isNull())
-        # 首页、启停学生端、两个分段导航容器（远程攻击与本机工具）、设备备注、
+        # 首页、启停学生端、两个顶部导航容器（远程攻击与本机工具）、设备备注、
         # 运行日志、设置与关于，共 8 个一级页面。
         self.assertEqual(self.window.stackedWidget.count(), 8)
         self.assertEqual(self.window.current_page(), "home")
@@ -473,15 +473,19 @@ class GuiTests(unittest.TestCase):
             gui_data.TITLE_BAR_MARGIN,
         )
 
-    def test_top_nav_uses_segmented_widget(self):
+    def test_top_nav_uses_pivot(self):
         remote = self.window.pages["remote"]
-        # 导航栏贴住内容区顶边，首项默认选中并画出指示条。
+        # 页面自上而下是组标题、导航栏、子页面内容；首项默认选中并画出指示条。
         self.assertEqual(remote.vbox.contentsMargins().top(), 0)
-        self.assertIsInstance(remote.pivot, SegmentedWidget)
-        self.assertEqual(remote.vbox.indexOf(remote.pivot.parentWidget()), 0)
+        self.assertIsInstance(remote.pivot, Pivot)
+        self.assertEqual(remote.vbox.indexOf(remote.pivot.parentWidget()), 1)
+        self.assertLess(
+            remote.vbox.indexOf(remote.pivot.parentWidget()),
+            remote.vbox.indexOf(remote.stack),
+        )
         self.assertEqual(remote.pivot.currentRouteKey(), "message")
         self.assertEqual(remote.stack.currentIndex(), 0)
-        # 点击分段项切到对应子页面。
+        # 点击导航项切到对应子页面。
         self.window.show()
         self.window.show_page("remote")
         self.application.processEvents()
