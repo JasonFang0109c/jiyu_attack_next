@@ -18,6 +18,7 @@ from qfluentwidgets import (
     TreeItemDelegate,
     TreeWidget,
     qconfig,
+    setFont,
 )
 from qfluentwidgets.components.widgets.check_box import CheckBoxIcon
 
@@ -226,13 +227,17 @@ class Page(QWidget):
         self.vbox.setSpacing(20)
 
 
+NAV_ITEM_PIXELS = 16
+"""导航项字体的像素大小，比组标题的 20 小一档。"""
+
+
 class TabbedPage(Page):
     """用顶部导航栏承载多个子页面的容器页。
 
     侧边栏只保留一个入口，组内的页面通过组标题下方的 ``Pivot`` 切换。
-    导航栏左缘与页面内容对齐 28 像素，选中项由组件库在文字下方画出主题色
-    指示条并在切换时滑动过去，其余项只有文字。子页面原来的页标题会隐藏，
-    避免与导航文字重复。
+    导航栏左缘与页面内容对齐 28 像素，导航项文字比组标题小一档，选中项由
+    组件库在文字下方画出主题色指示条并在切换时滑动过去，其余项只有文字。
+    子页面原来的页标题会隐藏，避免与导航文字重复。
 
     Attributes:
         pivot: 组件库的 ``Pivot``，组标题下方的导航栏。
@@ -252,6 +257,8 @@ class TabbedPage(Page):
         self.vbox.addWidget(title_row)
         self.pivot = Pivot(self)
         self.pivot.setObjectName("pagePivotNav")
+        # 导航项比组标题(20)小一档，短横比组件默认的 16 像素更宽，更容易读出当前项。
+        self.pivot.setIndicatorLength(24)
         nav_row = QWidget(self)
         nav_layout = QHBoxLayout(nav_row)
         nav_layout.setContentsMargins(16, 2, 16, 0)
@@ -289,6 +296,8 @@ class TabbedPage(Page):
         route = widget.objectName()
         # 点击导航项由组件库自己切换选中状态，这里只登记文字与图标。
         self.pivot.addItem(routeKey=route, text=text, icon=icon)
+        # 组件默认 18 像素，这里统一压到比组标题小一档。
+        setFont(self.pivot.widget(route), NAV_ITEM_PIXELS)
         self._routes.append(route)
         # 首个导航项直接选中，导航栏才会画出指示条。
         if index == 0:

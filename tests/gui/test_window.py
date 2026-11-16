@@ -50,6 +50,7 @@ from qfluentwidgets import (
     Pivot,
     SmoothScrollArea,
     StrongBodyLabel,
+    SubtitleLabel,
     Theme,
     ToolTip,
     qconfig,
@@ -485,6 +486,11 @@ class GuiTests(unittest.TestCase):
         )
         self.assertEqual(remote.pivot.currentRouteKey(), "message")
         self.assertEqual(remote.stack.currentIndex(), 0)
+        # 导航项字号比组标题小一档，指示条比组件默认的 16 像素宽。
+        self.assertEqual(remote.pivot.indicatorLength(), 24)
+        title_font = remote.findChild(SubtitleLabel).font()
+        for item in remote.pivot.items.values():
+            self.assertLess(item.font().pixelSize(), title_font.pixelSize())
         # 点击导航项切到对应子页面。
         self.window.show()
         self.window.show_page("remote")
