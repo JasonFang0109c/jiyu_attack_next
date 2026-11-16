@@ -227,16 +227,17 @@ class Page(QWidget):
         self.vbox.setSpacing(20)
 
 
-NAV_ITEM_PIXELS = 12
-"""导航项字体的像素大小，比组标题的 20 小一档。"""
+NAV_ITEM_PIXELS = 14
+"""导航项字体的像素大小，与卡片里的 ``BodyLabel`` 一致，比组标题的 20 小一档。"""
 
 
 class TabbedPage(Page):
     """用顶部导航栏承载多个子页面的容器页。
 
     侧边栏只保留一个入口，组内的页面通过组标题下方的 ``Pivot`` 切换。
-    导航栏左缘与页面内容对齐 28 像素，导航项文字比组标题小一档，选中项由
-    组件库在文字下方画出主题色指示条并在切换时滑动过去，其余项只有文字。
+    导航栏左缘与页面内容对齐 28 像素，导航项文字与卡片正文同号（比组标题小
+    一档），选中项由组件库在文字下方画出 16×3 的主题色指示条并在切换时滑动
+    过去，其余项只有文字。
     子页面原来的页标题会隐藏，避免与导航文字重复。
 
     Attributes:
@@ -257,8 +258,8 @@ class TabbedPage(Page):
         self.vbox.addWidget(title_row)
         self.pivot = Pivot(self)
         self.pivot.setObjectName("pagePivotNav")
-        # 导航项比组标题(20)小一档，短横比组件默认的 16 像素更宽，更容易读出当前项。
-        self.pivot.setIndicatorLength(24)
+        # 短横沿用组件默认的 16×3，与 WinUI 的 PivotHeaderItem 选中条同规格。
+        self.pivot.setIndicatorLength(16)
         nav_row = QWidget(self)
         nav_layout = QHBoxLayout(nav_row)
         # 导航项自带上下各 10 像素内边距，标题到文字的间距要靠这里补，
