@@ -478,24 +478,59 @@ class GuiTests(unittest.TestCase):
         self.assertFalse(panel.returnButton.isVisible())
         self.assertEqual(panel.menuButton.x(), home_x)
 
-    def test_collapsed_title_bar_sits_left_of_sidebar_buttons(self):
+    def test_collapsed_panel_keeps_menu_button_and_shifts_return(self):
         self.window.show()
         panel = self.window.navigationInterface.panel
-        self.window.expand_navigation()
+        self.window.show_page("home")
         self.application.processEvents()
+        menu_home = panel.menuButton.mapTo(
+            self.window, panel.menuButton.rect().topLeft()
+        )
         panel.collapse()
-        # 折叠动画收窄后按钮才回到上下排列，等面板真正变窄再判断。
+        # 折叠动画收窄后按钮才换位置，等面板真正变窄再判断。
         self.wait_for(lambda: panel.width() <= 48)
         self.application.processEvents()
         self.window.show_page("message")
         self.application.processEvents()
         self.assertTrue(panel.isCollapsed())
         self.assertEqual(self.window.titleBar.x(), gui_data.TITLE_BAR_COLLAPSED_OFFSET)
-        # 折叠时两个按钮上下排列，都在标题栏左缘之外，点得到。
-        bar = self.window.titleBar.x()
-        for button in (panel.returnButton, panel.menuButton):
-            right = button.mapTo(self.window, button.rect().topRight()).x()
-            self.assertLessEqual(right, bar)
+        # 收起后菜单按钮留在标题栏这一行的原位，不落进导航项里。
+        self.assertEqual(
+            panel.menuButton.mapTo(self.window, panel.menuButton.rect().topLeft()),
+            menu_home,
+        )
+        home_item = self.window._navigation_item("home")
+        self.assertGreater(
+            home_item.mapTo(self.window, home_item.rect().topLeft()).y(),
+            panel.menuButton.mapTo(
+                self.window, panel.menuButton.rect().bottomLeft()
+            ).y(),
+        )
+        # 返回按钮移进标题栏图标左侧，不占侧边栏的位置。
+        self.assertIs(panel.returnButton.parent(), self.window.titleBar)
+        self.assertIs(
+            self.window.titleBar.hBoxLayout.itemAt(0).widget(), panel.returnButton
+        )
+        self.assertLess(
+            panel.returnButton.mapTo(
+                self.window, panel.returnButton.rect().topLeft()
+            ).x(),
+            self.window.titleBar.iconLabel.mapTo(
+                self.window, self.window.titleBar.iconLabel.rect().topLeft()
+            ).x(),
+        )
+        # 点返回回到首页后按钮交还侧边栏，展开时两个按钮重新并排。
+        panel.returnButton.click()
+        self.application.processEvents()
+        self.assertEqual(self.window.current_page(), "home")
+        self.assertIsNot(panel.returnButton.parent(), self.window.titleBar)
+        self.window.expand_navigation()
+        self.wait_for(lambda: not panel.isCollapsed())
+        self.application.processEvents()
+        self.window.show_page("message")
+        self.application.processEvents()
+        self.assertEqual(panel.returnButton.parent(), panel._tool_row)
+        self.assertGreater(panel.menuButton.x(), panel.returnButton.x())
 
     def test_navigation_click_starts_student_polling(self):
         self.window.show()
