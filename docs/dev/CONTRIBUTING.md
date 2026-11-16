@@ -51,24 +51,36 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Clean
 
 ## 代码风格
 
-排版交给 `ruff format`，静态检查交给 `ruff check`，注释与 docstring 手写，完整规则见[代码风格规范](STYLE.md)。**每写完一处代码就格式化一次**，不要攒到提交前统一处理。
+排版交给 `ruff format`，静态检查交给 `ruff check`，注释与 docstring 手写，**每写完一处代码就格式化一次**，不要攒到提交前统一处理。行宽、目标版本、docstring 与注释写法、界面视觉规范等完整规则见[代码风格规范](STYLE.md)；提交前用 `ruff format --check .` 与 `ruff check .` 确认没有待格式化或待修复内容，纯排版改动按 `style` 类型单独提交，不与功能改动混在一起。
+
+## 验证
+
+验证跟着改动走：只做这次改动真正能打断的检查，不为“稳妥”跑与改动无关的全套流程。
+
+| 改动内容 | 需要做的事 | 不需要做的事 |
+| --- | --- | --- |
+| 只改 Markdown、注释、docstring | 通读一遍，确认示例命令与路径没有写错 | 测试、`compileall`、构建、截图 |
+| 只改测试文件 | 跑被改的那个测试文件 | 全量测试、`compileall`、构建 |
+| 改 `app/features/` 的非界面业务、`app/packets/`、`app/system/`、`app/shared/` | 跑对应 `tests/unit/`、`tests/integration/` 测试；改动跨模块或涉及报文字节布局时跑全量测试 | 截图、构建 |
+| 改命令行启动或 `app/features/*/cli.py` | 跑 `tests.unit.test_cli_parser` 及对应的 `tests.integration.test_cli_commands`、`tests.integration.test_cli_lifecycle`、`tests.integration.test_entry` | 截图、构建 |
+| 改 `app/gui/`、`app/start/gui.py` 或 `app/features/*/gui/` 的逻辑（线程、任务分发、信号） | 跑 `tests.gui.test_window` 加对应界面或业务测试 | 截图（除非外观也变了） |
+| 改 GUI 外观、布局、文案或交互（含功能目录中的 GUI） | 跑 `tests.gui.test_window` 与对应界面测试，并按需截图确认 | 全量测试 |
+| 改 `pack/`、`scripts/`、依赖清单、构建配置 | 实际执行一次[构建](BUILD.md#构建-exe)，并用构建出的 EXE 冒烟 | 全量测试（除非同时改了 `app/`） |
+| 同时涉及多类 | 取并集，但每一项只做一次 | — |
 
 ```powershell
-.\.venv\Scripts\python.exe -m ruff format .
-.\.venv\Scripts\python.exe -m ruff check --fix .
-```
+# 单个文件
+.\.venv\Scripts\python.exe -B -m unittest tests.unit.test_cli_parser -v
 
-配置在根目录 `pyproject.toml`（行宽 88、目标版本 `py313`）。`app/packets/constants.py` 的十六进制报文数组由 ruff 排除，只能手工按现有换行维护，不要重排。提交前用 `ruff format --check .` 与 `ruff check .` 确认没有待格式化或待修复内容；纯排版改动按 `style` 类型单独提交，不与功能改动混在一起。
-
-## 离线检查
-
-按改动范围选择检查，具体对应关系见 [仓库协作规范](../../AGENTS.md#验证)：只改文档或注释时通读核对；代码改动跑相关测试，跨模块行为变化时跑全量测试；GUI 逻辑变化跑界面测试，外观或交互变化再按需截图。构建、打包配置或依赖变化时实际构建并用 EXE 冒烟，不重复运行无关检查。
-
-下面是全量测试命令；测试可以运行时无需额外执行 `compileall`，只有测试环境受限时才用语法检查补充验证。
-
-```powershell
+# 全量
 .\.venv\Scripts\python.exe -B -m unittest discover -s tests -t . -v
 ```
+
+- 语法检查用 `compileall` 只在无法运行测试时才有意义（例如改的是入口脚本或打包钩子）；测试能跑起来就不必再单独跑一遍。
+- 测试结果不稳定时先确认是否与本次改动相关；与改动无关的既有失败如实报告，不要反复重跑掩盖问题。
+- 只报告实际执行过的验证，未执行的检查要说明为什么不需要。
+- 截图只在意外观时做，命令是 `.\.venv\Scripts\python.exe -B -m tests.gui.verify_gui --page <页面> --screenshot <截图路径>`，需要深色主题时加 `--theme dark`。验证数据目录固定在 `build\verify-gui-data`，不碰 `output\JiYuAttackNextData`。
+- 测试、构建或截图验证后，按[残留清理](BUILD.md#残留清理)清掉本次产生的残留；是否构建按上表的改动范围判断，纯文档改动无需构建。
 
 ### 本机 IP 自测
 
@@ -228,7 +240,7 @@ Refs: #<实际编号>
 - 一个任务只提交一次，不要拆成多次提交，也不要混入其他任务的改动。
 - 对话中只完成了部分任务时，已完成的那些任务各自提交，未完成的保持未提交状态。
 
-提交前检查 `git status` 与 `git diff`，只暂存当前任务的相关文件，不带入无关改动或忽略文件；忽略文件约束见[仓库协作规范](../../AGENTS.md#忽略文件约束)。新规范仅用于后续提交，保留已有提交历史。
+提交前检查 `git status` 与 `git diff`，只暂存当前任务的相关文件，不带入无关改动或忽略文件；忽略文件约束见[仓库协作规范](../../AGENTS.md#硬性约束)。新规范仅用于后续提交，保留已有提交历史。
 
 ## 仓库配置
 

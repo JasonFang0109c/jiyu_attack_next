@@ -18,7 +18,7 @@ jiyu_attack_next/
 |   |-- nightly-build.yml           # Nightly 构建与滚动预发布
 |   `-- release.yml                 # 正式版发布（仅手动触发）
 |-- README.md                       # 项目介绍与文档导航
-|-- AGENTS.md                       # 仓库协作与按范围验证规范
+|-- AGENTS.md                       # 仓库协作索引：阅读范围与硬性约束
 |-- .gitmessage                     # Conventional Commits 提交模板
 |-- LICENSE                        # GNU General Public License v3.0
 |-- requirements.txt               # GUI 与构建依赖
@@ -210,7 +210,7 @@ jiyu_attack_next/
 2. 需要 CLI 时，在功能的 `cli.py` 定义 `register()` 并注册本功能参数，在 `app/start/parser.py` 的对应分组显式调用；在 `app/start/cli.py` 接入执行分发。
 3. 需要 GUI 时，在功能的 `gui/page.py` 定义页面，交互协调按需放入 `gui/service.py`，Qt 数据通知适配按需放入 `gui/data.py`。在 `app/gui/window/main.py` 显式导入、创建页面和服务、连接信号与槽，并更新 `app/gui/window/data.py` 的导航描述及相关菜单装配；仅有内部服务的功能不必创建页面。
 4. 耗时任务交给 `app/gui/workers/` 的线程与任务服务；通用控件复用 `app/gui/widgets/`，业务服务保持独立于窗口和 Qt 对象。新静态资源放入 `app/resources/` 并经 `resource_path()` 读取，新增打包资源时同步 `pack/JiYuAttackNext.spec`。
-5. 业务、报文与参数单元测试放入 `tests/unit/`，CLI/跨模块流程放入 `tests/integration/`，界面与线程行为放入 `tests/gui/`；打包或版本变化补 `tests/pack/`，共用替身复用 `tests/fixtures/offline.py`。按[验证范围](../../AGENTS.md#验证)选择检查。
+5. 业务、报文与参数单元测试放入 `tests/unit/`，CLI/跨模块流程放入 `tests/integration/`，界面与线程行为放入 `tests/gui/`；打包或版本变化补 `tests/pack/`，共用替身复用 `tests/fixtures/offline.py`。按[验证](CONTRIBUTING.md#验证)选择检查。
 6. 按影响范围更新 [CLI 文档](../usage/CLI.md)、[GUI 文档](../usage/GUI.md) 与本结构说明；新增依赖写入依赖清单并说明打包影响。提交类型与作用域继续按[项目作用域](CONTRIBUTING.md#项目作用域)选择，不按每个子目录机械新增 scope。
 
 ## 本地生成目录

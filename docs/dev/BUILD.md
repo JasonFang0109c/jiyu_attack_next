@@ -72,6 +72,22 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Python "C:\Python313\
 
 删除 `build/` 不影响已生成的 EXE，下次构建会重新生成所需文件。`build/`、`output/` 与 `.venv/` 均由 `.gitignore` 排除，不提交 Git。构建前请关闭正在运行的同名程序。项目生成的是未签名 EXE，首次启动需数秒解压资源；EXE 只允许同时运行一个实例，再次启动会唤醒已有窗口。
 
+### 残留清理
+
+构建、测试与截图验证结束后立即清掉本次产生的残留，只留最近一次构建的两份 EXE：
+
+| 要删的路径 | 是什么 |
+| --- | --- |
+| `build\` | PyInstaller 的 `--workpath`，含中间文件、图标、验证截图与版本资源 |
+| `output\` 里旧版本号的 EXE | 与当前构建混淆，不保留历史版本 |
+| `.ruff_cache\`、`.pytest_cache\`、`.mypy_cache\` | 格式化、lint、测试与类型检查缓存 |
+| `__pycache__\`、`*.pyc` | 字节码缓存 |
+| `.coverage`、`htmlcov\` | 覆盖率数据与报告 |
+
+命令自带 `--no-cache`（ruff）与 `-B`（python）能少生成一部分缓存，但收尾时仍要把已经出现的目录删掉，不要只靠 `.gitignore` 兜底，避免污染备份与磁盘。
+
+**不删 `output\JiYuAttackNextData\`**：里面的备注、设置与运行日志是用户自己的数据，构建、测试或截图都不该动它。需要干净的验证环境时改用临时数据目录（截图验证用 `build\verify-gui-data`）或在其他目录运行，不要清掉这份数据。
+
 ## 体积控制
 
 单文件程序把 Qt、Python 与依赖一起打包，任何一份多余的 DLL 都会直接进入分发包。`pack/JiYuAttackNext.spec` 在 `a.binaries` 上做了一次过滤，规则集中在四个集合里：
@@ -102,7 +118,7 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json`
 
 | 文件 | 名称 | 触发 | 用途 |
 | --- | --- | --- | --- |
-| `build.yml` | `Build` | 被下面两个工作流调用 | 复用打包流程：解析版本号、跑离线检查、构建并上传资产 |
+| `build.yml` | `Build` | 被下面两个工作流调用 | 复用打包流程：解析版本号、跑验证检查、构建并上传资产 |
 | `nightly-build.yml` | `Nightly Build` | 推送到 `main` 且改动影响产物，或手动运行 | 构建 nightly 并滚动更新 `nightly` 预发布 |
 | `release.yml` | `Release` | 仅在 Actions 页面手动运行 | 构建正式版并创建 `vX.Y.Z` 正式发布 |
 
@@ -113,7 +129,7 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json`
 - 推送到 `main` 时按改动路径决定是否运行：只有 `app/`（含 `app/resources/`）、`pack/`、`scripts/`、`requirements.txt` 或工作流文件本身发生变化才会触发，纯文档与测试改动不会重新编译 EXE。
 - 也可在 Actions 页面选择该工作流并点击 `Run workflow` 手动运行，手动运行需选择 `main` 分支才会发布；手动运行不受路径过滤限制。
 - 工作流文件首次进入默认分支后，Actions 页面才会显示手动运行入口。
-- 在 `windows-latest` 上使用 Python 3.13 安装依赖、执行离线检查并运行 `pack/build.ps1 -Clean`；构建脚本直接产出 `output/JiYuAttackNext-<显示版本>.exe` 与对应的调试版本，工作流再据此准备 `dist/` 下的资产。
+- 在 `windows-latest` 上使用 Python 3.13 安装依赖、执行离线检查（见[验证](CONTRIBUTING.md#验证)）并运行 `pack/build.ps1 -Clean`；构建脚本直接产出 `output/JiYuAttackNext-<显示版本>.exe` 与对应的调试版本，工作流再据此准备 `dist/` 下的资产。
 - 构建成功后更新标签为 `nightly`、标题为 `Nightly Build <版本>` 的预发布版本，资产只有两个：`JiYuAttackNext-<显示版本>.exe` 与 `JiYuAttackNext_Debug-<显示版本>.exe`，显示版本是基础版本号加提交哈希（如 `0.1.0-1a8ede3`）。不再发布固定名副本，免得每次推送都在发布页多堆两个文件（GUI 与 CLI 共用同一个 EXE，调试版只差日志等级）。
 - 发布说明包含版本号、构建时间、工作流运行记录、两个资产的 SHA256，`Commits` 章节列出本次构建对应的那条提交。
 - 路径过滤按整个推送的 `before..head` 判定，因此把文档提交与代码提交一起推送时仍会构建；`Commits` 章节据此说明本次构建实际包含哪些改动。
@@ -136,12 +152,7 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹：`settings.json`
 
 ## 验证
 
-验证项目按改动范围选择，详见 [开发与提交规范](CONTRIBUTING.md#离线检查)。下面是全量测试与截图验证的命令示例：跨模块行为变化时跑全量测试；只有外观、布局或交互需要视觉确认时才截图。构建脚本、打包配置或依赖变化后，实际构建并用 EXE 冒烟；纯文档改动无需执行。
-
-```powershell
-.\.venv\Scripts\python.exe -B -m unittest discover -s tests -t . -v
-.\.venv\Scripts\python.exe -B -m tests.gui.verify_gui --screenshot <截图路径>
-```
+验证按改动范围选择，完整规则、命令与残留清理见[开发与提交规范](CONTRIBUTING.md#验证)。与构建相关的只有一条硬要求：改动 `pack/`、`scripts/`、依赖清单或 `app/` 后必须实际构建，并用产出的 EXE 冒烟——`output\JiYuAttackNext-<显示版本>.exe --version`、`-h`，再打开一次图形界面确认平台插件、图标与命令行都没坏。
 
 没有第二台测试设备时，可另外运行本机 IP 自测：
 
