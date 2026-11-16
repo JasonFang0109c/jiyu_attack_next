@@ -136,33 +136,33 @@ class SidebarPanel(NavigationPanel):
         self._tool_layout.setSpacing(0)
         self._tool_horizontal = None
         self._tool_showing = None
-        self._return_in_title_bar = False
-        self._return_button_host = None
+        self._menu_in_title_bar = False
+        self._menu_button_host = None
         self.topLayout.addWidget(self._tool_row, 0, Qt.AlignTop)
         self.vBoxLayout.insertLayout(0, self.topLayout, 0)
         self._layout_tool_buttons()
 
     def _layout_tool_buttons(self):
-        """展开时两个按钮并排；收进图标栏时把返回按钮交给标题栏。
+        """展开时两个按钮并排；收进图标栏时把菜单按钮挪到标题栏。
 
         图标栏只有 48 像素宽，两个按钮并排放不下；上下排列又会让菜单按钮落进
-        导航项里，看起来像跑到侧边栏去了。改为收起时返回按钮移到标题栏图标左侧，
-        菜单按钮留在顶部原位。
+        导航项里，看起来像跑到侧边栏去。改为收起时返回按钮留在原位，菜单按钮
+        搬进标题栏紧跟在返回按钮后面，两者的先后顺序不变。
         """
         horizontal = self.width() >= 80
         showing = self._isReturnButtonVisible
         in_title_bar = showing and not horizontal
-        if in_title_bar != self._return_in_title_bar:
-            self._place_return_button(in_title_bar)
+        if in_title_bar != self._menu_in_title_bar:
+            self._place_menu_button(in_title_bar)
         if horizontal != self._tool_horizontal or showing != self._tool_showing:
             # 同一个网格只换行列位置，不重建布局，切换后能立即重新排布。
             self._tool_layout.removeWidget(self.returnButton)
             self._tool_layout.removeWidget(self.menuButton)
+            self._tool_layout.addWidget(self.returnButton, 0, 0, Qt.AlignTop)
             if not in_title_bar:
-                self._tool_layout.addWidget(self.returnButton, 0, 0, Qt.AlignTop)
-            # 返回按钮隐藏时菜单独占原来的位置，位置与动画前完全一致。
-            column = 1 if horizontal and showing else 0
-            self._tool_layout.addWidget(self.menuButton, 0, column, Qt.AlignTop)
+                # 返回按钮隐藏时菜单独占原来的位置，位置与动画前完全一致。
+                column = 1 if horizontal and showing else 0
+                self._tool_layout.addWidget(self.menuButton, 0, column, Qt.AlignTop)
             self._tool_horizontal = horizontal
             self._tool_showing = showing
         # 并排时菜单按钮会伸进标题栏原来的范围，先让标题栏让出这段宽度。
@@ -179,29 +179,29 @@ class SidebarPanel(NavigationPanel):
         if sync is not None:
             sync()
 
-    def _place_return_button(self, in_title_bar):
-        """把返回按钮在图标栏与标题栏之间搬一次。
+    def _place_menu_button(self, in_title_bar):
+        """把菜单按钮在图标栏与标题栏之间搬一次。
 
         Args:
             in_title_bar: 为真时放进标题栏图标左侧，否则放回侧边栏工具行。
         """
-        holder = self._return_button_host
+        holder = self._menu_button_host
         if holder is not None:
-            holder.hBoxLayout.removeWidget(self.returnButton)
-            self._return_button_host = None
-        self._tool_layout.removeWidget(self.returnButton)
+            holder.hBoxLayout.removeWidget(self.menuButton)
+            self._menu_button_host = None
+        self._tool_layout.removeWidget(self.menuButton)
         title_bar = getattr(self.window(), "titleBar", None)
         if in_title_bar and title_bar is not None:
-            self.returnButton.setFixedSize(40, 36)
+            self.menuButton.setFixedSize(40, 36)
             title_bar.hBoxLayout.insertWidget(
-                0, self.returnButton, 0, Qt.AlignLeft | Qt.AlignVCenter
+                0, self.menuButton, 0, Qt.AlignLeft | Qt.AlignVCenter
             )
-            self._return_button_host = title_bar
-            self._return_in_title_bar = True
+            self._menu_button_host = title_bar
+            self._menu_in_title_bar = True
             return
-        self.returnButton.setFixedSize(40, 36)
-        self._tool_layout.addWidget(self.returnButton, 0, 0, Qt.AlignTop)
-        self._return_in_title_bar = False
+        self.menuButton.setFixedSize(40, 36)
+        self._tool_layout.addWidget(self.menuButton, 0, 0, Qt.AlignTop)
+        self._menu_in_title_bar = False
 
     def tool_row_right(self):
         """返回顶部工具行右缘在窗口里的横坐标。
