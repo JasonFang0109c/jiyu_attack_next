@@ -227,7 +227,7 @@ class Page(QWidget):
         self.vbox.setSpacing(20)
 
 
-NAV_ITEM_PIXELS = 16
+NAV_ITEM_PIXELS = 12
 """导航项字体的像素大小，比组标题的 20 小一档。"""
 
 
@@ -261,7 +261,9 @@ class TabbedPage(Page):
         self.pivot.setIndicatorLength(24)
         nav_row = QWidget(self)
         nav_layout = QHBoxLayout(nav_row)
-        nav_layout.setContentsMargins(16, 2, 16, 0)
+        # 导航项自带上下各 10 像素内边距，标题到文字的间距要靠这里补，
+        # 让“标题→导航”和“指示条→卡片”看起来一样宽。
+        nav_layout.setContentsMargins(16, 12, 16, 0)
         nav_layout.setSpacing(0)
         # 靠左对齐让导航栏保持自身宽度，否则行内的多余空间会把它撑开。
         nav_layout.addWidget(self.pivot, 0, Qt.AlignLeft)

@@ -67,6 +67,7 @@ import app.features.settings.data as settings_data
 import app.features.settings.service as settings_service
 import app.features.shell.service as shell_service_business
 import app.features.student.service as student_service
+import app.gui.widgets.page as page_widgets
 import app.gui.window.data as gui_data
 import app.shared.config as shared_config
 import app.shared.paths as data_paths
@@ -490,6 +491,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(remote.pivot.indicatorLength(), 24)
         title_font = remote.findChild(SubtitleLabel).font()
         for item in remote.pivot.items.values():
+            self.assertEqual(item.font().pixelSize(), page_widgets.NAV_ITEM_PIXELS)
             self.assertLess(item.font().pixelSize(), title_font.pixelSize())
         # 点击导航项切到对应子页面。
         self.window.show()
