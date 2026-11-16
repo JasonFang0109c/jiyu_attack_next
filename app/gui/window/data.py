@@ -30,6 +30,8 @@ CAPTION_BUTTON_MARGIN = 8
 TITLE_BAR_MARGIN = 6
 # 组件库把标题栏固定在左侧 46 像素处，项目不改这个位置。
 TITLE_BAR_OFFSET = 46
+# 收起后的图标栏宽度，按钮把它整个占满。
+SIDEBAR_COLLAPSED_WIDTH = 48
 # 返回与菜单按钮并排叠在侧边栏左上角，尺寸与组件库的工具按钮一致。
 SIDEBAR_BUTTON_WIDTH = 40
 SIDEBAR_BUTTON_HEIGHT = 36

@@ -144,6 +144,7 @@ self.table.blockSignals(True)
 | --- | --- | --- |
 | 导航首项顶边 | 内容区顶边 + 5 | 对应 WinUI 的 `NavigationViewPaneContentGridMargin` 上 3 像素与 `NavigationViewItemButtonMargin` 上 2 像素 |
 | 侧边栏顶部留白 | 47（`SIDEBAR_HEADER_INSET`） | 面板内容从第 6 像素开始，加 47 后首项正好落在内容区顶边之下 5 像素 |
+| 收起宽度 | 48（`SIDEBAR_COLLAPSED_WIDTH`） | 与图标栏同宽，收展动画与窗口过窄时的自动收起都收敛到这个值 |
 | 顶部按钮位置 | 面板左上角 (5, 6)（`SIDEBAR_BUTTON_INSET`、`SIDEBAR_BUTTON_TOP`） | 与 WinUI 面板头部里工具按钮的内缩一致，紧贴面板左缘，不再跟着标题栏起点后移 |
 | 顶部按钮 | 40×36（`SIDEBAR_BUTTON_WIDTH`、`SIDEBAR_BUTTON_HEIGHT`） | 与组件库工具按钮同尺寸，在 48 像素高的顶部区里垂直居中 |
 | 按钮顺序 | 返回在左、菜单在右 | 返回按钮只在非首页出现，出现时把菜单按钮右移一个按钮宽 |

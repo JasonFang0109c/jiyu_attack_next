@@ -5,11 +5,10 @@ from PySide6.QtCore import (
     QPoint,
     QRect,
     QSize,
-    Qt,
     QVariantAnimation,
     Signal,
 )
-from PySide6.QtWidgets import QApplication, QHBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QWidget
 from qfluentwidgets import (
     NavigationDisplayMode,
     NavigationItemPosition,
@@ -23,6 +22,7 @@ from app.gui.window.data import (
     SIDEBAR_BUTTON_INSET,
     SIDEBAR_BUTTON_TOP,
     SIDEBAR_BUTTON_WIDTH,
+    SIDEBAR_COLLAPSED_WIDTH,
     SIDEBAR_HEADER_INSET,
     TITLE_BAR_MARGIN,
 )
@@ -32,6 +32,10 @@ class SidebarTreeWidget(NavigationTreeWidget):
     """保留分组选择，同时在图标模式下彻底隐藏后代节点。"""
 
     expansionChanged = Signal(bool)
+
+    # 与组件库的导航项同尺寸：收起时正方形图标块，展开时撑满面板。
+    ITEM_HEIGHT = 36
+    COMPACT_WIDTH = 40
 
     def setExpanded(self, isExpanded, ani=False):
         """设置分组状态；树节点即时布局，避免尺寸动画与面板动画竞争。
@@ -83,13 +87,13 @@ class SidebarTreeWidget(NavigationTreeWidget):
         return root
 
     def _layout_tree(self):
-        height = 36
+        height = self.ITEM_HEIGHT
         for child in self.treeChildren:
             visible = self.isExpanded and not self.isCompacted
             child.setVisible(visible)
             if visible:
                 height += child.height() + self.vBoxLayout.spacing()
-        width = 40 if self.isCompacted else self.EXPAND_WIDTH
+        width = self.COMPACT_WIDTH if self.isCompacted else self.EXPAND_WIDTH
         self.setFixedSize(width, height)
         self.vBoxLayout.invalidate()
         self.vBoxLayout.activate()
@@ -112,7 +116,9 @@ class SidebarPanel(NavigationPanel):
     layoutSettled = Signal()
 
     def __init__(self, parent):
+        # 基类构造里就会设置返回按钮的可见性，两个字段要先就位。
         self._expanded = False
+        self._tools = None
         super().__init__(parent)
         self._install_tools()
         # 选中标记由可见条目绘制，避免浮动标记跨布局移动到已隐藏的子项位置。
@@ -130,21 +136,17 @@ class SidebarPanel(NavigationPanel):
 
         按钮是窗口顶层的浮层，不参与面板与标题栏的布局，因此侧边栏收展只改
         变导航项，按钮、图标与标题都不会被排队、搬动或重算位置。按钮贴着面
-        板左缘，展开时压在面板顶部，收起时正好落在 48 像素的图标栏里。
+        板左缘，展开时压在面板顶部，收起时正好落在图标栏里。
 
         面板顶部的留白用 ``topLayout`` 的上边距给出：组件库会把“顶部”位置的
         导航项插进同一个布局，用间距只会把下面的滚动区一起推下去。
         """
         self._tools = QWidget(self.window())
-        layout = QHBoxLayout(self._tools)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
         self.topLayout.removeWidget(self.returnButton)
         self.topLayout.removeWidget(self.menuButton)
         for button in (self.returnButton, self.menuButton):
             button.setParent(self._tools)
             button.setFixedSize(SIDEBAR_BUTTON_WIDTH, SIDEBAR_BUTTON_HEIGHT)
-            layout.addWidget(button, 0, Qt.AlignTop)
         self.topLayout.setContentsMargins(4, SIDEBAR_HEADER_INSET, 4, 0)
         self.topLayout.setSpacing(4)
         self._settle_tools()
@@ -155,32 +157,38 @@ class SidebarPanel(NavigationPanel):
         self._settle_tools()
 
     def _settle_tools(self):
-        """按返回按钮的显隐定宽，并紧跟着排出图标与标题。
+        """按返回按钮的显隐排好按钮，并让图标与标题紧跟在它们右侧。
 
-        按钮是浮层，标题栏不知道它有多宽；这里把按钮多出来的宽度补成标题栏
-        布局的左内边距，图标与标题因此始终贴在按钮右侧，间距保持一致。侧边栏
-        收展不改变按钮宽度，也就不会牵动这一列。
+        返回按钮在左、菜单按钮在右；返回按钮出现时菜单按钮右移一个按钮宽，
+        浮层与标题栏的左内边距跟着加宽，图标与标题因此始终贴在按钮右侧。
+        侧边栏收展不改变按钮宽度，也就不会牵动这一列。
         """
-        tools = getattr(self, "_tools", None)
+        tools = self._tools
         if tools is None:
-            # 构造基类时就会设置返回按钮的可见性，此时按钮还没装上。
+            # 基类构造里会先设置一次返回按钮可见性，此时浮层还没装上。
             return
-        width = SIDEBAR_BUTTON_WIDTH
-        if self.returnButton.isVisibleTo(tools):
-            width *= 2
+        showing = self.returnButton.isVisibleTo(tools)
+        menu_x = SIDEBAR_BUTTON_WIDTH if showing else 0
+        self.returnButton.move(0, 0)
+        self.menuButton.move(menu_x, 0)
+        width = menu_x + SIDEBAR_BUTTON_WIDTH
         tools.setGeometry(
             SIDEBAR_BUTTON_INSET,
             SIDEBAR_BUTTON_TOP,
             width,
             SIDEBAR_BUTTON_HEIGHT,
         )
-        tools.raise_()
-        # 标题栏从固定的 46 像素起，按钮排在它左侧，因此只需把多出来的那个
-        # 按钮宽度补成左内边距，图标与标题就始终跟在按钮右侧，间距两种状态一致。
+        self._raise_tools()
+        # 标题栏固定从 46 像素起，按钮排在它左侧，所以只需把多出来的那个
+        # 按钮宽度补成左内边距，图标与标题就落在按钮右侧，间距两种状态一致。
         title_bar = self.window().titleBar
         title_bar.hBoxLayout.setContentsMargins(
             TITLE_BAR_MARGIN + width - SIDEBAR_BUTTON_WIDTH, 0, 0, 0
         )
+
+    def _raise_tools(self):
+        """面板或标题栏抬到最上层之后，把按钮重新压回它们上面。"""
+        self._tools.raise_()
 
     def insertItem(
         self,
@@ -222,27 +230,11 @@ class SidebarPanel(NavigationPanel):
         self.setProperty("menu", not inline)
         self.setStyle(QApplication.style())
         if inline:
-            self._parent.setFixedWidth(self.width())
-            if self.parent() is not self._parent:
-                self.setParent(self._parent)
-                self.move(0, 0)
-                self.show()
+            self._attach_to_parent()
         else:
-            self._parent.setFixedWidth(48)
-            if self._canDrawAcrylic():
-                self.acrylicBrush.grabImage(
-                    QRect(
-                        self.mapToGlobal(QPoint()),
-                        QSize(self.expandWidth, self.height()),
-                    )
-                )
-            if self.parent() is self._parent:
-                position = self._parent.pos()
-                self.setParent(self.window())
-                self.move(position)
-                self.show()
+            self._detach_to_window()
         # 浮出的面板是窗口的子控件，新排进最上层后要先让按钮浮回面板之上。
-        self._tools.raise_()
+        self._raise_tools()
         self.displayModeChanged.emit(self.displayMode)
         if changed:
             self.expandedChanged.emit(True)
@@ -263,7 +255,7 @@ class SidebarPanel(NavigationPanel):
         self.expandAni.setProperty("expand", False)
         self.menuButton.setToolTip(self.tr("Open Navigation"))
         self.expandedChanged.emit(False)
-        self._animate_width(48)
+        self._animate_width(SIDEBAR_COLLAPSED_WIDTH)
 
     def toggle(self):
         """动画中再次操作时直接转向最新请求。"""
@@ -274,6 +266,30 @@ class SidebarPanel(NavigationPanel):
 
     def isCollapsed(self):
         return not self._expanded
+
+    def _attach_to_parent(self):
+        """贴边展开：面板回到窗口布局里，宽度由父容器跟着撑开。"""
+        self._parent.setFixedWidth(self.width())
+        if self.parent() is not self._parent:
+            self.setParent(self._parent)
+            self.move(0, 0)
+            self.show()
+
+    def _detach_to_window(self):
+        """浮出展开：面板挂到窗口上盖住内容，先取背景再换父控件。"""
+        self._parent.setFixedWidth(SIDEBAR_COLLAPSED_WIDTH)
+        if self._canDrawAcrylic():
+            self.acrylicBrush.grabImage(
+                QRect(
+                    self.mapToGlobal(QPoint()),
+                    QSize(self.expandWidth, self.height()),
+                )
+            )
+        if self.parent() is self._parent:
+            position = self._parent.pos()
+            self.setParent(self.window())
+            self.move(position)
+            self.show()
 
     def _animate_width(self, width):
         self.expandAni.setStartValue(self.width())
@@ -286,7 +302,7 @@ class SidebarPanel(NavigationPanel):
     def _onExpandAniFinished(self):
         super()._onExpandAniFinished()
         self._stopIndicatorAnimation()
-        self._tools.raise_()
+        self._raise_tools()
         self.layout().activate()
         self.scrollLayout.activate()
         self.layoutSettled.emit()
