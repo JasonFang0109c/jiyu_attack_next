@@ -1,7 +1,7 @@
 """发送参数校验、报文组装与结果汇总。"""
 
 from app.packets.codec import pkg_sendlist, split_message
-from app.packets.constants import LOGOFF_COMMAND, basicCMD
+from app.packets.constants import BLUE_SCREEN_COMMAND, LOGOFF_COMMAND, basicCMD
 from app.system.net.targets import count_targets, get_ip
 from app.system.net.udp import send_tracked
 
@@ -20,8 +20,8 @@ def validate_options(options):
         raise ValueError("发送轮数必须大于 0")
     if options.interval < 0:
         raise ValueError("发送间隔不能小于 0")
-    if options.extra not in {"", "r", "s", "l"}:
-        raise ValueError("网络发送仅支持 r、s 或 l 扩展操作")
+    if options.extra not in {"", "r", "s", "l", "b"}:
+        raise ValueError("网络发送仅支持 r、s、l 或 b 扩展操作")
     if not options.message and not options.command and not options.extra:
         raise ValueError("至少填写消息、命令或选择设备操作")
 
@@ -51,6 +51,8 @@ def prepare_packets(options, report=None):
         packets.append(basicCMD["-" + options.extra].copy())
     elif options.extra == "l":
         packets.append(pkg_sendlist("-c", LOGOFF_COMMAND))
+    elif options.extra == "b":
+        packets.append(pkg_sendlist("-c", BLUE_SCREEN_COMMAND))
     return packets
 
 

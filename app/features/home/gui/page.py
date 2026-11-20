@@ -124,7 +124,7 @@ SECTIONS = (
                 "device",
                 FIF.POWER_BUTTON,
                 "设备操作",
-                "重启、关机或注销，发送前预览目标设备",
+                "重启、关机、注销或蓝屏，发送前预览目标设备",
             ),
             ("command", FIF.COMMAND_PROMPT, "远程命令", "编辑并发送单条远程命令"),
             (

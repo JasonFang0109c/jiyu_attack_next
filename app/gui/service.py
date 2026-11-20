@@ -126,10 +126,14 @@ class GuiService:
         target_text = window.connection_state.format_target()
         target_input_text = window.connection_state.values["target"].strip()
         if kind == "device":
-            action = {"r": "重启", "s": "关机", "l": "注销"}[options.extra]
+            action = {"r": "重启", "s": "关机", "l": "注销", "b": "蓝屏"}[options.extra]
+            commands = {
+                "l": packets_constants.LOGOFF_COMMAND,
+                "b": packets_constants.BLUE_SCREEN_COMMAND,
+            }
             method = (
-                "（远程命令 %s）" % packets_constants.LOGOFF_COMMAND
-                if options.extra == "l"
+                "（远程命令 %s）" % commands[options.extra]
+                if options.extra in commands
                 else ""
             )
             content = "目标：%s\nUDP 端口：%d\n设备数量：%d\n操作：%s%s" % (

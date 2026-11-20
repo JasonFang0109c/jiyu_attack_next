@@ -1571,6 +1571,11 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.device.footer.send_button.text(), "执行注销")
         self.assertEqual(self.device.action_box.currentText(), "注销")
         self.assertEqual(self.window._options_for_page("device").extra, "l")
+        self.device.set_action("b")
+        self.assertEqual(self.device.action(), "b")
+        self.assertEqual(self.device.footer.send_button.text(), "执行蓝屏")
+        self.assertEqual(self.device.action_box.currentText(), "蓝屏")
+        self.assertEqual(self.window._options_for_page("device").extra, "b")
         self.device.set_action("r")
         self.assertEqual(self.device.footer.send_button.text(), "执行重启")
 

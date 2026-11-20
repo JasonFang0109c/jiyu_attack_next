@@ -59,7 +59,7 @@
       <h3 style="margin: 0 0 10px 0;">📦 文件与设备</h3>
       <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
         <li><b>文件传送</b>：勾选文件树下载到桌面</li>
-        <li><b>设备操作</b>：重发固定的重启、关机、注销报文</li>
+        <li><b>设备操作</b>：重发固定的重启、关机报文，或经远程命令注销、蓝屏</li>
         <li><b>设备备注</b>：IPv4 映射易读名称</li>
       </ul>
     </td>
@@ -187,7 +187,7 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1
 
 ## 项目来源与参考
 
-- [ht0Ruial/Jiyu_udp_attack](https://github.com/ht0Ruial/Jiyu_udp_attack)<br>文本消息、远程命令、重启关机注销、本机信息与防火墙规则的报文结构。
+- [ht0Ruial/Jiyu_udp_attack](https://github.com/ht0Ruial/Jiyu_udp_attack)<br>文本消息、远程命令、重启关机注销、本机信息与防火墙规则的报文结构；蓝屏为新增操作。
 
 
 当前仓库的具体行为以本项目代码和文档为准。

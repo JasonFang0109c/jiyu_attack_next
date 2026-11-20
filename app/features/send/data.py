@@ -14,7 +14,7 @@ class SendOptions:
         port: 目标 UDP 端口，默认 4705。
         message: 文本消息，超长时自动分条。
         command: 远程命令。
-        extra: 设备扩展操作，取 ``r``、``s``、``l`` 之一。
+        extra: 设备扩展操作，取 ``r``、``s``、``l``、``b`` 之一。
         loops: 发送轮数。
         interval: 相邻两轮的间隔秒数。
         cancel_event: 取消信号，置位后尽快抛出取消异常。

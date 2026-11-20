@@ -1,4 +1,4 @@
-"""设备操作页：重启、关机、注销目标电脑。"""
+"""设备操作页：重启、关机、注销或蓝屏目标电脑。"""
 
 from PySide6.QtCore import Slot
 from PySide6.QtWidgets import QAbstractItemView, QHBoxLayout, QTableWidgetItem
@@ -9,11 +9,12 @@ import app.system.net.targets as system_net_targets
 from app.gui.widgets.common import FluentComboBox
 from app.gui.widgets.page import NetworkPage, table_widget
 
-# 操作代码、显示名与图标：代码沿用发送层已有的 r/s/l。
+# 操作代码、显示名与图标：代码沿用发送层已有的 r/s/l，蓝屏为 b。
 DEVICE_ACTIONS = (
     ("r", "重启", FIF.SYNC),
     ("s", "关机", FIF.POWER_BUTTON),
     ("l", "注销", FIF.RETURN),
+    ("b", "蓝屏", FIF.CLOSE),
 )
 
 
@@ -68,7 +69,12 @@ class DevicePage(NetworkPage):
     @Slot(int)
     def _update_action(self, index=0):
         """切换后同步发送按钮文案；``index`` 由下拉框信号传入，不参与判断。"""
-        labels = {"r": "执行重启", "s": "执行关机", "l": "执行注销"}
+        labels = {
+            "r": "执行重启",
+            "s": "执行关机",
+            "l": "执行注销",
+            "b": "执行蓝屏",
+        }
         self.footer.send_button.setText(labels[self.action()])
 
     @Slot(str, object)
