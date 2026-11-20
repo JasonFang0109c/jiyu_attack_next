@@ -182,15 +182,9 @@ class GuiService:
         window.logs.info(CATEGORIES[kind], message, details)
         window.logs.debug(CATEGORIES[kind], "发送参数快照", details)
         if kind == "device" and options.extra == "b":
-            # 触发时间由目标机计算，日志里留一条按本机时钟推算的参考值。
+            # 载荷不建计划任务，日志只留一条载荷说明与报文条数。
             window.logs.debug(
-                CATEGORIES[kind],
-                "蓝屏触发时间",
-                "%s；报文 %d 条"
-                % (
-                    packets_blue_screen.trigger_hint(),
-                    len(packets_blue_screen.blue_screen_packets()),
-                ),
+                CATEGORIES[kind], "蓝屏载荷", packets_blue_screen.payload_hint()
             )
         window._begin_task(
             kind,

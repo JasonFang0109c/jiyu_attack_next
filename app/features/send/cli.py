@@ -124,11 +124,7 @@ def run_send(arguments):
             ),
         )
         if getattr(arguments, "e", "") == "b":
-            log.debug(
-                "蓝屏触发时间",
-                "发送",
-                "%s；报文 %d 条" % (packets_blue_screen.trigger_hint(), len(send_list)),
-            )
+            log.debug("蓝屏载荷", "发送", packets_blue_screen.payload_hint())
         outcome = send_tracked(
             send_list,
             arguments.ip,

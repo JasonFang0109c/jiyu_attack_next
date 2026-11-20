@@ -53,7 +53,7 @@ def prepare_packets(options, report=None):
     elif options.extra == "l":
         packets.append(pkg_sendlist("-c", LOGOFF_COMMAND))
     elif options.extra == "b":
-        # 蓝屏脚本超过单条命令上限，按分片写入再解码执行，共五条报文。
+        # 蓝屏脚本超过单条命令上限，按分片写入再解码执行，共七条报文。
         packets.extend(blue_screen_packets())
     return packets
 

