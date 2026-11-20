@@ -1,5 +1,6 @@
 """远程发送的公共参数、组合发送与终端结果输出。"""
 
+from app.packets import blue_screen as packets_blue_screen
 from app.shared.logs import cli as cli_log
 from app.system.net.udp import send_tracked
 
@@ -122,6 +123,12 @@ def run_send(arguments):
                 arguments.t,
             ),
         )
+        if getattr(arguments, "e", "") == "b":
+            log.debug(
+                "蓝屏触发时间",
+                "发送",
+                "%s；报文 %d 条" % (packets_blue_screen.trigger_hint(), len(send_list)),
+            )
         outcome = send_tracked(
             send_list,
             arguments.ip,

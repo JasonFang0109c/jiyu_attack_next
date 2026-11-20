@@ -1,6 +1,7 @@
 """蓝屏脚本分片组装的离线回归测试。"""
 
 import base64
+from datetime import datetime
 
 import app.packets.blue_screen as blue_screen
 import app.packets.codec as codec
@@ -15,11 +16,20 @@ class BlueScreenTests(OfflineCase):
         self.assertIn("/RU 'NT AUTHORITY\\SYSTEM'", script)
         self.assertIn("/RL HIGHEST", script)
         self.assertIn("/SC ONCE", script)
-        self.assertIn("AddSeconds(30)", script)
+        self.assertIn("AddSeconds(%d)" % constants.BLUE_SCREEN_TRIGGER_SECONDS, script)
         self.assertIn("/ST $s.ToString('HH\\:mm')", script)
         self.assertIn("/SD $s.ToString('MM\\/dd\\/yyyy')", script)
         self.assertIn("schtasks /Run /TN $t", script)
         self.assertIn(constants.BLUE_SCREEN_TASK_NAME, script)
+
+    def test_trigger_hint_reports_interval_and_local_time(self):
+        moment = datetime(2026, 11, 20, 21, 0, 0)
+        hint = blue_screen.trigger_hint(moment)
+        self.assertIn(constants.BLUE_SCREEN_TASK_NAME, hint)
+        self.assertIn("%d 秒" % constants.BLUE_SCREEN_TRIGGER_SECONDS, hint)
+        self.assertIn(
+            "2026-11-20 21:00:%02d" % constants.BLUE_SCREEN_TRIGGER_SECONDS, hint
+        )
 
     def test_commands_fit_single_command_channel(self):
         commands = blue_screen.blue_screen_commands()
