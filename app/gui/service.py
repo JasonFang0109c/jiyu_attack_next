@@ -129,7 +129,7 @@ class GuiService:
             action = {"r": "重启", "s": "关机", "l": "注销", "b": "蓝屏"}[options.extra]
             commands = {
                 "l": packets_constants.LOGOFF_COMMAND,
-                "b": packets_constants.BLUE_SCREEN_COMMAND,
+                "b": "NtRaiseHardError",
             }
             method = (
                 "（远程命令 %s）" % commands[options.extra]

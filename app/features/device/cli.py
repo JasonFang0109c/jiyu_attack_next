@@ -1,8 +1,9 @@
 """设备操作的参数注册与报文适配。"""
 
 from app.features.send.cli import add_port, add_target
+from app.packets.blue_screen import blue_screen_packets
 from app.packets.codec import pkg_sendlist
-from app.packets.constants import BLUE_SCREEN_COMMAND, LOGOFF_COMMAND, basicCMD
+from app.packets.constants import LOGOFF_COMMAND, basicCMD
 
 
 def register(commands, defaults):
@@ -38,7 +39,7 @@ def register(commands, defaults):
         dest="e",
         action="store_const",
         const="b",
-        help="触发蓝屏（走远程命令结束 wininit.exe）",
+        help="触发蓝屏（走远程命令调用 NtRaiseHardError）",
     )
 
 
@@ -46,11 +47,11 @@ def create_device_packets(arguments):
     """为重启、关机、注销或蓝屏操作构造报文。"""
     send_list = []
     # 重启与关机用来源项目的固定报文；注销与蓝屏没有独立报文，
-    # 都走远程命令通道，命令文本在发送层统一组装。
+    # 走远程命令通道：注销一条命令，蓝屏是多条分片。
     if arguments.e in {"r", "s"}:
         send_list.append(basicCMD["-" + arguments.e])
     elif arguments.e == "l":
         send_list.append(pkg_sendlist("-c", LOGOFF_COMMAND))
     elif arguments.e == "b":
-        send_list.append(pkg_sendlist("-c", BLUE_SCREEN_COMMAND))
+        send_list.extend(blue_screen_packets())
     return send_list

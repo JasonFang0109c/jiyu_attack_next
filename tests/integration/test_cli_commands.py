@@ -6,6 +6,7 @@ from contextlib import redirect_stdout
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import app.packets.blue_screen as blue_screen
 import app.packets.constants as constants
 import app.shared.logs.cli as cli_log
 from app.features.files import cli as files_cli
@@ -31,6 +32,12 @@ class CliCommandsTests(OfflineCase):
         )
         packets = send_cli.create_send_packets(arguments)
         self.assertEqual(self.command_text(packets[0]), constants.LOGOFF_COMMAND)
+
+        arguments = parser.parse_args(
+            ["remote", "device", "-ip", "192.168.1.10", "--bluescreen"]
+        )
+        packets = send_cli.create_send_packets(arguments)
+        self.assertEqual(packets, blue_screen.blue_screen_packets())
 
     def test_file_transfer_cli_reports_multiple_targets(self):
         result = {

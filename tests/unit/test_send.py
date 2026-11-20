@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, call, patch
 
 import app.features.send.data as send_data
 import app.features.send.service as send_service
+import app.packets.blue_screen as blue_screen
 import app.packets.codec as codec
 import app.packets.constants as constants
 import app.system.net.data as net_data
@@ -52,6 +53,11 @@ class SendTests(OfflineCase):
         )
         self.assertEqual(len(packets), 1)
         self.assertEqual(self.command_text(packets[0]), constants.LOGOFF_COMMAND)
+
+        packets = send_service.prepare_packets(
+            send_data.SendOptions("192.168.1.10", extra="b")
+        )
+        self.assertEqual(packets, blue_screen.blue_screen_packets())
 
     def test_gui_send_uses_bytes_and_shared_transport(self):
         options = send_data.SendOptions(

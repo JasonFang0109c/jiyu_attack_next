@@ -51,6 +51,12 @@ class GroupParserTests(unittest.TestCase):
         self.assertEqual(
             parser.parse_args(["remote", "device", "-ip", "10.0.0.1", "--logoff"]).e,
             "l",
+            self.assertEqual(
+                parser.parse_args(
+                    ["remote", "device", "-ip", "10.0.0.1", "--bluescreen"]
+                ).e,
+                "b",
+            ),
         )
 
     def test_local_commands(self):

