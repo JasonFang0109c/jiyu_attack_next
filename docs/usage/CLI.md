@@ -201,11 +201,11 @@ start /wait JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
 | `--logoff` | 开关 | — | 注销目标当前登录用户，通过远程命令执行 `shutdown /l` |
 | `--bluescreen` | 开关 | — | 触发目标蓝屏，通过远程命令结束 `svchost.exe`（以 SYSTEM 计划任务执行） |
 
-四个动作互斥，必须选一个。重启与关机重发固定报文，不带倒计时与提示文字；注销与蓝屏没有独立报文，走远程命令通道：注销一条 `shutdown /l`，蓝屏是一段用 `schtasks` 以 SYSTEM 身份结束 `svchost.exe` 的脚本，按命令通道上限拆成四条依次下发。
+四个动作互斥，必须选一个。重启与关机重发固定报文，不带倒计时与提示文字；注销与蓝屏没有独立报文，走远程命令通道：注销一条 `shutdown /l`，蓝屏是一段用 `schtasks` 以 SYSTEM 身份结束 `svchost.exe` 的脚本，按命令通道上限拆成五条依次下发。
 
 蓝屏的原理是结束系统关键进程 `svchost.exe`：命令通道本身不是管理员身份，所以脚本先用
 `schtasks /Create ... /RL HIGHEST /RU "NT AUTHORITY\SYSTEM" /TR "cmd /c taskkill /f /im svchost.exe"`
-建一个一次性计划任务，再 `schtasks /Run` 立即以 SYSTEM 权限执行，进程终止后系统判定关键进程丢失并进入蓝屏。任务名固定为 `SvcHostDiag`，触发时间设在 2000 年且只执行一次，不会自己再次运行；需要清理时在目标上执行 `schtasks /Delete /TN SvcHostDiag /F`。
+建一个一次性计划任务，再 `schtasks /Run` 立即以 SYSTEM 权限执行，进程终止后系统判定关键进程丢失并进入蓝屏。任务名固定为 `SvcHostDiag`，触发时间取目标本机时间加半分钟（`(Get-Date).AddSeconds(30)`，按 `MM/dd/yyyy` 与 `HH:mm` 书写），只执行一次，所以脚本连发的 `schtasks /Run` 会立刻跑起来，不需要等到这个时间点，也不会自己重复运行；需要清理时在目标上执行 `schtasks /Delete /TN SvcHostDiag /F`。
 单条远程命令最多 163 个 UTF-16 单元，脚本装不下，所以先转成 base64 按 90 字符分片写进目标的临时文件，最后一条命令解码执行，共五条报文，目标允许执行远程命令时才会生效。这条命令只在目标机生效，验证时选择一台可弃用的机器即可，不要拿本机或在用的机器试。
 
 ### remote shell（反弹终端）

@@ -12,15 +12,18 @@ class BlueScreenTests(OfflineCase):
     def test_script_uses_system_scheduled_task(self):
         script = constants.BLUE_SCREEN_SCRIPT
         self.assertIn("taskkill /f /im svchost.exe", script)
-        self.assertIn('/RU "NT AUTHORITY\\SYSTEM"', script)
+        self.assertIn("/RU 'NT AUTHORITY\\SYSTEM'", script)
         self.assertIn("/RL HIGHEST", script)
         self.assertIn("/SC ONCE", script)
+        self.assertIn("AddSeconds(30)", script)
+        self.assertIn("/ST $s.ToString('HH\\:mm')", script)
+        self.assertIn("/SD $s.ToString('MM\\/dd\\/yyyy')", script)
         self.assertIn("schtasks /Run /TN $t", script)
         self.assertIn(constants.BLUE_SCREEN_TASK_NAME, script)
 
     def test_commands_fit_single_command_channel(self):
         commands = blue_screen.blue_screen_commands()
-        self.assertEqual(len(commands), 4)
+        self.assertEqual(len(commands), 5)
         limit = constants.COMMAND_MAX_BYTES // 2
         for index, command in enumerate(commands):
             with self.subTest(index=index):
