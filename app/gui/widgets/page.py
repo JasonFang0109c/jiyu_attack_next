@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
     QHeaderView,
+    QSizePolicy,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -440,6 +441,7 @@ class NetworkPage(Page):
         super().__init__(name, parent)
         page_heading(self.vbox, title)
         self.target_card = SectionCard(self)
+        self.target_card.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self.targets = TargetControls(state, self.target_card)
         self.target_card.body.addWidget(self.targets)
         self.vbox.addWidget(self.target_card)

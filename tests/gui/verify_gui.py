@@ -8,7 +8,7 @@ from pathlib import Path
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QCoreApplication, QEvent, QTimer
 from PySide6.QtWidgets import QApplication
 from qfluentwidgets import Theme, setTheme
 
@@ -99,9 +99,13 @@ def main():
     window.show()
 
     def capture():
-        # 侧边栏的折叠状态跟窗口宽度走，上一次窄窗口运行会把状态留在配置里，
-        # 截图前显式展开，画面才是用户默认看到的样子。
-        window.expand_navigation()
+        # 窄窗口按用户实际使用方式保持图标栏，避免展开面板盖住内容；宽窗口
+        # 才展开侧边栏，截图因此同时覆盖两种真实布局。
+        panel = window.navigationInterface.panel
+        if window.width() >= panel.minimumExpandWidth:
+            window.expand_navigation()
+        else:
+            panel.collapse()
         app.processEvents()
         image = window.grab()
         ok = image.save(args.screenshot, "PNG")
@@ -120,7 +124,7 @@ def main():
     result = app.exec()
     window.quit_application()
     window.deleteLater()
-    gui.QCoreApplication.sendPostedEvents(None, gui.QEvent.DeferredDelete)
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
     app.processEvents()
     return result
 

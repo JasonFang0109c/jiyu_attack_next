@@ -1590,6 +1590,42 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.device.preview.item(1, 0).text(), "模拟目标乙")
         self.assertEqual(self.device.preview.item(1, 1).text(), "4705")
 
+    def test_network_cards_keep_intrinsic_rows_when_resized(self):
+        self.window.show()
+        for width, height in ((960, 640), (1180, 800), (960, 640)):
+            self.window.resize(width, height)
+            for page in self.window.network_pages:
+                self.window.show_page(page.objectName())
+                self.application.processEvents()
+                targets = page.targets
+                # 目标输入区不能被中间内容卡片的伸缩空间压扁，否则标签与控件
+                # 会在最小窗口和连续缩放时贴在一起。
+                self.assertGreaterEqual(
+                    targets.height(),
+                    targets.sizeHint().height(),
+                    page.objectName(),
+                )
+                self.assertGreaterEqual(
+                    targets.target_input.height(),
+                    targets.target_input.sizeHint().height(),
+                    page.objectName(),
+                )
+                self.assertGreaterEqual(
+                    targets.device_button.height(),
+                    targets.device_button.sizeHint().height(),
+                    page.objectName(),
+                )
+                self.assertLess(
+                    page.target_card.geometry().bottom(),
+                    page.content_card.geometry().top(),
+                    page.objectName(),
+                )
+                self.assertLess(
+                    page.content_card.geometry().bottom(),
+                    page.footer_card.geometry().top(),
+                    page.objectName(),
+                )
+
     def test_footer_and_numeric_text_fit_at_minimum_size(self):
         self.window.resize(960, 640)
         self.window.show()

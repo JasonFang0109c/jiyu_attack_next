@@ -19,7 +19,7 @@ from PySide6.QtGui import (
     QRegularExpressionValidator,
     QScreen,
 )
-from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLayout, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import (
     BodyLabel,
     CaptionLabel,
@@ -448,7 +448,10 @@ class TargetControls(QWidget):
     def __init__(self, state, parent=None, show_round_options=True):
         super().__init__(parent)
         self.state = state
+        # 目标输入区包含固定高度控件，不能被页面的垂直伸缩空间压扁。
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         layout = QVBoxLayout(self)
+        layout.setSizeConstraint(QLayout.SetMinimumSize)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
         heading = QHBoxLayout()

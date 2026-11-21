@@ -2,7 +2,7 @@
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QTextCursor
-from PySide6.QtWidgets import QHBoxLayout, QLineEdit
+from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QSizePolicy
 from qfluentwidgets import BodyLabel, CaptionLabel, PlainTextEdit, PushButton
 from qfluentwidgets import FluentIcon as FIF
 
@@ -36,6 +36,7 @@ class ShellPage(Page):
 
         # 目标与端口来自远程攻击共用的连接状态，和其它页面保持一致。
         self.target_card = SectionCard(self)
+        self.target_card.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self.targets = TargetControls(state, self.target_card, show_round_options=False)
         self.target_card.body.addWidget(self.targets)
         self.vbox.addWidget(self.target_card)

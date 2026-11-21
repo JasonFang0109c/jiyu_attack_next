@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
     QHeaderView,
+    QSizePolicy,
     QTreeWidgetItem,
 )
 from qfluentwidgets import BodyLabel, CaptionLabel, ProgressBar
@@ -45,6 +46,7 @@ class FilePage(Page):
         self._busy = False
         page_heading(self.vbox, "文件传送")
         self.target_card = SectionCard(self)
+        self.target_card.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self.targets = TargetControls(state, self.target_card, show_round_options=False)
         self.target_card.body.addWidget(self.targets)
         self.vbox.addWidget(self.target_card)
