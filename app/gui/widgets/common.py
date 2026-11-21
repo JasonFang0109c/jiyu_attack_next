@@ -39,6 +39,7 @@ from qfluentwidgets import (
     ToolButton,
     ToolTipFilter,
     ToolTipPosition,
+    setCustomStyleSheet,
 )
 
 import app.system.net.targets as system_net_targets
@@ -61,12 +62,24 @@ def _overlay_radius_qss(selector):
     return "%s { border-radius: %dpx; }" % (selector, OVERLAY_CORNER_RADIUS)
 
 
+def _current_qss(widget):
+    """返回控件当前的样式表与已登记的自定义样式，两者都要算上。
+
+    组件库把样式推迟到第一次绘制才落地，未绘制过的控件 ``styleSheet`` 是空的，
+    只能从它登记的自定义样式属性里读。
+    """
+    registered = widget.property("lightCustomQss") or ""
+    return widget.styleSheet() + registered
+
+
 def _append_qss(widget, selector):
     """把圆角片段追加到控件样式表，已追加过就不再重复。"""
     rule = _overlay_radius_qss(selector)
-    if rule in widget.styleSheet():
+    if rule in _current_qss(widget):
         return
-    widget.setStyleSheet(widget.styleSheet() + "\n" + rule)
+    # 直接拼到 styleSheet 上会在主题重建时被组件库整份覆盖，走它自己的
+    # 自定义样式接口才能跟基础样式一起重组。
+    setCustomStyleSheet(widget, rule, rule)
 
 
 def round_menu(menu):

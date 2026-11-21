@@ -35,6 +35,8 @@ from PySide6.QtWidgets import (
     QDialog,
     QHeaderView,
     QLabel,
+    QStyle,
+    QStyleOptionButton,
     QSystemTrayIcon,
     QWidget,
 )
@@ -2281,6 +2283,26 @@ class GuiTests(unittest.TestCase):
         store.clear()
         self.assertEqual(page.table.rowCount(), 0)
 
+    def test_header_select_all_checkbox_draws_inside_its_box(self):
+        """表头全选框固定成方框后，indicator 仍要完整落在框内。"""
+        self.window.show_page("logs")
+        QTest.qWait(120)
+        logs = self.window.pages["logs"]
+        self.window.show_page("file")
+        QTest.qWait(120)
+        files = self.window.pages["file"]
+        for page, expected in ((logs, 18), (files, 16)):
+            box = page.select_all_checkbox
+            option = QStyleOptionButton()
+            option.initFrom(box)
+            rect = box.style().subElementRect(QStyle.SE_CheckBoxIndicator, option, box)
+            self.assertEqual(box.width(), expected)
+            self.assertEqual(box.sizeHint().toTuple(), (expected, expected))
+            self.assertGreaterEqual(rect.left(), 0)
+            self.assertGreaterEqual(rect.top(), 0)
+            self.assertLessEqual(rect.right(), box.width() - 1)
+            self.assertLessEqual(rect.bottom(), box.height() - 1)
+
     def test_log_page_controls_are_visible_at_minimum_size(self):
         self.window.resize(960, 640)
         self.window.show()
@@ -2701,14 +2723,16 @@ class GuiTests(unittest.TestCase):
         overlay = "border-radius: %dpx" % theme.OVERLAY_CORNER_RADIUS
         settings_page = self.window.pages["settings"]
         menu = settings_page.accent_box._createComboMenu()
-        self.assertIn(overlay, menu.view.styleSheet())
+        # 组件库把样式推迟到第一次绘制才落地，未绘制的菜单要从登记值里读。
+        self.assertIn(overlay, components._current_qss(menu.view))
         self.assertNotIn(
-            "MenuActionListWidget { border-radius: 9px", menu.view.styleSheet()
+            "MenuActionListWidget { border-radius: 9px",
+            components._current_qss(menu.view),
         )
 
         tray_menu = self.window.tray_menu
         if tray_menu is not None:
-            self.assertIn(overlay, tray_menu.view.styleSheet())
+            self.assertIn(overlay, components._current_qss(tray_menu.view))
 
         # 卡片是大容器，圆角比控件大一档；控件与列表底衬仍是 4 像素
         self.assertEqual(theme.SURFACE_CORNER_RADIUS, 8)

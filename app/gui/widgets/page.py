@@ -18,6 +18,7 @@ from qfluentwidgets import (
     TreeItemDelegate,
     TreeWidget,
     qconfig,
+    setCustomStyleSheet,
     setFont,
 )
 from qfluentwidgets.components.widgets.check_box import CheckBoxIcon
@@ -138,10 +139,6 @@ class FileTreeHeader(SelectAllHeaderView):
     def _create_select_all_checkbox(self, parent):
         checkbox = CompactHeaderCheckBox(parent)
         checkbox.setObjectName("fileTreeSelectAllCheckbox")
-        checkbox.setStyleSheet(
-            checkbox.styleSheet()
-            + "\nCheckBox#fileTreeSelectAllCheckbox { padding: 0; margin: 0; }"
-        )
         return checkbox
 
     def position_checkbox(self):
@@ -168,11 +165,36 @@ class StickySizeCheckBox(CheckBox):
 
     主题切换会重设 Fluent 复选框样式表，Qt 会顺带清掉由样式表推导出来的
     最小尺寸，控件随即撑到文字宽度；这里在样式变化后补回固定尺寸。
+    样式表还给 indicator 留了 1 像素边框与 1 像素左外边距，控件固定成
+    方框后 indicator 会溢出控件被裁掉，所以把这层留白一并去掉。
     """
 
+    # indicator 的宽度高度与控件等值、去掉边框后，绘制区域才刚好落在方框内。
+    INDICATOR_QSS = (
+        "CheckBox { padding: 0px; margin: 0px; spacing: 0px;"
+        " min-width: 0px; min-height: 0px; }"
+        "CheckBox::indicator { width: %dpx; height: %dpx; border: none;"
+        " border-radius: 5px; }"
+    )
+    # 用来判断紧排样式是否已经追加过，避免重复叠加。
+    TIGHT_MARK = "min-width: 0px"
+
     def __init__(self, parent=None, size=18):
-        super().__init__(parent)
+        # 基类构造里就会应用样式表并触发 StyleChange，先备好尺寸再交给基类。
         self._locked_size = size
+        super().__init__(parent)
+        self._fit_indicator()
+
+    def _fit_indicator(self):
+        """让 indicator 正好等于控件尺寸，避免圆角被裁成一半。
+
+        直接改 ``styleSheet`` 会在主题重建时被组件库整份覆盖，所以走它的
+        自定义样式接口，跟基础复选框样式一起重组。
+        """
+        rule = self.INDICATOR_QSS % (self._locked_size, self._locked_size)
+        if self.TIGHT_MARK in self.styleSheet():
+            return
+        setCustomStyleSheet(self, rule, rule)
 
     def changeEvent(self, event):
         super().changeEvent(event)
