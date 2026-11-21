@@ -25,54 +25,52 @@
 >
 > 图形界面启动时会弹出同一份声明，点击“同意并继续”后才会进入主界面。
 
-<br>
-
 ## 功能
 
 <div align="center">
 <table width="100%" style="border: none;">
   <tr>
-    <td width="33%" valign="middle" style="padding: 12px 14px;">
+    <td width="33%" valign="top" style="padding: 16px 16px 32px;">
       <h3 style="margin: 0 0 10px 0;">🏠 首页</h3>
-      <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
+      <ul style="margin: 14px 0 0; padding-left: 1.25em; list-style-position: outside;">
         <li>快捷入口与分组功能卡片</li>
-        <li>一键跳到常用页面或仓库</li>
+        <li>快速访问常用页面或项目仓库</li>
       </ul>
     </td>
-    <td width="33%" valign="middle" style="padding: 12px 14px;">
+    <td width="33%" valign="top" style="padding: 16px 16px 32px;">
       <h3 style="margin: 0 0 10px 0;">💬 消息与命令</h3>
-      <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
+      <ul style="margin: 14px 0 0; padding-left: 1.25em; list-style-position: outside;">
         <li><b>文本消息</b>：多行编辑与分条发送</li>
         <li><b>远程命令</b>：实时显示缓冲区容量</li>
       </ul>
     </td>
-    <td width="33%" valign="middle" style="padding: 12px 14px;">
+    <td width="33%" valign="top" style="padding: 16px 16px 32px;">
       <h3 style="margin: 0 0 10px 0;">🛡️ 解除限制</h3>
-      <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
+      <ul style="margin: 14px 0 0; padding-left: 1.25em; list-style-position: outside;">
         <li><b>启停学生端</b>：状态卡片 + 单按钮按状态启动或结束本机学生端，自动识别进程与程序位置，按需提权</li>
         <li><b>端口占用</b>：结束被学生端独占的本机 4705 端口</li>
       </ul>
     </td>
   </tr>
   <tr>
-    <td width="33%" valign="middle" style="padding: 12px 14px;">
+    <td width="33%" valign="top" style="padding: 16px 16px 32px;">
       <h3 style="margin: 0 0 10px 0;">📦 文件与设备</h3>
-      <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
+      <ul style="margin: 14px 0 0; padding-left: 1.25em; list-style-position: outside;">
         <li><b>文件传送</b>：勾选文件树下载到桌面</li>
         <li><b>设备操作</b>：重发固定的重启、关机报文，或经远程命令注销、蓝屏</li>
         <li><b>设备备注</b>：IPv4 映射易读名称</li>
       </ul>
     </td>
-    <td width="33%" valign="middle" style="padding: 12px 14px;">
+    <td width="33%" valign="top" style="padding: 16px 16px 32px;">
       <h3 style="margin: 0 0 10px 0;">🕳️ 反弹终端</h3>
-      <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
+      <ul style="margin: 14px 0 0; padding-left: 1.25em; list-style-position: outside;">
         <li>本机监听，脚本经临时 HTTP 下发</li>
         <li>目标连回后得到可交互命令行</li>
       </ul>
     </td>
-    <td width="33%" valign="middle" style="padding: 12px 14px;">
+    <td width="33%" valign="top" style="padding: 16px 16px 32px;">
       <h3 style="margin: 0 0 10px 0;">🧰 本机与防火墙</h3>
-      <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
+      <ul style="margin: 14px 0 0; padding-left: 1.25em; list-style-position: outside;">
         <li><b>本机信息</b>：查询 IP 与 Student 端口</li>
         <li><b>防火墙</b>：修改现有规则并查看结果</li>
         <li><b>目标地址</b>：IPv4、末段与 <code>/24</code></li>
@@ -80,16 +78,16 @@
     </td>
   </tr>
   <tr>
-    <td width="33%" valign="middle" style="padding: 12px 14px;">
+    <td width="33%" valign="top" style="padding: 16px 16px 32px;">
       <h3 style="margin: 0 0 10px 0;">📋 运行日志</h3>
-      <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
+      <ul style="margin: 14px 0 0; padding-left: 1.25em; list-style-position: outside;">
         <li>按功能、级别与关键词筛选</li>
         <li>勾选导出或删除选中记录</li>
       </ul>
     </td>
-    <td width="33%" valign="middle" style="padding: 12px 14px;">
+    <td width="33%" valign="top" style="padding: 16px 16px 32px;">
       <h3 style="margin: 0 0 10px 0;">⚙️ 设置与关于</h3>
-      <ul style="margin: 0; padding-left: 0; list-style-position: inside;">
+      <ul style="margin: 14px 0 0; padding-left: 1.25em; list-style-position: outside;">
         <li>切换主题、窗口材质与关闭行为</li>
         <li>确认后清除本地数据</li>
         <li>查看作者、仓库与构建信息</li>
@@ -99,9 +97,7 @@
 </table>
 </div>
 
-目标地址和 UDP 端口在文本消息、文件传送、设备操作与远程命令之间同步。
-
-<br>
+目标地址与 UDP 端口会在文本消息、文件传送、设备操作和远程命令页面之间同步。
 
 ## 操作模式
 
@@ -116,8 +112,6 @@
 
 EXE 无需安装 Python；从源码运行 CLI 需要按 `requirements.txt` 安装依赖。两者共用同一套报文实现，默认通信为 UDP，目标端口 `4705`。EXE 为窗口化程序，双击不会创建控制台窗口，带参数运行时把输出写回启动它的终端、不会另开窗口；由于它不占用控制台，提示符会立即返回——需要等命令执行完再继续时用 `start /wait JiYuAttackNext.exe ...`。PowerShell 中若 EXE 不在 `PATH`，需写成 `.\JiYuAttackNext.exe ...`；cmd 可直接运行。
 
-<br>
-
 ## 下载
 
 目前只发布 nightly，正式版将在准备就绪后通过 `Release` 工作流手动发布：
@@ -131,8 +125,6 @@ EXE 无需安装 Python；从源码运行 CLI 需要按 `requirements.txt` 安�
 - CLI 不再单独发布脚本；需要从源码调试时使用 `python -m app ...`
 
 推送 `main` 且改动涉及 `app/`、`pack/`、`scripts/`、`requirements.txt` 或工作流文件时，会自动构建并滚动更新 `nightly` 预发布版本；纯文档改动不触发构建。正式版需在 Actions 页面手动运行 `Release`，版本号规则见[版本规范](docs/dev/VERSIONING.md)。
-
-<br>
 
 ## 文档
 
@@ -152,8 +144,6 @@ EXE 无需安装 Python；从源码运行 CLI 需要按 `requirements.txt` 安�
 | [EXE 构建](docs/dev/BUILD.md) | 环境准备、编译脚本、输出位置与验证步骤 |
 | [版本规范](docs/dev/VERSIONING.md) | 语义化版本号、nightly 与正式版通道、发布流程 |
 | [开发与提交规范](docs/dev/CONTRIBUTING.md) | 开发环境、离线测试及中文提交规范 |
-
-<br>
 
 ## 开发环境
 
@@ -183,24 +173,17 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1
 
 脚本会自动选择本机局域网地址，在系统分配的空闲 UDP 端口上依次验证文本消息、远程命令、重启、关机、注销和连续发送，无需安装或运行学生端。`--target 127.0.0.1` 可改用回环地址，`--repeat` 可调整连续发送次数。
 
-<br>
-
 ## 项目来源与参考
 
 - [ht0Ruial/Jiyu_udp_attack](https://github.com/ht0Ruial/Jiyu_udp_attack)<br>文本消息、远程命令、重启关机注销、本机信息与防火墙规则的报文结构；蓝屏为新增操作。
 
-
 当前仓库的具体行为以本项目代码和文档为准。
-
-<br>
 
 ## 贡献者
 
 - [JasonFang0109c](https://github.com/JasonFang0109c)
 - [Leogyx](https://github.com/Leogyx)
 - [仙道领域绝巅](https://github.com/suiyuanlixin)
-
-<br>
 
 ## 许可证
 

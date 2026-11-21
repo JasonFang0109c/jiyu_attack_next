@@ -130,7 +130,7 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹，目录内容与
 - 也可在 Actions 页面选择该工作流并点击 `Run workflow` 手动运行，手动运行需选择 `main` 分支才会发布；手动运行不受路径过滤限制。
 - 工作流文件首次进入默认分支后，Actions 页面才会显示手动运行入口。
 - 在 `windows-latest` 上使用 Python 3.13 安装依赖、执行离线检查（见[验证](CONTRIBUTING.md#验证)）并运行 `pack/build.ps1 -Clean`；构建脚本直接产出 `output/JiYuAttackNext-<显示版本>.exe` 与对应的调试版本，工作流再据此准备 `dist/` 下的资产。
-- 构建成功后更新标签为 `nightly`、标题为 `Nightly Build <版本>` 的预发布版本，资产只有两个：`JiYuAttackNext-<显示版本>.exe` 与 `JiYuAttackNext_Debug-<显示版本>.exe`，显示版本是基础版本号加提交哈希（如 `0.1.0-1a8ede3`）。不再发布固定名副本，免得每次推送都在发布页多堆两个文件（GUI 与 CLI 共用同一个 EXE，调试版只差日志等级）。
+- 构建成功后更新标签为 `nightly`、标题为 `Nightly Build <版本>` 的预发布版本，资产只有两个：`JiYuAttackNext-<显示版本>.exe` 与 `JiYuAttackNext_Debug-<显示版本>.exe`，显示版本是基础版本号加提交哈希（如 `0.1.0-1a8ede3`）。不再发布固定名副本，避免每次推送都在发布页额外保留两个文件（GUI 与 CLI 共用同一个 EXE，调试版只差日志等级）。
 - 发布说明包含版本号、构建时间、工作流运行记录、两个资产的 SHA256，`Commits` 章节列出本次构建对应的那条提交。
 - 路径过滤按整个推送的 `before..head` 判定，因此把文档提交与代码提交一起推送时仍会构建；`Commits` 章节据此说明本次构建实际包含哪些改动。
 - 同一天内重复构建不新建发布：先比对现有 `nightly` 预发布的标题是否含本次的日期后缀，相同就原地更新资产与说明，标签 `nightly` 与下载地址 `https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly` 都保持不变。

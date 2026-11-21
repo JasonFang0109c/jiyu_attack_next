@@ -36,7 +36,7 @@
 | 依赖安装 | 一律装进仓库内 `.venv`，版本记入 `requirements.txt` 与 `requirements-dev.txt`，不装到全局环境 |
 | 忽略文件 | `.gitignore` 排除的内容不进 Git、不写进提交信息；`git add` 不用 `-f`、`-A` |
 | 用户数据 | `output/JiYuAttackNextData/` 是用户的备注、设置与日志，任何时候都不删 |
-| 提交 | 一个任务一次提交，验证通过后立即提交，不攒到收尾，见[提交粒度](docs/dev/CONTRIBUTING.md#提交粒度) |
+| 提交 | 一个任务一次提交，验证通过后立即提交，不集中到任务收尾时处理，见[提交粒度](docs/dev/CONTRIBUTING.md#提交粒度) |
 | 构建 | 改动 `app/`、`pack/`、`scripts/` 或依赖清单时必须构建并冒烟，命令见[EXE 构建](docs/dev/BUILD.md#构建-exe) |
 | 验证 | 只跑这次改动真正能打断的检查，见[验证](docs/dev/CONTRIBUTING.md#验证) |
 | 界面视觉 | 数值一律从 `app/gui/theme.py` 取，不写字面量，见[界面视觉规范](docs/dev/STYLE.md#界面视觉规范) |
