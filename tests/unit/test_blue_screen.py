@@ -60,13 +60,14 @@ class BlueScreenTests(OfflineCase):
         # 服务用例走真实回环连接，先临时放开网络守卫。
         self.network_guard.stop()
         self.addCleanup(self.network_guard.start)
-        server = blue_screen.BlueScreenServer("127.0.0.1").start()
+        server = blue_screen.BlueScreenServer("127.0.0.1")
+        server.start()
         try:
+            self.assertTrue(server.url.startswith("http://127.0.0.1:"))
             with urllib.request.urlopen(server.url, timeout=5) as response:
                 body = response.read().decode("utf-8")
             self.assertEqual(body, constants.BLUE_SCREEN_SCRIPT)
             self.assertTrue(server.wait(5))
-            self.assertGreater(server.port, 0)
         finally:
             server.close()
         self.assertTrue(server.closed)
@@ -74,7 +75,8 @@ class BlueScreenTests(OfflineCase):
     def test_wait_times_out_without_a_fetch(self):
         self.network_guard.stop()
         self.addCleanup(self.network_guard.start)
-        server = blue_screen.BlueScreenServer("127.0.0.1").start()
+        server = blue_screen.BlueScreenServer("127.0.0.1")
+        server.start()
         try:
             self.assertFalse(server.wait(0.1))
         finally:
