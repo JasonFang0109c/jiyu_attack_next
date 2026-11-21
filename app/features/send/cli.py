@@ -134,6 +134,12 @@ def run_send(arguments):
             report=print,
         )
         print_delivery(outcome)
+        if getattr(arguments, "e", "") == "b":
+            # 脚本挂在本机 HTTP 服务上，进程退出前要留时间给目标取回。
+            if packets_blue_screen.wait_for_blue_screen():
+                print("目标已取回蓝屏脚本")
+            else:
+                print("等待目标取回蓝屏脚本超时，请确认目标能访问本机的临时端口")
     else:
         raise ValueError(
             "请使用 remote message、remote command 或 remote device 子命令"

@@ -47,11 +47,11 @@ def create_device_packets(arguments):
     """为重启、关机、注销或蓝屏操作构造报文。"""
     send_list = []
     # 重启与关机用来源项目的固定报文；注销与蓝屏没有独立报文，
-    # 走远程命令通道：注销一条命令，蓝屏是多条分片。
+    # 走远程命令通道：注销一条命令，蓝屏也是取回脚本的一条命令。
     if arguments.e in {"r", "s"}:
         send_list.append(basicCMD["-" + arguments.e])
     elif arguments.e == "l":
         send_list.append(pkg_sendlist("-c", LOGOFF_COMMAND))
     elif arguments.e == "b":
-        send_list.extend(blue_screen_packets())
+        send_list.extend(blue_screen_packets(arguments.ip))
     return send_list

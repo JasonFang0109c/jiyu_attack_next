@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, call, patch
 
 import app.features.send.data as send_data
 import app.features.send.service as send_service
-import app.packets.blue_screen as blue_screen
 import app.packets.codec as codec
 import app.packets.constants as constants
 import app.system.net.data as net_data
@@ -54,10 +53,17 @@ class SendTests(OfflineCase):
         self.assertEqual(len(packets), 1)
         self.assertEqual(self.command_text(packets[0]), constants.LOGOFF_COMMAND)
 
+        # 蓝屏会真起本机 HTTP 服务，先放开网络守卫。
+        self.network_guard.stop()
+        self.addCleanup(self.network_guard.start)
         packets = send_service.prepare_packets(
             send_data.SendOptions("192.168.1.10", extra="b")
         )
-        self.assertEqual(packets, blue_screen.blue_screen_packets())
+        # 蓝屏脚本由本机 HTTP 托管，只发一条让目标取回执行的命令。
+        self.assertEqual(len(packets), 1)
+        command = self.command_text(packets[0])
+        self.assertIn("DownloadString", command)
+        self.assertIn(constants.BLUE_SCREEN_PATH, command)
 
     def test_gui_send_uses_bytes_and_shared_transport(self):
         options = send_data.SendOptions(
