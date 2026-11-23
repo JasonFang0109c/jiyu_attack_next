@@ -857,6 +857,41 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(panel.displayMode, NavigationDisplayMode.MENU)
         self.assertEqual(self.window.navigationInterface.width(), 48)
 
+    def test_sidebar_overlay_becomes_inline_when_window_grows(self):
+        """窄窗浮出侧栏后窗口变宽，面板要回到布局里，不再盖住内容。"""
+        self.window.show()
+        panel = self.window.navigationInterface.panel
+        self.window.resize(960, 760)
+        self.application.processEvents()
+        panel.expand(useAni=False)
+        self.assertEqual(panel.displayMode, NavigationDisplayMode.MENU)
+        self.assertIs(panel.parent(), self.window)
+        self.window.resize(1280, 800)
+        self.wait_for(lambda: panel.displayMode == NavigationDisplayMode.EXPAND)
+        self.assertIs(panel.parent(), self.window.navigationInterface)
+        self.assertEqual(panel.width(), 200)
+        self.assertEqual(self.window.navigationInterface.width(), 200)
+        self.assertFalse(panel.isCollapsed())
+        # 面板回到布局后，窗口的分栏布局要把内容区推到面板右侧。
+        self.wait_for(
+            lambda: (
+                self.window.stackedWidget.geometry().left() >= panel.geometry().right()
+            )
+        )
+
+    def test_sidebar_overlay_stays_floating_below_expand_width(self):
+        """窗口仍低于展开阈值时保持浮出，不要把内容挤窄。"""
+        self.window.show()
+        panel = self.window.navigationInterface.panel
+        self.window.resize(960, 760)
+        self.application.processEvents()
+        panel.expand(useAni=False)
+        self.window.resize(1000, 800)
+        self.application.processEvents()
+        self.assertEqual(panel.displayMode, NavigationDisplayMode.MENU)
+        self.assertIs(panel.parent(), self.window)
+        self.assertEqual(self.window.navigationInterface.width(), 48)
+
     def test_compact_sidebar_updates_selection_marker(self):
         self.window.show()
         panel = self.window.navigationInterface.panel

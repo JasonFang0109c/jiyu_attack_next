@@ -2,12 +2,15 @@
 
 from PySide6.QtCore import (
     QEasingCurve,
+    QEvent,
     QPoint,
     QRect,
     QSize,
+    QTimer,
     QVariantAnimation,
     Signal,
 )
+from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import QApplication, QWidget
 from qfluentwidgets import (
     NavigationDisplayMode,
@@ -119,6 +122,8 @@ class SidebarPanel(NavigationPanel):
         # 基类构造里就会设置返回按钮的可见性，两个字段要先就位。
         self._expanded = False
         self._tools = None
+        # 基类构造期间窗口就会开始派发尺寸事件，待办标记也要先有值。
+        self._overlay_reflow_pending = False
         super().__init__(parent)
         self._install_tools()
         # 选中标记由可见条目绘制，避免浮动标记跨布局移动到已隐藏的子项位置。
@@ -266,6 +271,40 @@ class SidebarPanel(NavigationPanel):
 
     def isCollapsed(self):
         return not self._expanded
+
+    def eventFilter(self, obj, e):
+        """窗口变宽后把浮出的面板收回布局，避免它盖在内容上。"""
+        if obj is self.window() and e.type() == QEvent.Resize:
+            self._queue_overlay_reflow(QResizeEvent(e).size().width())
+        return super().eventFilter(obj, e)
+
+    def _queue_overlay_reflow(self, width):
+        """条件满足时排到本轮事件之后再换布局，避免在窗口缩放中重排面板。"""
+        if self._overlay_reflow_pending:
+            return
+        if not self._needs_overlay_reflow(width):
+            return
+        self._overlay_reflow_pending = True
+        QTimer.singleShot(0, self._reflow_overlay)
+
+    def _needs_overlay_reflow(self, width):
+        """浮出状态的展开面板遇到变宽的窗口时需要换成贴边展开。"""
+        if not self._expanded or self.displayMode != NavigationDisplayMode.MENU:
+            return False
+        return not self.isMinimalEnabled and width >= self.minimumExpandWidth
+
+    def _reflow_overlay(self):
+        """把 MENU 浮出切换成贴边展开。
+
+        组件库只在 ``EXPAND`` 与 ``COMPACT`` 之间自动往返，浮出状态没有对应
+        分支：窗口从窄变宽后面板仍是窗口的子控件、保持 200 像素宽压在内容区
+        左侧，看上去就是最大化之后界面错乱。宽度够了就原地换成贴边展开，
+        这样面板位置与宽度都不变，只是重新参与布局、把内容推到它右侧。
+        """
+        self._overlay_reflow_pending = False
+        if not self._needs_overlay_reflow(self.window().width()):
+            return
+        self.expand(useAni=False)
 
     def _attach_to_parent(self):
         """贴边展开：面板回到窗口布局里，宽度由父容器跟着撑开。"""
