@@ -478,10 +478,7 @@ class GuiTests(unittest.TestCase):
         home_menu = panel.menuButton.mapTo(
             self.window, panel.menuButton.rect().topLeft()
         )
-        self.assertEqual(
-            home_menu.x(),
-            gui_data.SIDEBAR_BUTTON_INSET + gui_data.SIDEBAR_BUTTON_WIDTH,
-        )
+        self.assertEqual(home_menu.x(), gui_data.SIDEBAR_BUTTON_INSET)
         home_icon = bar.iconLabel.mapTo(self.window, bar.iconLabel.rect().topLeft()).x()
         home_title = bar.titleLabel.mapTo(
             self.window, bar.titleLabel.rect().topLeft()
@@ -502,20 +499,22 @@ class GuiTests(unittest.TestCase):
             self.window, panel.menuButton.rect().topLeft()
         )
         self.assertEqual(return_left.x(), gui_data.SIDEBAR_BUTTON_INSET)
-        self.assertEqual(menu_left.x(), home_menu.x())
+        self.assertEqual(menu_left.x(), home_menu.x() + gui_data.SIDEBAR_BUTTON_WIDTH)
         self.assertLessEqual(abs(menu_left.y() - return_left.y()), 1)
         icon_left = bar.iconLabel.mapTo(self.window, bar.iconLabel.rect().topLeft()).x()
         title_left = bar.titleLabel.mapTo(
             self.window, bar.titleLabel.rect().topLeft()
         ).x()
-        self.assertEqual(icon_left, home_icon)
-        self.assertEqual(title_left, home_title)
+        self.assertEqual(icon_left, home_icon + gui_data.SIDEBAR_BUTTON_WIDTH)
+        self.assertEqual(title_left, home_title + gui_data.SIDEBAR_BUTTON_WIDTH)
         self.assertEqual(
             icon_left - (menu_left.x() + gui_data.SIDEBAR_BUTTON_WIDTH),
-            gui_data.TITLE_BAR_MARGIN + 1,
+            gui_data.TITLE_BAR_OFFSET
+            + gui_data.TITLE_BAR_MARGIN
+            - gui_data.SIDEBAR_BUTTON_INSET,
         )
         self.assertEqual(bar.x(), gui_data.TITLE_BAR_OFFSET)
-        # 返回按钮回到上一次浏览的页面，只切换自身显隐，不推动菜单或标题。
+        # 返回键显隐切换槽位：返回首页时菜单与标题同时回到左槽对应的位置。
         panel.returnButton.click()
         self.application.processEvents()
         self.assertEqual(self.window.current_page(), "home")
@@ -557,14 +556,14 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self._chrome_snapshot(), before)
         self.assertEqual(self.window.titleBar.x(), gui_data.TITLE_BAR_OFFSET)
         self.assertIs(panel.menuButton.parent(), tools)
-        # 收起后返回按钮仍在，点它回到首页，菜单按钮依旧不动。
+        # 收起后返回按钮仍在；返回首页时菜单同步回到左侧槽位。
         self.assertTrue(panel.returnButton.isVisible())
         panel.returnButton.click()
         self.application.processEvents()
         self.assertEqual(self.window.current_page(), "home")
         self.assertEqual(
             panel.menuButton.mapTo(self.window, panel.menuButton.rect().topLeft()).x(),
-            gui_data.SIDEBAR_BUTTON_INSET + gui_data.SIDEBAR_BUTTON_WIDTH,
+            gui_data.SIDEBAR_BUTTON_INSET,
         )
 
     def test_tools_are_clickable_over_the_expanded_panel(self):

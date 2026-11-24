@@ -122,6 +122,7 @@ class SidebarPanel(NavigationPanel):
         # 基类构造里就会设置返回按钮的可见性，两个字段要先就位。
         self._expanded = False
         self._tools = None
+        self._return_button_visible = False
         # 基类构造期间窗口就会开始派发尺寸事件，待办标记也要先有值。
         self._overlay_reflow_pending = False
         super().__init__(parent)
@@ -139,9 +140,9 @@ class SidebarPanel(NavigationPanel):
     def _install_tools(self):
         """把返回与菜单按钮并排放在侧边栏左上角。
 
-        两个按钮各占一个固定位置：返回按钮只在非首页显示，菜单按钮始终留在
-        第二个位置。这样页面切换只改变返回按钮的可见性，不会推动菜单、图标
-        或标题横向移动。
+        两个按钮随返回状态切换槽位：首页隐藏返回按钮，菜单按钮占左槽；子页面显示
+        返回按钮，菜单按钮移到右槽。标题栏内容也按同一状态右移，保持菜单与标题
+        之间的间距稳定；不要把首页菜单固定在右槽。
 
         面板顶部的留白用 ``topLayout`` 的上边距给出：组件库会把“顶部”位置的
         导航项插进同一个布局，用间距只会把下面的滚动区一起推下去。
@@ -156,24 +157,32 @@ class SidebarPanel(NavigationPanel):
         self.topLayout.setSpacing(4)
         self._settle_tools()
 
+    def setReturnButtonVisible(self, isVisible):
+        """同步返回按钮、菜单按钮与标题栏的槽位。"""
+        self._return_button_visible = isVisible
+        super().setReturnButtonVisible(isVisible)
+        self._settle_tools()
+
     def _settle_tools(self):
-        """固定工具按钮与标题栏内容的相对位置。"""
+        """按返回按钮状态排布菜单，并同步标题栏的左侧留白。"""
         tools = self._tools
         if tools is None:
             return
         self.returnButton.move(0, 0)
-        self.menuButton.move(SIDEBAR_BUTTON_WIDTH, 0)
+        menu_x = SIDEBAR_BUTTON_WIDTH if self._return_button_visible else 0
+        self.menuButton.move(menu_x, 0)
         tools.setGeometry(
             SIDEBAR_BUTTON_INSET,
             SIDEBAR_BUTTON_TOP,
             SIDEBAR_BUTTON_WIDTH * 2,
             SIDEBAR_BUTTON_HEIGHT,
         )
-        # 标题栏从 46 像素处开始，左侧固定预留返回按钮宽度和文字间距；返回
-        # 按钮隐藏时保留空位，避免首页菜单与应用标识跳动或留下过大的间隔。
+        # FluentTitleBar 左缘固定在 46。首页菜单占返回槽，标题仍右移一个按钮宽；
+        # 子页面显示返回后，菜单和标题再一起右移一格，避免忘记同步两者位置。
         title_bar = self.window().titleBar
+        reserved_width = SIDEBAR_BUTTON_WIDTH * (1 + self._return_button_visible)
         title_bar.hBoxLayout.setContentsMargins(
-            TITLE_BAR_MARGIN + SIDEBAR_BUTTON_WIDTH, 0, 0, 0
+            TITLE_BAR_MARGIN + reserved_width, 0, 0, 0
         )
         title_bar.hBoxLayout.activate()
         self._raise_tools()
