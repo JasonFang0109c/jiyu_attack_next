@@ -32,7 +32,7 @@ TITLE_BAR_MARGIN = 6
 TITLE_BAR_OFFSET = 46
 # 收起后的图标栏宽度，按钮把它整个占满。
 SIDEBAR_COLLAPSED_WIDTH = 48
-# 返回与菜单按钮并排叠在侧边栏左上角，尺寸与组件库的工具按钮一致。
+# 返回与菜单按钮各占 40×36；首页隐藏返回按钮时仍保留首个槽位。
 SIDEBAR_BUTTON_WIDTH = 40
 SIDEBAR_BUTTON_HEIGHT = 36
 # 首个按钮的左上角，对应 WinUI 面板头部里工具按钮的内缩。

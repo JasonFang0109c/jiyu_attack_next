@@ -137,11 +137,11 @@ class SidebarPanel(NavigationPanel):
         self.expandAni.finished.connect(self._onExpandAniFinished)
 
     def _install_tools(self):
-        """把返回与菜单按钮并排叠在侧边栏左上角。
+        """把返回与菜单按钮并排放在侧边栏左上角。
 
-        按钮是窗口顶层的浮层，不参与面板与标题栏的布局，因此侧边栏收展只改
-        变导航项，按钮、图标与标题都不会被排队、搬动或重算位置。按钮贴着面
-        板左缘，展开时压在面板顶部，收起时正好落在图标栏里。
+        两个按钮各占一个固定位置：返回按钮只在非首页显示，菜单按钮始终留在
+        第二个位置。这样页面切换只改变返回按钮的可见性，不会推动菜单、图标
+        或标题横向移动。
 
         面板顶部的留白用 ``topLayout`` 的上边距给出：组件库会把“顶部”位置的
         导航项插进同一个布局，用间距只会把下面的滚动区一起推下去。
@@ -156,40 +156,27 @@ class SidebarPanel(NavigationPanel):
         self.topLayout.setSpacing(4)
         self._settle_tools()
 
-    def setReturnButtonVisible(self, isVisible):
-        """切换返回按钮并立即让出或收回按钮宽度。"""
-        super().setReturnButtonVisible(isVisible)
-        self._settle_tools()
-
     def _settle_tools(self):
-        """按返回按钮的显隐排好按钮，并让图标与标题紧跟在它们右侧。
-
-        返回按钮在左、菜单按钮在右；返回按钮出现时菜单按钮右移一个按钮宽，
-        浮层与标题栏的左内边距跟着加宽，图标与标题因此始终贴在按钮右侧。
-        侧边栏收展不改变按钮宽度，也就不会牵动这一列。
-        """
+        """固定工具按钮与标题栏内容的相对位置。"""
         tools = self._tools
         if tools is None:
-            # 基类构造里会先设置一次返回按钮可见性，此时浮层还没装上。
             return
-        showing = self.returnButton.isVisibleTo(tools)
-        menu_x = SIDEBAR_BUTTON_WIDTH if showing else 0
         self.returnButton.move(0, 0)
-        self.menuButton.move(menu_x, 0)
-        width = menu_x + SIDEBAR_BUTTON_WIDTH
+        self.menuButton.move(SIDEBAR_BUTTON_WIDTH, 0)
         tools.setGeometry(
             SIDEBAR_BUTTON_INSET,
             SIDEBAR_BUTTON_TOP,
-            width,
+            SIDEBAR_BUTTON_WIDTH * 2,
             SIDEBAR_BUTTON_HEIGHT,
         )
-        self._raise_tools()
-        # 标题栏固定从 46 像素起，按钮排在它左侧，所以只需把多出来的那个
-        # 按钮宽度补成左内边距，图标与标题就落在按钮右侧，间距两种状态一致。
+        # 标题栏从 46 像素处开始，左侧固定预留返回按钮宽度和文字间距；返回
+        # 按钮隐藏时保留空位，避免首页菜单与应用标识跳动或留下过大的间隔。
         title_bar = self.window().titleBar
         title_bar.hBoxLayout.setContentsMargins(
-            TITLE_BAR_MARGIN + width - SIDEBAR_BUTTON_WIDTH, 0, 0, 0
+            TITLE_BAR_MARGIN + SIDEBAR_BUTTON_WIDTH, 0, 0, 0
         )
+        title_bar.hBoxLayout.activate()
+        self._raise_tools()
 
     def _raise_tools(self):
         """面板或标题栏抬到最上层之后，把按钮重新压回它们上面。"""

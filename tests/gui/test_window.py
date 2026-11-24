@@ -466,7 +466,7 @@ class GuiTests(unittest.TestCase):
             left(bar.titleLabel),
         )
 
-    def test_return_button_appears_off_home_and_shifts_menu(self):
+    def test_return_button_visibility_keeps_menu_and_title_aligned(self):
         self.window.show()
         self.window.expand_navigation()
         self.application.processEvents()
@@ -478,37 +478,59 @@ class GuiTests(unittest.TestCase):
         home_menu = panel.menuButton.mapTo(
             self.window, panel.menuButton.rect().topLeft()
         )
-        self.assertEqual(home_menu.x(), gui_data.SIDEBAR_BUTTON_INSET)
+        self.assertEqual(
+            home_menu.x(),
+            gui_data.SIDEBAR_BUTTON_INSET + gui_data.SIDEBAR_BUTTON_WIDTH,
+        )
         home_icon = bar.iconLabel.mapTo(self.window, bar.iconLabel.rect().topLeft()).x()
+        home_title = bar.titleLabel.mapTo(
+            self.window, bar.titleLabel.rect().topLeft()
+        ).x()
+        self.assertEqual(
+            home_icon,
+            gui_data.TITLE_BAR_OFFSET
+            + gui_data.TITLE_BAR_MARGIN
+            + gui_data.SIDEBAR_BUTTON_WIDTH,
+        )
         self.window.show_page("message")
         self.application.processEvents()
         self.assertTrue(panel.returnButton.isVisible())
-        # 返回按钮排在菜单按钮左侧，菜单按钮连同图标右移一个按钮宽。
         return_left = panel.returnButton.mapTo(
             self.window, panel.returnButton.rect().topLeft()
         )
         menu_left = panel.menuButton.mapTo(
             self.window, panel.menuButton.rect().topLeft()
         )
-        self.assertEqual(return_left, home_menu)
-        self.assertEqual(menu_left.x(), return_left.x() + gui_data.SIDEBAR_BUTTON_WIDTH)
-        self.assertEqual(menu_left.y(), return_left.y())
+        self.assertEqual(return_left.x(), gui_data.SIDEBAR_BUTTON_INSET)
+        self.assertEqual(menu_left.x(), home_menu.x())
+        self.assertLessEqual(abs(menu_left.y() - return_left.y()), 1)
         icon_left = bar.iconLabel.mapTo(self.window, bar.iconLabel.rect().topLeft()).x()
-        # 图标与标题紧跟按钮右侧：按钮多一个，它们就整体右移一个按钮宽。
-        self.assertEqual(icon_left - home_icon, gui_data.SIDEBAR_BUTTON_WIDTH)
+        title_left = bar.titleLabel.mapTo(
+            self.window, bar.titleLabel.rect().topLeft()
+        ).x()
+        self.assertEqual(icon_left, home_icon)
+        self.assertEqual(title_left, home_title)
         self.assertEqual(
             icon_left - (menu_left.x() + gui_data.SIDEBAR_BUTTON_WIDTH),
-            home_icon - (home_menu.x() + gui_data.SIDEBAR_BUTTON_WIDTH),
+            gui_data.TITLE_BAR_MARGIN + 1,
         )
         self.assertEqual(bar.x(), gui_data.TITLE_BAR_OFFSET)
-        # 返回按钮回到上一次浏览的页面，菜单按钮回到标题栏最左侧。
+        # 返回按钮回到上一次浏览的页面，只切换自身显隐，不推动菜单或标题。
         panel.returnButton.click()
         self.application.processEvents()
         self.assertEqual(self.window.current_page(), "home")
         self.assertFalse(panel.returnButton.isVisible())
         self.assertEqual(
-            panel.menuButton.mapTo(self.window, panel.menuButton.rect().topLeft()),
-            home_menu,
+            panel.menuButton.mapTo(self.window, panel.menuButton.rect().topLeft()).x(),
+            home_menu.x(),
+        )
+        self.assertEqual(
+            bar.iconLabel.mapTo(self.window, bar.iconLabel.rect().topLeft()).x(),
+            home_icon,
+        )
+        self.assertEqual(
+            bar.titleLabel.mapTo(self.window, bar.titleLabel.rect().topLeft()).x(),
+            home_title,
         )
 
     def test_sidebar_tools_stay_put_when_collapsing(self):
@@ -542,7 +564,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.window.current_page(), "home")
         self.assertEqual(
             panel.menuButton.mapTo(self.window, panel.menuButton.rect().topLeft()).x(),
-            gui_data.SIDEBAR_BUTTON_INSET,
+            gui_data.SIDEBAR_BUTTON_INSET + gui_data.SIDEBAR_BUTTON_WIDTH,
         )
 
     def test_tools_are_clickable_over_the_expanded_panel(self):

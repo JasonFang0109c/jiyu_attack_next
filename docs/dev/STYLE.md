@@ -147,12 +147,12 @@ WinUI 3 的全局资源只有两个：`ControlCornerRadius`（4）与 `OverlayCo
 | 侧边栏顶部留白 | 47（`SIDEBAR_HEADER_INSET`） | 面板内容从第 6 像素开始，加 47 后首项正好落在内容区顶边之下 5 像素 |
 | 收起宽度 | 48（`SIDEBAR_COLLAPSED_WIDTH`） | 与图标栏同宽，收展动画与窗口过窄时的自动收起都收敛到这个值 |
 | 顶部按钮位置 | 面板左上角 (5, 6)（`SIDEBAR_BUTTON_INSET`、`SIDEBAR_BUTTON_TOP`） | 与 WinUI 面板头部里工具按钮的内缩一致，紧贴面板左缘，不再跟着标题栏起点后移 |
-| 顶部按钮 | 40×36（`SIDEBAR_BUTTON_WIDTH`、`SIDEBAR_BUTTON_HEIGHT`） | 与组件库工具按钮同尺寸，在 48 像素高的顶部区里垂直居中 |
-| 按钮顺序 | 返回在左、菜单在右 | 返回按钮只在非首页出现，出现时把菜单按钮右移一个按钮宽 |
+| 顶部按钮 | 40×36（`SIDEBAR_BUTTON_WIDTH`、`SIDEBAR_BUTTON_HEIGHT`） | 返回与菜单各占一格；首页只隐藏返回，不折叠菜单槽位 |
+| 按钮顺序 | 返回在左、菜单在右 | 返回按钮只在非首页出现，菜单始终位于第二槽位 |
 | 标题栏左缘 | 46（`TITLE_BAR_OFFSET`） | 组件库固定值，项目不改 |
-| 图标与标题左缘 | 46 加 6 加按钮多出来的宽度（`TITLE_BAR_MARGIN`） | 标题栏固定从 46 起，按钮在它左侧，所以只把多出来的那个按钮宽度补成左内边距：首页图标落在 52，显示返回按钮时落在 92，与按钮右缘的间距恒定 7 像素 |
+| 图标与标题左缘 | 92（`TITLE_BAR_OFFSET + TITLE_BAR_MARGIN + SIDEBAR_BUTTON_WIDTH`） | 为返回按钮固定预留一个槽位，首页与子页位置一致；图标与菜单按钮右缘留 7 像素 |
 
-图标与标题始终跟在按钮右侧，`_settle_tools` 按当前按钮宽度同步标题栏的左内边距。两个按钮由 `SidebarPanel._install_tools` 建成窗口顶层的浮层，不参与面板与标题栏的布局，因此既不会被面板宽度排队，也不会被标题栏的几何覆盖；`setReturnButtonVisible` 之后由 `_settle_tools` 按显隐定宽并 `raise_()` 压在面板之上。收起与展开侧边栏都不改动任何一个顶部控件的位置。
+图标与标题的位置固定在菜单按钮右侧；两个按钮由 `SidebarPanel._install_tools` 建成窗口顶层的浮层，不参与面板与标题栏的布局，因此既不会被面板宽度排队，也不会被标题栏的几何覆盖；返回按钮只切换显隐，菜单、图标与标题不随页面切换或侧边栏收展移动。工具层抬到最上方后仍覆盖在展开面板与标题栏之上，保证按钮可点。
 
 窗口宽度低于 `minimumExpandWidth` 时展开的侧边栏浮在窗口上（`MENU` 模式，面板的父控件是窗口、接口宽度收到 48），宽度够时贴边展开（`EXPAND`，面板回到 `NavigationInterface` 里参与布局）。组件库只在 `EXPAND` 与 `COMPACT` 之间自动往返，浮出状态没有对应分支，`SidebarPanel.eventFilter` 因此在窗口变宽到阈值以上时调用 `expand(useAni=False)` 把浮出换成贴边展开：面板宽度不变，只是重新参与布局，内容区随之被推到它右侧。换布局排在本轮尺寸事件之后执行，避免在窗口缩放中重排面板。
 
