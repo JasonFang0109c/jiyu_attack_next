@@ -11,6 +11,7 @@ class StudentService:
 
     def __init__(self, window):
         self.window = window
+        self._snapshot_signature = None
 
     def refresh_student_processes(self, purpose="poll"):
         """刷新学生端状态。
@@ -65,12 +66,30 @@ class StudentService:
             window._probe_student_processes(purpose)
 
     @staticmethod
-    def _signature(processes):
-        """用于比较两次查询是否真的发生了变化。"""
-        return [
-            (item["pid"], tuple(item.get("ports") or ()), item.get("path", ""))
-            for item in processes or []
-        ]
+    def _signature(snapshot):
+        """比较页面实际展示的进程字段与快照状态。"""
+        if isinstance(snapshot, dict):
+            processes = snapshot.get("processes") or []
+            port_owner = snapshot.get("port_owner", 0)
+            exe_path = snapshot.get("exe_path") or ""
+        else:
+            processes = snapshot or []
+            port_owner = 0
+            exe_path = ""
+        return (
+            port_owner,
+            exe_path,
+            tuple(
+                (
+                    item.get("pid"),
+                    item.get("name", ""),
+                    tuple(item.get("ports") or ()),
+                    item.get("path") or "",
+                    bool(item.get("genuine")),
+                )
+                for item in processes
+            ),
+        )
 
     def _student_processes_ready(self, purpose, snapshot):
         """拿到状态：轮询只在集合变化时重绘，动作前先核对再执行。"""
@@ -83,12 +102,12 @@ class StudentService:
             if isinstance(snapshot, dict)
             else list(snapshot or [])
         )
+        signature = self._signature(snapshot)
         if purpose == "poll":
-            if page.loaded and self._signature(processes) == self._signature(
-                page.processes
-            ):
+            if page.loaded and signature == self._snapshot_signature:
                 return
             page.set_snapshot(snapshot)
+            self._snapshot_signature = signature
             window.logs.debug(
                 "解除限制",
                 "学生端状态变化",
@@ -97,6 +116,7 @@ class StudentService:
             )
             return
         page.set_snapshot(snapshot)
+        self._snapshot_signature = signature
         if purpose == "toggle":
             if processes:
                 self._stop(snapshot)

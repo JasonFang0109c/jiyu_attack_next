@@ -1143,13 +1143,31 @@ class GuiTests(unittest.TestCase):
             "pid": 17600,
             "name": "StudentMain.exe",
             "ports": [4705],
-            "path": "",
+            "path": r"C:\Program Files\StudentMain\StudentMain.exe",
             "genuine": False,
         }
         self.window._student_processes_ready("poll", {"processes": [record]})
         self.assertEqual(page.toggle_button.text(), "结束学生端")
         self.window._student_processes_ready("poll", {"processes": []})
         self.assertEqual(page.toggle_button.text(), "启动学生端")
+
+    def test_studentproc_poll_updates_genuine_status_for_same_process(self):
+        page = self.window.pages["studentproc"]
+        record = {
+            "pid": 17600,
+            "name": "StudentMain.exe",
+            "ports": [],
+            "path": r"C:\Program Files\StudentMain\StudentMain.exe",
+            "genuine": False,
+        }
+        self.window._student_processes_ready("poll", {"processes": [record]})
+        self.assertIn("LibTDMaster.dll", page.table.item(0, 3).text())
+
+        updated_record = {**record, "genuine": True}
+        self.window._student_processes_ready("poll", {"processes": [updated_record]})
+
+        self.assertTrue(page.processes[0]["genuine"])
+        self.assertNotIn("LibTDMaster.dll", page.table.item(0, 3).text())
 
     def test_probe_failure_reports_message_and_traceback(self):
         with patch.object(
