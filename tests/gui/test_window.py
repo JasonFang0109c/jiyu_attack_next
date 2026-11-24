@@ -565,6 +565,21 @@ class GuiTests(unittest.TestCase):
             gui_data.SIDEBAR_BUTTON_INSET,
         )
 
+    def test_sidebar_tools_follow_panel_visibility(self):
+        self.window.show()
+        panel = self.window.navigationInterface.panel
+        tools = panel._tools
+        self.application.processEvents()
+        self.assertTrue(tools.isVisible())
+
+        panel.hide()
+        self.application.processEvents()
+        self.assertFalse(tools.isVisible())
+
+        panel.show()
+        self.application.processEvents()
+        self.assertTrue(tools.isVisible())
+
     def test_tools_are_clickable_over_the_expanded_panel(self):
         # 窄窗口里侧边栏浮在内容之上，按钮必须是那一坐标上的顶层控件。
         self.window.resize(1000, 800)

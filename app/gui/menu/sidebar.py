@@ -137,6 +137,17 @@ class SidebarPanel(NavigationPanel):
         self.expandAni.valueChanged.connect(self._set_width)
         self.expandAni.finished.connect(self._onExpandAniFinished)
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self._tools is not None:
+            self._tools.show()
+            self._raise_tools()
+
+    def hideEvent(self, event):
+        if self._tools is not None:
+            self._tools.hide()
+        super().hideEvent(event)
+
     def _install_tools(self):
         """把返回与菜单按钮并排放在侧边栏左上角。
 
