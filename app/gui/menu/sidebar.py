@@ -177,10 +177,10 @@ class SidebarPanel(NavigationPanel):
             SIDEBAR_BUTTON_WIDTH * 2,
             SIDEBAR_BUTTON_HEIGHT,
         )
-        # FluentTitleBar 左缘固定在 46。首页菜单占返回槽，标题仍右移一个按钮宽；
-        # 子页面显示返回后，菜单和标题再一起右移一格，避免忘记同步两者位置。
+        # FluentTitleBar 左缘固定在 46。菜单占左槽时标题只预留文字间距；子页面
+        # 显示返回后，菜单和标题再一起右移一格，避免两者位置失配。
         title_bar = self.window().titleBar
-        reserved_width = SIDEBAR_BUTTON_WIDTH * (1 + self._return_button_visible)
+        reserved_width = SIDEBAR_BUTTON_WIDTH if self._return_button_visible else 0
         title_bar.hBoxLayout.setContentsMargins(
             TITLE_BAR_MARGIN + reserved_width, 0, 0, 0
         )

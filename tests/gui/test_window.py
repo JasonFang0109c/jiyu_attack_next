@@ -485,9 +485,7 @@ class GuiTests(unittest.TestCase):
         ).x()
         self.assertEqual(
             home_icon,
-            gui_data.TITLE_BAR_OFFSET
-            + gui_data.TITLE_BAR_MARGIN
-            + gui_data.SIDEBAR_BUTTON_WIDTH,
+            gui_data.TITLE_BAR_OFFSET + gui_data.TITLE_BAR_MARGIN,
         )
         self.window.show_page("message")
         self.application.processEvents()
@@ -511,7 +509,8 @@ class GuiTests(unittest.TestCase):
             icon_left - (menu_left.x() + gui_data.SIDEBAR_BUTTON_WIDTH),
             gui_data.TITLE_BAR_OFFSET
             + gui_data.TITLE_BAR_MARGIN
-            - gui_data.SIDEBAR_BUTTON_INSET,
+            - gui_data.SIDEBAR_BUTTON_INSET
+            - gui_data.SIDEBAR_BUTTON_WIDTH,
         )
         self.assertEqual(bar.x(), gui_data.TITLE_BAR_OFFSET)
         # 返回键显隐切换槽位：返回首页时菜单与标题同时回到左槽对应的位置。
