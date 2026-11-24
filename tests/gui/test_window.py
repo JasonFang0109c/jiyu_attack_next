@@ -2843,6 +2843,20 @@ class GuiTests(unittest.TestCase):
             )
             self.assertGreater(table.columnWidth(column), before)
 
+    def test_fluent_dialog_corner_radius_survives_theme_change(self):
+        overlay = "border-radius: %dpx" % theme.OVERLAY_CORNER_RADIUS
+        dialog = components.FluentDialog("测试", "对话框内容", self.window)
+        try:
+            self.assertIn(overlay, components._current_qss(dialog))
+            setTheme(Theme.DARK)
+            self.application.processEvents()
+            self.assertIn(overlay, components._current_qss(dialog))
+        finally:
+            setTheme(Theme.LIGHT)
+            self.application.processEvents()
+            dialog.deleteLater()
+            self.application.processEvents()
+
     def test_surfaces_follow_winui_corner_radius(self):
         overlay = "border-radius: %dpx" % theme.OVERLAY_CORNER_RADIUS
         settings_page = self.window.pages["settings"]

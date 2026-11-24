@@ -263,16 +263,13 @@ class FluentCard(SimpleCardWidget):
 class FluentDialog(Dialog):
     """按 ``OverlayCornerRadius`` 绘制圆角的对话框。
 
-    组件库把 10 像素的圆角写死在对话框的 QSS 里，这里追加一条同选择器
-    的规则覆盖成 WinUI 3 给浮出层规定的 8 像素。
+    组件库把 10 像素的圆角写死在对话框的 QSS 里，这里通过自定义样式接口追加一条
+    同选择器规则，覆盖成 WinUI 3 给浮出层规定的 8 像素，并保留到主题重建后。
     """
 
     def __init__(self, title, content, parent=None):
         super().__init__(title, content, parent)
-        self.setStyleSheet(
-            self.styleSheet()
-            + "\n#centerWidget { border-radius: %dpx; }" % OVERLAY_CORNER_RADIUS
-        )
+        _append_qss(self, "#centerWidget")
 
 
 class SectionCard(FluentCard):
