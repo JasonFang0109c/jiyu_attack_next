@@ -7,7 +7,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import app.packets.constants as constants
+import app.packets.elevated as packets_elevated
 import app.shared.logs.cli as cli_log
+from app.features.command import cli as command_cli
 from app.features.files import cli as files_cli
 from app.features.send import cli as send_cli
 from app.start import cli
@@ -172,6 +174,11 @@ class CliCommandsTests(OfflineCase):
             patch.object(cli_log, "allows", lambda level: True),
             patch.object(cli, "portable_cli_log_path", return_value=log_path),
             patch.object(send_cli, "send_tracked", return_value=outcome),
+            # 命令改由托管脚本下发，这里只验证日志，不真起服务与等待。
+            patch.object(
+                command_cli, "elevated_packets", return_value=[constants.basicCMD["-c"]]
+            ),
+            patch.object(packets_elevated, "wait_for_elevated", return_value=True),
             redirect_stdout(io.StringIO()),
         ):
             code = cli.main(

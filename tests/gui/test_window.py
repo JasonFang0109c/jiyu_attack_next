@@ -224,7 +224,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.state.values["target"], "")
         self.assertEqual(self.state.values["port"], 4705)
         self.assertEqual(self.window.logs.minimum_level, logs_data.LogLevel.INFO)
-        self.assertIn("0 / 163", self.command.statistics.text())
+        self.assertIn("0 个字符", self.command.statistics.text())
 
     def test_application_font_stack_matches_component_fonts(self):
         # 组件库控件按 getFont 取字体，QApplication 的字体管不到它们，
@@ -1655,24 +1655,20 @@ class GuiTests(unittest.TestCase):
         self.message.editor.setPlainText("a" * 449)
         self.assertIn("2 条报文", self.message.statistics.text())
         self.command.editor.setPlainText("中文")
-        self.assertIn("2 / 163", self.command.statistics.text())
+        self.assertIn("2 个字符", self.command.statistics.text())
 
-    def test_command_system_mode_switches_statistics_and_options(self):
-        # 勾选 SYSTEM 后命令正文走脚本托管，容量提示与发送选项随之变化。
-        self.command.system_check.setChecked(True)
-        self.assertIn("脚本托管", self.command.statistics.text())
-        options = self.window._options_for_page("command")
-        self.assertTrue(options.system)
-        self.command.system_check.setChecked(False)
-        self.assertIn("/ 163", self.command.statistics.text())
-        self.assertFalse(self.window._options_for_page("command").system)
+    def test_command_statistics_accepts_long_text(self):
+        # 命令经托管脚本下发，页面只统计字符数，不再提示报文容量。
+        self.command.editor.setPlainText("a" * 400)
+        self.assertEqual(self.command.statistics.text(), "400 个字符")
+        self.assertEqual(self.window._options_for_page("command").command, "a" * 400)
 
-    def test_command_busy_locks_system_check(self):
+    def test_command_busy_locks_editor_and_clear_button(self):
         self.command.set_busy(True)
-        self.assertFalse(self.command.system_check.isEnabled())
+        self.assertFalse(self.command.clear_button.isEnabled())
         self.assertTrue(self.command.editor.isReadOnly())
         self.command.set_busy(False)
-        self.assertTrue(self.command.system_check.isEnabled())
+        self.assertTrue(self.command.clear_button.isEnabled())
         self.assertFalse(self.command.editor.isReadOnly())
 
     def test_each_page_only_sends_its_own_payload(self):
@@ -1794,13 +1790,13 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(self.message.targets.target_input.segments[-1].isError())
         self.assertIn("目标地址", self.message.footer.status.text())
 
-    def test_oversized_command_is_rejected_before_worker(self):
+    def test_long_command_passes_validation(self):
+        # 命令正文随托管脚本下发，不走命令通道，长度不再受限。
         self.state.set_value("target", "192.168.1.10")
-        self.command.editor.setPlainText("a" * 164)
-        with patch.object(system_net_targets, "get_ip", return_value=["模拟目标"]):
-            self.window.start_send("command")
-        self.assertIsNone(self.window.thread)
-        self.assertIn("超过报文容量", self.command.footer.status.text())
+        self.command.editor.setPlainText("a" * 400)
+        options = self.window._options_for_page("command")
+        send_service.validate_options(options)
+        self.assertEqual(len(options.command), 400)
 
     def test_file_page_selects_file_and_starts_transfer(self):
         page = self.window.pages["file"]

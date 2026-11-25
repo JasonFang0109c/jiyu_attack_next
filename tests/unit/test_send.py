@@ -34,15 +34,12 @@ class SendTests(OfflineCase):
                 send_service.validate_options(options)
 
     def test_packet_preparation(self):
-        options = send_data.SendOptions(
-            "192.168.1.10", message="a" * 449, command="whoami"
-        )
+        options = send_data.SendOptions("192.168.1.10", message="a" * 449)
         packets = send_service.prepare_packets(options)
-        self.assertEqual(len(packets), 3)
+        self.assertEqual(len(packets), 2)
         self.assertEqual(
             self.message_text(packets[0]) + self.message_text(packets[1]), "a" * 449
         )
-        self.assertEqual(self.command_text(packets[2]), "whoami")
 
         options.extra = "s"
         packets = send_service.prepare_packets(options)
@@ -66,12 +63,12 @@ class SendTests(OfflineCase):
         self.assertIn("DownloadString", command)
         self.assertIn(constants.BLUE_SCREEN_PATH, command)
 
-    def test_system_command_uses_hosted_script(self):
-        # 以 SYSTEM 执行时命令正文不进报文，改由本机 HTTP 托管脚本。
+    def test_command_uses_hosted_script(self):
+        # 命令正文不进报文，改由本机 HTTP 托管脚本注册 SYSTEM 计划任务。
         self.network_guard.stop()
         self.addCleanup(self.network_guard.start)
         packets = send_service.prepare_packets(
-            send_data.SendOptions("127.0.0.1", command="whoami", system=True)
+            send_data.SendOptions("127.0.0.1", command="whoami")
         )
         self.assertEqual(len(packets), 1)
         command = self.command_text(packets[0])
@@ -80,19 +77,13 @@ class SendTests(OfflineCase):
         # 命令超过命令通道容量也能发：正文只经脚本下发。
         long_command = "cmd /c echo " + "a" * 500
         packets = send_service.prepare_packets(
-            send_data.SendOptions("127.0.0.1", command=long_command, system=True)
+            send_data.SendOptions("127.0.0.1", command=long_command)
         )
         self.assertEqual(len(packets), 1)
 
-    def test_system_flag_requires_command(self):
-        with self.assertRaises(ValueError):
-            send_service.validate_options(
-                send_data.SendOptions("127.0.0.1", message="通知", system=True)
-            )
-
     def test_gui_send_uses_bytes_and_shared_transport(self):
         options = send_data.SendOptions(
-            "192.168.1.10", message="a" * 449, command="whoami", loops=2, interval=0
+            "192.168.1.10", message="a" * 700, loops=2, interval=0
         )
         first = MagicMock()
         second = MagicMock()
@@ -100,7 +91,6 @@ class SendTests(OfflineCase):
             bytes(codec.pkg_sendlist("-msg", chunk))
             for chunk in codec.split_message(options.message)
         ]
-        packets.append(bytes(codec.pkg_sendlist("-c", options.command)))
         with (
             patch.object(udp, "get_ip", return_value=["模拟目标甲", "模拟目标乙"]),
             patch.object(socket, "socket", side_effect=[first, second]),
@@ -111,7 +101,7 @@ class SendTests(OfflineCase):
             ),
         ):
             outcome = send_service.execute_send_report(options)
-        self.assertEqual(outcome.sent, 12)
+        self.assertEqual(outcome.sent, len(packets) * 4)
         # 每个目标各自建连接，轮询两轮后各发一遍完整报文序列。
         for client, host in ((first, "模拟目标甲"), (second, "模拟目标乙")):
             self.assertEqual(client.connect.call_args, call((host, 4705)))

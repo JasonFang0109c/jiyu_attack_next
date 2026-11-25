@@ -1,18 +1,16 @@
-"""远程命令页：编辑命令正文并实时统计报文占用。"""
+"""远程命令页：编辑命令正文并实时统计字符数。"""
 
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QHBoxLayout
-from qfluentwidgets import BodyLabel, CaptionLabel, CheckBox, PlainTextEdit
+from qfluentwidgets import BodyLabel, CaptionLabel, PlainTextEdit
 from qfluentwidgets import FluentIcon as FIF
 
-import app.packets.constants as packets_constants
-from app.gui.theme import tone_color
 from app.gui.widgets.common import tool_button
 from app.gui.widgets.page import NetworkPage
 
 
 class CommandPage(NetworkPage):
-    """编辑远程命令，超出报文容量时提示并阻止发送。"""
+    """编辑远程命令，命令经本机托管脚本以 SYSTEM 计划任务执行。"""
 
     def __init__(self, state, parent=None):
         super().__init__("command", "远程命令", state, "发送命令", parent)
@@ -20,15 +18,12 @@ class CommandPage(NetworkPage):
         row.setSpacing(10)
         row.addWidget(BodyLabel("命令正文", self.content_card))
         self.statistics = CaptionLabel("", self.content_card)
+        self.statistics.setToolTip(
+            "命令正文不进报文：由本机临时 HTTP 托管的脚本注册以 SYSTEM 运行的"
+            "一次性计划任务并立即触发，执行输出写到公共目录的 out.txt"
+        )
         row.addWidget(self.statistics)
         row.addStretch()
-        self.system_check = CheckBox("以 SYSTEM 计划任务执行", self.content_card)
-        self.system_check.setToolTip(
-            "命令由本机临时 HTTP 托管的脚本执行：脚本注册以 SYSTEM 运行的一次性"
-            "计划任务并立即触发，执行输出写到公共目录的 out.txt"
-        )
-        self.system_check.toggled.connect(self.update_statistics)
-        row.addWidget(self.system_check)
         self.clear_button = tool_button(
             FIF.DELETE, "清空命令", self.content_card, lambda: self.editor.clear()
         )
@@ -42,26 +37,14 @@ class CommandPage(NetworkPage):
         self.update_statistics()
 
     def update_statistics(self):
-        """刷新已用容量提示，超出上限时文字转红。"""
-        if self.system_check.isChecked():
-            # 命令正文随脚本下发，不再占用命令通道，容量提示换成执行说明。
-            self.statistics.setText("命令经脚本托管，不受报文容量限制")
-            self.statistics.setStyleSheet("")
-            return
-        try:
-            units = len(self.editor.toPlainText().encode("utf-16le")) // 2
-        except UnicodeError:
-            self.statistics.setText("文本编码无效")
-            return
-        limit = packets_constants.COMMAND_MAX_BYTES // 2
-        self.statistics.setText("%d / %d 个 UTF-16 单元" % (units, limit))
-        self.statistics.setStyleSheet(
-            "color: %s;" % tone_color("error").name() if units > limit else ""
-        )
+        """刷新命令长度提示。
+
+        命令正文随脚本下发，不占用命令通道，因此只显示字符数供参考。
+        """
+        self.statistics.setText("%d 个字符" % len(self.editor.toPlainText()))
 
     def set_busy(self, busy, cancellable=False, queueable=False):
         """在基类忙碌状态之外锁定编辑框与清空按钮，避免任务中改内容。"""
         super().set_busy(busy, cancellable, queueable)
         self.editor.setReadOnly(busy)
-        self.system_check.setEnabled(not busy)
         self.clear_button.setEnabled(not busy)

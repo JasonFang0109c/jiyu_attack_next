@@ -15,7 +15,6 @@ from qfluentwidgets import (
 
 import app.features.send.service as send_service
 import app.packets.blue_screen as packets_blue_screen
-import app.packets.codec as packets_codec
 import app.packets.constants as packets_constants
 import app.system.net.targets as system_net_targets
 from app.gui.widgets.common import FluentDialog, center_dialog
@@ -94,9 +93,7 @@ class GuiService:
             page = window.pages[kind]
             text = page.editor.toPlainText()
             if kind == "command":
-                return window.connection_state.options(
-                    command=text, system=page.system_check.isChecked()
-                )
+                return window.connection_state.options(command=text)
             return window.connection_state.options(message=text)
         window.logs.warning("应用", "不支持的发送功能", "功能代码：%s" % kind)
         raise ValueError("不支持的发送功能")
@@ -124,9 +121,6 @@ class GuiService:
             return
         try:
             send_service.validate_options(options)
-            # 走计划任务时命令正文由脚本托管，不受命令通道容量限制。
-            if options.command and not options.system:
-                packets_codec.pkg_sendlist("-c", options.command)
         except (ValueError, UnicodeError) as error:
             window._validation_error(kind, str(error), "发送参数校验失败：%s" % error)
             return
@@ -158,7 +152,7 @@ class GuiService:
                     % (target_text, options.port, len(hosts)),
                 )
                 return
-        if kind == "command" and options.system:
+        if kind == "command":
             content = (
                 "目标：%s\nUDP 端口：%d\n设备数量：%d\n"
                 "执行方式：SYSTEM 计划任务\n命令：%s"
@@ -211,7 +205,7 @@ class GuiService:
             window.logs.debug(
                 CATEGORIES[kind], "蓝屏载荷", packets_blue_screen.payload_hint()
             )
-        if kind == "command" and options.system:
+        if kind == "command":
             window.logs.debug(
                 CATEGORIES[kind], "计划任务载荷", packets_elevated.payload_hint()
             )
