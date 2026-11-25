@@ -29,7 +29,7 @@ a = Analysis(
           + copy_metadata("PySide6")
           + copy_metadata("PySide6-Fluent-Widgets"),
     hiddenimports=[],
-    hookspath=[],
+    hookspath=[str(root / "pack" / "hooks")],
     hooksconfig={},
     runtime_hooks=[],
     # 组件库只用 scipy.ndimage 做高斯模糊，其余子包不会在运行时导入。
@@ -51,6 +51,8 @@ a = Analysis(
         "scipy.sparse",
         "scipy.spatial",
         "scipy.stats",
+        # Windows 版只用 Windows 检测器，排除 macOS ctypes 模块。
+        "darkdetect._mac_detect",
     ],
     noarchive=False,
 )
