@@ -140,7 +140,7 @@
 
 “远程命令”页与其它远程攻击页面共用顶部目标、轮数与间隔。命令正文不进报文，因此没有单条长度上限；编辑框右侧实时显示命令字符数便于核对。发送任务是后台线程，期间编辑框与清空按钮只读。
 
-命令经本机临时 HTTP 服务托管执行：报文里只发一条 `powershell -ExecutionPolicy Bypass` 命令让目标取回脚本。脚本把命令写成批处理，注册一个以 `NT AUTHORITY\SYSTEM` 身份、`/RL HIGHEST` 运行的一次性计划任务（`schtasks /Create`），立即 `/Run`，等待执行、`/Delete` 清理，输出写到公共目录 `jyelev\out.txt`。注册任务要求目标端学生端以管理员或 SYSTEM 运行；代价是命令要等任务启动，结果不回传，需自行查看 `out.txt`，且目标需要能访问本机地址与端口。发送前会弹一次“确认以 SYSTEM 执行”。
+命令经本机临时 HTTP 服务托管执行：报文里只发一条 `powershell -ExecutionPolicy Bypass` 命令让目标取回脚本。脚本把命令写成批处理，注册一个以 `NT AUTHORITY\SYSTEM` 身份、`/RL HIGHEST` 运行的一次性计划任务（`schtasks /Create`），立即 `/Run`，每 0.5 秒检查任务状态、命令跑完即 `/Delete` 清理（最长 20 秒兜底），输出写到公共目录 `jyelev\out.txt`。注册任务要求目标端学生端以管理员或 SYSTEM 运行；代价是命令要等任务启动，结果不回传，需自行查看 `out.txt`，且目标需要能访问本机地址与端口。发送前会弹一次“确认以 SYSTEM 执行”。
 
 ## 反弹终端
 

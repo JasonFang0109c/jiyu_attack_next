@@ -19,6 +19,16 @@ class ElevatedTests(OfflineCase):
         # 命令正文不进脚本原文，避免代码页问题。
         self.assertNotIn("taskkill", script)
 
+    def test_script_polls_task_instead_of_blind_sleep(self):
+        script = elevated.elevated_script("cmd /c echo hi")
+        # 轮询任务状态：命令跑完立刻删任务，不再整段盲等固定秒数。
+        self.assertIn("Diagnostics.Stopwatch", script)
+        self.assertIn("LastRunTime", script)
+        self.assertIn(
+            "Start-Sleep -Milliseconds %d" % elevated.TASK_POLL_MILLISECONDS, script
+        )
+        self.assertNotIn("Start-Sleep -Seconds", script)
+
     def test_script_carries_command_as_utf16_base64(self):
         command = "cmd /c echo 中文"
         script = elevated.elevated_script(command)

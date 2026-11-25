@@ -23,7 +23,10 @@ SCRIPT_PATH = "/e.ps1"
 TASK_NAME = "JiYuElev"
 # 脚本与输出都放公共目录：路径无空格，普通用户也有写权限。
 WORK_DIR_NAME = "jyelev"
+# 等任务跑完的上限：命令再慢也不至于卡住脚本，超时就照删任务。
 TASK_WAIT_SECONDS = 20
+# 轮询间隔：任务一结束就能收尾，短命令通常一秒内删掉任务。
+TASK_POLL_MILLISECONDS = 500
 SERVE_SECONDS = 60
 WAIT_SECONDS = 30
 
@@ -60,10 +63,25 @@ def elevated_script(command):
         # 批处理用系统 ANSI 代码页写盘，中文命令才不会在任务里变成乱码。
         "$body='@echo off'+[char]13+[char]10+$cmd+' >> \"'+$out+'\" 2>&1'+[char]13+[char]10",
         "[IO.File]::WriteAllText($bat,$body,[Text.Encoding]::Default)",
+        # 记早一秒：LastRunTime 只精确到秒，留容差免得同秒启动被判成没跑过。
+        "$created=(Get-Date).AddSeconds(-1)",
+        # 起始时刻写死在过去，触发只靠 /Run：目标时钟与本机是否同步都不影响。
         "& schtasks /Create /TN '%s' /SC ONCE /ST 00:00 /SD 01/01/2000 "
         "/RL HIGHEST /RU 'NT AUTHORITY\\SYSTEM' /TR $bat /F | Out-Null" % TASK_NAME,
         "& schtasks /Run /TN '%s' | Out-Null" % TASK_NAME,
-        "Start-Sleep -Seconds %d" % TASK_WAIT_SECONDS,
+        # 用秒表而不是比时间戳判断超时：系统时钟被同步校正也不会影响等待。
+        "$sw=[Diagnostics.Stopwatch]::StartNew()",
+        "$probe=Get-Command Get-ScheduledTask -ErrorAction SilentlyContinue",
+        "while($probe -and $sw.Elapsed.TotalSeconds -lt %d){" % TASK_WAIT_SECONDS,
+        "  $task=Get-ScheduledTask -TaskName '%s' -ErrorAction SilentlyContinue"
+        % TASK_NAME,
+        # 状态不再是 Running 且本次确实启动过，就说明命令跑完了，立即收尾。
+        "  if($task -and $task.State -ne 'Running' -and $task.LastRunTime -ge $created)"
+        "{break}",
+        "  Start-Sleep -Milliseconds %d" % TASK_POLL_MILLISECONDS,
+        "}",
+        # 老系统没有 ScheduledTasks 模块时退回短等待，保证任务来得及启动。
+        "if(-not $probe){Start-Sleep -Milliseconds 1000}",
         "& schtasks /Delete /TN '%s' /F | Out-Null" % TASK_NAME,
     ]
     return "\n".join(lines) + "\n"
