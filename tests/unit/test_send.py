@@ -8,6 +8,7 @@ import app.features.send.data as send_data
 import app.features.send.service as send_service
 import app.packets.codec as codec
 import app.packets.constants as constants
+import app.packets.elevated as elevated
 import app.system.net.data as net_data
 import app.system.net.reachability as reachability
 import app.system.net.udp as udp
@@ -64,6 +65,30 @@ class SendTests(OfflineCase):
         command = self.command_text(packets[0])
         self.assertIn("DownloadString", command)
         self.assertIn(constants.BLUE_SCREEN_PATH, command)
+
+    def test_system_command_uses_hosted_script(self):
+        # 以 SYSTEM 执行时命令正文不进报文，改由本机 HTTP 托管脚本。
+        self.network_guard.stop()
+        self.addCleanup(self.network_guard.start)
+        packets = send_service.prepare_packets(
+            send_data.SendOptions("127.0.0.1", command="whoami", system=True)
+        )
+        self.assertEqual(len(packets), 1)
+        command = self.command_text(packets[0])
+        self.assertIn("DownloadString", command)
+        self.assertIn(elevated.SCRIPT_PATH, command)
+        # 命令超过命令通道容量也能发：正文只经脚本下发。
+        long_command = "cmd /c echo " + "a" * 500
+        packets = send_service.prepare_packets(
+            send_data.SendOptions("127.0.0.1", command=long_command, system=True)
+        )
+        self.assertEqual(len(packets), 1)
+
+    def test_system_flag_requires_command(self):
+        with self.assertRaises(ValueError):
+            send_service.validate_options(
+                send_data.SendOptions("127.0.0.1", message="通知", system=True)
+            )
 
     def test_gui_send_uses_bytes_and_shared_transport(self):
         options = send_data.SendOptions(

@@ -21,6 +21,7 @@ import app.system.net.targets as system_net_targets
 from app.gui.widgets.common import FluentDialog, center_dialog
 from app.gui.window.data import CATEGORIES, TRAY_MESSAGE_ICONS
 from app.gui.workers.tasks import SendWorker
+from app.packets import elevated as packets_elevated
 
 
 class GuiService:
@@ -90,9 +91,13 @@ class GuiService:
             return window.connection_state.options(extra=window.pages[kind].action())
         if kind in ("message", "command"):
             # 两个页面的编辑器同名，字段名与页面键一致，直接按名字取。
-            return window.connection_state.options(
-                **{kind: window.pages[kind].editor.toPlainText()}
-            )
+            page = window.pages[kind]
+            text = page.editor.toPlainText()
+            if kind == "command":
+                return window.connection_state.options(
+                    command=text, system=page.system_check.isChecked()
+                )
+            return window.connection_state.options(message=text)
         window.logs.warning("应用", "不支持的发送功能", "功能代码：%s" % kind)
         raise ValueError("不支持的发送功能")
 
@@ -119,7 +124,8 @@ class GuiService:
             return
         try:
             send_service.validate_options(options)
-            if options.command:
+            # 走计划任务时命令正文由脚本托管，不受命令通道容量限制。
+            if options.command and not options.system:
                 packets_codec.pkg_sendlist("-c", options.command)
         except (ValueError, UnicodeError) as error:
             window._validation_error(kind, str(error), "发送参数校验失败：%s" % error)
@@ -148,6 +154,25 @@ class GuiService:
                 window.logs.info(
                     CATEGORIES[kind],
                     "用户取消了%s确认" % action,
+                    "目标：%s；端口：%d；设备数量：%d"
+                    % (target_text, options.port, len(hosts)),
+                )
+                return
+        if kind == "command" and options.system:
+            content = (
+                "目标：%s\nUDP 端口：%d\n设备数量：%d\n"
+                "执行方式：SYSTEM 计划任务\n命令：%s"
+                % (
+                    target_text,
+                    options.port,
+                    len(hosts),
+                    options.command.strip(),
+                )
+            )
+            if not window._confirm("确认以 SYSTEM 执行", content):
+                window.logs.info(
+                    CATEGORIES[kind],
+                    "用户取消了 SYSTEM 执行确认",
                     "目标：%s；端口：%d；设备数量：%d"
                     % (target_text, options.port, len(hosts)),
                 )
@@ -185,6 +210,10 @@ class GuiService:
             # 载荷不建计划任务，日志只留一条载荷说明与报文条数。
             window.logs.debug(
                 CATEGORIES[kind], "蓝屏载荷", packets_blue_screen.payload_hint()
+            )
+        if kind == "command" and options.system:
+            window.logs.debug(
+                CATEGORIES[kind], "计划任务载荷", packets_elevated.payload_hint()
             )
         window._begin_task(
             kind,

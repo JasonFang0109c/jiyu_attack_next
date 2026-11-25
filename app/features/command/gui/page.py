@@ -2,7 +2,7 @@
 
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QHBoxLayout
-from qfluentwidgets import BodyLabel, CaptionLabel, PlainTextEdit
+from qfluentwidgets import BodyLabel, CaptionLabel, CheckBox, PlainTextEdit
 from qfluentwidgets import FluentIcon as FIF
 
 import app.packets.constants as packets_constants
@@ -22,6 +22,13 @@ class CommandPage(NetworkPage):
         self.statistics = CaptionLabel("", self.content_card)
         row.addWidget(self.statistics)
         row.addStretch()
+        self.system_check = CheckBox("以 SYSTEM 计划任务执行", self.content_card)
+        self.system_check.setToolTip(
+            "命令由本机临时 HTTP 托管的脚本执行：脚本注册以 SYSTEM 运行的一次性"
+            "计划任务并立即触发，执行输出写到公共目录的 out.txt"
+        )
+        self.system_check.toggled.connect(self.update_statistics)
+        row.addWidget(self.system_check)
         self.clear_button = tool_button(
             FIF.DELETE, "清空命令", self.content_card, lambda: self.editor.clear()
         )
@@ -36,6 +43,11 @@ class CommandPage(NetworkPage):
 
     def update_statistics(self):
         """刷新已用容量提示，超出上限时文字转红。"""
+        if self.system_check.isChecked():
+            # 命令正文随脚本下发，不再占用命令通道，容量提示换成执行说明。
+            self.statistics.setText("命令经脚本托管，不受报文容量限制")
+            self.statistics.setStyleSheet("")
+            return
         try:
             units = len(self.editor.toPlainText().encode("utf-16le")) // 2
         except UnicodeError:
@@ -51,4 +63,5 @@ class CommandPage(NetworkPage):
         """在基类忙碌状态之外锁定编辑框与清空按钮，避免任务中改内容。"""
         super().set_busy(busy, cancellable, queueable)
         self.editor.setReadOnly(busy)
+        self.system_check.setEnabled(not busy)
         self.clear_button.setEnabled(not busy)

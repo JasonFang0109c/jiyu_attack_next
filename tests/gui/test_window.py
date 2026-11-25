@@ -1657,6 +1657,24 @@ class GuiTests(unittest.TestCase):
         self.command.editor.setPlainText("中文")
         self.assertIn("2 / 163", self.command.statistics.text())
 
+    def test_command_system_mode_switches_statistics_and_options(self):
+        # 勾选 SYSTEM 后命令正文走脚本托管，容量提示与发送选项随之变化。
+        self.command.system_check.setChecked(True)
+        self.assertIn("脚本托管", self.command.statistics.text())
+        options = self.window._options_for_page("command")
+        self.assertTrue(options.system)
+        self.command.system_check.setChecked(False)
+        self.assertIn("/ 163", self.command.statistics.text())
+        self.assertFalse(self.window._options_for_page("command").system)
+
+    def test_command_busy_locks_system_check(self):
+        self.command.set_busy(True)
+        self.assertFalse(self.command.system_check.isEnabled())
+        self.assertTrue(self.command.editor.isReadOnly())
+        self.command.set_busy(False)
+        self.assertTrue(self.command.system_check.isEnabled())
+        self.assertFalse(self.command.editor.isReadOnly())
+
     def test_each_page_only_sends_its_own_payload(self):
         self.message.editor.setPlainText("通知")
         self.command.editor.setPlainText("whoami")
