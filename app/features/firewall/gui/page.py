@@ -7,8 +7,8 @@ from qfluentwidgets import FluentIcon as FIF
 from app.gui.widgets.common import (
     FluentComboBox,
     SectionCard,
-    TaskFooter,
     page_heading,
+    task_footer_card,
 )
 from app.gui.widgets.page import Page, table_widget
 
@@ -42,10 +42,9 @@ class FirewallPage(Page):
         )
         self.content_card.body.addWidget(self.result_table, 1)
         self.vbox.addWidget(self.content_card, 1)
-        self.footer_card = SectionCard(self, spacing=0, margins=(8, 8, 8, 8))
-        self.footer = TaskFooter("应用规则", self.footer_card, FIF.CERTIFICATE)
-        self.footer.cancel_button.hide()
-        self.footer_card.body.addWidget(self.footer)
+        self.footer_card, self.footer = task_footer_card(
+            self, "应用规则", FIF.CERTIFICATE, hide_cancel=True
+        )
         self.vbox.addWidget(self.footer_card)
 
     def action(self):

@@ -5,7 +5,12 @@ from PySide6.QtWidgets import QHBoxLayout, QTableWidgetItem
 from qfluentwidgets import BodyLabel, setFont
 from qfluentwidgets import FluentIcon as FIF
 
-from app.gui.widgets.common import SectionCard, TaskFooter, page_heading, tool_button
+from app.gui.widgets.common import (
+    SectionCard,
+    page_heading,
+    task_footer_card,
+    tool_button,
+)
 from app.gui.widgets.page import Page, table_widget
 
 
@@ -37,10 +42,9 @@ class LocalPage(Page):
         self.port_table.setColumnWidth(0, 140)
         self.content_card.body.addWidget(self.port_table, 1)
         self.vbox.addWidget(self.content_card, 1)
-        self.footer_card = SectionCard(self, spacing=0, margins=(8, 8, 8, 8))
-        self.footer = TaskFooter("查询本机", self.footer_card, FIF.SEARCH)
-        self.footer.cancel_button.hide()
-        self.footer_card.body.addWidget(self.footer)
+        self.footer_card, self.footer = task_footer_card(
+            self, "查询本机", FIF.SEARCH, hide_cancel=True
+        )
         self.vbox.addWidget(self.footer_card)
 
     def set_result(self, ip, ports):

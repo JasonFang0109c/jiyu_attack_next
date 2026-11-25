@@ -711,3 +711,23 @@ class TaskFooter(QWidget):
     def finish_status(self):
         """任务结束后清空状态文字。"""
         self.status.hide()
+
+
+def task_footer_card(parent, button_text, icon=FluentIcon.SEND, hide_cancel=False):
+    """创建统一样式的任务底栏卡片。
+
+    Args:
+        parent: 卡片所属页面。
+        button_text: 主操作按钮文字。
+        icon: 主操作按钮图标。
+        hide_cancel: 是否隐藏取消按钮。
+
+    Returns:
+        ``(card, footer)`` 元组。
+    """
+    card = SectionCard(parent, spacing=0, margins=(8, 8, 8, 8))
+    footer = TaskFooter(button_text, card, icon)
+    if hide_cancel:
+        footer.cancel_button.hide()
+    card.body.addWidget(footer)
+    return card, footer

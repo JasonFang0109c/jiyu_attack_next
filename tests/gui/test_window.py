@@ -151,6 +151,19 @@ class GuiTests(unittest.TestCase):
         self.addCleanup(confirm.stop)
         self.addCleanup(self.dispose_window)
 
+    def test_task_footer_card_factory_keeps_page_structure(self):
+        host = QWidget()
+        card, footer = components.task_footer_card(
+            host, "测试操作", FluentIcon.SEND, hide_cancel=True
+        )
+        self.assertIs(card.parentWidget(), host)
+        self.assertIs(footer.parentWidget(), card)
+        self.assertIs(card.body.itemAt(0).widget(), footer)
+        self.assertFalse(footer.cancel_button.isVisible())
+        self.assertEqual(footer.send_button.text(), "测试操作")
+        host.deleteLater()
+        QCoreApplication.sendPostedEvents(host, QEvent.Type.DeferredDelete)
+
     def wait_for(self, predicate):
         deadline = time.monotonic() + 5
         while not predicate() and time.monotonic() < deadline:

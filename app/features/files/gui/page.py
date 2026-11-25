@@ -17,9 +17,9 @@ from app.gui.theme import CONTROL_CORNER_RADIUS
 from app.gui.widgets.common import (
     SectionCard,
     TargetControls,
-    TaskFooter,
     info_button,
     page_heading,
+    task_footer_card,
     tool_button,
 )
 from app.gui.widgets.page import (
@@ -140,9 +140,7 @@ class FilePage(Page):
 
         self.vbox.addWidget(self.content_card, 1)
 
-        self.footer_card = SectionCard(self, spacing=0, margins=(8, 8, 8, 8))
-        self.footer = TaskFooter("传送文件", self.footer_card, FIF.SEND)
-        self.footer_card.body.addWidget(self.footer)
+        self.footer_card, self.footer = task_footer_card(self, "传送文件", FIF.SEND)
         self.vbox.addWidget(self.footer_card)
         self._update_selection_controls()
 
