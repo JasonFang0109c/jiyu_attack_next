@@ -103,7 +103,11 @@ class CliLifecycleTests(unittest.TestCase):
         self.dispatch.return_value = 7
         self.assertEqual(cli.main(["local", "info"]), 7)
         self.assertIsNone(self.log._handle)
-        self.assertIn("退出码：7", self.log_path.read_text(encoding="utf-8"))
+        self.assertIsNone(self.log.path)
+        self.log.error("命令结束后的模块日志", "测试")
+        text = self.log_path.read_text(encoding="utf-8")
+        self.assertIn("退出码：7", text)
+        self.assertNotIn("命令结束后的模块日志", text)
 
     def test_dispatch_exception_closes_handle(self):
         self.dispatch.side_effect = RuntimeError("handler failed")

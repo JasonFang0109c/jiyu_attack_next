@@ -105,4 +105,4 @@ def main(argv=None):
         cli_log.LOG.info("命令行结束", "命令行", "退出码：%s" % code)
         return code
     finally:
-        cli_log.close()
+        cli_log.configure(None)
