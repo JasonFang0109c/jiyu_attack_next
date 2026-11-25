@@ -1281,6 +1281,9 @@ class GuiTests(unittest.TestCase):
             - {"home", "settings", "about", "aliases", "remote", "localtools"},
         )
         self.assertEqual(home.cards["message"].objectName(), "homeCard_message")
+        for card in home.shortcuts.values():
+            self.assertTrue(card.description_label.alignment() & Qt.AlignTop)
+            self.assertTrue(card.description_label.alignment() & Qt.AlignLeft)
         home.cards["logs"].clicked.emit()
         self.assertEqual(self.window.current_page(), "logs")
 

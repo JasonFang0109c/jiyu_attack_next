@@ -46,6 +46,7 @@ class ShortcutCard(FluentCard):
         layout.addWidget(self.title_label)
         self.description_label = CaptionLabel(description, self)
         self.description_label.setWordWrap(True)
+        self.description_label.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         line = self.description_label.fontMetrics().lineSpacing()
         self.description_label.setFixedHeight(line * 2)
         layout.addWidget(self.description_label)
