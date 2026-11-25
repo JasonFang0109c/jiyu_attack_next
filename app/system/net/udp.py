@@ -135,14 +135,14 @@ def send_tracked(
     try:
         for host in hosts:
             client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sockets[host] = client
             client.settimeout(1.0)
             try:
                 client.connect((host, port))
             except OSError as error:
                 client.close()
+                del sockets[host]
                 states[host] = (DeliveryState.UNREACHABLE, str(error))
-                continue
-            sockets[host] = client
         for _ in _iter_rounds(loops, interval, cancel_event, report):
             for host in hosts:
                 client = sockets.get(host)

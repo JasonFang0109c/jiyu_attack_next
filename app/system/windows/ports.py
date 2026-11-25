@@ -14,6 +14,8 @@ AF_INET = 2
 UDP_TABLE_OWNER_PID = 1
 TCP_TABLE_OWNER_PID_ALL = 5
 _NO_ERROR = 0
+_ERROR_INSUFFICIENT_BUFFER = 122
+_MAX_TABLE_READ_ATTEMPTS = 3
 
 _IPHLPAPI = None
 
@@ -86,13 +88,25 @@ def _read_rows(function_name, table_class, row_type, family=AF_INET):
     library = _iphlpapi()
     function = getattr(library, function_name)
     size = wintypes.DWORD(0)
-    function(None, ctypes.byref(size), False, family, table_class, 0)
+    result = function(None, ctypes.byref(size), False, family, table_class, 0)
     if size.value == 0:
+        if result not in (_NO_ERROR, _ERROR_INSUFFICIENT_BUFFER):
+            raise OSError(result, "读取端口表失败")
         return []
-    buffer = ctypes.create_string_buffer(size.value)
-    result = function(buffer, ctypes.byref(size), False, family, table_class, 0)
-    if result != _NO_ERROR:
+    if result not in (_NO_ERROR, _ERROR_INSUFFICIENT_BUFFER):
         raise OSError(result, "读取端口表失败")
+
+    buffer = None
+    for _ in range(_MAX_TABLE_READ_ATTEMPTS):
+        buffer = ctypes.create_string_buffer(size.value)
+        result = function(buffer, ctypes.byref(size), False, family, table_class, 0)
+        if result == _NO_ERROR:
+            break
+        if result != _ERROR_INSUFFICIENT_BUFFER:
+            raise OSError(result, "读取端口表失败")
+    else:
+        raise OSError(_ERROR_INSUFFICIENT_BUFFER, "读取端口表时端口表持续变化")
+
     count = ctypes.cast(buffer, ctypes.POINTER(wintypes.DWORD)).contents.value
     # 表格头部是一个 DWORD 记录行数，行紧跟其后；C 结构体按 4 字节对齐，
     # 这里直接按数组遍历不会错位。

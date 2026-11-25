@@ -12,12 +12,34 @@ import app.shared.logs.cli as cli_log
 from app.features.command import cli as command_cli
 from app.features.files import cli as files_cli
 from app.features.send import cli as send_cli
+from app.features.shell import cli as shell_cli
 from app.start import cli
 from app.start.parser import build_group_parser
 from tests.fixtures.offline import OfflineCase
 
 
 class CliCommandsTests(OfflineCase):
+    def test_shell_success_returns_zero_exit_code(self):
+        server = SimpleNamespace(
+            address="127.0.0.1",
+            port=50000,
+            http_port=50001,
+            command=lambda: "connect",
+            start=lambda: None,
+            close=lambda: None,
+        )
+        arguments = SimpleNamespace(ip="127.0.0.1", p=4705)
+        with (
+            patch.object(shell_cli, "ShellServer", return_value=server),
+            patch.object(shell_cli, "send_command"),
+            patch.object(shell_cli, "relay_shell"),
+            patch.object(shell_cli.cli_log.LOG, "info"),
+            redirect_stdout(io.StringIO()),
+        ):
+            result = shell_cli.run_shell(arguments)
+        self.assertEqual(result, 0)
+        self.assertNotIsInstance(result, bool)
+
     def test_cli_device_actions_reuse_fixed_templates(self):
         parser = build_group_parser()
         for action, key in (("--reboot", "-r"), ("--shutdown", "-s")):

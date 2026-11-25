@@ -53,7 +53,7 @@ def run_shell(arguments):
     finally:
         server.close()
         print("已停止监听与脚本服务", flush=True)
-    return True
+    return 0
 
 
 def relay_shell(server, host):

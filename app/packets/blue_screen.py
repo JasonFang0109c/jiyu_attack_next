@@ -117,10 +117,13 @@ def _running_server(target=None):
         BlueScreenServer: 已启动的服务。
     """
     global _server
+    host = detect_local_ip(target)
     with _server_lock:
-        if _server is not None and not _server.closed:
+        if _server is not None and not _server.closed and _server.host == host:
             return _server
-        server = BlueScreenServer(detect_local_ip(target))
+        if _server is not None:
+            _server.close()
+        server = BlueScreenServer(host)
         server.start()
         _server = server
         return server

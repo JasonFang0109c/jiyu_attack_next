@@ -186,12 +186,18 @@ def _running_server(target, command):
         ElevatedServer: 已启动的服务。
     """
     global _SERVER
+    host = detect_local_ip(target)
     with _SERVER_LOCK:
-        if _SERVER is not None and not _SERVER.closed and _SERVER.command == command:
+        if (
+            _SERVER is not None
+            and not _SERVER.closed
+            and _SERVER.host == host
+            and _SERVER.command == command
+        ):
             return _SERVER
         if _SERVER is not None:
             _SERVER.close()
-        server = ElevatedServer(detect_local_ip(target), command)
+        server = ElevatedServer(host, command)
         server.start()
         _SERVER = server
         return server

@@ -3,6 +3,7 @@
 import secrets
 from contextlib import suppress
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from math import isfinite
 from pathlib import Path
 from threading import Event, Lock, Thread
 from time import monotonic
@@ -538,10 +539,15 @@ def transfer_file(
         requested = list(paths) if paths is not None else [file_path]
         entries = collect_transfer_items(requested)
     targets = get_ip(target.strip())
-    if int(attempts) < 1:
+    try:
+        attempts = int(attempts)
+        retry_delay = float(retry_delay)
+    except (TypeError, ValueError) as error:
+        raise ValueError("文件传送重试次数与间隔必须是数字") from error
+    if attempts < 1:
         raise ValueError("文件传送命令重试次数必须大于 0")
-    if float(retry_delay) < 0:
-        raise ValueError("文件传送命令重试间隔不能小于 0")
+    if not isfinite(retry_delay) or retry_delay < 0:
+        raise ValueError("文件传送命令重试间隔必须是有限的非负数")
     if cancel_event and cancel_event.is_set():
         raise RuntimeError("操作已取消")
     advertised_ip = validate_listen_ip(listen_ip) or detect_local_ip(target)

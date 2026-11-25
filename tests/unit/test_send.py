@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, call, patch
 
 import app.features.send.data as send_data
 import app.features.send.service as send_service
+import app.packets.blue_screen as blue_screen
 import app.packets.codec as codec
 import app.packets.constants as constants
 import app.packets.elevated as elevated
@@ -159,6 +160,51 @@ class SendTests(OfflineCase):
         ):
             udp.send([[1, 2, 3]], "模拟目标")
         fake_socket.__exit__.assert_called_once()
+
+    def test_send_tracked_closes_sockets_when_setup_fails(self):
+        first = MagicMock()
+        with (
+            patch.object(udp, "get_ip", return_value=["甲", "乙"]),
+            patch.object(
+                socket,
+                "socket",
+                side_effect=[first, OSError("模拟套接字创建失败")],
+            ),
+            self.assertRaisesRegex(OSError, "模拟套接字创建失败"),
+        ):
+            udp.send_tracked([[1]], "模拟目标", interval=0)
+        first.close.assert_called_once()
+
+    def test_hosted_servers_refresh_when_selected_local_address_changes(self):
+        blue_screen._server = None
+        elevated._SERVER = None
+        self.addCleanup(setattr, blue_screen, "_server", None)
+        self.addCleanup(setattr, elevated, "_SERVER", None)
+
+        self.network_guard.stop()
+        self.addCleanup(self.network_guard.start)
+        with patch.object(
+            blue_screen, "detect_local_ip", side_effect=["192.0.2.10", "198.51.100.10"]
+        ):
+            first_blue = blue_screen._running_server("192.0.2.1")
+            second_blue = blue_screen._running_server("198.51.100.1")
+        self.assertNotEqual(first_blue, second_blue)
+        self.assertTrue(first_blue.closed)
+        self.assertEqual(second_blue.host, "198.51.100.10")
+
+        with patch.object(
+            elevated, "detect_local_ip", side_effect=["192.0.2.10", "198.51.100.10"]
+        ):
+            first_elevated = elevated._running_server("192.0.2.1", "whoami")
+            second_elevated = elevated._running_server("198.51.100.1", "whoami")
+        self.assertNotEqual(first_elevated, second_elevated)
+        self.assertTrue(first_elevated.closed)
+        self.assertEqual(second_elevated.host, "198.51.100.10")
+
+        self.addCleanup(first_blue.close)
+        self.addCleanup(second_blue.close)
+        self.addCleanup(first_elevated.close)
+        self.addCleanup(second_elevated.close)
 
     def test_send_tracked_marks_rejected_and_unreachable_targets(self):
         rejected = MagicMock()

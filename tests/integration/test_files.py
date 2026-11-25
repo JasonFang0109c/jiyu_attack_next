@@ -309,8 +309,8 @@ class FilesTests(OfflineCase):
                     str(source),
                     listen_ip="127.0.0.1",
                     timeout=5,
-                    attempts=3,
-                    retry_delay=0.01,
+                    attempts="3",
+                    retry_delay="0.01",
                 )
             self.assertEqual(len(sends), 2)
         finally:
