@@ -44,12 +44,14 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Version 0.1.1
 powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Python "C:\Python313\python.exe"
 ```
 
-- 无参数时增量构建，`-Clean` 清理 PyInstaller 缓存后重建，`-Python` 指定其他解释器。
+- `build.ps1` 会在实际打包前自动调用 `pack/clean_build.ps1`；单独执行清理脚本可提前预清理，使用 `-WhatIf` 仅预览将删除的项目。
+- 清理脚本删除旧版 JiYuAttackNext EXE、PyInstaller 的 `build/release`、`build/debug`、`build/assets`、工具缓存，以及源码运行目录和 `output/JiYuAttackNextData/` 中的 `cli.log`、`runtime.log`。只删除这两个日志文件，`settings.json`、备注和其他用户数据保留；若旧 EXE 正在运行，清理会报错并停止构建。
+- 无参数时执行清理后构建；`-Clean` 额外要求 PyInstaller 清理其自身缓存，`-Python` 指定其他解释器。
 - `-Variant` 取 `both`、`release` 或 `debug`，默认 `both`：一次产出 `JiYuAttackNext-<显示版本>.exe` 与 `JiYuAttackNext_Debug-<显示版本>.exe`，两份代码完全相同，只有构建变体标记不同。`-Variant debug` 只重建调试版本，调试时不必等两份都打包完。
 - 两个变体使用独立的 `--workpath`（`build/release` 与 `build/debug`），避免 PyInstaller 复用另一份变体的分析缓存。
 - `-Version` 覆盖版本号；省略时读取 `app/shared/version.py` 的 `__version__`。版本号须符合语义化版本格式，规则见[版本规范](VERSIONING.md)。
-- 产物名直接带显示版本，例如 `output/JiYuAttackNext-0.1.0-e1f9608.exe` 与 `output/JiYuAttackNext_Debug-0.1.0-e1f9608.exe`；显示版本是版本号加提交哈希，因此从文件名就能看出对应哪次提交。本地构建不再产出 `JiYuAttackNext.exe` 这类不带版本号的固定名，早期构建留下的固定名文件在构建结束时清掉。
-- `output/` 只留最近一次构建的两份 EXE：重新构建后删除旧版本产物，避免与当前构建混淆，不保留历史版本。
+- 产物名直接带显示版本，例如 `output/JiYuAttackNext-0.1.0-e1f9608.exe` 与 `output/JiYuAttackNext_Debug-0.1.0-e1f9608.exe`；显示版本是版本号加提交哈希，因此从文件名就能看出对应哪次提交。本地构建不再产出 `JiYuAttackNext.exe` 这类不带版本号的固定名，旧版 EXE 会在构建前由清理脚本删除。
+- `output/` 只留最近一次构建所选变体的 EXE：重新构建前删除旧版本产物，避免与当前构建混淆，不保留历史版本。
 - 提交哈希省略 `-Commit` 时自动取 `git rev-parse --short=7 HEAD`；显式传 `-Commit ""` 表示不要哈希（正式版发布用它），此时产物名就是 `output/JiYuAttackNext-0.1.0.exe`；不在 Git 仓库内构建时同样只带版本号。
 - 脚本根据自身路径定位项目根目录，也可从其他目录通过绝对路径调用，默认使用项目虚拟环境。
 - 读取 [pack/JiYuAttackNext.spec](../../pack/JiYuAttackNext.spec)，并收集 Fluent Widgets 的运行时资源与包元数据。
@@ -72,21 +74,29 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Python "C:\Python313\
 
 删除 `build/` 不影响已生成的 EXE，下次构建会重新生成所需文件。`build/`、`output/` 与 `.venv/` 均由 `.gitignore` 排除，不提交 Git。构建前请关闭正在运行的同名程序。项目生成的是未签名 EXE，首次启动需数秒解压资源；EXE 只允许同时运行一个实例，再次启动会唤醒已有窗口。
 
-### 残留清理
+### 构建前清理
 
-构建、测试与截图验证结束后立即清掉本次产生的残留，只留最近一次构建的两份 EXE：
+`pack/build.ps1` 在正式构建前会自动运行 `pack/clean_build.ps1`；需要单独预清理时运行：
 
-| 要删的路径 | 是什么 |
+```powershell
+powershell -ExecutionPolicy Bypass -File ./pack/clean_build.ps1
+
+# 只预览清理目标，不删除文件
+powershell -ExecutionPolicy Bypass -File ./pack/clean_build.ps1 -WhatIf
+```
+
+清理脚本只接受包含 `pack/build.ps1` 与 `app/` 的项目根目录，并按下表删除固定目标。构建前请关闭正在运行的 EXE；若检测到项目旧 EXE 仍在运行，脚本会报错并中止构建。
+
+| 清理目标 | 说明 |
 | --- | --- |
-| `build\` | PyInstaller 的 `--workpath`，含中间文件、图标、验证截图与版本资源 |
-| `output\` 里旧版本号的 EXE | 与当前构建混淆，不保留历史版本 |
-| `.ruff_cache\`、`.pytest_cache\`、`.mypy_cache\` | 格式化、lint、测试与类型检查缓存 |
-| `__pycache__\`、`*.pyc` | 字节码缓存 |
-| `.coverage`、`htmlcov\` | 覆盖率数据与报告 |
+| `output/JiYuAttackNext*.exe`、`output/JiyuUdpTest.exe` | 删除旧版与上一轮 EXE，构建完成后仅留下本轮选中变体的产物 |
+| `build/release/`、`build/debug/`、`build/assets/` | 清除 PyInstaller 中间文件与生成资源；构建会重新生成 |
+| `output/JiYuAttackNextData/cli.log`、`output/JiYuAttackNextData/runtime.log` | 清理 EXE 数据目录中的运行日志 |
+| `JiYuAttackNextData/cli.log`、`JiYuAttackNextData/runtime.log` | 清理源码运行目录中的运行日志 |
+| `.ruff_cache/`、`.pytest_cache/`、`.mypy_cache/`、`.coverage`、`htmlcov/` | 清除工具缓存与覆盖率结果 |
+| `app/`、`pack/`、`scripts/`、`tests/` 下的 `__pycache__/` | 清除源码字节码缓存，不遍历 `.venv/` |
 
-命令自带 `--no-cache`（ruff）与 `-B`（python）能少生成一部分缓存，但收尾时仍要把已经出现的目录删掉，不要只靠 `.gitignore` 兜底，避免污染备份与磁盘。
-
-**不删 `output\JiYuAttackNextData\`**：里面的备注、设置与运行日志是用户自己的数据，构建、测试或截图都不该动它。需要干净的验证环境时改用临时数据目录（截图验证用 `build\verify-gui-data`）或在其他目录运行，不要清掉这份数据。
+**明确保留 `settings.json`、备注和其他运行数据**：脚本仅删除上表列出的两个日志文件，不删除 `JiYuAttackNextData/` 目录，也不会递归清理 `output/`。由于脚本会删除旧 EXE，不要在构建完成后再次运行；验证产生的临时截图可按需单独删除。需要干净的验证环境时改用临时数据目录（截图验证用 `build/verify-gui-data`）。
 
 ## 体积控制
 

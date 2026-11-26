@@ -76,6 +76,9 @@ try {
         }
     }
 
+    $cleanupScript = Join-Path $PSScriptRoot "clean_build.ps1"
+    & $cleanupScript -ProjectRoot $projectRoot
+
     New-Item -ItemType Directory -Path (Join-Path $buildRoot "assets") -Force | Out-Null
     $iconScript = "from PySide6.QtGui import QGuiApplication, QIcon; from PySide6.QtCore import QSize; app = QGuiApplication([]); icon = QIcon('app/resources/icons/app.svg'); ok = icon.pixmap(QSize(256, 256)).save('build/assets/app.ico', 'ICO'); raise SystemExit(0 if ok else 1)"
     & $pythonExe -X utf8 -c $iconScript
@@ -131,27 +134,6 @@ try {
     Remove-Item Env:\JY_BUILD_VARIANT -ErrorAction SilentlyContinue
     Remove-Item Env:\JY_BUILD_NAME -ErrorAction SilentlyContinue
 
-    # 早期构建写的是不带版本号的固定名，留着会和带版本号的产物混在一起，一并清掉。
-    foreach ($stale in @("JiYuAttackNext", "JiYuAttackNext_Debug")) {
-        $stalePath = Join-Path $outputRoot ($stale + ".exe")
-        if (-not (Test-Path -LiteralPath $stalePath -PathType Leaf)) {
-            continue
-        }
-        try {
-            Remove-Item -LiteralPath $stalePath -Force
-        } catch {
-            Write-Warning ("旧产物 " + $stale + ".exe 正在运行，无法移除；新版本已构建完成。")
-        }
-    }
-
-    $legacyPath = Join-Path $outputRoot "JiyuUdpTest.exe"
-    if (Test-Path -LiteralPath $legacyPath -PathType Leaf) {
-        try {
-            Remove-Item -LiteralPath $legacyPath -Force
-        } catch {
-            Write-Warning "旧版 JiyuUdpTest.exe 正在运行，无法移除；新版本已构建完成。"
-        }
-    }
 }
 finally {
     Remove-Item Env:\JY_BUILD_VARIANT -ErrorAction SilentlyContinue
