@@ -746,7 +746,7 @@ class GuiTests(unittest.TestCase):
         local = self.window.pages["localtools"]
         self.assertEqual(
             [item.text() for item in local.pivot.items.values()],
-            ["本机信息", "防火墙"],
+            ["本机信息", "防火墙", "课堂助手"],
         )
 
     def test_navigation_groups_have_no_header_text(self):

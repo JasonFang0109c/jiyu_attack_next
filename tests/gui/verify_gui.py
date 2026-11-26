@@ -39,6 +39,7 @@ def main():
             "shell",
             "local",
             "firewall",
+            "classroom",
             "studentproc",
             "logs",
             "settings",

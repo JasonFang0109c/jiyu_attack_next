@@ -24,6 +24,15 @@ SETTINGS_COMMENTS = {
     "core/student/exe_path": (
         "学生端主程序路径：启动学生端时优先使用，留空表示自动查找",
     ),
+    "core/classroom/auto_repair": (
+        "课堂助手自动看护：true 时按间隔把课堂窗口恢复为窗口化",
+    ),
+    "core/classroom/interval": ("课堂助手自动看护间隔：1-10 秒",),
+    "core/classroom/allow_top": ("课堂助手是否允许课堂窗口保持置顶",),
+    "core/classroom/include_fullscreen": (
+        "课堂助手是否把与屏幕同大的其它窗口一并修复",
+    ),
+    "core/classroom/hide_black_screen": ("课堂助手是否隐藏黑屏窗口",),
     "gui/notice/accepted": ("使用须知是否已经确认过：true 之后再次启动不再弹出",),
     "gui/window/close_behavior": ("关闭窗口行为：tray 保留在系统托盘，quit 直接退出",),
     "gui/window/first_close_prompt_shown": (

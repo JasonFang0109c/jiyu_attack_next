@@ -18,6 +18,8 @@ from qfluentwidgets import (
 )
 
 from app.features.about.gui.page import AboutPage
+from app.features.classroom.gui.page import ClassroomPage
+from app.features.classroom.gui.service import ClassroomService
 from app.features.command.gui.page import CommandPage
 from app.features.device.gui.page import DevicePage
 from app.features.files.gui.page import FilePage
@@ -159,6 +161,7 @@ class MainWindow(FluentWindow):
         self.resize(1180, 1000)
         self._restore_window_geometry()
         self.stackedWidget.setAnimationEnabled(False)
+        self._classroom_service = ClassroomService(self)
         self.pages = {
             "home": HomePage(self),
             "message": MessagePage(self.connection_state, self),
@@ -169,6 +172,7 @@ class MainWindow(FluentWindow):
             "aliases": AliasPage(self.connection_state, self, logs=self.logs),
             "local": LocalPage(self),
             "firewall": FirewallPage(self),
+            "classroom": ClassroomPage(self),
             "studentproc": StudentProcessPage(self),
             "logs": LogPage(self.logs, self),
             "settings": SettingsPage(
@@ -186,6 +190,7 @@ class MainWindow(FluentWindow):
             for child_key, child_icon, child_title in children:
                 host.add_tab(self.pages[child_key], child_title, child_icon)
             self.pages[host_key] = host
+        self._classroom_service.attach(self.pages["classroom"])
         # 网络页都带目标输入区与底栏，忙碌状态由主窗口统一开关。
         self.network_pages = [
             self.pages[key] for key in ("message", "command", "device")
@@ -715,6 +720,7 @@ class MainWindow(FluentWindow):
         self._navigation_refresh_timer.stop()
         self._task_dispatch_timer.stop()
         self._studentproc_timer.stop()
+        self._classroom_service.stop()
         super().closeEvent(event)
         if not event.isAccepted():
             return

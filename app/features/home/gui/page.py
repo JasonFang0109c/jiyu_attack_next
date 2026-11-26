@@ -147,6 +147,12 @@ SECTIONS = (
                 "调整 StudentMain.exe 的防火墙规则",
             ),
             (
+                "classroom",
+                FIF.SCROLL,
+                "课堂助手",
+                "把极域广播窗口恢复成可移动的窗口，支持假全屏与解锁密码",
+            ),
+            (
                 "logs",
                 FIF.HISTORY,
                 "运行日志",

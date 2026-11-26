@@ -73,6 +73,7 @@
       <ul style="margin: 14px 0 0; padding-left: 1.25em; list-style-position: outside;">
         <li><b>本机信息</b>：查询 IP 与 Student 端口</li>
         <li><b>防火墙</b>：修改现有规则并查看结果</li>
+        <li><b>课堂助手</b>：广播窗口化、假全屏与解锁密码</li>
         <li><b>目标地址</b>：IPv4、末段与 <code>/24</code></li>
       </ul>
     </td>
@@ -176,6 +177,7 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1
 ## 项目来源与参考
 
 - [ht0Ruial/Jiyu_udp_attack](https://github.com/ht0Ruial/Jiyu_udp_attack)<br>文本消息、远程命令、重启关机注销、本机信息与防火墙规则的报文结构；蓝屏为新增操作。
+- [imengyu/JiYuTrainer](https://github.com/imengyu/JiYuTrainer)（MIT）<br>课堂助手的窗口识别与修复规则、假全屏尺寸、解锁密码读取与 Knock1 解密算法。仅移植纯 Python 可完成的部分，原项目的 Hook DLL、内核驱动与自动更新未引入。
 
 当前仓库的具体行为以本项目代码和文档为准。
 

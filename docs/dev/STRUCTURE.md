@@ -40,6 +40,7 @@ jiyu_attack_next/
 |   |   |-- device/                # cli.py、gui/page.py：设备操作
 |   |   |-- message/               # service.py、cli.py、gui/：消息
 |   |   |-- files/                 # service.py、cli.py、gui/：文件传送
+|   |   |-- classroom/             # data.py、windows.py、passwords.py、service.py、gui/：课堂助手
 |   |   |-- firewall/              # service.py、cli.py、gui/：防火墙
 |   |   |-- local/                 # service.py、cli.py、gui/：本机信息
 |   |   |-- student/               # data.py、service.py、cli.py、gui/：学生端进程
@@ -178,6 +179,7 @@ jiyu_attack_next/
 | `app/features/<功能>/data.py` | 功能数据、设置键、默认值与规范化；Qt 信号适配另放在功能的 `gui/data.py`。 |
 | `app/features/send/` | `SendOptions`、参数校验、报文准备和发送协调；供不同页面与 CLI 发送功能复用。 |
 | `app/features/files/`、`firewall/`、`local/`、`student/`、`shell/` | 分别承载文件传送、防火墙、本机信息、学生端进程与终端业务；平台命令、地址解析和套接字操作复用 `app/system/`。学生端的常量与设置键在 `student/data.py`，进程识别、定位、启停与提权助手在 `student/service.py`。 |
+| `app/features/classroom/` | 课堂助手：`windows.py` 用 `ctypes` 枚举并修复广播、黑屏与全屏窗口，`passwords.py` 读取并解密极域卸载密码，`service.py` 组合窗口与学生端状态并保存看护设置；只操作本机，不注入进程、不加载驱动。窗口规则与密码算法移植自 JiYuTrainer（MIT）。 |
 | `app/packets/` | `constants.py` 保存报文数组和命令表，`codec.py` 负责构造、编码与分片，不负责界面；`blue_screen.py` 额外临时托管一份蓝屏脚本，供目标取回后再执行。 |
 | `app/system/net/` | 目标解析、本机地址、UDP 发送、ICMP/ARP 探测与送达结果；结果数据在 `data.py`。 |
 | `app/system/windows/` | Windows 命令、进程枚举与结束、端口表、提权助手等系统接口，供具体功能调用；进程与端口直接走 `kernel32` 与 `iphlpapi`，不依赖 `tasklist` / `netstat` 的文本输出。 |

@@ -161,6 +161,7 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Clean
 | `names` | 设备备注 |
 | `local` | 本机信息 |
 | `firewall` | 防火墙 |
+| `classroom` | 课堂助手 |
 | `student` | 学生端 |
 | `shell` | 终端 |
 | `logs` | 日志 |

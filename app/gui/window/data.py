@@ -71,6 +71,7 @@ TAB_GROUPS = (
         (
             ("local", FIF.IOT, "本机信息"),
             ("firewall", FIF.CERTIFICATE, "防火墙"),
+            ("classroom", FIF.SCROLL, "课堂助手"),
         ),
     ),
 )
