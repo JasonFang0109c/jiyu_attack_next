@@ -24,9 +24,11 @@ from app.features.classroom.data import (
     DEFAULT_AUTO_REPAIR,
     DEFAULT_HIDE_BLACK_SCREEN,
     DEFAULT_INCLUDE_FULLSCREEN,
+    GUARD_ITEMS,
     INTERVAL_RANGE,
     SETTINGS_ALLOW_TOP,
     SETTINGS_AUTO_REPAIR,
+    SETTINGS_GUARD_FLAGS,
     SETTINGS_HIDE_BLACK_SCREEN,
     SETTINGS_INCLUDE_FULLSCREEN,
     SETTINGS_INTERVAL,
@@ -66,6 +68,8 @@ class ClassroomPage(Page):
     copyPasswordRequested = Signal(str)
     # 设置项以键值对发出，键取自 data.py 的 SETTINGS_* 常量。
     optionChanged = Signal(str, object)
+    guardRequested = Signal(int)
+    guardStopRequested = Signal()
     # 子页被切换显示时才轮询，隐藏后不再占用后台线程。
     activated = Signal()
     deactivated = Signal()
@@ -76,6 +80,8 @@ class ClassroomPage(Page):
         self.fake_full_enabled = False
         self.topmost_enabled = False
         self.password = ""
+        self.guard_flags = 0
+        self.guard_enabled = False
         self._suspend_options = False
 
         # 卡片较多，整页滚动；滚动条贴住窗口右缘并与页面顶部贯通。
@@ -96,6 +102,7 @@ class ClassroomPage(Page):
         content.addWidget(self._build_status_card(content_host))
         content.addWidget(self._build_window_card(content_host))
         content.addWidget(self._build_password_card(content_host))
+        content.addWidget(self._build_guard_card(content_host))
         content.addWidget(self._build_option_card(content_host))
         content.addStretch(1)
         scroll.setWidget(content_host)
@@ -173,7 +180,7 @@ class ClassroomPage(Page):
 
         note = CaptionLabel(
             "修复只改窗口样式：不注入学生端、不需要驱动。"
-            "反监视与防控制依赖上游原生 Hook 组件，当前版本未包含。",
+            "需要反监视、防控制时再打开下方的课堂防护。",
             card,
         )
         note.setWordWrap(True)
@@ -210,6 +217,80 @@ class ClassroomPage(Page):
         self.password_detail.setWordWrap(True)
         card.body.addWidget(self.password_detail)
         return card
+
+    def _build_guard_card(self, parent):
+        """课堂防护卡片：把只读策略注入学生端进程。"""
+        card = SectionCard(parent)
+        header = QHBoxLayout()
+        title = BodyLabel("课堂防护", card)
+        setFont(title, 16)
+        header.addWidget(title)
+        header.addStretch()
+        self.guard_status = CaptionLabel("未启用", card)
+        header.addWidget(self.guard_status)
+        card.body.addLayout(header)
+
+        note = CaptionLabel(
+            "启用后向学生端加载 guard DLL，只拦截监视、控制、关闭窗口和结束进程；"
+            "不加载驱动，退出课堂助手或点“停止防护”即可卸载。",
+            card,
+        )
+        note.setWordWrap(True)
+        card.body.addWidget(note)
+
+        self._guard_switches = []
+        for flag, label in GUARD_ITEMS:
+            switch = SwitchButton(card)
+            # 勾选即保存策略位；已启用时服务会同步刷新 DLL 策略。
+            switch.checkedChanged.connect(
+                lambda checked: self._emit_option(
+                    SETTINGS_GUARD_FLAGS, self._guard_flags()
+                )
+            )
+            self._guard_switches.append((flag, switch))
+            self._option_row(card, label, switch)
+
+        buttons = QHBoxLayout()
+        buttons.setSpacing(8)
+        self.guard_start_button = PrimaryPushButton(FIF.PLAY, "启用防护", card)
+        self.guard_start_button.setMinimumHeight(34)
+        self.guard_start_button.clicked.connect(
+            lambda: self.guardRequested.emit(self._guard_flags())
+        )
+        buttons.addWidget(self.guard_start_button)
+        self.guard_stop_button = PushButton(FIF.CANCEL_MEDIUM, "停止防护", card)
+        self.guard_stop_button.setMinimumHeight(34)
+        self.guard_stop_button.setEnabled(False)
+        self.guard_stop_button.clicked.connect(self.guardStopRequested.emit)
+        buttons.addWidget(self.guard_stop_button)
+        buttons.addStretch()
+        card.body.addLayout(buttons)
+        return card
+
+    def _guard_flags(self):
+        """把四个开关合成一个防护位掩码。"""
+        flags = 0
+        for flag, switch in self._guard_switches:
+            if switch.isChecked():
+                flags |= flag
+        return flags
+
+    def set_guard_state(self, enabled, flags=0, pid=0):
+        """刷新课堂防护的启用状态与按钮。"""
+        self.guard_enabled = bool(enabled)
+        self.guard_flags = int(flags)
+        if enabled:
+            count = sum(1 for flag, _ in self._guard_switches if flags & flag)
+            text = "已启用 %d 项" % count
+            if pid:
+                text += " · 学生端 %d" % pid
+            self.guard_status.setText(text)
+            self.guard_status.setStyleSheet("color: %s;" % tone_color("ok").name())
+        else:
+            self.guard_status.setText("未启用")
+            self.guard_status.setStyleSheet("color: %s;" % tone_color("neutral").name())
+        self.guard_start_button.setEnabled(not enabled)
+        self.guard_stop_button.setEnabled(enabled)
 
     def _build_option_card(self, parent):
         """看护设置卡片：自动看护、轮询间隔与三条窗口处理规则。"""
@@ -383,6 +464,9 @@ class ClassroomPage(Page):
                 bool(options.get("include_fullscreen"))
             )
             self.hide_black_switch.setChecked(bool(options.get("hide_black_screen")))
+            flags = int(options.get("guard_flags") or 0)
+            for flag, switch in self._guard_switches:
+                switch.setChecked(bool(flags & flag))
         finally:
             self._suspend_options = False
 
@@ -433,8 +517,14 @@ class ClassroomPage(Page):
             self.topmost_button,
             self.read_password_button,
             self.refresh_button,
+            self.guard_start_button,
         ):
             button.setEnabled(not busy)
+        if not busy and self.guard_enabled:
+            self.guard_start_button.setEnabled(False)
+            self.guard_stop_button.setEnabled(True)
+        elif not busy:
+            self.guard_stop_button.setEnabled(False)
 
     def _request_password_copy(self):
         """有密码时把复制请求发给界面服务。"""

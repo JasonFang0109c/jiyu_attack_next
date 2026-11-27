@@ -689,6 +689,9 @@ class MainWindow(FluentWindow):
         self.close_after_task = True
         self._studentproc_timer.stop()
         self._student_probe_queued = None
+        # 课堂助手自带查询/自动看护线程；退出流程可能因任务线程提前 return，
+        # 必须在这里先停掉，避免窗口销毁时仍有 QThread 在运行。
+        self._classroom_service.stop()
         if self.thread is not None and self.thread.isRunning():
             # 任务可能在设置开始时间之前就被关闭，取不到时按 0 秒记录。
             elapsed = (
@@ -720,7 +723,6 @@ class MainWindow(FluentWindow):
         self._navigation_refresh_timer.stop()
         self._task_dispatch_timer.stop()
         self._studentproc_timer.stop()
-        self._classroom_service.stop()
         super().closeEvent(event)
         if not event.isAccepted():
             return

@@ -23,6 +23,7 @@ SETTINGS_INTERVAL = "core/classroom/interval"
 SETTINGS_ALLOW_TOP = "core/classroom/allow_top"
 SETTINGS_INCLUDE_FULLSCREEN = "core/classroom/include_fullscreen"
 SETTINGS_HIDE_BLACK_SCREEN = "core/classroom/hide_black_screen"
+SETTINGS_GUARD_FLAGS = "core/classroom/guard_flags"
 
 DEFAULT_AUTO_REPAIR = True
 # 上游默认 3100 毫秒查一次窗口，这里取整成 3 秒。
@@ -31,6 +32,14 @@ INTERVAL_RANGE = (1, 10)
 DEFAULT_ALLOW_TOP = False
 DEFAULT_INCLUDE_FULLSCREEN = True
 DEFAULT_HIDE_BLACK_SCREEN = True
+# 课堂防护位与 pack/native/guard/policy.h 的 JIYU_GUARD_* 一一对应。
+DEFAULT_GUARD_FLAGS = 0
+GUARD_ITEMS = (
+    (1, "阻止屏幕监视"),
+    (2, "阻止远程控制"),
+    (4, "禁止关闭窗口"),
+    (8, "禁止结束进程"),
+)
 
 # 设置键到业务字段的映射：页面信号发的是设置键，业务层用短名。
 OPTION_NAMES = {
@@ -39,6 +48,7 @@ OPTION_NAMES = {
     SETTINGS_ALLOW_TOP: "allow_top",
     SETTINGS_INCLUDE_FULLSCREEN: "include_fullscreen",
     SETTINGS_HIDE_BLACK_SCREEN: "hide_black_screen",
+    SETTINGS_GUARD_FLAGS: "guard_flags",
 }
 
 # 极域把卸载密码放在 Uninstall\e-Learning Class V6.0 之外的另一个键。

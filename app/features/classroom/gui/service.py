@@ -13,6 +13,7 @@ import app.features.classroom.service as classroom
 from app.features.classroom.data import (
     OPTION_NAMES,
     SETTINGS_AUTO_REPAIR,
+    SETTINGS_GUARD_FLAGS,
     SETTINGS_INTERVAL,
 )
 from app.gui.workers.tasks import ProbeWorker, TaskWorker
@@ -42,6 +43,11 @@ def _topmost_task(enabled, data_dir, report=None):
     return classroom.set_topmost(enabled, data_dir)
 
 
+def _guard_start_task(flags, data_dir, report=None):
+    """后台任务包装：给学生端加载课堂防护。"""
+    return classroom.start_guard(flags, data_dir)
+
+
 class ClassroomService:
     """组织课堂助手页的轮询、动作与设置持久化。"""
 
@@ -54,6 +60,7 @@ class ClassroomService:
         self._quit = False
         self._fake_full = False
         self._topmost = False
+        self._guard = None
         self._poll_timer = QTimer(window)
         self._poll_timer.setInterval(POLL_INTERVAL)
         self._poll_timer.timeout.connect(self._poll)
@@ -69,6 +76,7 @@ class ClassroomService:
         page.set_options(self.options)
         page.set_fake_full(False)
         page.set_topmost(False)
+        page.set_guard_state(False)
         page.refreshRequested.connect(self.refresh)
         page.repairRequested.connect(self.repair)
         page.fakeFullRequested.connect(self.set_fake_full)
@@ -76,6 +84,8 @@ class ClassroomService:
         page.passwordRequested.connect(self.read_password)
         page.copyPasswordRequested.connect(self.copy_password)
         page.optionChanged.connect(self.set_option)
+        page.guardRequested.connect(self.apply_guard)
+        page.guardStopRequested.connect(self.stop_guard)
         page.activated.connect(self._start_polling)
         page.deactivated.connect(self._stop_polling)
 
@@ -84,6 +94,18 @@ class ClassroomService:
         self._quit = True
         self._poll_timer.stop()
         self._care_timer.stop()
+        if self._guard is not None:
+            try:
+                classroom.stop_guard(self._guard)
+            except Exception as error:
+                self.window.logs.warning(CATEGORY, "停止课堂防护失败", str(error))
+            self._guard = None
+        # 关闭时等待查询/动作线程结束，避免 QThread 在运行中被析构导致进程退出。
+        for name in ("_probe", "_action"):
+            worker = getattr(self, name)
+            if worker is not None and worker.isRunning():
+                worker.wait(10000)
+            setattr(self, name, None)
 
     # ---- 轮询 -------------------------------------------------------------
 
@@ -111,9 +133,10 @@ class ClassroomService:
             logs=self.window.logs,
             category=CATEGORY,
         )
+        worker.setObjectName("classroom-probe")
         worker.completed.connect(self._probe_done)
         worker.failed.connect(self._probe_failed)
-        worker.finished.connect(self._probe_finished)
+        worker.finished.connect(lambda w=worker: self._probe_finished(w))
         worker.finished.connect(worker.deleteLater)
         self._probe = worker
         worker.start()
@@ -133,9 +156,11 @@ class ClassroomService:
             CATEGORY, "读取课堂窗口失败", "%s\n%s" % (message, details)
         )
 
-    def _probe_finished(self):
-        """查询线程结束后释放引用。"""
-        self._probe = None
+    def _probe_finished(self, worker):
+        """查询线程结束后释放引用；先等线程真正停下再丢弃对象。"""
+        worker.wait()
+        if self._probe is worker:
+            self._probe = None
 
     # ---- 动作 -------------------------------------------------------------
 
@@ -144,9 +169,10 @@ class ClassroomService:
         if self._quit or self._action is not None or self.page is None:
             return
         self.page.set_busy(True)
+        worker.setObjectName("classroom-action")
         worker.completed.connect(self._action_done)
         worker.failed.connect(self._action_failed)
-        worker.finished.connect(self._action_finished)
+        worker.finished.connect(lambda w=worker: self._action_finished(w))
         worker.finished.connect(worker.deleteLater)
         self._action = worker
         worker.start()
@@ -227,9 +253,90 @@ class ClassroomService:
         )
         self.window._notify("课堂助手", message, "错误")
 
-    def _action_finished(self):
-        """动作线程结束后释放引用。"""
-        self._action = None
+    def _action_finished(self, worker):
+        """动作线程结束后释放引用；先等线程真正停下再丢弃对象。"""
+        worker.wait()
+        if self._action is worker:
+            self._action = None
+
+    def apply_guard(self, flags):
+        """启用课堂防护；已启用时只更新策略位。"""
+        if self.page is None or self._quit:
+            return
+        if self._guard is not None:
+            try:
+                self._guard.update(int(flags))
+            except Exception as error:
+                self.window.logs.error(CATEGORY, "更新课堂防护失败", str(error))
+                self.window._notify("课堂助手", "更新课堂防护失败", "错误")
+                return
+            self.options["guard_flags"] = int(flags)
+            self.page.set_guard_state(True, int(flags))
+            self.window._notify("课堂助手", "课堂防护策略已更新", "成功")
+            return
+        if self._action is not None:
+            return
+        self.page.set_busy(True)
+        worker = TaskWorker(
+            _guard_start_task,
+            int(flags),
+            self.window.data_dir,
+            logs=self.window.logs,
+            category=CATEGORY,
+        )
+        worker.setObjectName("classroom-guard")
+        worker.completed.connect(self._guard_started)
+        worker.failed.connect(self._guard_failed)
+        worker.finished.connect(lambda w=worker: self._action_finished(w))
+        worker.finished.connect(worker.deleteLater)
+        self._action = worker
+        worker.start()
+
+    def _guard_started(self, result):
+        """防护加载成功：保存会话并更新状态。"""
+        if self._quit or self.page is None:
+            # 窗口在注入期间关闭时信号仍会到达，必须在这里卸掉已注入的 DLL。
+            try:
+                classroom.stop_guard(result.get("session"))
+            except Exception as error:
+                self.window.logs.warning(CATEGORY, "停止课堂防护失败", str(error))
+            return
+        self._guard = result.get("session")
+        self.page.set_busy(False)
+        self.page.set_guard_state(True, result.get("flags", 0), result.get("pid", 0))
+        self.window.logs.info(
+            CATEGORY,
+            "已启用课堂防护",
+            "学生端进程 %s，策略位 %s" % (result.get("pid"), result.get("flags")),
+        )
+        self.window._notify("课堂助手", "课堂防护已启用", "成功")
+
+    def _guard_failed(self, message, details):
+        """防护加载失败：恢复按钮并提示。"""
+        if self._quit or self.page is None:
+            return
+        self.page.set_busy(False)
+        self.window.logs.error(
+            CATEGORY, "启用课堂防护失败", "%s\n%s" % (message, details)
+        )
+        self.window._notify("课堂助手", message, "错误")
+
+    def stop_guard(self):
+        """停止课堂防护并卸载 DLL。"""
+        if self._guard is None:
+            return
+        session = self._guard
+        self._guard = None
+        try:
+            classroom.stop_guard(session)
+        except Exception as error:
+            self.window.logs.error(CATEGORY, "停止课堂防护失败", str(error))
+            self.window._notify("课堂助手", "停止课堂防护失败", "错误")
+        else:
+            self.window.logs.info(CATEGORY, "已停止课堂防护", "")
+            self.window._notify("课堂助手", "课堂防护已停止", "成功")
+        if self.page is not None:
+            self.page.set_guard_state(False)
 
     # ---- 密码 -------------------------------------------------------------
 
@@ -245,7 +352,7 @@ class ClassroomService:
         )
         worker.completed.connect(self._password_done)
         worker.failed.connect(self._password_failed)
-        worker.finished.connect(self._probe_finished)
+        worker.finished.connect(lambda w=worker: self._probe_finished(w))
         worker.finished.connect(worker.deleteLater)
         self._probe = worker
         worker.start()
@@ -304,6 +411,12 @@ class ClassroomService:
             self.options[name] = value
         if key in (SETTINGS_AUTO_REPAIR, SETTINGS_INTERVAL):
             self._apply_care_timer()
+        if key == SETTINGS_GUARD_FLAGS and self._guard is not None:
+            try:
+                self._guard.update(int(value))
+                self.page.set_guard_state(True, int(value))
+            except Exception as error:
+                self.window.logs.warning(CATEGORY, "课堂防护策略更新失败", str(error))
         if key == SETTINGS_AUTO_REPAIR and value:
             self._auto_tick()
 
@@ -332,9 +445,10 @@ class ClassroomService:
             logs=self.window.logs,
             category=CATEGORY,
         )
+        worker.setObjectName("classroom-auto")
         worker.completed.connect(self._auto_tick_done)
         worker.failed.connect(self._auto_tick_failed)
-        worker.finished.connect(self._action_finished)
+        worker.finished.connect(lambda w=worker: self._action_finished(w))
         worker.finished.connect(worker.deleteLater)
         self._action = worker
         worker.start()

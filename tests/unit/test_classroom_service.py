@@ -10,6 +10,7 @@ from app.features.classroom.data import (
     DEFAULT_INTERVAL,
     SETTINGS_ALLOW_TOP,
     SETTINGS_AUTO_REPAIR,
+    SETTINGS_GUARD_FLAGS,
     SETTINGS_INTERVAL,
 )
 from tests.fixtures.offline import OfflineCase
@@ -55,6 +56,7 @@ class ClassroomServiceTests(OfflineCase):
                 "allow_top": False,
                 "include_fullscreen": True,
                 "hide_black_screen": True,
+                "guard_flags": 0,
             },
         )
 
@@ -68,6 +70,12 @@ class ClassroomServiceTests(OfflineCase):
         self.assertFalse(options["auto_repair"])
         self.assertEqual(options["interval"], 7)
         self.assertTrue(options["allow_top"])
+
+    def test_guard_flags_are_masked(self):
+        classroom.save_option(SETTINGS_GUARD_FLAGS, 0xFF, self.data_dir)
+        self.assertEqual(classroom.load_options(self.data_dir)["guard_flags"], 15)
+        classroom.save_option(SETTINGS_GUARD_FLAGS, "bad", self.data_dir)
+        self.assertEqual(classroom.load_options(self.data_dir)["guard_flags"], 0)
 
     def test_interval_is_clamped(self):
         classroom.save_option(SETTINGS_INTERVAL, 99, self.data_dir)
@@ -167,6 +175,46 @@ class ClassroomServiceTests(OfflineCase):
         ) as read:
             self.assertEqual(classroom.read_password(), {"password": "x"})
         read.assert_called_once()
+
+    def test_start_guard_requires_student(self):
+        with (
+            patch.object(classroom, "student_pid", return_value=0),
+            self.assertRaisesRegex(RuntimeError, "学生端未运行"),
+        ):
+            classroom.start_guard(1)
+
+    def test_start_and_stop_guard_use_session(self):
+        class FakeSession:
+            def __init__(self, pid, dll_path):
+                self.pid = pid
+                self.dll_path = dll_path
+                self.flags = None
+                self.stopped = False
+
+            def start(self, flags):
+                self.flags = flags
+
+            def stop(self):
+                self.stopped = True
+
+        created = []
+
+        def factory(pid, dll_path):
+            session = FakeSession(pid, dll_path)
+            created.append(session)
+            return session
+
+        with (
+            patch.object(classroom, "student_pid", return_value=17600),
+            patch.object(classroom, "_guard_dll", return_value="guard_x64.dll"),
+            patch.object(classroom.guard, "GuardSession", side_effect=factory),
+            patch.object(classroom.guard, "supported", return_value=True),
+        ):
+            result = classroom.start_guard(0xFF)
+            self.assertEqual(result["flags"], 15)
+            self.assertEqual(created[0].flags, 15)
+            classroom.stop_guard(result["session"])
+            self.assertTrue(created[0].stopped)
 
 
 if __name__ == "__main__":

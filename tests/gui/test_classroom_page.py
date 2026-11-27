@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QApplication
 from app.features.classroom.data import (
     SETTINGS_ALLOW_TOP,
     SETTINGS_AUTO_REPAIR,
+    SETTINGS_GUARD_FLAGS,
     SETTINGS_INTERVAL,
 )
 from app.features.classroom.gui.page import ClassroomPage
@@ -156,6 +157,26 @@ class ClassroomPageTests(unittest.TestCase):
         self.assertEqual(self.page.topmost_button.text(), "取消置顶")
         self.page.set_topmost(False)
         self.assertEqual(self.page.topmost_button.text(), "窗口置顶")
+
+    def test_guard_card_emits_flags_and_shows_state(self):
+        requests = []
+        self.page.guardRequested.connect(requests.append)
+        self.page.set_options({"auto_repair": True, "interval": 3, "guard_flags": 5})
+        self.assertEqual(self.page._guard_flags(), 5)
+        self.page.guard_start_button.click()
+        self.assertEqual(requests, [5])
+        self.emitted.clear()
+        self.page._guard_switches[1][1].setChecked(True)
+        self.assertIn((SETTINGS_GUARD_FLAGS, 7), self.emitted)
+        self.page.set_guard_state(True, 5, 17600)
+        self.assertIn("已启用 2 项", self.page.guard_status.text())
+        self.assertIn("17600", self.page.guard_status.text())
+        self.assertFalse(self.page.guard_start_button.isEnabled())
+        self.assertTrue(self.page.guard_stop_button.isEnabled())
+        self.page.set_guard_state(False)
+        self.assertIn("未启用", self.page.guard_status.text())
+        self.assertTrue(self.page.guard_start_button.isEnabled())
+        self.assertFalse(self.page.guard_stop_button.isEnabled())
 
     def test_busy_disables_action_buttons(self):
         self.page.set_busy(True)

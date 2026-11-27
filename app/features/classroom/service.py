@@ -8,19 +8,23 @@ from app.features.classroom import passwords, windows
 from app.features.classroom.data import (
     DEFAULT_ALLOW_TOP,
     DEFAULT_AUTO_REPAIR,
+    DEFAULT_GUARD_FLAGS,
     DEFAULT_HIDE_BLACK_SCREEN,
     DEFAULT_INCLUDE_FULLSCREEN,
     DEFAULT_INTERVAL,
     INTERVAL_RANGE,
     SETTINGS_ALLOW_TOP,
     SETTINGS_AUTO_REPAIR,
+    SETTINGS_GUARD_FLAGS,
     SETTINGS_HIDE_BLACK_SCREEN,
     SETTINGS_INCLUDE_FULLSCREEN,
     SETTINGS_INTERVAL,
 )
 from app.features.settings.service import portable_settings
 from app.features.student.service import find_student_processes
+from app.shared.resources import resource_path
 from app.shared.settings import STATUS_NO_ERROR
+from app.system.windows import guard
 
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 
@@ -34,6 +38,15 @@ def _as_bool(value, default):
     if isinstance(value, str):
         return value.strip().lower() in _TRUE_VALUES
     return default
+
+
+def _as_flags(value):
+    """把设置里的防护位限制在已定义范围内。"""
+    try:
+        flags = int(value)
+    except (TypeError, ValueError):
+        return DEFAULT_GUARD_FLAGS
+    return flags & guard.GUARD_ALL
 
 
 def _as_interval(value):
@@ -73,6 +86,9 @@ def load_options(data_dir=None):
         "hide_black_screen": _as_bool(
             store.value(SETTINGS_HIDE_BLACK_SCREEN, DEFAULT_HIDE_BLACK_SCREEN),
             DEFAULT_HIDE_BLACK_SCREEN,
+        ),
+        "guard_flags": _as_flags(
+            store.value(SETTINGS_GUARD_FLAGS, DEFAULT_GUARD_FLAGS)
         ),
     }
 
@@ -201,3 +217,39 @@ def set_topmost(enabled, data_dir=None):
 def read_password():
     """读取极域解锁密码，结果见 ``passwords.read_password``。"""
     return passwords.read_password()
+
+
+def _guard_dll(pid):
+    """按学生端位数选择课堂防护 DLL，并确认资源存在。"""
+    name = "guard_x86.dll" if guard.is_32bit(pid) else "guard_x64.dll"
+    path = resource_path("native", name)
+    if not path.is_file():
+        raise RuntimeError(f"缺少课堂防护组件：{name}")
+    return path
+
+
+def start_guard(flags, data_dir=None):
+    """向学生端进程注入课堂防护 DLL 并安装钩子。
+
+    Args:
+        flags: ``GUARD_ITEMS`` 中各项按位或出的防护位。
+        data_dir: 兼容统一服务签名，本函数不读设置。
+
+    Returns:
+        dict: ``pid``、``flags`` 与会话对象 ``session``（供停止时使用）。
+    """
+    if not guard.supported():
+        raise RuntimeError("当前系统不支持课堂防护")
+    pid = student_pid()
+    if not pid:
+        raise RuntimeError("学生端未运行，无法启用课堂防护")
+    masked = int(flags) & guard.GUARD_ALL
+    session = guard.GuardSession(pid, str(_guard_dll(pid)))
+    session.start(masked)
+    return {"pid": pid, "flags": masked, "session": session}
+
+
+def stop_guard(session):
+    """卸载课堂防护并释放目标进程中的 DLL。"""
+    if session is not None:
+        session.stop()

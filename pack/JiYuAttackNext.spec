@@ -23,6 +23,10 @@ a = Analysis(
     pathex=[str(root)],
     binaries=[],
     datas=[(str(root / "app" / "resources" / "icons" / "app.svg"), "app/resources/icons")]
+          + [
+              (str(root / "app" / "resources" / "native" / name), "app/resources/native")
+              for name in ("guard_x64.dll", "guard_x86.dll", "LICENSE-JiYuTrainer.txt")
+          ]
           + ([(str(build_time), ".")] if build_time.exists() else [])
           + ([(str(version_file), ".")] if version_file.exists() else [])
           + ([(str(variant_file), ".")] if variant_file.exists() else [])

@@ -33,6 +33,9 @@ SETTINGS_COMMENTS = {
         "课堂助手是否把与屏幕同大的其它窗口一并修复",
     ),
     "core/classroom/hide_black_screen": ("课堂助手是否隐藏黑屏窗口",),
+    "core/classroom/guard_flags": (
+        "课堂防护位：1 阻止屏幕监视、2 阻止远程控制、4 禁止关闭窗口、8 禁止结束进程",
+    ),
     "gui/notice/accepted": ("使用须知是否已经确认过：true 之后再次启动不再弹出",),
     "gui/window/close_behavior": ("关闭窗口行为：tray 保留在系统托盘，quit 直接退出",),
     "gui/window/first_close_prompt_shown": (

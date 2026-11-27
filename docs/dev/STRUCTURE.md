@@ -179,12 +179,12 @@ jiyu_attack_next/
 | `app/features/<功能>/data.py` | 功能数据、设置键、默认值与规范化；Qt 信号适配另放在功能的 `gui/data.py`。 |
 | `app/features/send/` | `SendOptions`、参数校验、报文准备和发送协调；供不同页面与 CLI 发送功能复用。 |
 | `app/features/files/`、`firewall/`、`local/`、`student/`、`shell/` | 分别承载文件传送、防火墙、本机信息、学生端进程与终端业务；平台命令、地址解析和套接字操作复用 `app/system/`。学生端的常量与设置键在 `student/data.py`，进程识别、定位、启停与提权助手在 `student/service.py`。 |
-| `app/features/classroom/` | 课堂助手：`windows.py` 用 `ctypes` 枚举并修复广播、黑屏与全屏窗口，`passwords.py` 读取并解密极域卸载密码，`service.py` 组合窗口与学生端状态并保存看护设置；只操作本机，不注入进程、不加载驱动。窗口规则与密码算法移植自 JiYuTrainer（MIT）。 |
+| `app/features/classroom/` | 课堂助手：`windows.py` 用 `ctypes` 枚举并修复广播、黑屏与全屏窗口，`passwords.py` 读取并解密极域卸载密码，`service.py` 组合窗口与学生端状态并保存看护设置；窗口修复只操作本机，课堂防护通过 `app/system/windows/guard.py` 注入进程内 DLL，不加载驱动。窗口规则与密码算法移植自 JiYuTrainer（MIT）。 |
 | `app/packets/` | `constants.py` 保存报文数组和命令表，`codec.py` 负责构造、编码与分片，不负责界面；`blue_screen.py` 额外临时托管一份蓝屏脚本，供目标取回后再执行。 |
 | `app/system/net/` | 目标解析、本机地址、UDP 发送、ICMP/ARP 探测与送达结果；结果数据在 `data.py`。 |
-| `app/system/windows/` | Windows 命令、进程枚举与结束、端口表、提权助手等系统接口，供具体功能调用；进程与端口直接走 `kernel32` 与 `iphlpapi`，不依赖 `tasklist` / `netstat` 的文本输出。 |
+| `app/system/windows/` | Windows 命令、进程枚举与结束、端口表、提权助手等系统接口，供具体功能调用；进程与端口直接走 `kernel32` 与 `iphlpapi`，不依赖 `tasklist` / `netstat` 的文本输出。`guard.py` 负责课堂防护 DLL 的注入、策略共享内存与卸载。 |
 | `app/shared/` | JSONC、设置存储、数据路径、构建信息、版本与日志基础；不依赖界面功能。 |
-| `app/resources/` | 仅放静态资源。唯一图标源为 `icons/app.svg`，运行时通过 `app.shared.resources.resource_path()` 统一定位源码与解包目录，Qt 图标由 `app/gui/resources.py` 适配。 |
+| `app/resources/` | 仅放静态资源。唯一图标源为 `icons/app.svg`；`native/` 放课堂防护的 x86/x64 DLL 与上游许可证。运行时通过 `app.shared.resources.resource_path()` 统一定位源码与解包目录，Qt 图标由 `app/gui/resources.py` 适配。 |
 
 版本号唯一来源是 `app/shared/version.py` 的 `__version__`；`app/__init__.py` 只重新导出，`app/shared/build_info.py` 转调版本读取接口并提供构建时间。`app/packets/constants.py` 只维护报文相关常量，不能把版本号放回该文件。
 
@@ -200,7 +200,7 @@ jiyu_attack_next/
 
 ### 打包与测试
 
-- `pack/` 只放构建脚本、PyInstaller 配置和版本资源生成器；运行时入口仍为 `app/__main__.py`，静态图标按 `app/resources/icons/app.svg` 收集。
+- `pack/` 只放构建脚本、PyInstaller 配置、版本资源生成器与 `native/` 原生组件源码；运行时入口仍为 `app/__main__.py`，静态图标按 `app/resources/icons/app.svg` 收集。
 - `.github/workflows/build.yml` 为可复用打包流程；`nightly-build.yml` 在推送 `main` 且涉及 `app/`、`pack/`、`scripts/`、`requirements.txt` 或工作流文件时构建，静态资源已包含在 `app/` 过滤内。`release.yml` 仍仅手动触发，详见[版本规范](VERSIONING.md)。
 - `tests/unit/` 检查报文、业务与配置单元，`tests/integration/` 检查入口和跨模块协作，其中 `test_layout.py` 检查底层依赖方向、移除旧聚合入口及业务模块不加载 Qt；`tests/gui/` 检查窗口与日志界面，`tests/pack/` 检查版本和工作流。公共离线替身集中在 `tests/fixtures/offline.py`，测试不执行真实目标发送或防火墙变更。
 - 全量发现使用 `python -B -m unittest discover -s tests -t .`，保证按 `tests` 包导入；单个模块使用完整包名，例如 `python -B -m unittest tests.gui.test_window -v`。截图工具为 `python -B -m tests.gui.verify_gui --screenshot <截图路径>`。
