@@ -176,10 +176,19 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1
 
 脚本会自动选择本机局域网地址，在系统分配的空闲 UDP 端口上依次验证文本消息、远程命令、重启、关机、注销和连续发送，无需安装或运行学生端。`--target 127.0.0.1` 可改用回环地址，`--repeat` 可调整连续发送次数。
 
-## 项目来源与参考
+## 项目来源和第三方仓库
+
+### 项目来源
 
 - [imengyu/JiYuTrainer](https://github.com/imengyu/JiYuTrainer)（MIT）<br>本项目的上游与主要功能参考：课堂助手的窗口识别与修复规则、假全屏尺寸、解锁密码读取与 Knock1 解密算法；课堂防护的进程内 Hook 思路、远程命令确认流程、内核驱动自保护与强杀思路，以及 mhook/disasm-lib 第三方源码。驱动按本项目接口重新实现为可选组件；原项目的自动更新与崩溃报告未引入。
-- [ht0Ruial/Jiyu_udp_attack](https://github.com/ht0Ruial/Jiyu_udp_attack)<br>文本消息、远程命令、重启关机注销、本机信息与防火墙规则的报文结构；蓝屏为新增操作。
+
+### 第三方仓库
+
+- [Jiyu_udp_attack](https://github.com/ht0Ruial/Jiyu_udp_attack)（由 ht0Ruial 大佬提供 UDP 攻击的原理代码）
+- [curl](https://github.com/curl/curl)（用于自动更新模块）
+- [mhook](https://github.com/martona/mhook)（用于 JiYu HOOKER 模块）
+- [MemoryModule](https://github.com/fancycode/MemoryModule)
+- [XZip-XUnZip](https://github.com/yuanjia1011/XZip-XUnZip)
 
 当前仓库的具体行为以本项目代码和文档为准。
 
