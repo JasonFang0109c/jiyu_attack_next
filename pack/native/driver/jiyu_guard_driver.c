@@ -112,6 +112,10 @@ JiyuGuardPreOperation(
     if (!JiyuGuardIsProtected(process_id)) {
         return OB_PREOP_SUCCESS;
     }
+    if (HandleToULong(PsGetCurrentProcessId()) == process_id) {
+        // 保护只拦截其它进程；受保护进程自己仍可正常退出或管理子进程。
+        return OB_PREOP_SUCCESS;
+    }
 
     denied = PROCESS_TERMINATE | PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE;
     if (information->Operation == OB_OPERATION_HANDLE_CREATE) {

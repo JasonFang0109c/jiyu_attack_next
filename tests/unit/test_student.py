@@ -125,6 +125,35 @@ class StudentTests(OfflineCase):
         self.assertTrue(results[0]["success"])
         self.assertTrue(results[0]["forced"])
 
+    def test_stop_student_processes_falls_back_to_kernel_driver(self):
+        denied = {
+            "pid": 17600,
+            "code": 5,
+            "output": "拒绝访问",
+            "success": False,
+            "forced": True,
+            "gone": False,
+            "elevatable": False,
+        }
+        with (
+            patch.object(
+                student_service, "find_student_processes", side_effect=[[_record()], []]
+            ),
+            patch.object(student_service, "close_main_windows"),
+            patch.object(student_service, "_wait_gone", return_value=False),
+            patch.object(
+                student_service, "terminate_process", return_value=dict(denied)
+            ),
+            patch.object(student_service, "kernel_kill", return_value=True) as kill,
+            patch.object(student_service, "is_process_alive", return_value=False),
+            patch.object(student_service, "_is_admin", return_value=True),
+        ):
+            results = student_service.stop_student_processes([17600], guardian=False)
+        kill.assert_called_once_with(17600)
+        self.assertTrue(results[0]["success"])
+        self.assertTrue(results[0]["kernel"])
+        self.assertEqual(results[0]["output"], "已通过内核驱动强制结束")
+
     def test_stop_student_processes_treats_graceful_exit_as_success(self):
         with (
             patch.object(

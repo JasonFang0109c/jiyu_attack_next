@@ -44,6 +44,22 @@ class DriverProtocolTests(unittest.TestCase):
         self.assertEqual(calls[0], (driver.IOCTL_PROTECT, struct.pack("<I", 123)))
         self.assertEqual(calls[1], (driver.IOCTL_KILL, struct.pack("<II", 456, 7)))
 
+    def test_kernel_kill_opens_and_closes_session(self):
+        fake = unittest.mock.MagicMock()
+        with patch.object(driver, "DriverSession", return_value=fake):
+            self.assertTrue(driver.kernel_kill(123, 9))
+        fake.open.assert_called_once_with()
+        fake.kill.assert_called_once_with(123, 9)
+        fake.close.assert_called_once_with()
+
+    def test_kernel_kill_returns_false_when_driver_missing(self):
+        fake = unittest.mock.MagicMock()
+        fake.open.side_effect = OSError("missing")
+        with patch.object(driver, "DriverSession", return_value=fake):
+            self.assertFalse(driver.kernel_kill(123))
+        fake.kill.assert_not_called()
+        fake.close.assert_called_once_with()
+
     def test_install_creates_missing_service(self):
         session = driver.DriverSession(Path("C:/driver.sys"))
         calls = []

@@ -7,6 +7,7 @@
 
 #include <cwchar>
 
+#include "menu.h"
 #include "mhook/mhook.h"
 #include "policy.h"
 #include "remote.h"
@@ -505,7 +506,7 @@ void UnhookAll() {
 }  // namespace
 
 extern "C" __declspec(dllexport) const char* JiyuGuardVersion() {
-    return "1.1.0";
+    return "1.2.0";
 }
 
 extern "C" __declspec(dllexport) BOOL JiyuGuardInstall() {
@@ -517,10 +518,15 @@ extern "C" __declspec(dllexport) BOOL JiyuGuardInstall() {
     EnsureRemoteChannel();
     g_fake_desktop = CreateFakeDesktop();
     g_installed = HookAll();
+    if (g_installed) {
+        // 右键菜单与防护同生命周期：guard 已注入学生端时才能安全子类化窗口。
+        StartGuardMenu();
+    }
     return g_installed ? TRUE : FALSE;
 }
 
 extern "C" __declspec(dllexport) void JiyuGuardUninstall() {
+    StopGuardMenu();
     UnhookAll();
     g_installed = false;
     CloseRemoteChannel();

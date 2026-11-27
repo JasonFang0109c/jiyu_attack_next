@@ -12,11 +12,12 @@
   安装目录。
 - 识别：映像名带 ``student``，同目录有 ``LibTDMaster.dll`` 才认定为真身，
   其余同名进程只标记、不默认处理。
-- 结束：先发 ``WM_CLOSE`` 请它自己退出，再按创建时间校验后强制结束，仍被
-  拒绝才通过 UAC 助手提权，最后观察是否有守护服务把它重新拉起。
+- 结束：先发 ``WM_CLOSE`` 请它自己退出，再按创建时间校验后强制结束；仍被
+  拒绝时，如果用户已在设置页显式启用可选内核驱动，则通过驱动执行内核强杀；
+  最后才通过 UAC 助手提权，并观察是否有守护服务把它重新拉起。
 
-与 JiYuTrainer 用内核驱动强杀不同，这里只用系统提供的能力：驱动需要签名、
-加载失败会蓝屏，测试工具不值得为此扩大权限。
+内核驱动是可选组件，只有用户显式安装并启动后才参与这条链路；未安装时行为
+与纯用户态实现完全一致，不会为了结束学生端而自动加载驱动。
 """
 
 import json
@@ -46,6 +47,7 @@ from app.features.student.data import (
     registry_paths,
 )
 from app.system.windows.command import run_windows_command
+from app.system.windows.driver import kernel_kill
 from app.system.windows.elevation import _is_admin, run_elevated_helper
 from app.system.windows.ports import listening_ports
 from app.system.windows.process import (
@@ -240,6 +242,24 @@ def _terminate(entry, report=None):
     if report:
         report("PID %d 未响应关闭请求，正在强制结束…" % pid)
     outcome = terminate_process(pid, creation, FORCED_TIMEOUT)
+    if not outcome.get("success"):
+        # 与 JiYuTrainer 的 KillProcess 一致：用户态被拒绝时，若可选内核驱动
+        # 已加载，再走一次内核强杀。驱动缺失时保持原来的失败/提权路径。
+        if report:
+            report("PID %d 用户态结束失败，尝试内核驱动强杀…" % pid)
+        if kernel_kill(pid):
+            gone = not is_process_alive(pid, creation)
+            outcome = {
+                "pid": pid,
+                "code": 0 if gone else 1,
+                "output": "已通过内核驱动强制结束"
+                if gone
+                else "内核驱动已请求结束，但进程仍在运行",
+                "success": gone,
+                "forced": True,
+                "gone": gone,
+                "kernel": True,
+            }
     outcome["pid"] = pid
     return outcome
 

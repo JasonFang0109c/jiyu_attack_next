@@ -202,3 +202,28 @@ class DriverSession:
     def clear(self) -> None:
         """清空全部受保护 PID。"""
         self._ioctl(IOCTL_CLEAR, b"")
+
+
+def kernel_kill(pid: int, exit_code: int = 1) -> bool:
+    """尝试通过已加载的 JiyuGuard 驱动结束进程。
+
+    驱动是可选组件：没有安装或没有运行时这里只返回 False，不主动安装，
+    从而保留“用户显式启用驱动”的边界。调用方先走用户态流程，失败后再调用
+    本函数，形成与 JiYuTrainer 相同的“普通结束失败后内核强杀”链。
+
+    Args:
+        pid: 目标进程号。
+        exit_code: 传给 ``ZwTerminateProcess`` 的退出码。
+
+    Returns:
+        bool: 驱动调用成功时为 True。
+    """
+    session = DriverSession()
+    try:
+        session.open()
+        session.kill(int(pid), int(exit_code))
+        return True
+    except OSError:
+        return False
+    finally:
+        session.close()
