@@ -12,7 +12,7 @@
 根目录保留仓库首页、协作规范、依赖清单与 Git 配置。运行时代码集中在 `app/`，按启动、功能、界面基础、报文、系统适配与公共基础划分；打包、测试和文档分别独立。下面列出主要文件，常规包内的 `__init__.py` 省略。
 
 ```text
-jiyu_attack_next/
+NeoJiYuTrainer/
 |-- .github/workflows/
 |   |-- build.yml                   # 可复用打包流程
 |   |-- nightly-build.yml           # Nightly 构建与滚动预发布
@@ -122,7 +122,7 @@ jiyu_attack_next/
 |-- pack/
 |   |-- build.ps1                  # EXE 构建脚本
 |   |-- gen_version_info.py        # EXE 版本资源生成器
-|   `-- JiYuAttackNext.spec        # PyInstaller 配置
+|   `-- NeoJiYuTrainer.spec        # PyInstaller 配置
 |-- scripts/
 |   |-- run_gui.ps1                # 使用虚拟环境启动 GUI
 |   `-- test_local_ip.py           # 本机 IPv4 报文收发自测
@@ -217,7 +217,7 @@ jiyu_attack_next/
 1. 在 `app/features/<功能>/` 建立有独立职责的功能包；业务参数与数据约定按需放入 `data.py`，可复用流程放入无 Qt 的 `service.py`。通用编解码、网络/系统接口和配置继续复用各自基础模块。
 2. 需要 CLI 时，在功能的 `cli.py` 定义 `register()` 并注册本功能参数，在 `app/start/parser.py` 的对应分组显式调用；在 `app/start/cli.py` 接入执行分发。
 3. 需要 GUI 时，在功能的 `gui/page.py` 定义页面，交互协调按需放入 `gui/service.py`，Qt 数据通知适配按需放入 `gui/data.py`。在 `app/gui/window/main.py` 显式导入、创建页面和服务、连接信号与槽，并更新 `app/gui/window/data.py` 的导航描述及相关菜单装配；仅有内部服务的功能不必创建页面。
-4. 耗时任务交给 `app/gui/workers/` 的线程与任务服务；通用控件复用 `app/gui/widgets/`，业务服务保持独立于窗口和 Qt 对象。新静态资源放入 `app/resources/` 并经 `resource_path()` 读取，新增打包资源时同步 `pack/JiYuAttackNext.spec`。
+4. 耗时任务交给 `app/gui/workers/` 的线程与任务服务；通用控件复用 `app/gui/widgets/`，业务服务保持独立于窗口和 Qt 对象。新静态资源放入 `app/resources/` 并经 `resource_path()` 读取，新增打包资源时同步 `pack/NeoJiYuTrainer.spec`。
 5. 业务、报文与参数单元测试放入 `tests/unit/`，CLI/跨模块流程放入 `tests/integration/`，界面与线程行为放入 `tests/gui/`；打包或版本变化补 `tests/pack/`，共用替身复用 `tests/fixtures/offline.py`。按[验证](CONTRIBUTING.md#验证)选择检查。
 6. 按影响范围更新 [CLI 文档](../usage/CLI.md)、[GUI 文档](../usage/GUI.md) 与本结构说明；新增依赖写入依赖清单并说明打包影响。提交类型与作用域继续按[项目作用域](CONTRIBUTING.md#项目作用域)选择，不按每个子目录机械新增 scope。
 
@@ -228,7 +228,7 @@ jiyu_attack_next/
 | `.venv/` | Python 虚拟环境 | 保留供开发和构建使用 |
 | `build/` | 构建缓存、转换后的图标、测试临时目录与截图 | 验证结束后可删除，按需重新生成 |
 | `output/` | 最终 EXE | 保留需要运行或分发的产物 |
-| `JiYuAttackNextData/` | 便携数据目录：EXE 同级生成，保存设备备注、关闭窗口行为、界面日志 `runtime.log` 与命令行日志 `cli.log`；源码运行时位于项目根目录 | 需要保留配置时随 EXE 一起移动，删除后恢复默认；也可在 GUI“设置”页底部清除 |
+| `data/` | 便携数据目录：EXE 同级生成，保存设备备注、关闭窗口行为、界面日志 `runtime.log` 与命令行日志 `cli.log`；源码运行时位于项目根目录 | 需要保留配置时随 EXE 一起移动，删除后恢复默认；也可在 GUI“设置”页底部清除 |
 
 以上目录及 `__pycache__/`、工具缓存均由 `.gitignore` 排除，不提交 Git。根目录不保留重复的旧入口文件或遗留截图。
 

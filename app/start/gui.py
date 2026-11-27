@@ -40,7 +40,7 @@ from app.gui.window.data import (
 from app.gui.window.main import MainWindow
 from app.shared.paths import portable_data_dir
 
-SINGLE_INSTANCE_KEY = "JiYuAttackNext-single-instance"
+SINGLE_INSTANCE_KEY = "NeoJiYuTrainer-single-instance"
 
 REAL_APPLICATION = QApplication
 
@@ -308,7 +308,7 @@ def main():
         int: 进程退出码。
     """
     QApplication.setApplicationName(APP_NAME)
-    QApplication.setOrganizationName("JiYuAttackNext")
+    QApplication.setOrganizationName("NeoJiYuTrainer")
     application = QApplication(sys.argv)
     configure_application(application)
     instance = SingleInstance(parent=application)

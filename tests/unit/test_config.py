@@ -48,7 +48,7 @@ class ConfigFileTests(unittest.TestCase):
             {"gui/window/mica_enabled": ("背景模糊开关",)},
         )
         text = path.read_text(encoding="utf-8")
-        self.assertTrue(text.startswith("// JiYu Attack Next 配置文件"))
+        self.assertTrue(text.startswith("// NeoJiYuTrainer 配置文件"))
         self.assertIn("// 背景模糊开关", text)
         self.assertTrue(text.endswith("}" + chr(10)))
         self.assertEqual(

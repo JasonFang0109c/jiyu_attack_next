@@ -191,10 +191,10 @@ class HomePage(Page):
         content.setContentsMargins(28, 24, 28 + bar_width, 24)
         content.setSpacing(16)
 
-        self.title_label = LargeTitleLabel("JiYu Attack Next", host)
+        self.title_label = LargeTitleLabel("NeoJiYuTrainer", host)
         content.addWidget(self.title_label)
         self.subtitle_label = CaptionLabel(
-            "极域课堂 UDP 报文测试工具 · 版本 %s" % version_text(), host
+            "对抗极域电子教室的课堂工具 · 版本 %s" % version_text(), host
         )
         content.addWidget(self.subtitle_label)
         content.addSpacing(8)

@@ -12,7 +12,7 @@ from pathlib import Path
 from app.shared.paths import DATA_DIRECTORY_NAME, portable_data_dir
 from app.system.windows.driver import DriverSession
 
-APP_NAME = "JiYu Attack Next"
+APP_NAME = "NeoJiYuTrainer"
 
 
 def install_root() -> Path | None:
@@ -75,7 +75,7 @@ def _schedule_install_dir_cleanup(root: Path, keep_user_data: bool) -> bool:
     """启动退出后清理安装目录；保留用户数据时跳过数据目录。"""
     if not root.is_dir():
         return False
-    script = Path(tempfile.gettempdir()) / "jiyu_attack_next_uninstall.cmd"
+    script = Path(tempfile.gettempdir()) / "NeoJiYuTrainer_uninstall.cmd"
     keep = DATA_DIRECTORY_NAME if keep_user_data else ""
     lines = [
         "@echo off",
@@ -104,7 +104,7 @@ def run_uninstall(keep_user_data: bool = False, remove_driver: bool = True) -> d
     """执行卸载并返回结果摘要。
 
     Args:
-        keep_user_data: 是否保留 ``JiYuAttackNextData``。
+        keep_user_data: 是否保留 ``data``。
         remove_driver: 是否尝试删除内核驱动服务。
 
     Returns:

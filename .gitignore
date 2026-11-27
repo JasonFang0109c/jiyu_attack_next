@@ -17,7 +17,7 @@ htmlcov/
 /output/
 
 # 便携运行数据
-/JiYuAttackNextData/
+/data/
 
 # 本地环境配置
 .env

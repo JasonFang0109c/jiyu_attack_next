@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Container = "jiyu-native"
 )
 # 用已预装 MSVC/SDK 的 Windows 容器构建课堂防护 DLL；宿主机不安装编译工具。

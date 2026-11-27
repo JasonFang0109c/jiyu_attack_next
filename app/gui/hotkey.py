@@ -76,7 +76,7 @@ _USER32.RegisterClassW.restype = wintypes.ATOM
 
 _HOTKEY_WINDOWS: dict[int, "HotkeyManager"] = {}
 _WINDOW_CLASS_REGISTERED = False
-_WINDOW_CLASS_NAME = "JiyuAttackNextHotkeyWindow"
+_WINDOW_CLASS_NAME = "NeoJiYuTrainerHotkeyWindow"
 
 
 def _window_proc(hwnd, message, wparam, lparam):

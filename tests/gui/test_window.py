@@ -120,7 +120,7 @@ class GuiTests(unittest.TestCase):
         shutil.rmtree(self.temp_root, ignore_errors=True)
         self.temp_root.mkdir(parents=True, exist_ok=True)
         self.addCleanup(lambda: shutil.rmtree(self.temp_root, ignore_errors=True))
-        self.data_dir = self.temp_root / "JiYuAttackNextData"
+        self.data_dir = self.temp_root / "data"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.settings_path = str(self.data_dir / "settings.json")
         # 正常构建只写 WARNING 及以上，而这些用例验证 INFO 记录的内容与联动，
@@ -244,7 +244,8 @@ class GuiTests(unittest.TestCase):
             button.getUrl().toString() for button in about.findChildren(HyperlinkButton)
         ]
         self.assertIn("https://github.com/JasonFang0109c", links)
-        self.assertIn("https://github.com/JasonFang0109c/jiyu_attack_next", links)
+        self.assertIn("https://github.com/JasonFang0109c/NeoJiYuTrainer", links)
+        self.assertIn("https://github.com/imengyu/JiYuTrainer", links)
         self.assertIn("https://github.com/ht0Ruial/Jiyu_udp_attack", links)
         self.assertNotIn(
             "https://github.com/JasonFang0109c",
@@ -318,7 +319,7 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(heights, {row_height}, card.heading.text())
             offsets = [widget.geometry().top() for widget in card.rows.values()]
             self.assertEqual(offsets, sorted(offsets))
-        # 行数与行高都一致的卡片，总高应完全相同；仓库信息多一行来源仓库，
+        # 行数与行高都一致的卡片，总高应完全相同；仓库信息多一行来源链接，
         # 高度自然比另外三张多一行。
         two_row = (about.version_card, about.component_card, about.license_card)
         self.assertEqual(len({card.height() for card in two_row}), 1)
@@ -363,9 +364,9 @@ class GuiTests(unittest.TestCase):
         hero = about.findChild(QWidget, "aboutHero")
         texts = [label.text() for label in hero.findChildren(BodyLabel)]
         for line in (
-            "极域课堂 UDP 报文测试工具，覆盖学生端控制与本机学生端起停，图形界面与命令行合并为同一个 Windows EXE",
-            "基于 PySide6-Fluent-Widgets 构建，打包后无需安装 Python 即可使用 GUI 与 CLI",
-            "仅供已获授权的教学环境测试使用",
+            "专门对抗极域电子教室的课堂工具：老师全屏广播时自动改成窗口，既能自由操作，也能继续看演示；还可以阻止远程控制、自动处理“黑屏安静”",
+            "同时提供学生端启停、文本消息、远程命令、文件传送、设备操作、反弹终端与课堂防护，图形界面和命令行合并为同一个 Windows EXE",
+            "界面使用 PySide6-Fluent-Widgets 组件库，提供统一的 Fluent 风格窗口与控件",
         ):
             self.assertIn(line, texts)
         readme = (Path(__file__).resolve().parents[2] / "README.md").read_text(
@@ -378,13 +379,19 @@ class GuiTests(unittest.TestCase):
         about = self.window.pages["about"]
         self.assertEqual(about.repository_card.heading.text(), "仓库信息")
         self.assertEqual(about.repository_card.objectName(), "aboutDetailCard")
-        self.assertEqual(sorted(about.repository_card.rows), ["origin", "repository"])
+        self.assertEqual(
+            sorted(about.repository_card.rows), ["origin", "protocol", "repository"]
+        )
         self.assertEqual(
             about.repository_card.rows["repository"].getUrl().toString(),
-            "https://github.com/JasonFang0109c/jiyu_attack_next",
+            "https://github.com/JasonFang0109c/NeoJiYuTrainer",
         )
         self.assertEqual(
             about.repository_card.rows["origin"].getUrl().toString(),
+            "https://github.com/imengyu/JiYuTrainer",
+        )
+        self.assertEqual(
+            about.repository_card.rows["protocol"].getUrl().toString(),
             "https://github.com/ht0Ruial/Jiyu_udp_attack",
         )
         self.assertNotIn(
@@ -1408,7 +1415,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.alias_store.match("回车设备"), ("回车设备", "10.1.2.20"))
 
     def test_portable_paths_are_based_on_executable_directory(self):
-        executable = Path(self.temp_root) / "portable" / "JiYuAttackNext.exe"
+        executable = Path(self.temp_root) / "portable" / "NeoJiYuTrainer.exe"
         data_dir = data_paths.portable_data_dir(executable)
         self.assertEqual(
             data_dir, executable.parent.resolve() / data_paths.DATA_DIRECTORY_NAME
@@ -3516,7 +3523,7 @@ class SingleInstanceTests(unittest.TestCase):
         cls.application = QApplication.instance() or QApplication([])
 
     def test_second_instance_notifies_primary(self):
-        key = "JiYuAttackNext-test-%d" % id(self)
+        key = "NeoJiYuTrainer-test-%d" % id(self)
         primary = startup.SingleInstance(key)
         secondary = startup.SingleInstance(key)
         try:

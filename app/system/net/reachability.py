@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from ctypes import wintypes
 
 # 回显载荷只用于确认往返，内容本身没有含义。
-_ECHO_PAYLOAD = b"jiyu-attack-next"
+_ECHO_PAYLOAD = b"NeoJiYuTrainer"
 # 局域网内的回显通常几十毫秒返回，超过这个时间视为没有响应。
 _ECHO_TIMEOUT_MS = 400
 # 同时探测的主机数量，兼顾 /24 网段的速度与系统句柄开销。

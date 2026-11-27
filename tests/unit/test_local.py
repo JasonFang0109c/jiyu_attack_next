@@ -58,7 +58,7 @@ class LocalTests(OfflineCase):
         tasks = SimpleNamespace(
             returncode=0,
             stderr="",
-            stdout='"StudentMain.exe","17600"\n"JiYuAttackNext.exe","9001"\n',
+            stdout='"StudentMain.exe","17600"\n"NeoJiYuTrainer.exe","9001"\n',
         )
         with patch.object(
             local_service,

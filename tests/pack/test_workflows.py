@@ -50,12 +50,12 @@ class NightlyWorkflowTests(unittest.TestCase):
         # 一次构建产出正常版本与 _Debug 版本，两版一起上传。
         self.assertIn("-Variant both", self.build)
         self.assertIn(
-            '$names = @("JiYuAttackNext", "JiYuAttackNext_Debug")', self.build
+            '$names = @("NeoJiYuTrainer", "NeoJiYuTrainer_Debug")', self.build
         )
-        self.assertIn("name: JiYuAttackNext-build", self.build)
+        self.assertIn("name: NeoJiYuTrainer-build", self.build)
         self.assertIn("path: dist/*.exe", self.build)
         self.assertNotIn("cli\\main.py", self.build)
-        self.assertNotIn("JiYuAttackNext-cli", self.build)
+        self.assertNotIn("NeoJiYuTrainer-cli", self.build)
 
     def test_shared_build_appends_nightly_suffix_from_date(self):
         self.assertIn("ToString('yyyyMMdd')", self.build)
@@ -81,7 +81,7 @@ class NightlyWorkflowTests(unittest.TestCase):
         # 发布说明只写带日期的版本号，标题里也不出现提交哈希。
         self.assertIn('version="${{ needs.build.outputs.version }}"', self.workflow)
         self.assertIn('display="${{ needs.build.outputs.display }}"', self.workflow)
-        self.assertIn("- \\`JiYuAttackNext-${display}.exe\\`", self.workflow)
+        self.assertIn("- \\`NeoJiYuTrainer-${display}.exe\\`", self.workflow)
         self.assertIn(
             "name: Nightly Build ${{ needs.build.outputs.version }}", self.workflow
         )
@@ -99,8 +99,8 @@ class NightlyWorkflowTests(unittest.TestCase):
 
     def test_workflow_notes_keep_assets_line_plain(self):
         # 资产行只留文件名，产物说明交给文档，发布说明不再重复解释。
-        self.assertIn("- \\`JiYuAttackNext-${display}.exe\\`", self.workflow)
-        self.assertNotIn("- \\`JiYuAttackNext.exe\\`", self.workflow)
+        self.assertIn("- \\`NeoJiYuTrainer-${display}.exe\\`", self.workflow)
+        self.assertNotIn("- \\`NeoJiYuTrainer.exe\\`", self.workflow)
         self.assertNotIn("图形界面与命令行共用", self.workflow)
         self.assertNotIn("${commit_message}", self.workflow)
         self.assertNotIn("git log -1 --pretty=%B", self.workflow)
@@ -155,16 +155,16 @@ class NightlyWorkflowTests(unittest.TestCase):
         self.assertIn("files: |", self.workflow)
         # 只发布两个带提交哈希的产物：固定名副本会让发布页堆出四个资产。
         self.assertIn(
-            "dist/JiYuAttackNext-${{ needs.build.outputs.display }}.exe",
+            "dist/NeoJiYuTrainer-${{ needs.build.outputs.display }}.exe",
             self.workflow,
         )
         self.assertIn(
-            "dist/JiYuAttackNext_Debug-${{ needs.build.outputs.display }}.exe",
+            "dist/NeoJiYuTrainer_Debug-${{ needs.build.outputs.display }}.exe",
             self.workflow,
         )
         files_block = self.workflow.split("files: |", 1)[1]
-        self.assertNotIn("dist/JiYuAttackNext.exe", files_block)
-        self.assertNotIn("dist/JiYuAttackNext_Debug.exe", files_block)
+        self.assertNotIn("dist/NeoJiYuTrainer.exe", files_block)
+        self.assertNotIn("dist/NeoJiYuTrainer_Debug.exe", files_block)
         self.assertIn("EXE:", self.workflow)
         self.assertIn("${exe_sha256}", self.workflow)
         self.assertIn("${debug_sha256}", self.workflow)
@@ -275,10 +275,10 @@ class ReleaseWorkflowTests(unittest.TestCase):
 
     def test_release_publishes_single_unified_exe(self):
         self.assertIn(
-            "JiYuAttackNext-${{ needs.build.outputs.version }}.exe", self.workflow
+            "NeoJiYuTrainer-${{ needs.build.outputs.version }}.exe", self.workflow
         )
         self.assertIn("EXE:", self.workflow)
-        self.assertNotIn("JiYuAttackNext-cli", self.workflow)
+        self.assertNotIn("NeoJiYuTrainer-cli", self.workflow)
         self.assertNotIn("cli_sha256", self.workflow)
 
 

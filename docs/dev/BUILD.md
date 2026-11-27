@@ -22,7 +22,7 @@ python -m pip install -r requirements.txt
 
 已有虚拟环境时无需重新创建，GUI 和打包依赖的版本以根目录 [requirements.txt](../../requirements.txt) 为准。若虚拟环境早于 Fluent 组件库引入，重新执行一次安装命令即可。
 
-`requirements.txt` 安装的是 `PySide6-Fluent-Widgets[full]`，比基础包多带 `scipy`、`pillow` 与 `colorthief`，组件库用它们做亚克力控件的高斯模糊与取色。缺这几个包时 `isAcrylicAvailable` 为假，亚克力控件会退化纯色背景。升级组件库时用 `pip install --upgrade` 不会自动补装 extra，需要写明 `[full]`。打包脚本按 `pack/JiYuAttackNext.spec` 排除 `scipy` 里用不到的子包，只保留 `scipy.ndimage` 及其依赖；Qt 与 Pillow 的裁剪见下面的[体积控制](#体积控制)。
+`requirements.txt` 安装的是 `PySide6-Fluent-Widgets[full]`，比基础包多带 `scipy`、`pillow` 与 `colorthief`，组件库用它们做亚克力控件的高斯模糊与取色。缺这几个包时 `isAcrylicAvailable` 为假，亚克力控件会退化纯色背景。升级组件库时用 `pip install --upgrade` 不会自动补装 extra，需要写明 `[full]`。打包脚本按 `pack/NeoJiYuTrainer.spec` 排除 `scipy` 里用不到的子包，只保留 `scipy.ndimage` 及其依赖；Qt 与 Pillow 的裁剪见下面的[体积控制](#体积控制)。
 
 ## 源码运行
 
@@ -45,23 +45,23 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Python "C:\Python313\
 ```
 
 - `build.ps1` 会在实际打包前自动调用 `pack/clean_build.ps1`；单独执行清理脚本可提前预清理，使用 `-WhatIf` 仅预览将删除的项目。
-- 清理脚本删除旧版 JiYuAttackNext EXE、PyInstaller 的 `build/release`、`build/debug`、`build/assets`、工具缓存，以及源码运行目录和 `output/JiYuAttackNextData/` 中的 `cli.log`、`runtime.log`。只删除这两个日志文件，`settings.json`、备注和其他用户数据保留；若旧 EXE 正在运行，清理会报错并停止构建。
+- 清理脚本删除旧版 NeoJiYuTrainer EXE、PyInstaller 的 `build/release`、`build/debug`、`build/assets`、工具缓存，以及源码运行目录和 `output/data/` 中的 `cli.log`、`runtime.log`。只删除这两个日志文件，`settings.json`、备注和其他用户数据保留；若旧 EXE 正在运行，清理会报错并停止构建。
 - 无参数时执行清理后构建；`-Clean` 额外要求 PyInstaller 清理其自身缓存，`-Python` 指定其他解释器。
-- `-Variant` 取 `both`、`release` 或 `debug`，默认 `both`：一次产出 `JiYuAttackNext-<显示版本>.exe` 与 `JiYuAttackNext_Debug-<显示版本>.exe`，两份代码完全相同，只有构建变体标记不同。`-Variant debug` 只重建调试版本，调试时不必等两份都打包完。
+- `-Variant` 取 `both`、`release` 或 `debug`，默认 `both`：一次产出 `NeoJiYuTrainer-<显示版本>.exe` 与 `NeoJiYuTrainer_Debug-<显示版本>.exe`，两份代码完全相同，只有构建变体标记不同。`-Variant debug` 只重建调试版本，调试时不必等两份都打包完。
 - 两个变体使用独立的 `--workpath`（`build/release` 与 `build/debug`），避免 PyInstaller 复用另一份变体的分析缓存。
 - `-Version` 覆盖版本号；省略时读取 `app/shared/version.py` 的 `__version__`。版本号须符合语义化版本格式，规则见[版本规范](VERSIONING.md)。
-- 产物名直接带显示版本，例如 `output/JiYuAttackNext-0.1.0-e1f9608.exe` 与 `output/JiYuAttackNext_Debug-0.1.0-e1f9608.exe`；显示版本是版本号加提交哈希，因此从文件名就能看出对应哪次提交。本地构建不再产出 `JiYuAttackNext.exe` 这类不带版本号的固定名，旧版 EXE 会在构建前由清理脚本删除。
+- 产物名直接带显示版本，例如 `output/NeoJiYuTrainer-0.1.0-e1f9608.exe` 与 `output/NeoJiYuTrainer_Debug-0.1.0-e1f9608.exe`；显示版本是版本号加提交哈希，因此从文件名就能看出对应哪次提交。本地构建不再产出 `NeoJiYuTrainer.exe` 这类不带版本号的固定名，旧版 EXE 会在构建前由清理脚本删除。
 - `output/` 只留最近一次构建所选变体的 EXE：重新构建前删除旧版本产物，避免与当前构建混淆，不保留历史版本。
-- 提交哈希省略 `-Commit` 时自动取 `git rev-parse --short=7 HEAD`；显式传 `-Commit ""` 表示不要哈希（正式版发布用它），此时产物名就是 `output/JiYuAttackNext-0.1.0.exe`；不在 Git 仓库内构建时同样只带版本号。
+- 提交哈希省略 `-Commit` 时自动取 `git rev-parse --short=7 HEAD`；显式传 `-Commit ""` 表示不要哈希（正式版发布用它），此时产物名就是 `output/NeoJiYuTrainer-0.1.0.exe`；不在 Git 仓库内构建时同样只带版本号。
 - 脚本根据自身路径定位项目根目录，也可从其他目录通过绝对路径调用，默认使用项目虚拟环境。
-- 读取 [pack/JiYuAttackNext.spec](../../pack/JiYuAttackNext.spec)，并收集 Fluent Widgets 的运行时资源与包元数据。
+- 读取 [pack/NeoJiYuTrainer.spec](../../pack/NeoJiYuTrainer.spec)，并收集 Fluent Widgets 的运行时资源与包元数据。
 - 每次构建都把当前本地时间打包进 EXE，“关于”页据此显示构建时间；源码运行时显示“源码运行”。
 - 版本号同时写入 `build/assets/version.txt`（供“关于”页显示）与 `build/assets/version_info.txt`（PyInstaller 的 Windows 版本资源，EXE 属性中可见）。
 
 ### 课堂防护原生组件
 
 - 源码在 `pack/native/guard`：`guard.cpp` 为窄接口 Hook DLL，`mhook/` 与 `disasm-lib/` 来自 JiYuTrainer 的第三方源码（MIT 与原作者版权，见目录内说明）。
-- 仓库提交 `app/resources/native/guard_x86.dll`、`guard_x64.dll` 的预编译产物，普通 EXE 构建不需要编译器；PyInstaller 通过 `pack/JiYuAttackNext.spec` 一并收集。
+- 仓库提交 `app/resources/native/guard_x86.dll`、`guard_x64.dll` 的预编译产物，普通 EXE 构建不需要编译器；PyInstaller 通过 `pack/NeoJiYuTrainer.spec` 一并收集。
 - 只有修改 `guard.cpp` 或升级第三方源码时才需要重新编译：在装有 MSVC 与 Windows SDK 的 Windows 容器内执行 `pack/native/build-guard.ps1`，脚本用 `build.bat` 分别编译 x86/x64，产物落在 `build/native/guard/`，再复制到 `app/resources/native/`。宿主机不安装编译器与 SDK。
 - `build/native/guard/guard_fixture_*.exe` 是自测夹具，只在构建容器或隔离测试环境中运行，不加载驱动、不改系统配置。
 
@@ -77,8 +77,8 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Python "C:\Python313\
 
 | 路径 | 内容 | 是否保留 |
 | --- | --- | --- |
-| `output/JiYuAttackNext-<显示版本>.exe` | 单文件程序，GUI 与 CLI 共用；只写 `WARNING` 及以上的日志 | 保留用于运行和分发，旧版本号的删除 |
-| `output/JiYuAttackNext_Debug-<显示版本>.exe` | 同上，但日志从 `DEBUG` 起记录 | 保留，供排查问题使用，旧版本号的删除 |
+| `output/NeoJiYuTrainer-<显示版本>.exe` | 单文件程序，GUI 与 CLI 共用；只写 `WARNING` 及以上的日志 | 保留用于运行和分发，旧版本号的删除 |
+| `output/NeoJiYuTrainer_Debug-<显示版本>.exe` | 同上，但日志从 `DEBUG` 起记录 | 保留，供排查问题使用，旧版本号的删除 |
 | `build/release/`、`build/debug/` | 两个变体各自的打包中间文件与分析结果 | 构建后可删除 |
 | `build/assets/variant.txt` | 本次打包的变体标记，运行时打进 EXE | 构建后可删除 |
 | `build/assets/app.ico` | 从唯一图标源 `app/resources/icons/app.svg` 转换的构建图标 | 构建后可删除 |
@@ -104,18 +104,18 @@ powershell -ExecutionPolicy Bypass -File ./pack/clean_build.ps1 -WhatIf
 
 | 清理目标 | 说明 |
 | --- | --- |
-| `output/JiYuAttackNext*.exe`、`output/JiyuUdpTest.exe` | 删除旧版与上一轮 EXE，构建完成后仅留下本轮选中变体的产物 |
+| `output/NeoJiYuTrainer*.exe` | 删除旧版与上一轮 EXE，构建完成后仅留下本轮选中变体的产物 |
 | `build/release/`、`build/debug/`、`build/assets/` | 清除 PyInstaller 中间文件与生成资源；构建会重新生成 |
-| `output/JiYuAttackNextData/cli.log`、`output/JiYuAttackNextData/runtime.log` | 清理 EXE 数据目录中的运行日志 |
-| `JiYuAttackNextData/cli.log`、`JiYuAttackNextData/runtime.log` | 清理源码运行目录中的运行日志 |
+| `output/data/cli.log`、`output/data/runtime.log` | 清理 EXE 数据目录中的运行日志 |
+| `data/cli.log`、`data/runtime.log` | 清理源码运行目录中的运行日志 |
 | `.ruff_cache/`、`.pytest_cache/`、`.mypy_cache/`、`.coverage`、`htmlcov/` | 清除工具缓存与覆盖率结果 |
 | `app/`、`pack/`、`scripts/`、`tests/` 下的 `__pycache__/` | 清除源码字节码缓存，不遍历 `.venv/` |
 
-**明确保留 `settings.json`、备注和其他运行数据**：脚本仅删除上表列出的两个日志文件，不删除 `JiYuAttackNextData/` 目录，也不会递归清理 `output/`。由于脚本会删除旧 EXE，不要在构建完成后再次运行；验证产生的临时截图可按需单独删除。需要干净的验证环境时改用临时数据目录（截图验证用 `build/verify-gui-data`）。
+**明确保留 `settings.json`、备注和其他运行数据**：脚本仅删除上表列出的两个日志文件，不删除 `data/` 目录，也不会递归清理 `output/`。由于脚本会删除旧 EXE，不要在构建完成后再次运行；验证产生的临时截图可按需单独删除。需要干净的验证环境时改用临时数据目录（截图验证用 `build/verify-gui-data`）。
 
 ## 体积控制
 
-单文件程序把 Qt、Python 与依赖一起打包，任何一份多余的 DLL 都会直接进入分发包。`pack/JiYuAttackNext.spec` 在 `a.binaries` 上做了一次过滤，规则集中在四个集合里：
+单文件程序把 Qt、Python 与依赖一起打包，任何一份多余的 DLL 都会直接进入分发包。`pack/NeoJiYuTrainer.spec` 在 `a.binaries` 上做了一次过滤，规则集中在四个集合里：
 
 | 集合 | 去掉的内容 | 为什么可以去掉 |
 | --- | --- | --- |
@@ -126,11 +126,11 @@ powershell -ExecutionPolicy Bypass -File ./pack/clean_build.ps1 -WhatIf
 
 `_is_qt_translation` 另外滤掉 `PySide6	ranslations` 下的 `.qm`：Qt 自带翻译只有显式 `QTranslator` 加载才生效，界面用的是组件库自带的中文资源。过滤按文件名比对，`_stem` 会去掉扩展名与 ABI 后缀，因此 `_avif.cp313-win_amd64.pyd` 这类带后缀的扩展模块也能命中。
 
-改动这份清单前先确认运行期确实不加载：`pyi-archive_viewer -l output/JiYuAttackNext-<显示版本>.exe` 看打进包里的文件，`pyi-archive_viewer -r -b` 看 Python 模块清单。裁剪后必须启动一次打包版界面，并跑 `-h`、`local info`、`restriction student --list`，确认平台插件、图标与命令行都没坏。按当前清单，两份 EXE 从 84 MB 降到 62 MB 左右。
+改动这份清单前先确认运行期确实不加载：`pyi-archive_viewer -l output/NeoJiYuTrainer-<显示版本>.exe` 看打进包里的文件，`pyi-archive_viewer -r -b` 看 Python 模块清单。裁剪后必须启动一次打包版界面，并跑 `-h`、`local info`、`restriction student --list`，确认平台插件、图标与命令行都没坏。按当前清单，两份 EXE 从 84 MB 降到 62 MB 左右。
 
 ## 运行数据
 
-EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹，目录内容与不可写时的表现见[运行数据](../usage/GUI.md#运行数据)。与构建相关的差异只有日志等级：正常版本默认从 `WARNING` 起记录，GUI 可在设置页选择 `INFO`、`WARNING` 或 `ERROR`，CLI 始终采用默认阈值；调试版本固定从 `DEBUG` 起记录。两个 EXE 放在同一目录时共用这个文件夹，调试版本产生的记录与正常版本写进同一份日志。该目录由 `.gitignore` 排除，源码运行时位于项目根目录。
+EXE 在其所在目录创建 `data` 子文件夹，目录内容与不可写时的表现见[运行数据](../usage/GUI.md#运行数据)。与构建相关的差异只有日志等级：正常版本默认从 `WARNING` 起记录，GUI 可在设置页选择 `INFO`、`WARNING` 或 `ERROR`，CLI 始终采用默认阈值；调试版本固定从 `DEBUG` 起记录。两个 EXE 放在同一目录时共用这个文件夹，调试版本产生的记录与正常版本写进同一份日志。该目录由 `.gitignore` 排除，源码运行时位于项目根目录。
 
 - 日志包含毫秒时间、规范级别、线程、输出位置、功能分类、消息与异常详情，便于从用户环境回传排查。
 - 只移动 EXE 而不移动该文件夹时，新位置按默认配置启动。
@@ -154,11 +154,11 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹，目录内容与
 - 推送到 `main` 时按改动路径决定是否运行：只有 `app/`（含 `app/resources/`）、`pack/`、`scripts/`、`requirements.txt` 或工作流文件本身发生变化才会触发，纯文档与测试改动不会重新编译 EXE。
 - 也可在 Actions 页面选择该工作流并点击 `Run workflow` 手动运行，手动运行需选择 `main` 分支才会发布；手动运行不受路径过滤限制。
 - 工作流文件首次进入默认分支后，Actions 页面才会显示手动运行入口。
-- 在 `windows-latest` 上使用 Python 3.13 安装依赖、执行离线检查（见[验证](CONTRIBUTING.md#验证)）并运行 `pack/build.ps1 -Clean`；构建脚本直接产出 `output/JiYuAttackNext-<显示版本>.exe` 与对应的调试版本，工作流再据此准备 `dist/` 下的资产。
-- 构建成功后更新标签为 `nightly`、标题为 `Nightly Build <版本>` 的预发布版本，资产只有两个：`JiYuAttackNext-<显示版本>.exe` 与 `JiYuAttackNext_Debug-<显示版本>.exe`，显示版本是基础版本号加提交哈希（如 `0.1.0-1a8ede3`）。不再发布固定名副本，避免每次推送都在发布页额外保留两个文件（GUI 与 CLI 共用同一个 EXE，调试版只差日志等级）。
+- 在 `windows-latest` 上使用 Python 3.13 安装依赖、执行离线检查（见[验证](CONTRIBUTING.md#验证)）并运行 `pack/build.ps1 -Clean`；构建脚本直接产出 `output/NeoJiYuTrainer-<显示版本>.exe` 与对应的调试版本，工作流再据此准备 `dist/` 下的资产。
+- 构建成功后更新标签为 `nightly`、标题为 `Nightly Build <版本>` 的预发布版本，资产只有两个：`NeoJiYuTrainer-<显示版本>.exe` 与 `NeoJiYuTrainer_Debug-<显示版本>.exe`，显示版本是基础版本号加提交哈希（如 `0.1.0-1a8ede3`）。不再发布固定名副本，避免每次推送都在发布页额外保留两个文件（GUI 与 CLI 共用同一个 EXE，调试版只差日志等级）。
 - 发布说明包含版本号、构建时间、工作流运行记录、两个资产的 SHA256，`Commits` 章节列出本次构建对应的那条提交。
 - 路径过滤按整个推送的 `before..head` 判定，因此把文档提交与代码提交一起推送时仍会构建；`Commits` 章节据此说明本次构建实际包含哪些改动。
-- 同一天内重复构建不新建发布：先比对现有 `nightly` 预发布的标题是否含本次的日期后缀，相同就原地更新资产与说明，标签 `nightly` 与下载地址 `https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly` 都保持不变。
+- 同一天内重复构建不新建发布：先比对现有 `nightly` 预发布的标题是否含本次的日期后缀，相同就原地更新资产与说明，标签 `nightly` 与下载地址 `https://github.com/JasonFang0109c/NeoJiYuTrainer/releases/tag/nightly` 都保持不变。
 - 只有日期变了（例如旧的是 `-nightly.20261103`、新的是 `-nightly.20261104`）才删除旧预发布与 `nightly` 标签再重新创建，保证每天最多一次新的发布通知，不让关注者的动态被每次推送刷屏。
 - 日期取自构建版本号的 `-nightly.YYYYMMDD` 后缀，与产物里记录的日期同源；后缀按 UTC 计日，不受运行器时区与本地时区影响。
 - 资产名带提交哈希，每次构建都是新名字，`overwrite_files` 覆盖不到旧名字，因此复用当天的预发布前会先删掉全部已有资产；同一天内发布维护的历史说明由本次构建的说明整体覆盖，资产始终是两个文件。
@@ -168,7 +168,7 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹，目录内容与
 
 - 只支持手动触发，不随推送自动运行；不会自动递增版本号，需先修改 `app/shared/version.py` 的 `__version__` 并提交。
 - 发布前校验版本号与源码一致、正式版不带预发布后缀、标签 `vX.Y.Z` 尚不存在，任一不满足即失败。
-- 资产为固定名 `JiYuAttackNext.exe` 与 `JiYuAttackNext_Debug.exe`，另附版本号副本`JiYuAttackNext-X.Y.Z.exe`；同一文件同时提供 GUI 与 CLI。固定名副本由工作流从构建脚本产出的 `output/JiYuAttackNext-X.Y.Z.exe` 复制而来，本地 `output/` 里只有带版本号的那一份。正式版的产物体内不带提交哈希，工作流以 `-Commit ""` 显式关闭，nightly 则传当前提交哈希。
+- 资产为固定名 `NeoJiYuTrainer.exe` 与 `NeoJiYuTrainer_Debug.exe`，另附版本号副本`NeoJiYuTrainer-X.Y.Z.exe`；同一文件同时提供 GUI 与 CLI。固定名副本由工作流从构建脚本产出的 `output/NeoJiYuTrainer-X.Y.Z.exe` 复制而来，本地 `output/` 里只有带版本号的那一份。正式版的产物体内不带提交哈希，工作流以 `-Commit ""` 显式关闭，nightly 则传当前提交哈希。
 - 发布说明的 `Changes` 章节列出上一个 `v*` 标签以来的提交标题；`make_latest: true` 使正式版成为最新版本，nightly 不受影响。
 - 可选择以草稿（`draft`）创建，确认后再在 Releases 页面发布；`overwrite_files: false` 保证不会覆盖已发布资产。
 - 使用 `release` 并发组且不取消进行中的运行，避免两次发布互相干扰。
@@ -177,7 +177,7 @@ EXE 在其所在目录创建 `JiYuAttackNextData` 子文件夹，目录内容与
 
 ## 验证
 
-验证按改动范围选择，完整规则、命令与残留清理见[开发与提交规范](CONTRIBUTING.md#验证)。与构建相关的只有一条硬要求：改动 `pack/`、`scripts/`、依赖清单或 `app/` 后必须实际构建，并用产出的 EXE 冒烟——`output\JiYuAttackNext-<显示版本>.exe --version`、`-h`，再打开一次图形界面确认平台插件、图标与命令行都没坏。
+验证按改动范围选择，完整规则、命令与残留清理见[开发与提交规范](CONTRIBUTING.md#验证)。与构建相关的只有一条硬要求：改动 `pack/`、`scripts/`、依赖清单或 `app/` 后必须实际构建，并用产出的 EXE 冒烟——`output\NeoJiYuTrainer-<显示版本>.exe --version`、`-h`，再打开一次图形界面确认平台插件、图标与命令行都没坏。
 
 没有第二台测试设备时，可另外运行本机 IP 自测：
 

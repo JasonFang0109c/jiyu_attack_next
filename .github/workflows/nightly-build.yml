@@ -47,7 +47,7 @@ jobs:
       - name: Download build artifact
         uses: actions/download-artifact@v8
         with:
-          name: JiYuAttackNext-build
+          name: NeoJiYuTrainer-build
           path: dist
 
       - name: Prepare release notes
@@ -57,8 +57,8 @@ jobs:
           version="${{ needs.build.outputs.version }}"
           # 资产文件名用带提交哈希的显示版本，发布说明仍只写带日期的版本号。
           display="${{ needs.build.outputs.display }}"
-          exe_sha256="$(sha256sum dist/JiYuAttackNext.exe | awk '{print $1}')"
-          debug_sha256="$(sha256sum dist/JiYuAttackNext_Debug.exe | awk '{print $1}')"
+          exe_sha256="$(sha256sum dist/NeoJiYuTrainer.exe | awk '{print $1}')"
+          debug_sha256="$(sha256sum dist/NeoJiYuTrainer_Debug.exe | awk '{print $1}')"
           built_at="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           # paths 过滤按整个 push 判定，tip 可能只是一个文档提交，
           # 真正的改动排在它前面：发布说明只记最新一个影响构建的提交。
@@ -93,8 +93,8 @@ jobs:
 
           ## Assets
 
-          - \`JiYuAttackNext-${display}.exe\`（正常版本）
-          - \`JiYuAttackNext_Debug-${display}.exe\`（调试版本，记录完整日志）
+          - \`NeoJiYuTrainer-${display}.exe\`（正常版本）
+          - \`NeoJiYuTrainer_Debug-${display}.exe\`（调试版本，记录完整日志）
 
           ## SHA256
 
@@ -176,8 +176,8 @@ jobs:
           overwrite_files: true
           make_latest: false
           files: |
-            dist/JiYuAttackNext-${{ needs.build.outputs.display }}.exe
-            dist/JiYuAttackNext_Debug-${{ needs.build.outputs.display }}.exe
+            dist/NeoJiYuTrainer-${{ needs.build.outputs.display }}.exe
+            dist/NeoJiYuTrainer_Debug-${{ needs.build.outputs.display }}.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

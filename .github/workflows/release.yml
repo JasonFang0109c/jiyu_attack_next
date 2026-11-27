@@ -48,7 +48,7 @@ jobs:
       - name: Download build artifact
         uses: actions/download-artifact@v8
         with:
-          name: JiYuAttackNext-build
+          name: NeoJiYuTrainer-build
           path: dist
 
       - name: Verify version and tag
@@ -76,8 +76,8 @@ jobs:
           set -euo pipefail
           version="${{ needs.build.outputs.version }}"
           short_sha="${GITHUB_SHA::7}"
-          exe_sha256="$(sha256sum dist/JiYuAttackNext.exe | awk '{print $1}')"
-          debug_sha256="$(sha256sum dist/JiYuAttackNext_Debug.exe | awk '{print $1}')"
+          exe_sha256="$(sha256sum dist/NeoJiYuTrainer.exe | awk '{print $1}')"
+          debug_sha256="$(sha256sum dist/NeoJiYuTrainer_Debug.exe | awk '{print $1}')"
           built_at="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           previous_tag="$(git describe --tags --abbrev=0 --match 'v*' HEAD 2>/dev/null || true)"
           if [[ -n "${previous_tag}" ]]; then
@@ -89,7 +89,7 @@ jobs:
             changes="- （无新增提交）"
           fi
           cat > release-notes.md <<EOF
-          # JiYu Attack Next v${version}
+          # NeoJiYuTrainer v${version}
 
           - **Version:** \`${version}\`
           - **Commit:** [\`${short_sha}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA})
@@ -102,8 +102,8 @@ jobs:
 
           ## Assets
 
-          - \`JiYuAttackNext.exe\`（正常版本）
-          - \`JiYuAttackNext_Debug.exe\`（调试版本，记录完整日志）
+          - \`NeoJiYuTrainer.exe\`（正常版本）
+          - \`NeoJiYuTrainer_Debug.exe\`（调试版本，记录完整日志）
 
           ## SHA256
 
@@ -115,7 +115,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ needs.build.outputs.version }}
-          name: JiYu Attack Next v${{ needs.build.outputs.version }}
+          name: NeoJiYuTrainer v${{ needs.build.outputs.version }}
           body_path: release-notes.md
           draft: ${{ inputs.draft }}
           prerelease: false
@@ -124,9 +124,9 @@ jobs:
           fail_on_unmatched_files: true
           make_latest: true
           files: |
-            dist/JiYuAttackNext.exe
-            dist/JiYuAttackNext-${{ needs.build.outputs.version }}.exe
-            dist/JiYuAttackNext_Debug.exe
-            dist/JiYuAttackNext_Debug-${{ needs.build.outputs.version }}.exe
+            dist/NeoJiYuTrainer.exe
+            dist/NeoJiYuTrainer-${{ needs.build.outputs.version }}.exe
+            dist/NeoJiYuTrainer_Debug.exe
+            dist/NeoJiYuTrainer_Debug-${{ needs.build.outputs.version }}.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

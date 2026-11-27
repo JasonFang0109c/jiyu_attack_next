@@ -35,8 +35,7 @@ function Remove-CleanupTarget {
 # Check old executables before removing them so a running build cannot be deleted.
 if (Test-Path -LiteralPath $outputRoot -PathType Container) {
     $oldExecutables = @(
-        Get-ChildItem -LiteralPath $outputRoot -File -Filter "JiYuAttackNext*.exe"
-        Get-ChildItem -LiteralPath $outputRoot -File -Filter "JiyuUdpTest.exe"
+        Get-ChildItem -LiteralPath $outputRoot -File -Filter "NeoJiYuTrainer*.exe"
     )
     foreach ($executable in $oldExecutables) {
         $running = $false
@@ -72,8 +71,8 @@ foreach ($relativePath in @(
 
 # Remove logs while preserving settings.json and all other user data.
 foreach ($dataDirectory in @(
-    (Join-Path $root "JiYuAttackNextData"),
-    (Join-Path $outputRoot "JiYuAttackNextData")
+    (Join-Path $root "data"),
+    (Join-Path $outputRoot "data")
 )) {
     foreach ($logName in @("cli.log", "runtime.log")) {
         Remove-CleanupTarget -LiteralPath (Join-Path $dataDirectory $logName)

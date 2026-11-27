@@ -181,14 +181,14 @@ class AboutPage(Page):
         icon_row.addWidget(icon_label)
         icon_row.addStretch()
         hero_body.addLayout(icon_row)
-        title = TitleLabel("JiYu Attack Next", hero)
+        title = TitleLabel("NeoJiYuTrainer", hero)
         title.setAlignment(Qt.AlignCenter)
         hero_body.addWidget(title)
         # 与 README 首页说明保持一致。
         for line in (
-            "极域课堂 UDP 报文测试工具，覆盖学生端控制与本机学生端起停，图形界面与命令行合并为同一个 Windows EXE",
-            "基于 PySide6-Fluent-Widgets 构建，打包后无需安装 Python 即可使用 GUI 与 CLI",
-            "仅供已获授权的教学环境测试使用",
+            "专门对抗极域电子教室的课堂工具：老师全屏广播时自动改成窗口，既能自由操作，也能继续看演示；还可以阻止远程控制、自动处理“黑屏安静”",
+            "同时提供学生端启停、文本消息、远程命令、文件传送、设备操作、反弹终端与课堂防护，图形界面和命令行合并为同一个 Windows EXE",
+            "界面使用 PySide6-Fluent-Widgets 组件库，提供统一的 Fluent 风格窗口与控件",
         ):
             subtitle = BodyLabel(line, hero)
             subtitle.setAlignment(Qt.AlignCenter)
@@ -208,13 +208,20 @@ class AboutPage(Page):
         self.repository_card.add_row(
             "repository",
             "主仓库",
-            "https://github.com/JasonFang0109c/jiyu_attack_next",
-            url="https://github.com/JasonFang0109c/jiyu_attack_next",
+            "https://github.com/JasonFang0109c/NeoJiYuTrainer",
+            url="https://github.com/JasonFang0109c/NeoJiYuTrainer",
             icon=FIF.GITHUB,
         )
         self.repository_card.add_row(
             "origin",
-            "来源仓库",
+            "上游仓库",
+            "https://github.com/imengyu/JiYuTrainer",
+            url="https://github.com/imengyu/JiYuTrainer",
+            icon=FIF.GITHUB,
+        )
+        self.repository_card.add_row(
+            "protocol",
+            "协议参考",
             "https://github.com/ht0Ruial/Jiyu_udp_attack",
             url="https://github.com/ht0Ruial/Jiyu_udp_attack",
             icon=FIF.GITHUB,

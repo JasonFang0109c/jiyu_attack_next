@@ -1,17 +1,17 @@
 <div align="center">
-<h1>JiYu Attack Next</h1>
-<img src="app/resources/icons/app.svg" width="150" height="150" alt="JiYu Attack Next">
+<h1>NeoJiYuTrainer</h1>
+<img src="app/resources/icons/app.svg" width="150" height="150" alt="NeoJiYuTrainer">
 <p></p>
 <p>
-   <a href="https://github.com/JasonFang0109c/jiyu_attack_next"><img alt="GitHub stars" src="https://img.shields.io/github/stars/JasonFang0109c/jiyu_attack_next?label=Stars&style=flat&color=orange&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCc+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J00xMiAxNy4yN0wxOC4xOCAyMWwtMS42NC03LjAzTDIyIDkuMjRsLTcuMTktLjYxTDEyIDIgOS4xOSA4LjYzIDIgOS4yNGw1LjQ2IDQuNzNMNS44MiAyMXonLz48L3N2Zz4="></a>
-   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/forks"><img alt="GitHub forks" src="https://img.shields.io/github/forks/JasonFang0109c/jiyu_attack_next?label=Forks&style=flat&color=blue&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNiAxNic+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J001IDUuMzcydi44NzhjMCAuNDE0LjMzNi43NS43NS43NWg0LjVhLjc1Ljc1IDAgMCAwIC43NS0uNzV2LS44NzhhMi4yNSAyLjI1IDAgMSAxIDEuNSAwdi44NzhhMi4yNSAyLjI1IDAgMCAxLTIuMjUgMi4yNWgtMS41djIuMTI4YTIuMjUxIDIuMjUxIDAgMSAxLTEuNSAwVjguNWgtMS41QTIuMjUgMi4yNSAwIDAgMSAzLjUgNi4yNXYtLjg3OGEyLjI1IDIuMjUgMCAxIDEgMS41IDBaTTUgMy4yNWEuNzUuNzUgMCAxIDAtMS41IDAgLjc1Ljc1IDAgMCAwIDEuNSAwWm02Ljc1Ljc1YS43NS43NSAwIDEgMCAwLTEuNS43NS43NSAwIDAgMCAwIDEuNVptLTMgOC43NWEuNzUuNzUgMCAxIDAtMS41IDAgLjc1Ljc1IDAgMCAwIDEuNSAwWicvPjwvc3ZnPg=="></a>
-   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases"><img alt="GitHub release" src="https://img.shields.io/github/v/release/JasonFang0109c/jiyu_attack_next?label=Release&style=flat&color=green&include_prereleases&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNiAxNic+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J00xIDcuNzc1VjIuNzVDMSAxLjc4NCAxLjc4NCAxIDIuNzUgMWg1LjAyNWMuNDY0IDAgLjkxLjE4NCAxLjIzOC41MTNsNi4yNSA2LjI1YTEuNzUgMS43NSAwIDAgMSAwIDIuNDc0bC01LjAyNiA1LjAyNmExLjc1IDEuNzUgMCAwIDEtMi40NzQgMGwtNi4yNS02LjI1QTEuNzUyIDEuNzUyIDAgMCAxIDEgNy43NzVabTEuNSAwYzAgLjA2Ni4wMjYuMTMuMDczLjE3N2w2LjI1IDYuMjVhLjI1LjI1IDAgMCAwIC4zNTQgMGw1LjAyNS01LjAyNWEuMjUuMjUgMCAwIDAgMC0uMzU0bC02LjI1LTYuMjVhLjI1LjI1IDAgMCAwLS4xNzctLjA3M0gyLjc1YS4yNS4yNSAwIDAgMC0uMjUuMjVaTTYgNWExIDEgMCAxIDEgMCAyIDEgMSAwIDAgMSAwLTJaJy8+PC9zdmc+"></a>
-   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly"><img alt="Nightly Build" src="https://img.shields.io/badge/Nightly-Build-purple?style=flat&logo=githubactions&logoColor=white"></a>
-   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/JasonFang0109c/jiyu_attack_next?label=Issues&style=flat&color=red&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCc+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J00xMiAyYTEwIDEwIDAgMSAwIDAgMjAgMTAgMTAgMCAwIDAgMC0yMHptMSAxNWgtMnYtMmgydjJ6bTAtNGgtMlY3aDJ2NnonLz48L3N2Zz4="></a>
+   <a href="https://github.com/JasonFang0109c/NeoJiYuTrainer"><img alt="GitHub stars" src="https://img.shields.io/github/stars/JasonFang0109c/NeoJiYuTrainer?label=Stars&style=flat&color=orange&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCc+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J00xMiAxNy4yN0wxOC4xOCAyMWwtMS42NC03LjAzTDIyIDkuMjRsLTcuMTktLjYxTDEyIDIgOS4xOSA4LjYzIDIgOS4yNGw1LjQ2IDQuNzNMNS44MiAyMXonLz48L3N2Zz4="></a>
+   <a href="https://github.com/JasonFang0109c/NeoJiYuTrainer/forks"><img alt="GitHub forks" src="https://img.shields.io/github/forks/JasonFang0109c/NeoJiYuTrainer?label=Forks&style=flat&color=blue&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNiAxNic+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J001IDUuMzcydi44NzhjMCAuNDE0LjMzNi43NS43NS43NWg0LjVhLjc1Ljc1IDAgMCAwIC43NS0uNzV2LS44NzhhMi4yNSAyLjI1IDAgMSAxIDEuNSAwdi44NzhhMi4yNSAyLjI1IDAgMCAxLTIuMjUgMi4yNWgtMS41djIuMTI4YTIuMjUxIDIuMjUxIDAgMSAxLTEuNSAwVjguNWgtMS41QTIuMjUgMi4yNSAwIDAgMSAzLjUgNi4yNXYtLjg3OGEyLjI1IDIuMjUgMCAxIDEgMS41IDBaTTUgMy4yNWEuNzUuNzUgMCAxIDAtMS41IDAgLjc1Ljc1IDAgMCAwIDEuNSAwWm02Ljc1Ljc1YS43NS43NSAwIDEgMCAwLTEuNS43NS43NSAwIDAgMCAwIDEuNVptLTMgOC43NWEuNzUuNzUgMCAxIDAtMS41IDAgLjc1Ljc1IDAgMCAwIDEuNSAwWicvPjwvc3ZnPg=="></a>
+   <a href="https://github.com/JasonFang0109c/NeoJiYuTrainer/releases"><img alt="GitHub release" src="https://img.shields.io/github/v/release/JasonFang0109c/NeoJiYuTrainer?label=Release&style=flat&color=green&include_prereleases&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNiAxNic+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J00xIDcuNzc1VjIuNzVDMSAxLjc4NCAxLjc4NCAxIDIuNzUgMWg1LjAyNWMuNDY0IDAgLjkxLjE4NCAxLjIzOC41MTNsNi4yNSA2LjI1YTEuNzUgMS43NSAwIDAgMSAwIDIuNDc0bC01LjAyNiA1LjAyNmExLjc1IDEuNzUgMCAwIDEtMi40NzQgMGwtNi4yNS02LjI1QTEuNzUyIDEuNzUyIDAgMCAxIDEgNy43NzVabTEuNSAwYzAgLjA2Ni4wMjYuMTMuMDczLjE3N2w2LjI1IDYuMjVhLjI1LjI1IDAgMCAwIC4zNTQgMGw1LjAyNS01LjAyNWEuMjUuMjUgMCAwIDAgMC0uMzU0bC02LjI1LTYuMjVhLjI1LjI1IDAgMCAwLS4xNzctLjA3M0gyLjc1YS4yNS4yNSAwIDAgMC0uMjUuMjVaTTYgNWExIDEgMCAxIDEgMCAyIDEgMSAwIDAgMSAwLTJaJy8+PC9zdmc+"></a>
+   <a href="https://github.com/JasonFang0109c/NeoJiYuTrainer/releases/tag/nightly"><img alt="Nightly Build" src="https://img.shields.io/badge/Nightly-Build-purple?style=flat&logo=githubactions&logoColor=white"></a>
+   <a href="https://github.com/JasonFang0109c/NeoJiYuTrainer/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/JasonFang0109c/NeoJiYuTrainer?label=Issues&style=flat&color=red&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCc+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J00xMiAyYTEwIDEwIDAgMSAwIDAgMjAgMTAgMTAgMCAwIDAgMC0yMHptMSAxNWgtMnYtMmgydjJ6bTAtNGgtMlY3aDJ2NnonLz48L3N2Zz4="></a>
 </p>
-<p>极域课堂 UDP 报文测试工具，覆盖学生端控制与本机学生端起停，图形界面与命令行合并为同一个 Windows EXE</p>
-<p>基于 PySide6-Fluent-Widgets 构建，打包后无需安装 Python 即可使用 GUI 与 CLI</p>
-<p>仅供已获授权的教学环境测试使用</p>
+<p>专门对抗极域电子教室的课堂工具：老师全屏广播时自动改成窗口，既能自由操作，也能继续看演示；还可以阻止远程控制、自动处理“黑屏安静”</p>
+<p>同时提供学生端启停、文本消息、远程命令、文件传送、设备操作、反弹终端与课堂防护，图形界面和命令行合并为同一个 Windows EXE</p>
+<p>界面使用 PySide6-Fluent-Widgets 组件库，提供统一的 Fluent 风格窗口与控件</p>
 </div>
 
 ---
@@ -104,16 +104,16 @@
 
 ## 操作模式
 
-同一个 `JiYuAttackNext.exe` 同时包含 GUI 与 CLI，启动方式决定进入哪种模式：
+同一个 `NeoJiYuTrainer.exe` 同时包含 GUI 与 CLI，启动方式决定进入哪种模式：
 
 | 模式 | 启动方式 | 说明 |
 | --- | --- | --- |
 | GUI | 双击 EXE；源码 `python -m app` | 无参数启动，首次启动显示使用须知，确认后打开图形界面 |
-| CLI | `JiYuAttackNext.exe remote message -ip ...`；源码 `python -m app remote message -ip ...` | 带参数启动，在终端显示输出 |
+| CLI | `NeoJiYuTrainer.exe remote message -ip ...`；源码 `python -m app remote message -ip ...` | 带参数启动，在终端显示输出 |
 
 命令行按图形界面的三组分类组织，一个页面一条子命令：`restriction`（解除限制）、`remote`（远程攻击）、`local`（本机工具），例如 `restriction student --start`、`remote message`、`local info`。旧的扁平写法已移除，请迁移到分组子命令。
 
-EXE 无需安装 Python；从源码运行 CLI 需要按 `requirements.txt` 安装依赖。两者共用同一套报文实现，默认通信为 UDP，目标端口 `4705`。EXE 为窗口化程序，双击不会创建控制台窗口，带参数运行时把输出写回启动它的终端、不会另开窗口；由于它不占用控制台，提示符会立即返回——需要等命令执行完再继续时用 `start /wait JiYuAttackNext.exe ...`。PowerShell 中若 EXE 不在 `PATH`，需写成 `.\JiYuAttackNext.exe ...`；cmd 可直接运行。
+EXE 无需安装 Python；从源码运行 CLI 需要按 `requirements.txt` 安装依赖。两者共用同一套报文实现，默认通信为 UDP，目标端口 `4705`。EXE 为窗口化程序，双击不会创建控制台窗口，带参数运行时把输出写回启动它的终端、不会另开窗口；由于它不占用控制台，提示符会立即返回——需要等命令执行完再继续时用 `start /wait NeoJiYuTrainer.exe ...`。PowerShell 中若 EXE 不在 `PATH`，需写成 `.\NeoJiYuTrainer.exe ...`；cmd 可直接运行。
 
 ## 下载
 
@@ -121,10 +121,10 @@ EXE 无需安装 Python；从源码运行 CLI 需要按 `requirements.txt` 安�
 
 | 通道 | 说明 | 下载 |
 | --- | --- | --- |
-| nightly | 版本号形如 `0.1.0-1a8ede3`（末尾是提交哈希），随 `main` 更新 | [Nightly Build](https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly) |
-| 正式版 | 版本号形如 `v0.1.0`，标记为 Latest；暂无发布 | [最新正式版](https://github.com/JasonFang0109c/jiyu_attack_next/releases/latest) |
+| nightly | 版本号形如 `0.1.0-1a8ede3`（末尾是提交哈希），随 `main` 更新 | [Nightly Build](https://github.com/JasonFang0109c/NeoJiYuTrainer/releases/tag/nightly) |
+| 正式版 | 版本号形如 `v0.1.0`，标记为 Latest；暂无发布 | [最新正式版](https://github.com/JasonFang0109c/NeoJiYuTrainer/releases/latest) |
 
-- EXE：`JiYuAttackNext.exe`，同一个文件支持 GUI 与 CLI，无需安装 Python
+- EXE：`NeoJiYuTrainer.exe`，同一个文件支持 GUI 与 CLI，无需安装 Python
 - CLI 不再单独发布脚本；需要从源码调试时使用 `python -m app ...`
 
 推送 `main` 且改动涉及 `app/`、`pack/`、`scripts/`、`requirements.txt` 或工作流文件时，会自动构建并滚动更新 `nightly` 预发布版本；纯文档改动不触发构建。正式版需在 Actions 页面手动运行 `Release`，版本号规则见[版本规范](docs/dev/VERSIONING.md)。
@@ -178,8 +178,8 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1
 
 ## 项目来源与参考
 
+- [imengyu/JiYuTrainer](https://github.com/imengyu/JiYuTrainer)（MIT）<br>本项目的上游与主要功能参考：课堂助手的窗口识别与修复规则、假全屏尺寸、解锁密码读取与 Knock1 解密算法；课堂防护的进程内 Hook 思路、远程命令确认流程、内核驱动自保护与强杀思路，以及 mhook/disasm-lib 第三方源码。驱动按本项目接口重新实现为可选组件；原项目的自动更新与崩溃报告未引入。
 - [ht0Ruial/Jiyu_udp_attack](https://github.com/ht0Ruial/Jiyu_udp_attack)<br>文本消息、远程命令、重启关机注销、本机信息与防火墙规则的报文结构；蓝屏为新增操作。
-- [imengyu/JiYuTrainer](https://github.com/imengyu/JiYuTrainer)（MIT）<br>课堂助手的窗口识别与修复规则、假全屏尺寸、解锁密码读取与 Knock1 解密算法；课堂防护的进程内 Hook 思路、远程命令确认流程、内核驱动自保护与强杀思路，以及 mhook/disasm-lib 第三方源码。驱动按本项目接口重新实现为可选组件；原项目的自动更新与崩溃报告未引入。
 
 当前仓库的具体行为以本项目代码和文档为准。
 

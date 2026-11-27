@@ -73,7 +73,7 @@ class VersionTests(unittest.TestCase):
 
     def test_build_does_not_force_admin_on_startup(self):
         project_root = Path(__file__).resolve().parents[2]
-        spec = (project_root / "pack" / "JiYuAttackNext.spec").read_text(
+        spec = (project_root / "pack" / "NeoJiYuTrainer.spec").read_text(
             encoding="utf-8"
         )
         self.assertIn("uac_admin=False", spec)
@@ -98,7 +98,7 @@ class BuildResourceTests(unittest.TestCase):
 
     def test_packaging_uses_the_resource_icon_and_preserves_script_encoding(self):
         project_root = Path(__file__).resolve().parents[2]
-        spec = (project_root / "pack" / "JiYuAttackNext.spec").read_text(
+        spec = (project_root / "pack" / "NeoJiYuTrainer.spec").read_text(
             encoding="utf-8"
         )
         self.assertIn('root / "app" / "resources" / "icons" / "app.svg"', spec)

@@ -10,4 +10,4 @@
 - `LICENSE-JiYuTrainer.txt`：上游 JiYuTrainer 的 MIT 许可证原文。
 
 DLL 与驱动由 `pack/native/build-guard.ps1`、`pack/native/build-driver.ps1`
-在 Windows 构建容器中编译，随 `pack/JiYuAttackNext.spec` 打入 EXE。
+在 Windows 构建容器中编译，随 `pack/NeoJiYuTrainer.spec` 打入 EXE。

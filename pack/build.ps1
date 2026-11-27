@@ -22,8 +22,8 @@ try {
     $outputRoot = Join-Path $projectRoot "output"
     # 两个变体产出不同文件名，共用同一个 output 目录与数据目录。
     $targets = @(
-        @{ Variant = "release"; Name = "JiYuAttackNext" },
-        @{ Variant = "debug"; Name = "JiYuAttackNext_Debug" }
+        @{ Variant = "release"; Name = "NeoJiYuTrainer" },
+        @{ Variant = "debug"; Name = "NeoJiYuTrainer_Debug" }
     )
     if ($Variant -ne "both") {
         $targets = @($targets | Where-Object { $_.Variant -eq $Variant })
@@ -120,7 +120,7 @@ try {
         if ($Clean) {
             $buildArguments += "--clean"
         }
-        $buildArguments += (Join-Path $PSScriptRoot "JiYuAttackNext.spec")
+        $buildArguments += (Join-Path $PSScriptRoot "NeoJiYuTrainer.spec")
         & $pythonExe @buildArguments
         if ($LASTEXITCODE -ne 0) {
             throw ("PyInstaller 构建 " + $target.Variant + " 版本失败，退出码：" + $LASTEXITCODE)

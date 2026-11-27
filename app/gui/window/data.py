@@ -3,12 +3,12 @@
 from PySide6.QtWidgets import QSystemTrayIcon
 from qfluentwidgets import FluentIcon as FIF
 
-APP_NAME = "JiYu Attack Next"
+APP_NAME = "NeoJiYuTrainer"
 
 HOME_LINKS = {
-    "repository": "https://github.com/JasonFang0109c/jiyu_attack_next",
-    "document": "https://github.com/JasonFang0109c/jiyu_attack_next/blob/main/docs/usage/GUI.md",
-    "feedback": "https://github.com/JasonFang0109c/jiyu_attack_next/issues",
+    "repository": "https://github.com/JasonFang0109c/NeoJiYuTrainer",
+    "document": "https://github.com/JasonFang0109c/NeoJiYuTrainer/blob/main/docs/usage/GUI.md",
+    "feedback": "https://github.com/JasonFang0109c/NeoJiYuTrainer/issues",
 }
 
 CATEGORIES = {

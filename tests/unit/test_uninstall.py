@@ -11,7 +11,7 @@ from app.features.uninstall import service
 class UninstallTests(unittest.TestCase):
     def test_remove_shortcuts_skips_missing(self):
         with tempfile.TemporaryDirectory() as directory:
-            shortcut = Path(directory) / "JiYu Attack Next.lnk"
+            shortcut = Path(directory) / "NeoJiYuTrainer.lnk"
             shortcut.write_text("x", encoding="utf-8")
             with patch.object(service, "shortcut_paths", return_value=[shortcut]):
                 removed = service.remove_shortcuts()
@@ -20,7 +20,7 @@ class UninstallTests(unittest.TestCase):
 
     def test_remove_data(self):
         with tempfile.TemporaryDirectory() as directory:
-            target = Path(directory) / "JiYuAttackNextData"
+            target = Path(directory) / "data"
             target.mkdir()
             (target / "settings.json").write_text("{}", encoding="utf-8")
             self.assertTrue(service.remove_data(target))

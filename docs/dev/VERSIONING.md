@@ -64,12 +64,12 @@ nightly 的后缀符合 SemVer 第 9 条“先行版本号”的约定：标识�
 
 | 通道 | 触发方式 | 标签 | Release 属性 | 资产文件名 |
 | --- | --- | --- | --- | --- |
-| 正式版 | Actions 页面手动运行 `Release` | `v0.1.0`（与版本号一致，不复用） | 正式版，`make_latest: true` | `JiYuAttackNext-0.1.0.exe` 与 `JiYuAttackNext_Debug-0.1.0.exe`，另附固定名 `JiYuAttackNext.exe` 与 `JiYuAttackNext_Debug.exe` |
-| nightly | 推送到 `main` 且改动影响产物，或手动运行 | `nightly`（同一天原地更新，跨天删除重建） | 预发布，`make_latest: false` | 两个带显示版本的文件：`JiYuAttackNext-<显示版本>.exe`、`JiYuAttackNext_Debug-<显示版本>.exe` |
+| 正式版 | Actions 页面手动运行 `Release` | `v0.1.0`（与版本号一致，不复用） | 正式版，`make_latest: true` | `NeoJiYuTrainer-0.1.0.exe` 与 `NeoJiYuTrainer_Debug-0.1.0.exe`，另附固定名 `NeoJiYuTrainer.exe` 与 `NeoJiYuTrainer_Debug.exe` |
+| nightly | 推送到 `main` 且改动影响产物，或手动运行 | `nightly`（同一天原地更新，跨天删除重建） | 预发布，`make_latest: false` | 两个带显示版本的文件：`NeoJiYuTrainer-<显示版本>.exe`、`NeoJiYuTrainer_Debug-<显示版本>.exe` |
 
 - 标签名带 `v` 前缀是 Git 的通行写法，但 `v` 不属于 SemVer 版本号本身。
 - 正式版与 nightly 都提供正常运行版本与调试版本两个 EXE，两者代码相同，只有日志等级不同：正常运行版本只记录 `WARNING` 与 `ERROR`，`_Debug` 版本从 `DEBUG` 起全量记录，供排查问题使用。正式版的固定名资产保证 README 与文档中的下载链接长期有效，另附带版本号的副本；nightly 只发布带提交哈希的两个文件，不再提供固定名。该资产是同一个 EXE，同时提供 GUI 与 CLI。
-- nightly 同一天内重复构建时原地更新同一个预发布，只替换资产与说明，不产生新的发布通知；日期变了才删除旧的预发布与 `nightly` 标签再重新创建，因此历史资产与旧说明不会残留，下载地址仍固定为 `https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly`。
+- nightly 同一天内重复构建时原地更新同一个预发布，只替换资产与说明，不产生新的发布通知；日期变了才删除旧的预发布与 `nightly` 标签再重新创建，因此历史资产与旧说明不会残留，下载地址仍固定为 `https://github.com/JasonFang0109c/NeoJiYuTrainer/releases/tag/nightly`。
 - 发布说明中的日期使用 ISO 8601 格式（`YYYY-MM-DD`），与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 的建议一致。
 - 同一个 EXE 同时提供 GUI 与 CLI，发布资产不再附带独立的命令行脚本。
 
@@ -79,7 +79,7 @@ nightly 的后缀符合 SemVer 第 9 条“先行版本号”的约定：标识�
 2. 打开仓库的 `Actions` 页面，左侧选择 `Release`，点击 `Run workflow`。
 3. 分支选择 `main`；`version` 留空表示使用源码中的 `__version__`，需要覆盖时再填写。
 4. 需要先自检时勾选 `draft`，Release 会以草稿创建，确认无误后在 Releases 页面发布。
-5. 运行结束后，`Releases` 页面出现 `JiYu Attack Next vX.Y.Z`，标签为 `vX.Y.Z`，并成为最新正式版。
+5. 运行结束后，`Releases` 页面出现 `NeoJiYuTrainer vX.Y.Z`，标签为 `vX.Y.Z`，并成为最新正式版。
 
 工作流会在发布前校验：版本号与源码一致、正式版不带预发布后缀、标签 `vX.Y.Z` 尚不存在。任一条件不满足即失败，不会覆盖已发布内容。
 

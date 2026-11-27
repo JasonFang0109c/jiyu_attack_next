@@ -80,8 +80,8 @@ def build_group_parser():
         argparse.ArgumentParser: 形如 ``remote message -ip ...`` 的解析器。
     """
     parser = argparse.ArgumentParser(
-        prog="JiYuAttackNext",
-        description="极域课堂 UDP 报文测试工具：命令按图形界面的分组组织",
+        prog="NeoJiYuTrainer",
+        description="NeoJiYuTrainer：对抗极域电子教室的课堂工具，命令按图形界面的分组组织",
         epilog="分组：restriction 解除限制、remote 远程攻击、local 本机工具。"
         "每条子命令对应图形界面里的一个页面，例如 remote message 对应“文本消息”。",
     )

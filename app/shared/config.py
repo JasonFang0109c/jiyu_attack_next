@@ -10,7 +10,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 HEADER = (
-    "// JiYu Attack Next 配置文件（JSON with comments）",
+    "// NeoJiYuTrainer 配置文件（JSON with comments）",
     "// 允许 // 与 /* */ 注释和尾逗号；文件由程序重写，手写的注释在下次保存后丢失。",
 )
 

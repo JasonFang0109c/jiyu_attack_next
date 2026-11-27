@@ -340,9 +340,9 @@ class MainWindow(FluentWindow):
             return
         message = "将删除快捷方式和应用文件"
         if keep_user_data:
-            message += "，保留 JiYuAttackNextData"
+            message += "，保留 data"
         else:
-            message += "，并删除 JiYuAttackNextData"
+            message += "，并删除 data"
         message += "。是否继续？"
         if not self._confirm("卸载应用", message, "卸载"):
             return
@@ -724,8 +724,7 @@ class MainWindow(FluentWindow):
             return
         confirmed = self._confirm(
             "清除本地数据",
-            "将删除 JiYuAttackNextData 文件夹中的设备备注、界面设置和运行日志。\n"
-            "此操作无法撤销。",
+            "将删除 data 文件夹中的设备备注、界面设置和运行日志。\n此操作无法撤销。",
             "确认清除",
         )
         if not confirmed:
@@ -779,9 +778,7 @@ class MainWindow(FluentWindow):
             "目录：%s；关闭行为已恢复默认托盘模式；本次运行文件日志暂停"
             % self.data_dir,
         )
-        self._notify(
-            "数据已清除", "已删除 JiYuAttackNextData 文件夹并恢复默认设置", "成功"
-        )
+        self._notify("数据已清除", "已删除 data 文件夹并恢复默认设置", "成功")
 
     def _aliases_changed(self):
         """设备备注变化后记录数量，页面通过信号自行刷新。"""

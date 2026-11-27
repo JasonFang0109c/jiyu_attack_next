@@ -129,7 +129,7 @@ for arguments in (['-h'], ['--version'], ['remote', 'message', '-h']):
     def test_frozen_entry_runs_as_main_without_package_context(self):
         project_root = Path(__file__).resolve().parents[2]
         program = """import runpy, sys
-sys.argv = ['JiYuAttackNext.exe', '--version']
+sys.argv = ['NeoJiYuTrainer.exe', '--version']
 runpy.run_path('app/__main__.py', run_name='__main__')
 """
         result = subprocess.run(

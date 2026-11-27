@@ -12,9 +12,7 @@ def register(commands, defaults):
     uninstall = commands.add_parser(
         "uninstall", help="卸载应用：删除快捷方式、数据与驱动服务"
     )
-    uninstall.add_argument(
-        "--keep-data", action="store_true", help="保留 JiYuAttackNextData"
-    )
+    uninstall.add_argument("--keep-data", action="store_true", help="保留 data")
     uninstall.set_defaults(**dict(defaults))
     uninstall.set_defaults(e="g")
 

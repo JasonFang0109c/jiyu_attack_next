@@ -198,7 +198,7 @@ class SettingsPage(Page):
         data_copy.setSpacing(4)
         data_copy.addWidget(BodyLabel("本地数据", data_card))
         data_hint = CaptionLabel(
-            "删除设备备注、界面设置与运行日志所在的 JiYuAttackNextData 文件夹。",
+            "删除设备备注、界面设置与运行日志所在的 data 文件夹。",
             data_card,
         )
         data_hint.setWordWrap(True)
