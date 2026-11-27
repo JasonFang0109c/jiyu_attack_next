@@ -204,7 +204,7 @@ class AboutPage(Page):
         )
         content.addWidget(self.author_card)
 
-        self.repository_card = AboutDetailCard("仓库信息", content_host)
+        self.repository_card = AboutDetailCard("项目来源和第三方仓库", content_host)
         self.repository_card.add_row(
             "repository",
             "主仓库",
@@ -213,19 +213,47 @@ class AboutPage(Page):
             icon=FIF.GITHUB,
         )
         self.repository_card.add_row(
-            "origin",
-            "上游仓库",
+            "source",
+            "项目来源",
             "https://github.com/imengyu/JiYuTrainer",
             url="https://github.com/imengyu/JiYuTrainer",
             icon=FIF.GITHUB,
         )
-        self.repository_card.add_row(
-            "protocol",
-            "协议参考",
-            "https://github.com/ht0Ruial/Jiyu_udp_attack",
-            url="https://github.com/ht0Ruial/Jiyu_udp_attack",
-            icon=FIF.GITHUB,
-        )
+        for key, label, url, tooltip in (
+            (
+                "jiyu_udp_attack",
+                "Jiyu_udp_attack",
+                "https://github.com/ht0Ruial/Jiyu_udp_attack",
+                "由 ht0Ruial 大佬提供 UDP 攻击的原理代码",
+            ),
+            ("curl", "curl", "https://github.com/curl/curl", "用于自动更新模块"),
+            (
+                "mhook",
+                "mhook",
+                "https://github.com/martona/mhook",
+                "用于 JiYu HOOKER 模块",
+            ),
+            (
+                "memory_module",
+                "MemoryModule",
+                "https://github.com/fancycode/MemoryModule",
+                None,
+            ),
+            (
+                "xzip",
+                "XZip-XUnZip",
+                "https://github.com/yuanjia1011/XZip-XUnZip",
+                None,
+            ),
+        ):
+            self.repository_card.add_row(
+                key,
+                label,
+                url,
+                url=url,
+                icon=FIF.GITHUB,
+                tooltip=tooltip,
+            )
         content.addWidget(self.repository_card)
 
         self.version_card = AboutDetailCard("版本信息", content_host)

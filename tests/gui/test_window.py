@@ -319,8 +319,8 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(heights, {row_height}, card.heading.text())
             offsets = [widget.geometry().top() for widget in card.rows.values()]
             self.assertEqual(offsets, sorted(offsets))
-        # 行数与行高都一致的卡片，总高应完全相同；仓库信息多一行来源链接，
-        # 高度自然比另外三张多一行。
+        # 行数与行高都一致的卡片，总高应完全相同；项目来源和第三方仓库
+        # 行数更多，高度自然比另外三张更高。
         two_row = (about.version_card, about.component_card, about.license_card)
         self.assertEqual(len({card.height() for card in two_row}), 1)
 
@@ -377,22 +377,47 @@ class GuiTests(unittest.TestCase):
 
     def test_about_page_merges_repository_links_into_one_card(self):
         about = self.window.pages["about"]
-        self.assertEqual(about.repository_card.heading.text(), "仓库信息")
+        self.assertEqual(about.repository_card.heading.text(), "项目来源和第三方仓库")
         self.assertEqual(about.repository_card.objectName(), "aboutDetailCard")
         self.assertEqual(
-            sorted(about.repository_card.rows), ["origin", "protocol", "repository"]
+            sorted(about.repository_card.rows),
+            [
+                "curl",
+                "jiyu_udp_attack",
+                "memory_module",
+                "mhook",
+                "repository",
+                "source",
+                "xzip",
+            ],
         )
         self.assertEqual(
             about.repository_card.rows["repository"].getUrl().toString(),
             "https://github.com/JasonFang0109c/NeoJiYuTrainer",
         )
         self.assertEqual(
-            about.repository_card.rows["origin"].getUrl().toString(),
+            about.repository_card.rows["source"].getUrl().toString(),
             "https://github.com/imengyu/JiYuTrainer",
         )
         self.assertEqual(
-            about.repository_card.rows["protocol"].getUrl().toString(),
+            about.repository_card.rows["jiyu_udp_attack"].getUrl().toString(),
             "https://github.com/ht0Ruial/Jiyu_udp_attack",
+        )
+        self.assertEqual(
+            about.repository_card.rows["curl"].getUrl().toString(),
+            "https://github.com/curl/curl",
+        )
+        self.assertEqual(
+            about.repository_card.rows["mhook"].getUrl().toString(),
+            "https://github.com/martona/mhook",
+        )
+        self.assertEqual(
+            about.repository_card.rows["memory_module"].getUrl().toString(),
+            "https://github.com/fancycode/MemoryModule",
+        )
+        self.assertEqual(
+            about.repository_card.rows["xzip"].getUrl().toString(),
+            "https://github.com/yuanjia1011/XZip-XUnZip",
         )
         self.assertNotIn(
             "GitHub 仓库", [label.text() for label in about.findChildren(BodyLabel)]
