@@ -40,10 +40,11 @@ jiyu_attack_next/
 |   |   |-- device/                # cli.py、gui/page.py：设备操作
 |   |   |-- message/               # service.py、cli.py、gui/：消息
 |   |   |-- files/                 # service.py、cli.py、gui/：文件传送
-|   |   |-- classroom/             # data.py、windows.py、passwords.py、service.py、gui/：课堂助手
+|   |   |-- classroom/             # data.py、windows.py、passwords.py、service.py、gui/：课堂助手与防护
 |   |   |-- firewall/              # service.py、cli.py、gui/：防火墙
 |   |   |-- local/                 # service.py、cli.py、gui/：本机信息
 |   |   |-- student/               # data.py、service.py、cli.py、gui/：学生端进程
+|   |   |-- uninstall/             # service.py：快捷方式、数据目录与驱动服务清理
 |   |   |-- shell/                 # service.py、cli.py、gui/：终端
 |   |   |-- send/
 |   |   |   |-- data.py            # SendOptions 等发送参数
@@ -73,6 +74,7 @@ jiyu_attack_next/
 |   |   |-- theme.py               # WinUI 视觉常量
 |   |   |-- splash.py              # 启动遮罩
 |   |   |-- window_effect.py       # 窗口材质适配
+|   |   |-- hotkey.py              # 全局热键管理器与 Qt 原生事件过滤
 |   |   |-- widgets/
 |   |   |   |-- common.py          # 卡片、浮出层圆角与连接参数
 |   |   |   `-- page.py            # 页面基类、顶部导航容器、文件树与日志表格
@@ -101,6 +103,9 @@ jiyu_attack_next/
 |   |       |-- command.py         # Windows 命令执行与输出解码
 |   |       |-- process.py         # 进程枚举、路径、存活校验与结束
 |   |       |-- ports.py           # iphlpapi 端口到进程映射
+|   |       |-- guard.py           # 课堂防护 DLL 注入、策略与远程命令共享内存
+|   |       |-- driver.py          # 可选内核驱动服务与 IOCTL 封装
+|   |       |-- hotkey.py          # 全局热键文本解析与虚拟键表
 |   |       `-- elevation.py       # UAC 隐藏助手与结果回传
 |   |-- shared/
 |   |   |-- config.py              # JSONC 解析与原子读写
@@ -179,12 +184,13 @@ jiyu_attack_next/
 | `app/features/<功能>/data.py` | 功能数据、设置键、默认值与规范化；Qt 信号适配另放在功能的 `gui/data.py`。 |
 | `app/features/send/` | `SendOptions`、参数校验、报文准备和发送协调；供不同页面与 CLI 发送功能复用。 |
 | `app/features/files/`、`firewall/`、`local/`、`student/`、`shell/` | 分别承载文件传送、防火墙、本机信息、学生端进程与终端业务；平台命令、地址解析和套接字操作复用 `app/system/`。学生端的常量与设置键在 `student/data.py`，进程识别、定位、启停与提权助手在 `student/service.py`。 |
-| `app/features/classroom/` | 课堂助手：`windows.py` 用 `ctypes` 枚举并修复广播、黑屏与全屏窗口，`passwords.py` 读取并解密极域卸载密码，`service.py` 组合窗口与学生端状态并保存看护设置；窗口修复只操作本机，课堂防护通过 `app/system/windows/guard.py` 注入进程内 DLL，不加载驱动。窗口规则与密码算法移植自 JiYuTrainer（MIT）。 |
+| `app/features/classroom/` | 课堂助手：`windows.py` 用 `ctypes` 枚举并修复广播、黑屏与全屏窗口，`passwords.py` 读取并解密极域卸载密码，`service.py` 组合窗口与学生端状态并保存看护设置；课堂防护通过 `app/system/windows/guard.py` 注入进程内 DLL，支持五个开关，其中“监控远程命令”把 `CreateProcess`/`WinExec` 请求写入命名共享内存，由界面逐条允许或拒绝。窗口规则与密码算法移植自 JiYuTrainer（MIT）。 |
+| `app/features/uninstall/` | 卸载服务：删除桌面与开始菜单快捷方式、可选删除用户数据，并在退出后清理安装目录；由设置页和 `local uninstall` 共用。 |
 | `app/packets/` | `constants.py` 保存报文数组和命令表，`codec.py` 负责构造、编码与分片，不负责界面；`blue_screen.py` 额外临时托管一份蓝屏脚本，供目标取回后再执行。 |
 | `app/system/net/` | 目标解析、本机地址、UDP 发送、ICMP/ARP 探测与送达结果；结果数据在 `data.py`。 |
-| `app/system/windows/` | Windows 命令、进程枚举与结束、端口表、提权助手等系统接口，供具体功能调用；进程与端口直接走 `kernel32` 与 `iphlpapi`，不依赖 `tasklist` / `netstat` 的文本输出。`guard.py` 负责课堂防护 DLL 的注入、策略共享内存与卸载。 |
+| `app/system/windows/` | Windows 命令、进程枚举与结束、端口表、提权助手、全局热键解析与可选内核驱动接口，供具体功能调用；进程与端口直接走 `kernel32` 与 `iphlpapi`，不依赖 `tasklist` / `netstat` 的文本输出。`guard.py` 负责课堂防护 DLL 的注入、策略与远程命令共享内存；`driver.py` 只封装 `sc.exe` 与 IOCTL，不在导入时加载驱动。 |
 | `app/shared/` | JSONC、设置存储、数据路径、构建信息、版本与日志基础；不依赖界面功能。 |
-| `app/resources/` | 仅放静态资源。唯一图标源为 `icons/app.svg`；`native/` 放课堂防护的 x86/x64 DLL 与上游许可证。运行时通过 `app.shared.resources.resource_path()` 统一定位源码与解包目录，Qt 图标由 `app/gui/resources.py` 适配。 |
+| `app/resources/` | 仅放静态资源。唯一图标源为 `icons/app.svg`；`native/` 放课堂防护的 x86/x64 DLL、可选内核驱动 `driver/jiyu_guard_driver.sys` 与上游许可证。运行时通过 `app.shared.resources.resource_path()` 统一定位源码与解包目录，Qt 图标由 `app/gui/resources.py` 适配。 |
 
 版本号唯一来源是 `app/shared/version.py` 的 `__version__`；`app/__init__.py` 只重新导出，`app/shared/build_info.py` 转调版本读取接口并提供构建时间。`app/packets/constants.py` 只维护报文相关常量，不能把版本号放回该文件。
 

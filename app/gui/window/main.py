@@ -1,5 +1,7 @@
 """主窗口组合根：页面接线、Qt 事件与跨功能退出协调。"""
 
+import contextlib
+import os
 import shutil
 import sys
 import time
@@ -40,7 +42,11 @@ from app.features.settings.data import (
     CLOSE_BEHAVIOR_QUIT,
     CLOSE_BEHAVIOR_TRAY,
     DEFAULT_CLOSE_BEHAVIOR,
+    DEFAULT_HOTKEY_FAKE_FULL,
+    DEFAULT_HOTKEY_SHOW_HIDE,
     DEFAULT_WINDOW_MATERIAL,
+    HOTKEY_FAKE_FULL_SETTINGS_KEY,
+    HOTKEY_SHOW_HIDE_SETTINGS_KEY,
     MATERIAL_SOLID,
 )
 from app.features.settings.gui.page import SettingsPage
@@ -48,7 +54,9 @@ from app.features.settings.service import portable_settings
 from app.features.shell.gui.page import ShellPage
 from app.features.student.gui.page import StudentProcessPage
 from app.features.student.gui.service import StudentService
+from app.features.uninstall.service import install_root, run_uninstall
 from app.gui.data import ConnectionState
+from app.gui.hotkey import HotkeyManager
 from app.gui.menu.service import NavigationService
 from app.gui.resources import app_icon
 from app.gui.service import GuiService
@@ -68,6 +76,7 @@ from app.gui.window.service import WindowService
 from app.gui.window.tray import TrayService
 from app.gui.workers.service import TaskService
 from app.shared.paths import portable_data_dir, portable_log_path
+from app.system.windows.driver import DriverSession
 
 
 class MainWindow(FluentWindow):
@@ -162,6 +171,14 @@ class MainWindow(FluentWindow):
         self._restore_window_geometry()
         self.stackedWidget.setAnimationEnabled(False)
         self._classroom_service = ClassroomService(self)
+        self.show_hide_hotkey = self._load_hotkey(
+            HOTKEY_SHOW_HIDE_SETTINGS_KEY, DEFAULT_HOTKEY_SHOW_HIDE
+        )
+        self.fake_full_hotkey = self._load_hotkey(
+            HOTKEY_FAKE_FULL_SETTINGS_KEY, DEFAULT_HOTKEY_FAKE_FULL
+        )
+        self._hotkeys = HotkeyManager(self)
+        self._driver_session = None
         self.pages = {
             "home": HomePage(self),
             "message": MessagePage(self.connection_state, self),
@@ -180,6 +197,8 @@ class MainWindow(FluentWindow):
                 self.close_behavior,
                 self.window_material,
                 self.theme_accent,
+                self.show_hide_hotkey,
+                self.fake_full_hotkey,
                 self,
             ),
             "about": AboutPage(self),
@@ -203,6 +222,7 @@ class MainWindow(FluentWindow):
         ]
         self._build_navigation()
         self._connect_actions()
+        self._register_hotkeys()
         self.apply_theme_accent(self.theme_accent)
         self._tune_scroll_bars()
         self.logs.info(
@@ -224,6 +244,112 @@ class MainWindow(FluentWindow):
 
     def _load_close_behavior(self):
         return self._window_service._load_close_behavior()
+
+    def _load_hotkey(self, key, default):
+        """读取热键配置，空串表示用户主动禁用。"""
+        value = self.settings.value(key, default)
+        return str(value) if value is not None else default
+
+    def _register_hotkeys(self):
+        """重新注册两个全局热键；失败只记日志，不阻塞启动。"""
+        self._hotkeys.unregister_all()
+        self._hotkeys.install()
+        failed = []
+        if self.show_hide_hotkey and not self._hotkeys.register(
+            self.show_hide_hotkey, self._toggle_window_visibility
+        ):
+            failed.append(self.show_hide_hotkey)
+        if self.fake_full_hotkey and not self._hotkeys.register(
+            self.fake_full_hotkey, self._toggle_fake_full
+        ):
+            failed.append(self.fake_full_hotkey)
+        if failed:
+            self.logs.warning("热键", "注册失败：" + "、".join(failed))
+
+    def _toggle_window_visibility(self):
+        """全局热键：显示或隐藏主窗口。"""
+        if self.isVisible() and not self.isMinimized():
+            self._hide_to_tray()
+        else:
+            self.show_from_tray()
+
+    def _toggle_fake_full(self):
+        """全局热键：切换课堂假全屏。"""
+        self._classroom_service.set_fake_full(not self._classroom_service._fake_full)
+
+    def _set_hotkey(self, kind, text):
+        """保存并立即应用热键设置。"""
+        text = str(text or "").strip()
+        if kind == "show_hide":
+            self.show_hide_hotkey = text
+            self.settings.set_value(HOTKEY_SHOW_HIDE_SETTINGS_KEY, text)
+        elif kind == "fake_full":
+            self.fake_full_hotkey = text
+            self.settings.set_value(HOTKEY_FAKE_FULL_SETTINGS_KEY, text)
+        else:
+            return
+        self.settings.sync()
+        self._register_hotkeys()
+        self.pages["settings"].set_hotkeys(self.show_hide_hotkey, self.fake_full_hotkey)
+
+    def _driver_action(self, action, pid=0):
+        """处理设置页的内核驱动操作。"""
+        try:
+            if action == "start":
+                if not os.path.exists(str(self._driver_path())):
+                    raise OSError("驱动文件不存在，请先构建原生组件")
+                self._driver_session = DriverSession()
+                self._driver_session.install()
+                self._driver_session.open()
+                self._driver_session.protect(os.getpid())
+                status = self._driver_session.status()
+                self.pages["settings"].set_driver_status(
+                    "已启用，保护 %d 个进程，回调=%s"
+                    % (status.protected_count, status.callback_active),
+                    True,
+                )
+            elif action == "stop":
+                if self._driver_session is not None:
+                    with contextlib.suppress(OSError):
+                        self._driver_session.unprotect(os.getpid())
+                    self._driver_session.close()
+                    self._driver_session.uninstall()
+                    self._driver_session = None
+                self.pages["settings"].set_driver_status(
+                    "已停止并卸载驱动服务。", False
+                )
+            elif action == "kill" and pid > 0:
+                if self._driver_session is None:
+                    self._driver_session = DriverSession()
+                    self._driver_session.open()
+                self._driver_session.kill(int(pid))
+                self.logs.info("驱动", "已强杀进程", "PID：%d" % int(pid))
+        except (OSError, ValueError) as error:
+            self.logs.error("驱动", "操作失败", str(error))
+            self._notify("驱动操作失败", str(error))
+
+    def _driver_path(self):
+        from app.system.windows.driver import default_driver_path
+
+        return default_driver_path()
+
+    def _uninstall_application(self, keep_user_data):
+        """确认后执行卸载并退出。"""
+        if install_root() is None:
+            self._notify("卸载", "源码运行时没有安装目录，已跳过卸载。")
+            return
+        message = "将删除快捷方式和应用文件"
+        if keep_user_data:
+            message += "，保留 JiYuAttackNextData"
+        else:
+            message += "，并删除 JiYuAttackNextData"
+        message += "。是否继续？"
+        if not self._confirm("卸载应用", message, "卸载"):
+            return
+        result = run_uninstall(keep_user_data=bool(keep_user_data), remove_driver=True)
+        self.logs.info("应用", "已执行卸载", str(result))
+        self._notify("卸载", "卸载操作已完成，应用即将退出。")
+        QTimer.singleShot(800, self.close)
 
     def _load_first_close_prompt_shown(self):
         return self._window_service._load_first_close_prompt_shown()
@@ -363,6 +489,9 @@ class MainWindow(FluentWindow):
         self.pages["settings"].closeBehaviorRequested.connect(self.set_close_behavior)
         self.pages["settings"].logLevelRequested.connect(self.set_log_level)
         self.pages["settings"].clearDataRequested.connect(self.clear_data)
+        self.pages["settings"].hotkeyRequested.connect(self._set_hotkey)
+        self.pages["settings"].driverRequested.connect(self._driver_action)
+        self.pages["settings"].uninstallRequested.connect(self._uninstall_application)
         self.pages["home"].pageRequested.connect(self._open_home_link)
 
     def _open_home_link(self, target):
@@ -689,6 +818,12 @@ class MainWindow(FluentWindow):
         self.close_after_task = True
         self._studentproc_timer.stop()
         self._student_probe_queued = None
+        self._hotkeys.shutdown()
+        if self._driver_session is not None:
+            with contextlib.suppress(OSError):
+                self._driver_session.unprotect(os.getpid())
+            self._driver_session.close()
+            self._driver_session = None
         # 课堂助手自带查询/自动看护线程；退出流程可能因任务线程提前 return，
         # 必须在这里先停掉，避免窗口销毁时仍有 QThread 在运行。
         self._classroom_service.stop()

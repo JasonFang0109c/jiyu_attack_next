@@ -9,6 +9,7 @@
 
 #include "mhook/mhook.h"
 #include "policy.h"
+#include "remote.h"
 
 namespace {
 
@@ -27,6 +28,13 @@ using MouseEventFn = void(WINAPI*)(DWORD, DWORD, DWORD, DWORD, ULONG_PTR);
 using TerminateProcessFn = BOOL(WINAPI*)(HANDLE, UINT);
 using PostMessageWFn = BOOL(WINAPI*)(HWND, UINT, WPARAM, LPARAM);
 using SendMessageWFn = LRESULT(WINAPI*)(HWND, UINT, WPARAM, LPARAM);
+using CreateProcessWFn = BOOL(WINAPI*)(
+    LPCWSTR, LPWSTR, LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRIBUTES, BOOL, DWORD,
+    LPVOID, LPCWSTR, LPSTARTUPINFOW, LPPROCESS_INFORMATION);
+using CreateProcessAFn = BOOL(WINAPI*)(
+    LPCSTR, LPSTR, LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRIBUTES, BOOL, DWORD,
+    LPVOID, LPCSTR, LPSTARTUPINFOA, LPPROCESS_INFORMATION);
+using WinExecFn = UINT(WINAPI*)(LPCSTR, UINT);
 
 GetDesktopWindowFn TrueGetDesktopWindow = nullptr;
 GetWindowDCFn TrueGetWindowDC = nullptr;
@@ -39,6 +47,13 @@ MouseEventFn TrueMouseEvent = nullptr;
 TerminateProcessFn TrueTerminateProcess = nullptr;
 PostMessageWFn TruePostMessageW = nullptr;
 SendMessageWFn TrueSendMessageW = nullptr;
+CreateProcessWFn TrueCreateProcessW = nullptr;
+CreateProcessAFn TrueCreateProcessA = nullptr;
+WinExecFn TrueWinExec = nullptr;
+
+HANDLE g_remote_mapping = nullptr;
+JiyuGuardRemoteHeader* g_remote_header = nullptr;
+JiyuGuardRemoteEntry* g_remote_entries = nullptr;
 
 bool HasFlag(unsigned int flag) {
     return (static_cast<unsigned int>(g_flags) & flag) != 0;
@@ -184,6 +199,174 @@ void ReadPolicy() {
     CloseHandle(mapping);
 }
 
+bool EnsureRemoteChannel() {
+    if (g_remote_header != nullptr) {
+        return true;
+    }
+    wchar_t name[64] = {};
+    swprintf_s(name, L"Local\\JiyuGuardRemote_%lu", GetCurrentProcessId());
+    g_remote_mapping = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, name);
+    if (g_remote_mapping == nullptr) {
+        g_remote_mapping = CreateFileMappingW(
+            INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0,
+            JiyuGuardRemoteSize(), name);
+    }
+    if (g_remote_mapping == nullptr) {
+        return false;
+    }
+    auto* view = static_cast<unsigned char*>(
+        MapViewOfFile(g_remote_mapping, FILE_MAP_ALL_ACCESS, 0, 0, 0));
+    if (view == nullptr) {
+        CloseHandle(g_remote_mapping);
+        g_remote_mapping = nullptr;
+        return false;
+    }
+    g_remote_header = reinterpret_cast<JiyuGuardRemoteHeader*>(view);
+    g_remote_entries = reinterpret_cast<JiyuGuardRemoteEntry*>(
+        view + sizeof(JiyuGuardRemoteHeader));
+    if (g_remote_header->magic != JIYU_GUARD_REMOTE_MAGIC ||
+        g_remote_header->version != JIYU_GUARD_REMOTE_VERSION) {
+        g_remote_header->magic = JIYU_GUARD_REMOTE_MAGIC;
+        g_remote_header->version = JIYU_GUARD_REMOTE_VERSION;
+        g_remote_header->slots = JIYU_GUARD_REMOTE_SLOTS;
+        g_remote_header->reserved = 0;
+    }
+    return true;
+}
+
+void CloseRemoteChannel() {
+    if (g_remote_header != nullptr) {
+        UnmapViewOfFile(g_remote_header);
+        g_remote_header = nullptr;
+        g_remote_entries = nullptr;
+    }
+    if (g_remote_mapping != nullptr) {
+        CloseHandle(g_remote_mapping);
+        g_remote_mapping = nullptr;
+    }
+}
+
+bool RequestRemoteCommand(LPCWSTR application, LPCWSTR command_line) {
+    if (!HasFlag(JIYU_GUARD_BLOCK_REMOTE)) {
+        return true;
+    }
+    if (!EnsureRemoteChannel()) {
+        SetLastError(ERROR_ACCESS_DENIED);
+        return false;
+    }
+    wchar_t text[JIYU_GUARD_REMOTE_COMMAND_CHARS] = {};
+    if (application != nullptr && *application != L'\0') {
+        wcsncpy_s(text, application, _TRUNCATE);
+    }
+    if (command_line != nullptr && *command_line != L'\0') {
+        if (text[0] != L'\0') {
+            wcsncat_s(text, L" ", _TRUNCATE);
+        }
+        wcsncat_s(text, command_line, _TRUNCATE);
+    }
+    if (text[0] == L'\0') {
+        return true;
+    }
+
+    JiyuGuardRemoteEntry* slot = nullptr;
+    for (unsigned int index = 0; index < JIYU_GUARD_REMOTE_SLOTS; ++index) {
+        JiyuGuardRemoteEntry* candidate = &g_remote_entries[index];
+        if (InterlockedCompareExchange(&candidate->state,
+                                       JIYU_GUARD_REMOTE_PENDING,
+                                       JIYU_GUARD_REMOTE_EMPTY) ==
+            JIYU_GUARD_REMOTE_EMPTY) {
+            slot = candidate;
+            break;
+        }
+    }
+    if (slot == nullptr) {
+        SetLastError(ERROR_ACCESS_DENIED);
+        return false;
+    }
+
+    slot->process_id = GetCurrentProcessId();
+    slot->command_length = 0;
+    wcsncpy_s(slot->command, text, _TRUNCATE);
+    slot->command_length = static_cast<unsigned int>(wcslen(slot->command));
+    MemoryBarrier();
+
+    const DWORD started = GetTickCount();
+    while (GetTickCount() - started < 30000) {
+        LONG state = slot->state;
+        if (state == JIYU_GUARD_REMOTE_ALLOW) {
+            InterlockedExchange(&slot->state, JIYU_GUARD_REMOTE_EMPTY);
+            return true;
+        }
+        if (state == JIYU_GUARD_REMOTE_DENY) {
+            InterlockedExchange(&slot->state, JIYU_GUARD_REMOTE_EMPTY);
+            SetLastError(ERROR_ACCESS_DENIED);
+            return false;
+        }
+        Sleep(25);
+    }
+    InterlockedCompareExchange(&slot->state, JIYU_GUARD_REMOTE_EMPTY,
+                               JIYU_GUARD_REMOTE_PENDING);
+    SetLastError(ERROR_ACCESS_DENIED);
+    return false;
+}
+
+BOOL WINAPI HookCreateProcessW(
+    LPCWSTR application, LPWSTR command_line, LPSECURITY_ATTRIBUTES process_attributes,
+    LPSECURITY_ATTRIBUTES thread_attributes, BOOL inherit_handles, DWORD creation_flags,
+    LPVOID environment, LPCWSTR current_directory, LPSTARTUPINFOW startup_info,
+    LPPROCESS_INFORMATION process_information) {
+    if (!RequestRemoteCommand(application, command_line)) {
+        return FALSE;
+    }
+    return TrueCreateProcessW
+               ? TrueCreateProcessW(application, command_line, process_attributes,
+                                    thread_attributes, inherit_handles,
+                                    creation_flags, environment, current_directory,
+                                    startup_info, process_information)
+               : FALSE;
+}
+
+BOOL WINAPI HookCreateProcessA(
+    LPCSTR application, LPSTR command_line, LPSECURITY_ATTRIBUTES process_attributes,
+    LPSECURITY_ATTRIBUTES thread_attributes, BOOL inherit_handles, DWORD creation_flags,
+    LPVOID environment, LPCSTR current_directory, LPSTARTUPINFOA startup_info,
+    LPPROCESS_INFORMATION process_information) {
+    if (HasFlag(JIYU_GUARD_BLOCK_REMOTE)) {
+        wchar_t wide_application[JIYU_GUARD_REMOTE_COMMAND_CHARS] = {};
+        wchar_t wide_command[JIYU_GUARD_REMOTE_COMMAND_CHARS] = {};
+        if (application != nullptr) {
+            MultiByteToWideChar(CP_ACP, 0, application, -1, wide_application,
+                                JIYU_GUARD_REMOTE_COMMAND_CHARS);
+        }
+        if (command_line != nullptr) {
+            MultiByteToWideChar(CP_ACP, 0, command_line, -1, wide_command,
+                                JIYU_GUARD_REMOTE_COMMAND_CHARS);
+        }
+        if (!RequestRemoteCommand(application ? wide_application : nullptr,
+                                  command_line ? wide_command : nullptr)) {
+            return FALSE;
+        }
+    }
+    return TrueCreateProcessA
+               ? TrueCreateProcessA(application, command_line, process_attributes,
+                                    thread_attributes, inherit_handles,
+                                    creation_flags, environment, current_directory,
+                                    startup_info, process_information)
+               : FALSE;
+}
+
+UINT WINAPI HookWinExec(LPCSTR command_line, UINT show_command) {
+    if (HasFlag(JIYU_GUARD_BLOCK_REMOTE) && command_line != nullptr) {
+        wchar_t wide_command[JIYU_GUARD_REMOTE_COMMAND_CHARS] = {};
+        MultiByteToWideChar(CP_ACP, 0, command_line, -1, wide_command,
+                            JIYU_GUARD_REMOTE_COMMAND_CHARS);
+        if (!RequestRemoteCommand(nullptr, wide_command)) {
+            return 0;
+        }
+    }
+    return TrueWinExec ? TrueWinExec(command_line, show_command) : 0;
+}
+
 HWND CreateFakeDesktop() {
     return CreateWindowExW(0, L"STATIC", L"JiyuGuardFakeDesktop", WS_POPUP, 0,
                            0, 1, 1, nullptr, nullptr, nullptr, nullptr);
@@ -224,6 +407,12 @@ bool HookAll() {
         GetProcAddress(GetModuleHandleW(L"user32.dll"), "PostMessageW"));
     TrueSendMessageW = reinterpret_cast<SendMessageWFn>(
         GetProcAddress(GetModuleHandleW(L"user32.dll"), "SendMessageW"));
+    TrueCreateProcessW = reinterpret_cast<CreateProcessWFn>(
+        GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "CreateProcessW"));
+    TrueCreateProcessA = reinterpret_cast<CreateProcessAFn>(
+        GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "CreateProcessA"));
+    TrueWinExec = reinterpret_cast<WinExecFn>(
+        GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "WinExec"));
 
     HMODULE dwm = LoadLibraryW(L"dwmapi.dll");
     if (dwm != nullptr) {
@@ -258,6 +447,12 @@ bool HookAll() {
                  reinterpret_cast<PVOID>(HookPostMessageW), 1u << 9) && ok;
     ok = HookOne(reinterpret_cast<PVOID*>(&TrueSendMessageW),
                  reinterpret_cast<PVOID>(HookSendMessageW), 1u << 10) && ok;
+    ok = HookOne(reinterpret_cast<PVOID*>(&TrueCreateProcessW),
+                 reinterpret_cast<PVOID>(HookCreateProcessW), 1u << 11) && ok;
+    ok = HookOne(reinterpret_cast<PVOID*>(&TrueCreateProcessA),
+                 reinterpret_cast<PVOID>(HookCreateProcessA), 1u << 12) && ok;
+    ok = HookOne(reinterpret_cast<PVOID*>(&TrueWinExec),
+                 reinterpret_cast<PVOID>(HookWinExec), 1u << 13) && ok;
     return ok;
 }
 
@@ -295,13 +490,22 @@ void UnhookAll() {
     if ((g_hooked & (1u << 10)) != 0) {
         Mhook_Unhook(reinterpret_cast<PVOID*>(&TrueSendMessageW));
     }
+    if ((g_hooked & (1u << 11)) != 0) {
+        Mhook_Unhook(reinterpret_cast<PVOID*>(&TrueCreateProcessW));
+    }
+    if ((g_hooked & (1u << 12)) != 0) {
+        Mhook_Unhook(reinterpret_cast<PVOID*>(&TrueCreateProcessA));
+    }
+    if ((g_hooked & (1u << 13)) != 0) {
+        Mhook_Unhook(reinterpret_cast<PVOID*>(&TrueWinExec));
+    }
     g_hooked = 0;
 }
 
 }  // namespace
 
 extern "C" __declspec(dllexport) const char* JiyuGuardVersion() {
-    return "1.0.0";
+    return "1.1.0";
 }
 
 extern "C" __declspec(dllexport) BOOL JiyuGuardInstall() {
@@ -310,6 +514,7 @@ extern "C" __declspec(dllexport) BOOL JiyuGuardInstall() {
         return TRUE;
     }
     ReadPolicy();
+    EnsureRemoteChannel();
     g_fake_desktop = CreateFakeDesktop();
     g_installed = HookAll();
     return g_installed ? TRUE : FALSE;
@@ -318,6 +523,7 @@ extern "C" __declspec(dllexport) BOOL JiyuGuardInstall() {
 extern "C" __declspec(dllexport) void JiyuGuardUninstall() {
     UnhookAll();
     g_installed = false;
+    CloseRemoteChannel();
     if (g_fake_desktop != nullptr) {
         DestroyWindow(g_fake_desktop);
         g_fake_desktop = nullptr;

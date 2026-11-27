@@ -33,6 +33,7 @@ COMMANDS = {
     },
     "local": {
         "info": "本机信息",
+        "uninstall": "卸载应用",
         "firewall": "防火墙",
     },
 }

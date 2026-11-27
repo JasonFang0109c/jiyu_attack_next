@@ -10,6 +10,7 @@ enum JiyuGuardFlags {
     JIYU_GUARD_ANTI_CONTROL = 1u << 1,
     JIYU_GUARD_BLOCK_CLOSE = 1u << 2,
     JIYU_GUARD_BLOCK_TERMINATE = 1u << 3,
+    JIYU_GUARD_BLOCK_REMOTE = 1u << 4,
 };
 
 #pragma pack(push, 1)

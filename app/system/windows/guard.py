@@ -1,14 +1,16 @@
 """课堂防护 DLL 的注入、卸载与策略下发。
 
-DLL 源码在 ``pack/native/guard``，只做四类进程内拦截：屏幕监视、输入控制、
-关闭窗口与结束进程。Python 侧只负责创建策略共享内存、把对应位数的 DLL
-注入学生端并调用导出函数；不安装驱动，也不改动系统全局配置。
+DLL 源码在 ``pack/native/guard``，做五类进程内拦截：屏幕监视、输入控制、
+关闭窗口、结束进程与远程命令审批。Python 侧只负责创建策略共享内存、把对应
+位数的 DLL 注入学生端并调用导出函数；不安装驱动，也不改动系统全局配置。
 """
 
+import contextlib
 import ctypes
 import struct
 import sys
 from ctypes import wintypes
+from dataclasses import dataclass
 from pathlib import Path
 
 PROCESS_CREATE_THREAD = 0x0002
@@ -39,9 +41,24 @@ GUARD_ANTI_MONITOR = 1 << 0
 GUARD_ANTI_CONTROL = 1 << 1
 GUARD_BLOCK_CLOSE = 1 << 2
 GUARD_BLOCK_TERMINATE = 1 << 3
+GUARD_BLOCK_REMOTE = 1 << 4
 GUARD_ALL = (
-    GUARD_ANTI_MONITOR | GUARD_ANTI_CONTROL | GUARD_BLOCK_CLOSE | GUARD_BLOCK_TERMINATE
+    GUARD_ANTI_MONITOR
+    | GUARD_ANTI_CONTROL
+    | GUARD_BLOCK_CLOSE
+    | GUARD_BLOCK_TERMINATE
+    | GUARD_BLOCK_REMOTE
 )
+
+REMOTE_MAGIC = 0x3152474A
+REMOTE_VERSION = 1
+REMOTE_SLOTS = 32
+REMOTE_COMMAND_CHARS = 1024
+REMOTE_EMPTY = 0
+REMOTE_PENDING = 1
+REMOTE_ALLOW = 2
+REMOTE_DENY = 3
+FILE_MAP_ALL_ACCESS = 0x000F001F
 
 _KERNEL32 = None
 
@@ -165,6 +182,133 @@ class PolicyChannel:
     def update(self, flags):
         """写入新的策略位。"""
         ctypes.memmove(self.view, pack_policy(flags), POLICY_SIZE)
+
+    def close(self):
+        """释放视图与句柄；重复调用无副作用。"""
+        kernel32 = _kernel32()
+        if getattr(self, "view", None):
+            kernel32.UnmapViewOfFile(self.view)
+            self.view = None
+        if getattr(self, "handle", None):
+            kernel32.CloseHandle(self.handle)
+            self.handle = None
+
+
+class _RemoteHeader(ctypes.Structure):
+    """DLL 与桌面端共享的远程命令区头。"""
+
+    _fields_ = [
+        ("magic", wintypes.DWORD),
+        ("version", wintypes.DWORD),
+        ("slots", wintypes.DWORD),
+        ("reserved", wintypes.DWORD),
+    ]
+
+
+class _RemoteEntry(ctypes.Structure):
+    """单个远程命令槽位；``state`` 为 0/1/2/3 四态。"""
+
+    _fields_ = [
+        ("state", wintypes.LONG),
+        ("process_id", wintypes.DWORD),
+        ("command_length", wintypes.DWORD),
+        ("command", wintypes.WCHAR * REMOTE_COMMAND_CHARS),
+        ("reserved", wintypes.DWORD),
+    ]
+
+
+REMOTE_HEADER_SIZE = ctypes.sizeof(_RemoteHeader)
+REMOTE_ENTRY_SIZE = ctypes.sizeof(_RemoteEntry)
+REMOTE_SIZE = REMOTE_HEADER_SIZE + REMOTE_ENTRY_SIZE * REMOTE_SLOTS
+
+
+@dataclass(frozen=True)
+class RemoteCommandRequest:
+    """一次待确认的远程命令。"""
+
+    index: int
+    process_id: int
+    command: str
+
+
+class RemoteCommandChannel:
+    """远程命令共享内存：轮询待确认命令并写回允许/拒绝。"""
+
+    def __init__(self, pid):
+        if not supported():
+            raise RuntimeError("远程命令监控只支持 Windows")
+        self.name = "Local\\JiyuGuardRemote_%d" % int(pid)
+        kernel32 = _kernel32()
+        kernel32.CreateFileMappingW.restype = wintypes.HANDLE
+        kernel32.CreateFileMappingW.argtypes = (
+            wintypes.HANDLE,
+            wintypes.LPVOID,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.LPCWSTR,
+        )
+        self.handle = kernel32.CreateFileMappingW(
+            INVALID_HANDLE_VALUE, None, PAGE_READWRITE, 0, REMOTE_SIZE, self.name
+        )
+        if not self.handle:
+            raise ctypes.WinError(ctypes.get_last_error())
+        kernel32.MapViewOfFile.restype = wintypes.LPVOID
+        kernel32.MapViewOfFile.argtypes = (
+            wintypes.HANDLE,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            ctypes.c_size_t,
+        )
+        self.view = kernel32.MapViewOfFile(
+            self.handle, FILE_MAP_ALL_ACCESS, 0, 0, REMOTE_SIZE
+        )
+        if not self.view:
+            error = ctypes.get_last_error()
+            kernel32.CloseHandle(self.handle)
+            raise ctypes.WinError(error)
+        header = ctypes.cast(self.view, ctypes.POINTER(_RemoteHeader)).contents
+        header.magic = REMOTE_MAGIC
+        header.version = REMOTE_VERSION
+        header.slots = REMOTE_SLOTS
+        header.reserved = 0
+        self._entries = ctypes.cast(
+            self.view + REMOTE_HEADER_SIZE, ctypes.POINTER(_RemoteEntry)
+        )
+
+    def poll(self):
+        """返回当前所有待确认命令，不修改槽位状态。"""
+        requests = []
+        for index in range(REMOTE_SLOTS):
+            entry = self._entries[index]
+            if entry.state != REMOTE_PENDING:
+                continue
+            length = min(int(entry.command_length), REMOTE_COMMAND_CHARS)
+            if length <= 0:
+                continue
+            command = "".join(entry.command[:length]).rstrip("\0")
+            if command:
+                requests.append(
+                    RemoteCommandRequest(index, int(entry.process_id), command)
+                )
+        return requests
+
+    def resolve(self, index, allow):
+        """写回单个槽位的决定；只处理仍处于待确认状态的槽位。"""
+        if not 0 <= int(index) < REMOTE_SLOTS:
+            raise ValueError("远程命令槽位越界")
+        entry = self._entries[int(index)]
+        if entry.state == REMOTE_PENDING:
+            entry.state = REMOTE_ALLOW if allow else REMOTE_DENY
+            return True
+        return False
+
+    def deny_all(self):
+        """拒绝所有仍在等待的命令，用于停止防护或退出。"""
+        for index in range(REMOTE_SLOTS):
+            if self._entries[index].state == REMOTE_PENDING:
+                self._entries[index].state = REMOTE_DENY
 
     def close(self):
         """释放视图与句柄；重复调用无副作用。"""
@@ -391,6 +535,7 @@ class GuardSession:
         self.pid = int(pid)
         self.dll_path = str(dll_path)
         self.channel = None
+        self.remote = None
         self.process = None
         self.module = 0
 
@@ -399,6 +544,8 @@ class GuardSession:
         self.channel = PolicyChannel(self.pid)
         try:
             self.channel.update(flags)
+            if int(flags) & GUARD_BLOCK_REMOTE:
+                self.remote = RemoteCommandChannel(self.pid)
             self.process = RemoteProcess(self.pid)
             self.module = self.process.load_library(self.dll_path)
             result = self.process.call_export(
@@ -415,24 +562,46 @@ class GuardSession:
         """更新策略位并让 DLL 立即重读。"""
         if self.channel is None or not self.module:
             raise RuntimeError("课堂防护尚未启用")
+        if int(flags) & GUARD_BLOCK_REMOTE and self.remote is None:
+            self.remote = RemoteCommandChannel(self.pid)
         self.channel.update(flags)
         self.process.call_export(self.module, self.dll_path, "JiyuGuardRefresh")
 
+    def poll_remote(self):
+        """返回待确认的远程命令列表。"""
+        if self.remote is None:
+            return []
+        return self.remote.poll()
+
+    def resolve_remote(self, index, allow):
+        """写回一条远程命令的允许/拒绝决定。"""
+        if self.remote is None:
+            return False
+        return self.remote.resolve(index, allow)
+
+    def deny_remote_all(self):
+        """拒绝所有仍在等待的命令。"""
+        if self.remote is not None:
+            self.remote.deny_all()
+
     def stop(self):
         """卸载钩子、释放 DLL 与共享内存；可重复调用。"""
+        if self.remote is not None:
+            with contextlib.suppress(Exception):
+                self.remote.deny_all()
         if self.process is not None and self.module:
-            try:
+            with contextlib.suppress(Exception):
                 self.process.call_export(
                     self.module, self.dll_path, "JiyuGuardUninstall"
                 )
                 self.process.free_library(self.module)
-            except Exception:
-                # 卸载失败也要继续释放进程句柄与共享内存。
-                pass
             self.module = 0
         if self.process is not None:
             self.process.close()
             self.process = None
+        if self.remote is not None:
+            self.remote.close()
+            self.remote = None
         if self.channel is not None:
             self.channel.close()
             self.channel = None

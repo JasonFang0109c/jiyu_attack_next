@@ -8,8 +8,10 @@ from functools import partial
 
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QGuiApplication
+from PySide6.QtWidgets import QCheckBox
 
 import app.features.classroom.service as classroom
+import app.system.windows.guard as guard
 from app.features.classroom.data import (
     OPTION_NAMES,
     SETTINGS_AUTO_REPAIR,
@@ -61,6 +63,11 @@ class ClassroomService:
         self._fake_full = False
         self._topmost = False
         self._guard = None
+        self._remote_timer = QTimer(window)
+        self._remote_timer.setInterval(250)
+        self._remote_timer.timeout.connect(self._poll_remote)
+        self._remote_dialog_open = False
+        self._remote_allow_all = False
         self._poll_timer = QTimer(window)
         self._poll_timer.setInterval(POLL_INTERVAL)
         self._poll_timer.timeout.connect(self._poll)
@@ -94,8 +101,10 @@ class ClassroomService:
         self._quit = True
         self._poll_timer.stop()
         self._care_timer.stop()
+        self._remote_timer.stop()
         if self._guard is not None:
             try:
+                self._guard.deny_remote_all()
                 classroom.stop_guard(self._guard)
             except Exception as error:
                 self.window.logs.warning(CATEGORY, "停止课堂防护失败", str(error))
@@ -272,6 +281,7 @@ class ClassroomService:
                 return
             self.options["guard_flags"] = int(flags)
             self.page.set_guard_state(True, int(flags))
+            self._sync_remote_timer(int(flags))
             self.window._notify("课堂助手", "课堂防护策略已更新", "成功")
             return
         if self._action is not None:
@@ -304,6 +314,7 @@ class ClassroomService:
         self._guard = result.get("session")
         self.page.set_busy(False)
         self.page.set_guard_state(True, result.get("flags", 0), result.get("pid", 0))
+        self._sync_remote_timer(int(result.get("flags", 0)))
         self.window.logs.info(
             CATEGORY,
             "已启用课堂防护",
@@ -321,13 +332,69 @@ class ClassroomService:
         )
         self.window._notify("课堂助手", message, "错误")
 
+    def _sync_remote_timer(self, flags):
+        """按当前策略位启停远程命令轮询。"""
+        if self._guard is not None and int(flags) & guard.GUARD_BLOCK_REMOTE:
+            self._remote_timer.start()
+        else:
+            self._remote_timer.stop()
+            self._remote_allow_all = False
+
+    def _poll_remote(self):
+        """轮询学生端待确认的远程命令，一次只弹一个对话框。"""
+        if self._quit or self._guard is None or self._remote_dialog_open:
+            return
+        try:
+            requests = self._guard.poll_remote()
+        except Exception as error:
+            self.window.logs.warning(CATEGORY, "读取远程命令请求失败", str(error))
+            return
+        for request in requests:
+            if self._remote_allow_all:
+                self._guard.resolve_remote(request.index, True)
+                continue
+            self._show_remote_dialog(request)
+            return
+
+    def _show_remote_dialog(self, request):
+        """弹窗询问一条远程命令是否允许执行。"""
+        self._remote_dialog_open = True
+        try:
+            dialog = self.window._dialog(
+                "远程命令请求",
+                "学生端收到一条远程命令：\n\n%s\n\n是否允许执行？" % request.command,
+                "允许执行",
+            )
+            allow_all = QCheckBox("本次运行期间全部允许", dialog)
+            dialog.textLayout.addWidget(allow_all)
+            allowed = bool(dialog.exec())
+            if self._guard is None:
+                return
+            self._guard.resolve_remote(request.index, allowed)
+            if allowed and allow_all.isChecked():
+                self._remote_allow_all = True
+            self.window.logs.info(
+                CATEGORY,
+                "远程命令已允许" if allowed else "远程命令已拒绝",
+                request.command,
+            )
+        except Exception as error:
+            self.window.logs.error(CATEGORY, "处理远程命令请求失败", str(error))
+            if self._guard is not None:
+                self._guard.resolve_remote(request.index, False)
+        finally:
+            self._remote_dialog_open = False
+
     def stop_guard(self):
         """停止课堂防护并卸载 DLL。"""
         if self._guard is None:
             return
         session = self._guard
         self._guard = None
+        self._remote_timer.stop()
+        self._remote_allow_all = False
         try:
+            session.deny_remote_all()
             classroom.stop_guard(session)
         except Exception as error:
             self.window.logs.error(CATEGORY, "停止课堂防护失败", str(error))
@@ -415,6 +482,7 @@ class ClassroomService:
             try:
                 self._guard.update(int(value))
                 self.page.set_guard_state(True, int(value))
+                self._sync_remote_timer(int(value))
             except Exception as error:
                 self.window.logs.warning(CATEGORY, "课堂防护策略更新失败", str(error))
         if key == SETTINGS_AUTO_REPAIR and value:

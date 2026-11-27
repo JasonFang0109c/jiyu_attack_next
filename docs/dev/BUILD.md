@@ -65,6 +65,13 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Python "C:\Python313\
 - 只有修改 `guard.cpp` 或升级第三方源码时才需要重新编译：在装有 MSVC 与 Windows SDK 的 Windows 容器内执行 `pack/native/build-guard.ps1`，脚本用 `build.bat` 分别编译 x86/x64，产物落在 `build/native/guard/`，再复制到 `app/resources/native/`。宿主机不安装编译器与 SDK。
 - `build/native/guard/guard_fixture_*.exe` 是自测夹具，只在构建容器或隔离测试环境中运行，不加载驱动、不改系统配置。
 
+### 内核驱动（可选）
+
+- 源码在 `pack/native/driver`：`jiyu_guard_driver.c` 是 WDM 驱动，用 `ObRegisterCallbacks` 阻止其它进程结束受保护进程，并通过 IOCTL 提供内核强杀；`driver_ioctl.h` 定义设备名与请求结构。
+- 在装有 WDK 10.0.26100 与 MSVC 的 Windows 容器内执行 `pack/native/build-driver.ps1`，产物为 `build/native/driver/jiyu_guard_driver.sys`，复制到 `app/resources/native/driver/` 后由 PyInstaller 收集。
+- 驱动默认不加载、不安装服务；只有用户在“设置 → 内核驱动（可选）”里显式启用才调用 `sc.exe` 创建并启动 `JiyuGuardDriver`。测试时必须使用可丢弃的隔离虚拟机或启用了测试签名的环境，宿主机不要加载未签名驱动。
+- 驱动加载失败、系统未开启测试签名或权限不足时，课堂防护与其它纯用户态功能不受影响。
+
 ## 输出与生成内容
 
 | 路径 | 内容 | 是否保留 |

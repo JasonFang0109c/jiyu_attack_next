@@ -231,7 +231,8 @@ class ClassroomPage(Page):
         card.body.addLayout(header)
 
         note = CaptionLabel(
-            "启用后向学生端加载 guard DLL，只拦截监视、控制、关闭窗口和结束进程；"
+            "启用后向学生端加载 guard DLL，可拦截监视、控制、关闭窗口和结束进程；"
+            "“监控远程命令”会在教师发起命令时逐条询问是否允许。"
             "不加载驱动，退出课堂助手或点“停止防护”即可卸载。",
             card,
         )
@@ -268,7 +269,7 @@ class ClassroomPage(Page):
         return card
 
     def _guard_flags(self):
-        """把四个开关合成一个防护位掩码。"""
+        """把五个开关合成一个防护位掩码。"""
         flags = 0
         for flag, switch in self._guard_switches:
             if switch.isChecked():

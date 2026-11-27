@@ -27,6 +27,12 @@ a = Analysis(
               (str(root / "app" / "resources" / "native" / name), "app/resources/native")
               for name in ("guard_x64.dll", "guard_x86.dll", "LICENSE-JiYuTrainer.txt")
           ]
+          + [
+              (
+                  str(root / "app" / "resources" / "native" / "driver" / "jiyu_guard_driver.sys"),
+                  "app/resources/native/driver",
+              )
+          ]
           + ([(str(build_time), ".")] if build_time.exists() else [])
           + ([(str(version_file), ".")] if version_file.exists() else [])
           + ([(str(variant_file), ".")] if variant_file.exists() else [])

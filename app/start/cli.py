@@ -57,6 +57,8 @@ def run_from_cmd(arguments):
         if arguments.group == "local":
             if arguments.command == "firewall":
                 return firewall_cli.apply_firewall(arguments.firewall)
+            if arguments.command == "uninstall":
+                return local_cli.print_uninstall_info(arguments)
             return local_cli.print_local_info()
         if arguments.command == "shell":
             return shell_cli.run_shell(arguments)

@@ -16,6 +16,14 @@ NAVIGATION_EXPANDED_SETTINGS_KEY = "gui/window/navigation_expanded"
 
 DEFAULT_NAVIGATION_EXPANDED = False
 
+HOTKEY_SHOW_HIDE_SETTINGS_KEY = "gui/hotkey/show_hide"
+
+HOTKEY_FAKE_FULL_SETTINGS_KEY = "gui/hotkey/fake_full"
+
+DEFAULT_HOTKEY_SHOW_HIDE = "Ctrl+Alt+H"
+
+DEFAULT_HOTKEY_FAKE_FULL = "Ctrl+Alt+F"
+
 WINDOW_MATERIAL_SETTINGS_KEY = "gui/window/material"
 
 MICA_SETTINGS_KEY = "gui/window/mica_enabled"

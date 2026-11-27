@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout
 from qfluentwidgets import (
     BodyLabel,
     CaptionLabel,
+    LineEdit,
     PushButton,
     SwitchButton,
     Theme,
@@ -15,6 +16,8 @@ from qfluentwidgets import FluentIcon as FIF
 
 from app.features.logs.data import LOG_LEVELS, normalize_log_level
 from app.features.settings.data import (
+    DEFAULT_HOTKEY_FAKE_FULL,
+    DEFAULT_HOTKEY_SHOW_HIDE,
     THEME_ACCENT_LABELS,
     THEME_ACCENTS,
     WINDOW_MATERIAL_LABELS,
@@ -65,9 +68,19 @@ class SettingsPage(Page):
     closeBehaviorRequested = Signal(str)
     logLevelRequested = Signal(str)
     clearDataRequested = Signal()
+    hotkeyRequested = Signal(str, str)
+    driverRequested = Signal(str, int)
+    uninstallRequested = Signal(bool)
 
     def __init__(
-        self, log_store, close_behavior, window_material, theme_accent, parent=None
+        self,
+        log_store,
+        close_behavior,
+        window_material,
+        theme_accent,
+        show_hide_hotkey=DEFAULT_HOTKEY_SHOW_HIDE,
+        fake_full_hotkey=DEFAULT_HOTKEY_FAKE_FULL,
+        parent=None,
     ):
         super().__init__("settings", parent)
         self.log_store = log_store
@@ -200,6 +213,107 @@ class SettingsPage(Page):
         data_card.body.addLayout(data_row)
         self.vbox.addWidget(data_card)
 
+        hotkey_card = SectionCard(self, spacing=12, margins=(18, 12, 18, 12))
+        hotkey_card.setObjectName("settingsHotkeyCard")
+        hotkey_title = BodyLabel("全局热键", hotkey_card)
+        hotkey_card.body.addWidget(hotkey_title)
+        hotkey_hint = CaptionLabel(
+            "留空表示禁用；格式如 Ctrl+Alt+H，保存后立即生效。", hotkey_card
+        )
+        hotkey_hint.setWordWrap(True)
+        hotkey_card.body.addWidget(hotkey_hint)
+        self.show_hide_hotkey_edit = LineEdit(hotkey_card)
+        self.show_hide_hotkey_edit.setText(show_hide_hotkey)
+        self.show_hide_hotkey_edit.setPlaceholderText(DEFAULT_HOTKEY_SHOW_HIDE)
+        self.show_hide_hotkey_edit.editingFinished.connect(
+            lambda: self.hotkeyRequested.emit(
+                "show_hide", self.show_hide_hotkey_edit.text().strip()
+            )
+        )
+        show_hide_row = QHBoxLayout()
+        show_hide_row.addWidget(setting_label("显示 / 隐藏主窗口", hotkey_card))
+        show_hide_row.addStretch()
+        self.show_hide_hotkey_edit.setMinimumWidth(180)
+        show_hide_row.addWidget(self.show_hide_hotkey_edit)
+        hotkey_card.body.addLayout(show_hide_row)
+        self.fake_full_hotkey_edit = LineEdit(hotkey_card)
+        self.fake_full_hotkey_edit.setText(fake_full_hotkey)
+        self.fake_full_hotkey_edit.setPlaceholderText(DEFAULT_HOTKEY_FAKE_FULL)
+        self.fake_full_hotkey_edit.editingFinished.connect(
+            lambda: self.hotkeyRequested.emit(
+                "fake_full", self.fake_full_hotkey_edit.text().strip()
+            )
+        )
+        fake_full_row = QHBoxLayout()
+        fake_full_row.addWidget(setting_label("切换课堂假全屏", hotkey_card))
+        fake_full_row.addStretch()
+        self.fake_full_hotkey_edit.setMinimumWidth(180)
+        fake_full_row.addWidget(self.fake_full_hotkey_edit)
+        hotkey_card.body.addLayout(fake_full_row)
+        self.vbox.addWidget(hotkey_card)
+
+        driver_card = SectionCard(self, spacing=12, margins=(18, 12, 18, 12))
+        driver_card.setObjectName("settingsDriverCard")
+        driver_card.body.addWidget(BodyLabel("内核驱动（可选）", driver_card))
+        self.driver_status_label = CaptionLabel(
+            "未启用。驱动需要管理员权限与测试签名环境。", driver_card
+        )
+        self.driver_status_label.setWordWrap(True)
+        driver_card.body.addWidget(self.driver_status_label)
+        driver_row = QHBoxLayout()
+        self.driver_start_button = PushButton("安装并启用", driver_card)
+        self.driver_start_button.setIcon(FIF.PLAY)
+        self.driver_start_button.clicked.connect(
+            lambda checked=False: self.driverRequested.emit("start", 0)
+        )
+        self.driver_stop_button = PushButton("停止并卸载", driver_card)
+        self.driver_stop_button.setIcon(FIF.CANCEL_MEDIUM)
+        self.driver_stop_button.clicked.connect(
+            lambda checked=False: self.driverRequested.emit("stop", 0)
+        )
+        driver_row.addWidget(self.driver_start_button)
+        driver_row.addWidget(self.driver_stop_button)
+        driver_row.addStretch()
+        self.driver_pid_edit = LineEdit(driver_card)
+        self.driver_pid_edit.setPlaceholderText("PID")
+        self.driver_pid_edit.setFixedWidth(90)
+        self.driver_kill_button = PushButton("强杀", driver_card)
+        self.driver_kill_button.clicked.connect(self._emit_driver_kill)
+        driver_row.addWidget(self.driver_pid_edit)
+        driver_row.addWidget(self.driver_kill_button)
+        driver_card.body.addLayout(driver_row)
+        self.vbox.addWidget(driver_card)
+
+        uninstall_card = SectionCard(self, spacing=12, margins=(18, 12, 18, 12))
+        uninstall_card.setObjectName("settingsUninstallCard")
+        uninstall_row = QHBoxLayout()
+        uninstall_copy = QVBoxLayout()
+        uninstall_copy.setSpacing(4)
+        uninstall_copy.addWidget(BodyLabel("卸载应用", uninstall_card))
+        uninstall_copy.addWidget(
+            CaptionLabel("删除快捷方式与可选的内核驱动服务。", uninstall_card)
+        )
+        uninstall_row.addLayout(uninstall_copy, 1)
+        self.keep_data_switch = SwitchButton(uninstall_card)
+        self.keep_data_switch.setChecked(True)
+        self.keep_data_switch.setOnText("")
+        self.keep_data_switch.setOffText("")
+        self.keep_data_switch.setSpacing(0)
+        self.keep_data_switch.label.hide()
+        keep_label = setting_label("保留用户数据", uninstall_card)
+        uninstall_row.addWidget(keep_label, 0, Qt.AlignVCenter)
+        uninstall_row.addWidget(self.keep_data_switch, 0, Qt.AlignVCenter)
+        self.uninstall_button = PushButton("卸载", uninstall_card)
+        self.uninstall_button.setIcon(FIF.DELETE)
+        self.uninstall_button.clicked.connect(
+            lambda checked=False: self.uninstallRequested.emit(
+                self.keep_data_switch.isChecked()
+            )
+        )
+        uninstall_row.addWidget(self.uninstall_button, 0, Qt.AlignVCenter)
+        uninstall_card.body.addLayout(uninstall_row)
+        self.vbox.addWidget(uninstall_card)
+
         self.vbox.addStretch()
 
     def _select_theme(self, index):
@@ -262,3 +376,25 @@ class SettingsPage(Page):
             return
         with QSignalBlocker(self.log_level_box):
             self.log_level_box.setCurrentIndex(levels.index(normalized))
+
+    def _emit_driver_kill(self):
+        text = self.driver_pid_edit.text().strip()
+        try:
+            pid = int(text)
+        except ValueError:
+            return
+        if pid > 0:
+            self.driverRequested.emit("kill", pid)
+
+    def set_driver_status(self, text, active=False):
+        """更新驱动状态文案与按钮可用性。"""
+        self.driver_status_label.setText(text)
+        self.driver_start_button.setEnabled(not active)
+        self.driver_stop_button.setEnabled(active)
+
+    def set_hotkeys(self, show_hide, fake_full):
+        """同步热键输入框，供设置被外部重置后刷新界面。"""
+        with QSignalBlocker(self.show_hide_hotkey_edit):
+            self.show_hide_hotkey_edit.setText(show_hide)
+        with QSignalBlocker(self.fake_full_hotkey_edit):
+            self.fake_full_hotkey_edit.setText(fake_full)

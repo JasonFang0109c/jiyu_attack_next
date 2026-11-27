@@ -42,6 +42,7 @@ GUI 与 CLI 已合并到同一个单文件 EXE：从 [Nightly Build](https://git
 | `restriction student` | 启停学生端 | 按当前状态启动或结束本机极域学生端，腾出被独占的 4705 端口 |
 | `local info` | 本机信息 | 查询本机 IP 地址与学生端端口 |
 | `local firewall` | 防火墙 | `block` 阻止学生端网络通信，`allow` 恢复通信 |
+| `local uninstall` | 设置 → 卸载应用 | 删除快捷方式、可选驱动服务与安装目录，`--keep-data` 保留用户数据 |
 
 ### 常见疑问
 
@@ -139,6 +140,7 @@ start /wait JiYuAttackNext.exe remote message -ip 10.49.151.29 -msg "Hello"
 | `remote shell` | `remote shell -ip 192.168.1.10` |
 | `local info` | `local info` |
 | `local firewall` | `local firewall block`、`local firewall allow` |
+| `local uninstall` | `local uninstall`、`local uninstall --keep-data` |
 
 子命令之后的参数见下方“参数参考”。旧的扁平写法已移除；原命令需要迁移为对应的分组子命令，例如 `-ip 地址 -msg 内容` 改为 `remote message -ip 地址 -msg 内容`。
 
@@ -231,6 +233,14 @@ debug 版本会在发送前写一条 `DEBUG` 日志“蓝屏载荷”，给出�
 | `block` / `allow` | 位置参数 | 无 | `block` 阻断学生端连接，`allow` 把规则改回允许 |
 
 `block` 会启动 `MpsSvc`、打开全部配置文件的防火墙，并把名为 `StudentMain.exe` 的规则改成阻断；`allow` 只把该规则改回允许，不还原其他防火墙设置。两项都需要管理员权限，未提升时弹出 UAC，由隐藏的管理员助手完成后回传结果。
+
+### local uninstall（卸载应用）
+
+| 参数 | 类型 | 默认值 | 用途与说明 |
+| --- | --- | --- | --- |
+| `--keep-data` | 开关 | 关 | 保留 `JiYuAttackNextData`；不写该选项时连同备注、设置与日志一起删除 |
+
+只允许在打包后的 EXE 中执行：源码运行时没有可清理的安装目录，会直接返回提示。卸载会删除桌面与开始菜单快捷方式，尝试停止并删除 `JiyuGuardDriver` 服务，然后安排退出后清理 EXE 所在目录；建议先关闭正在运行的程序。
 
 ### 从旧命令迁移
 

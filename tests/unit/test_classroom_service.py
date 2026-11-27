@@ -73,7 +73,7 @@ class ClassroomServiceTests(OfflineCase):
 
     def test_guard_flags_are_masked(self):
         classroom.save_option(SETTINGS_GUARD_FLAGS, 0xFF, self.data_dir)
-        self.assertEqual(classroom.load_options(self.data_dir)["guard_flags"], 15)
+        self.assertEqual(classroom.load_options(self.data_dir)["guard_flags"], 31)
         classroom.save_option(SETTINGS_GUARD_FLAGS, "bad", self.data_dir)
         self.assertEqual(classroom.load_options(self.data_dir)["guard_flags"], 0)
 
@@ -211,8 +211,8 @@ class ClassroomServiceTests(OfflineCase):
             patch.object(classroom.guard, "supported", return_value=True),
         ):
             result = classroom.start_guard(0xFF)
-            self.assertEqual(result["flags"], 15)
-            self.assertEqual(created[0].flags, 15)
+            self.assertEqual(result["flags"], 31)
+            self.assertEqual(created[0].flags, 31)
             classroom.stop_guard(result["session"])
             self.assertTrue(created[0].stopped)
 

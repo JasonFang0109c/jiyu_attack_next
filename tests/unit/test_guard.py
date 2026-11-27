@@ -51,10 +51,10 @@ class FakeProcess:
 
 class GuardProtocolTests(unittest.TestCase):
     def test_policy_roundtrip(self):
-        data = guard.pack_policy(15)
+        data = guard.pack_policy(31)
         self.assertEqual(len(data), 16)
-        self.assertEqual(struct.unpack("<IIII", data)[:3], (0x3150474A, 1, 15))
-        self.assertEqual(guard.unpack_policy(data), 15)
+        self.assertEqual(struct.unpack("<IIII", data)[:3], (0x3150474A, 1, 31))
+        self.assertEqual(guard.unpack_policy(data), 31)
 
     def test_policy_rejects_bad_data(self):
         with self.assertRaises(ValueError):
@@ -65,6 +65,44 @@ class GuardProtocolTests(unittest.TestCase):
     def test_policy_name_and_supported(self):
         self.assertEqual(guard.policy_name(17600), "Local\\JiyuGuardPolicy_17600")
         self.assertEqual(guard.supported(), sys.platform == "win32")
+
+
+class RemoteChannelTests(unittest.TestCase):
+    """共享内存槽位协议的纯内存测试，不创建真实映射。"""
+
+    def _channel(self):
+        channel = object.__new__(guard.RemoteCommandChannel)
+        entries = (guard._RemoteEntry * guard.REMOTE_SLOTS)()
+        entries[0].state = guard.REMOTE_PENDING
+        entries[0].process_id = 4321
+        command = "whoami /all"
+        entries[0].command_length = len(command)
+        entries[0].command = command
+        entries[2].state = guard.REMOTE_PENDING
+        entries[2].process_id = 8765
+        entries[2].command_length = 0
+        channel._entries = entries
+        return channel
+
+    def test_poll_returns_only_valid_pending_commands(self):
+        requests = self._channel().poll()
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(requests[0].index, 0)
+        self.assertEqual(requests[0].process_id, 4321)
+        self.assertEqual(requests[0].command, "whoami /all")
+
+    def test_resolve_and_deny_all(self):
+        channel = self._channel()
+        self.assertTrue(channel.resolve(0, True))
+        self.assertEqual(channel._entries[0].state, guard.REMOTE_ALLOW)
+        self.assertFalse(channel.resolve(0, False))
+        self.assertTrue(channel.resolve(2, False))
+        self.assertEqual(channel._entries[2].state, guard.REMOTE_DENY)
+        channel._entries[1].state = guard.REMOTE_PENDING
+        channel.deny_all()
+        self.assertEqual(channel._entries[1].state, guard.REMOTE_DENY)
+        with self.assertRaises(ValueError):
+            channel.resolve(guard.REMOTE_SLOTS, True)
 
 
 class GuardSessionTests(unittest.TestCase):

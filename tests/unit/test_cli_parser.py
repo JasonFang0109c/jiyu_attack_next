@@ -15,7 +15,9 @@ class GroupParserTests(unittest.TestCase):
             list(cli_parser.COMMANDS["remote"]),
             ["message", "file", "device", "command", "shell"],
         )
-        self.assertEqual(list(cli_parser.COMMANDS["local"]), ["info", "firewall"])
+        self.assertEqual(
+            list(cli_parser.COMMANDS["local"]), ["info", "uninstall", "firewall"]
+        )
         self.assertEqual(list(cli_parser.COMMANDS["restriction"]), ["student"])
 
     def test_every_command_has_a_parser(self):
