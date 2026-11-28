@@ -63,40 +63,40 @@ from qfluentwidgets import (
 import NeoJiYuTrainer.features.files.service as files_service_business
 import NeoJiYuTrainer.features.firewall.service as firewall_service_business
 import NeoJiYuTrainer.features.logs.data as logs_data
-import NeoJiYuTrainer.features.logs.gui.data as log_store
 import NeoJiYuTrainer.features.names.data as names_data
 import NeoJiYuTrainer.features.send.service as send_service
 import NeoJiYuTrainer.features.settings.data as settings_data
 import NeoJiYuTrainer.features.settings.service as settings_service
 import NeoJiYuTrainer.features.shell.service as shell_service_business
 import NeoJiYuTrainer.features.student.service as student_service
-import NeoJiYuTrainer.gui.widgets.page as page_widgets
-import NeoJiYuTrainer.gui.window.data as gui_data
 import NeoJiYuTrainer.shared.config as shared_config
 import NeoJiYuTrainer.shared.paths as data_paths
 import NeoJiYuTrainer.shared.settings as settings_store
 import NeoJiYuTrainer.system.net.data as system_net_data
 import NeoJiYuTrainer.system.net.targets as system_net_targets
-from NeoJiYuTrainer.features.files.gui import service as files_service
-from NeoJiYuTrainer.features.firewall.gui import service as firewall_service
-from NeoJiYuTrainer.features.local.gui import service as local_service
-from NeoJiYuTrainer.gui import service as gui_service
-from NeoJiYuTrainer.gui import splash, theme, window_effect
-from NeoJiYuTrainer.gui.menu import service as navigation_service
-from NeoJiYuTrainer.gui.menu.sidebar import SidebarTreeWidget
-from NeoJiYuTrainer.gui.widgets import common as components
-from NeoJiYuTrainer.gui.widgets.page import (
+import NeoJiYuTrainerUI.features.logs.gui.data as log_store
+import NeoJiYuTrainerUI.gui.widgets.page as page_widgets
+import NeoJiYuTrainerUI.gui.window.data as gui_data
+from NeoJiYuTrainer.shared.build_info import version_text
+from NeoJiYuTrainer.shared.logs import levels
+from NeoJiYuTrainer.start import gui as startup
+from NeoJiYuTrainerUI.features.files.gui import service as files_service
+from NeoJiYuTrainerUI.features.firewall.gui import service as firewall_service
+from NeoJiYuTrainerUI.features.local.gui import service as local_service
+from NeoJiYuTrainerUI.gui import service as gui_service
+from NeoJiYuTrainerUI.gui import splash, theme, window_effect
+from NeoJiYuTrainerUI.gui.menu import service as navigation_service
+from NeoJiYuTrainerUI.gui.menu.sidebar import SidebarTreeWidget
+from NeoJiYuTrainerUI.gui.widgets import common as components
+from NeoJiYuTrainerUI.gui.widgets.page import (
     CompactHeaderCheckBox,
     CompactTreeItemDelegate,
     FileTreeHeader,
 )
-from NeoJiYuTrainer.gui.window import main as gui
-from NeoJiYuTrainer.gui.window import tray as tray_service
-from NeoJiYuTrainer.gui.window.data import HOME_LINKS
-from NeoJiYuTrainer.gui.workers.tasks import ProbeWorker, TaskWorker
-from NeoJiYuTrainer.shared.build_info import version_text
-from NeoJiYuTrainer.shared.logs import levels
-from NeoJiYuTrainer.start import gui as startup
+from NeoJiYuTrainerUI.gui.window import main as gui
+from NeoJiYuTrainerUI.gui.window import tray as tray_service
+from NeoJiYuTrainerUI.gui.window.data import HOME_LINKS
+from NeoJiYuTrainerUI.gui.workers.tasks import ProbeWorker, TaskWorker
 
 
 class GuiTests(unittest.TestCase):

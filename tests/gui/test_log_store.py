@@ -11,7 +11,7 @@ from PySide6.QtCore import QObject, Slot
 from PySide6.QtWidgets import QApplication
 
 from NeoJiYuTrainer.features.logs.data import LogEntry
-from NeoJiYuTrainer.features.logs.gui.data import LogStore
+from NeoJiYuTrainerUI.features.logs.gui.data import LogStore
 
 
 class _ObservedLock:

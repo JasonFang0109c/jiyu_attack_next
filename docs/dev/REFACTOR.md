@@ -119,7 +119,7 @@ tests/                     # fixtures/ gui/ integration/ pack/ unit/
 docs/                      # dev/ usage/
 ```
 
-`NeoJiYuTrainerHooks/` 与 `NeoJiYuTrainerDriver/` 已按此路径落在仓库根目录（暂存的重命名，由 `git status` 可见）。核心包已在阶段 C 由 `app/` 改名为 `NeoJiYuTrainer/`；`NeoJiYuTrainerUI/` 在阶段 D 由核心包里的 `gui/` 与各功能 `gui/` 拆出。
+四个一级项目边界都已按此路径落在仓库根目录:阶段 A 移除已废弃的边界层,阶段 B 立起 `NeoJiYuTrainerHooks/` 与 `NeoJiYuTrainerDriver/`,阶段 C 把核心包由 `app/` 改名为 `NeoJiYuTrainer/`,阶段 D 把核心包里的 `gui/` 与各功能 `gui/` 拆到 `NeoJiYuTrainerUI/`。
 
 ## 明确排除清单
 
@@ -177,8 +177,8 @@ docs/                      # dev/ usage/
 
 ### 阶段 D：界面拆出核心包 → `NeoJiYuTrainerUI/`
 
-- 核心包内的 `gui/`（阶段 C 前是 `app/gui/`）整体迁入 `NeoJiYuTrainerUI/gui/`；各功能的 `gui/page.py`、`gui/service.py`、`gui/data.py` 迁入 `NeoJiYuTrainerUI/gui/pages/<功能>/`。
-- 核心包不再导入 Qt；界面只调用核心包的服务与数据约定，不反向依赖界面内部实现。
+- 核心包内的 `gui/`(阶段 C 前是 `app/gui/`)整体迁入 `NeoJiYuTrainerUI/gui/`;各功能的 `gui/page.py`、`gui/service.py`、`gui/data.py` 迁入 `NeoJiYuTrainerUI/features/<功能>/gui/`,与核心包同名功能目录一一对应。
+- 核心包不再导入 Qt:唯一的 Qt 装配入口是 `NeoJiYuTrainer/start/gui.py`;`tests/integration/test_layout.py` 断言核心包除 `start/` 外不出现 `PySide6`、`qfluentwidgets` 与 `NeoJiYuTrainerUI` 导入。界面只调用核心包的服务与数据约定,不反向依赖界面内部实现。
 - 全局热键拆分到位：解析留在 `system/windows/hotkey.py`，消息接收留在 `NeoJiYuTrainerUI/gui/hotkey.py`。
 - 校验：界面能启动、页面与导航齐全、`tests/gui/` 通过、核心包导入时不加载 Qt。
 
@@ -211,10 +211,10 @@ docs/                      # dev/ usage/
 
 | 阶段 | 验收 | 回滚 |
 | --- | --- | --- |
-| A | `git status --porcelain` 只有本阶段文件；关键词检索无残留；单元测试全绿 | 还原两份文档与引用文件，恢复被误删的文本 |
-| B | 原生源码在新路径可构建；spec、构建脚本与布局断言同步；`tests/pack/` 通过 | 回退该阶段提交，源码回到 `pack/native/` |
-| C | `python -m NeoJiYuTrainer --help` 正常；GUI 可导入启动；`test_layout.py` 与全量测试通过 | 回退改名提交，恢复 `app/` 包名 |
-| D | 界面启动、页面齐全、核心包导入不加载 Qt；`tests/gui/` 通过 | 回退该阶段提交 |
-| E | 全量测试、EXE 构建与冒烟、目录与文档路径核对一致 | 回退清理提交 |
+| A(已完成) | `git status --porcelain` 只有本阶段文件；关键词检索无残留；单元测试全绿 | 还原两份文档与引用文件，恢复被误删的文本 |
+| B(已完成) | 原生源码在新路径可构建；spec、构建脚本与布局断言同步；`tests/pack/` 通过 | 回退该阶段提交，源码回到 `pack/native/` |
+| C(已完成) | `python -m NeoJiYuTrainer --help` 正常；GUI 可导入启动；`test_layout.py` 与全量测试通过 | 回退改名提交，恢复 `app/` 包名 |
+| D(已完成) | 界面启动、页面齐全、核心包导入不加载 Qt；`tests/gui/` 通过 | 回退该阶段提交 |
+| E(待做) | 全量测试、EXE 构建与冒烟、目录与文档路径核对一致 | 回退清理提交 |
 
 发现行为回归时优先 `git revert` 当前阶段提交，或关闭新接入的适配层；不通过删除数据、覆盖上游目录或直接替换原生二进制来“修复”。

@@ -8,6 +8,7 @@ on:
       - main
     paths:
       - "NeoJiYuTrainer/**"
+      - "NeoJiYuTrainerUI/**"
       - "pack/**"
       - "scripts/**"
       - "requirements.txt"
@@ -69,7 +70,7 @@ jobs:
             range=("${before}..${GITHUB_SHA}")
           fi
           # 与 workflow 的 paths 过滤保持一致：只有改动这些路径的提交才会影响构建。
-          build_paths='^(NeoJiYuTrainer/|pack/|scripts/|requirements\.txt|\.github/workflows/)'
+          build_paths='^(NeoJiYuTrainer/|NeoJiYuTrainerUI/|pack/|scripts/|requirements\.txt|\.github/workflows/)'
           build_commit=""
           for sha in $(git log --format=%H "${range[@]}" || true); do
             if git show --pretty=format: --name-only "${sha}" | grep -Eq "${build_paths}"; then

@@ -19,7 +19,7 @@
 | --- | --- |
 | 改文档 | 被改文档，以及引用了同一行为的其他文档 |
 | 改命令行启动或 `NeoJiYuTrainer/features/*/cli.py` | `NeoJiYuTrainer/start/cli.py`、`NeoJiYuTrainer/start/parser.py`、对应功能的 `cli.py` 与 `service.py`（如有）、[CLI 文档](docs/usage/CLI.md) |
-| 改 `NeoJiYuTrainer/gui/`、`NeoJiYuTrainer/start/gui.py` 或 `NeoJiYuTrainer/features/*/gui/` | [GUI 文档](docs/usage/GUI.md)、[项目结构](docs/dev/STRUCTURE.md)、[界面视觉规范](docs/dev/STYLE.md#界面视觉规范)、对应页面与服务、涉及的测试 |
+| 改 `NeoJiYuTrainerUI/gui/`、`NeoJiYuTrainer/start/gui.py` 或 `NeoJiYuTrainerUI/features/*/gui/` | [GUI 文档](docs/usage/GUI.md)、[项目结构](docs/dev/STRUCTURE.md)、[界面视觉规范](docs/dev/STYLE.md#界面视觉规范)、对应页面与服务、涉及的测试 |
 | 改功能业务、报文、系统适配或公共基础 | [项目结构](docs/dev/STRUCTURE.md)、对应 `NeoJiYuTrainer/features/`、`NeoJiYuTrainer/packets/`、`NeoJiYuTrainer/system/`、`NeoJiYuTrainer/shared/` 模块与调用方 |
 | 改构建、打包或工作流 | [构建说明](docs/dev/BUILD.md)、[项目结构](docs/dev/STRUCTURE.md) |
 | 改代码风格、注释或 docstring | [代码风格规范](docs/dev/STYLE.md)、涉及的模块 |
@@ -39,7 +39,7 @@
 | 提交 | 一个任务一次提交，验证通过后立即提交，不集中到任务收尾时处理，见[提交粒度](docs/dev/CONTRIBUTING.md#提交粒度) |
 | 构建 | 改动 `NeoJiYuTrainer/`、`pack/`、`scripts/` 或依赖清单时必须构建并冒烟，命令见[EXE 构建](docs/dev/BUILD.md#构建-exe) |
 | 验证 | 只跑这次改动真正能打断的检查，见[验证](docs/dev/CONTRIBUTING.md#验证) |
-| 界面视觉 | 数值一律从 `NeoJiYuTrainer/gui/theme.py` 取，不写字面量，见[界面视觉规范](docs/dev/STYLE.md#界面视觉规范) |
+| 界面视觉 | 数值一律从 `NeoJiYuTrainerUI/gui/theme.py` 取，不写字面量，见[界面视觉规范](docs/dev/STYLE.md#界面视觉规范) |
 | 组件库 | 以 PySide6 分支与本项目安装的 `PySide6-Fluent-Widgets` 为准，不套用 PyQt5/PyQt6 示例，见[组件库资料](docs/dev/STYLE.md#组件库资料) |
 
 ## 文档规则

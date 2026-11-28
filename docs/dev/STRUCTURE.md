@@ -11,7 +11,7 @@
 
 仓库按四个一级项目边界划分：Python 核心包 `NeoJiYuTrainer/`、原生课堂防护 `NeoJiYuTrainerHooks/`、可选内核驱动 `NeoJiYuTrainerDriver/`、PySide6 界面 `NeoJiYuTrainerUI/`；打包、测试与文档分别独立。核心包不依赖 Qt，界面只调用核心服务，原生项目各自独立构建。
 
-> **当前实现处于阶段 C、D 之间：核心包已由 `app/` 改名为 `NeoJiYuTrainer/`，界面仍在核心包的 `gui/` 与 `features/*/gui/` 子目录。阶段 D 把界面拆到 `NeoJiYuTrainerUI/` 后，仓库与本树一致。** `NeoJiYuTrainerHooks/`、`NeoJiYuTrainerDriver/` 已在仓库根目录。
+> **界面已拆到 `NeoJiYuTrainerUI/`:窗口、导航、控件、后台任务与各功能页面都在该项目的 `gui/` 与 `features/<功能>/gui/` 下。唯一的 Qt 装配入口是核心包的 `NeoJiYuTrainer/start/gui.py`,核心包其余部分导入时不加载 Qt。** `NeoJiYuTrainerHooks/`、`NeoJiYuTrainerDriver/` 已在仓库根目录。
 
 下面列出主要文件，常规包内的 `__init__.py` 省略。
 
@@ -109,10 +109,25 @@ NeoJiYuTrainer/
 |   |-- build.bat
 |   |-- driver_ioctl.h
 |   `-- jiyu_guard_driver.c
-|-- NeoJiYuTrainerUI/               # PySide6 界面：只调用核心服务
+|-- NeoJiYuTrainerUI/               # PySide6 界面:只调用核心服务
 |   |-- __init__.py
-|   |-- app.py                      # QApplication、单实例、启动遮罩与事件循环
-|   `-- gui/
+|   |-- features/                   # 各功能的界面适配,与核心包功能目录同名
+|   |   |-- about/gui/page.py
+|   |   |-- classroom/gui/          # page.py、service.py
+|   |   |-- command/gui/page.py
+|   |   |-- device/gui/page.py
+|   |   |-- files/gui/              # page.py、service.py
+|   |   |-- firewall/gui/           # page.py、service.py
+|   |   |-- home/gui/page.py
+|   |   |-- local/gui/              # page.py、service.py
+|   |   |-- logs/gui/               # data.py(LogStore)、page.py、service.py
+|   |   |-- message/gui/            # page.py、service.py
+|   |   |-- names/gui/              # data.py(DeviceAliasStore)、page.py
+|   |   |-- settings/gui/page.py
+|   |   |-- shell/gui/page.py
+|   |   `-- student/gui/            # page.py、service.py
+|   `-- gui/                        # 窗口、导航、控件、后台任务与 Qt 适配
+|       |-- __main__.py             # python -m NeoJiYuTrainerUI.gui
 |       |-- data.py                 # 仅 ConnectionState
 |       |-- service.py              # 通用发送交互、提示与结果收尾
 |       |-- resources.py            # QIcon 适配
@@ -129,25 +144,11 @@ NeoJiYuTrainer/
 |       |-- workers/
 |       |   |-- tasks.py            # SendWorker / ProbeWorker / TaskWorker
 |       |   `-- service.py          # 任务队列、取消与线程生命周期
-|       |-- window/
-|       |   |-- data.py             # 窗口、导航与功能分类常量
-|       |   |-- main.py             # MainWindow 装配、信号与 Qt 槽
-|       |   |-- service.py          # 主题、材质、位置与窗口设置
-|       |   `-- tray.py             # 托盘菜单、关闭行为与退出
-|       `-- pages/                  # 每页一个子包，只处理控件与信号
-|           |-- about/page.py
-|           |-- home/page.py
-|           |-- classroom/          # page.py、service.py
-|           |-- command/page.py
-|           |-- device/page.py
-|           |-- files/              # page.py、service.py
-|           |-- firewall/           # page.py、service.py
-|           |-- local/              # page.py、service.py
-|           |-- logs/               # data.py（LogStore）、page.py、service.py
-|           |-- message/            # page.py、service.py
-|           |-- names/              # data.py（DeviceAliasStore）、page.py
-|           |-- settings/page.py
-|           `-- student/            # page.py、service.py
+|       `-- window/
+|           |-- data.py             # 窗口、导航与功能分类常量
+|           |-- main.py             # MainWindow 装配、信号与 Qt 槽
+|           |-- service.py          # 主题、材质、位置与窗口设置
+|           `-- tray.py             # 托盘菜单、关闭行为与退出
 |-- pack/
 |   |-- build.ps1                   # EXE 构建脚本
 |   |-- clean_build.ps1             # 构建产物清理
@@ -182,8 +183,8 @@ NeoJiYuTrainer/
 
 ### 入口与命令行
 
-- `NeoJiYuTrainer/__main__.py` 保留 `python -m NeoJiYuTrainer` 与 PyInstaller 入口，交给 `NeoJiYuTrainer/start/service.py` 分流。无参数时延迟导入界面入口 `NeoJiYuTrainerUI/app.py`；带参数时进入 `NeoJiYuTrainer/start/cli.py`，CLI 路径不导入 Qt。
-- `NeoJiYuTrainerUI/app.py` 负责 Qt 应用初始化、单实例、启动遮罩、异常日志与事件循环。Qt 生命周期只存在这一层，核心包导入时不加载任何 Qt 模块。
+- `NeoJiYuTrainer/__main__.py` 保留 `python -m NeoJiYuTrainer` 与 PyInstaller 入口,交给 `NeoJiYuTrainer/start/service.py` 分流。无参数时延迟导入 `NeoJiYuTrainer/start/gui.py`;带参数时进入 `NeoJiYuTrainer/start/cli.py`,CLI 路径不导入 Qt。
+- `NeoJiYuTrainer/start/gui.py` 是核心包唯一的 Qt 装配入口:负责 QApplication、单实例、使用须知、主题与窗口材质、启动遮罩、异常日志和事件循环,主窗口与页面从 `NeoJiYuTrainerUI/` 取。这一层之外的核心包模块导入时不加载 Qt 与界面项目,由 `tests/integration/test_layout.py` 断言。
 - `NeoJiYuTrainer/start/console.py` 的 `_show_cli_console()` 在 CLI 模式下把标准流接回调用方终端或重定向目标，不新建控制台。`--firewall-helper`、`--student-helper` 由启动层转交对应业务服务，不显示控制台。
 - `NeoJiYuTrainer/start/parser.py` 负责装配解析器，显式调用各功能 `features/*/cli.py` 的 `register()`，由功能模块注册自己的参数；`build_group_parser()` 提供与页面对应的分组子命令。
 - `NeoJiYuTrainer/start/cli.py` 管理解析器选择、日志生命周期和调用分发；功能 CLI 负责终端输入输出并调用自身业务服务或共用发送服务。可复用的业务逻辑不放进参数解析器。
@@ -211,18 +212,18 @@ NeoJiYuTrainer/
 ### GUI 装配与功能适配
 
 - `NeoJiYuTrainerUI/gui/window/main.py` 的 `MainWindow` 显式创建页面和服务、连接信号并保留 Qt 槽与事件入口；具体交互交给 `gui/service.py`、`gui/menu/service.py`、`gui/workers/service.py`、`gui/window/service.py`、`gui/window/tray.py` 和各页面目录的 `service.py`。
-- 页面位于 `NeoJiYuTrainerUI/gui/pages/<功能>/page.py`，同目录的 `service.py` 负责页面内交互协调。界面只调用核心包的服务与数据约定，不导入核心包内部的私有实现，也不把 Qt 对象传回核心包。
+- 页面位于 `NeoJiYuTrainerUI/features/<功能>/gui/page.py`,与核心包同名功能目录一一对应;同目录的 `service.py` 负责页面内交互协调,需要 Qt 信号适配时放同目录的 `data.py`。界面只调用核心包的服务与数据约定,不导入核心包内部的私有实现,也不把 Qt 对象传回核心包。
 - 导航常量位于 `gui/window/data.py`，`gui/menu/service.py` 注册一级入口、页面路由与返回按钮；`gui/menu/sidebar.py` 处理侧边栏绘制、宽度动画与顶部工具按钮排列。侧边栏只有一级入口，组内页面由 `TabbedPage` 用 `Pivot` 承载。
 - `gui/widgets/common.py` 提供 `FluentCard`、`FluentDialog`、`FluentComboBox`、浮出层圆角的覆盖函数，连接参数与任务栏；`gui/widgets/page.py` 提供页面基类、文件树和日志表格；`gui/theme.py` 集中保存视觉数值。
 - `gui/workers/tasks.py` 定义后台线程与结果信号，`gui/workers/service.py` 管理排队、取消和线程收尾。失败信号携带异常消息与堆栈，由 GUI 主线程恢复界面状态。
-- 只有 `gui/data.py` 的 `ConnectionState` 属于跨页面共用数据；设备备注的数据约定与业务在 `features/names/data.py`、`service.py`，`pages/names/data.py` 的 `DeviceAliasStore` 只做 Qt 信号适配；日志实体在 `features/logs/data.py`，带线程通知与持久化的 `LogStore` 位于 `pages/logs/data.py`；设置键与存储入口在 `features/settings/data.py`、`service.py`，页面在 `pages/settings/page.py`。
+- 只有 `gui/data.py` 的 `ConnectionState` 属于跨页面共用数据；设备备注的数据约定与业务在 `features/names/data.py`、`service.py`，`features/names/gui/data.py` 的 `DeviceAliasStore` 只做 Qt 信号适配；日志实体在 `features/logs/data.py`，带线程通知与持久化的 `LogStore` 位于 `features/logs/gui/data.py`；设置键与存储入口在 `features/settings/data.py`、`service.py`，页面在 `features/settings/gui/page.py`。
 - `settings.json` 中的 `core`、`gui` 分组是既有持久化格式，不随源代码目录划分改变。通用 JSONC 与分组存储分别由 `shared/config.py`、`shared/settings.py` 提供。
 
 ### 打包与测试
 
 - `pack/` 只放构建脚本、PyInstaller 配置、版本资源生成器、签名脚本与打包用 hooks；原生源码已独立为 `NeoJiYuTrainerHooks/`、`NeoJiYuTrainerDriver/`，不再放在 `pack` 下。运行时入口为 `NeoJiYuTrainer/__main__.py`，静态图标按 `NeoJiYuTrainer/resources/icons/app.svg` 收集；当前不复制上游 Sciter UI、Updater、`Debug/`、`Release/` 或旧 VS 工程文件。
-- `.github/workflows/build.yml` 为可复用打包流程；`nightly-build.yml` 在推送 `main` 且涉及核心包、界面项目、`pack/`、`scripts/`、`requirements.txt` 或工作流文件时构建；`release.yml` 仍仅手动触发，详见[版本规范](VERSIONING.md)。路径过滤随阶段 C、D 的包名同步更新。
-- `tests/unit/` 检查报文、业务与配置单元；`tests/integration/` 检查入口和跨模块协作，其中 `test_layout.py` 检查底层依赖方向、显式导入、核心包不加载 Qt，并确认界面只通过核心服务取数据；`tests/gui/` 检查窗口与页面，`tests/pack/` 检查版本、工作流与打包布局。公共离线替身集中在 `tests/fixtures/offline.py`，测试不执行真实目标发送或防火墙变更。
+- `.github/workflows/build.yml` 为可复用打包流程；`nightly-build.yml` 在推送 `main` 且涉及核心包、界面项目、`pack/`、`scripts/`、`requirements.txt` 或工作流文件时构建；`release.yml` 仍仅手动触发，详见[版本规范](VERSIONING.md)。路径过滤已按核心包与界面项目的路径同步更新。
+- `tests/unit/` 检查报文、业务与配置单元;`tests/integration/` 检查入口和跨模块协作,其中 `test_layout.py` 检查底层依赖方向、显式导入、核心包除 `start/` 外不出现 Qt 与界面项目导入,并确认业务模块能在没有 Qt 的环境里导入;`tests/gui/` 检查窗口与页面,`tests/pack/` 检查版本、工作流与打包布局。公共离线替身集中在 `tests/fixtures/offline.py`,测试不执行真实目标发送或防火墙变更。
 - 全量发现使用 `python -B -m unittest discover -s tests -t .`，保证按 `tests` 包导入；单个模块使用完整包名，例如 `python -B -m unittest tests.gui.test_window -v`。截图工具为 `python -B -m tests.gui.verify_gui --screenshot <截图路径>`。
 - `scripts/` 保留虚拟环境启动与本机自测入口；`test_local_ip.py` 是真实本机报文收发自测，与离线测试套件分开。
 
@@ -230,7 +231,7 @@ NeoJiYuTrainer/
 
 1. 在 `NeoJiYuTrainer/features/<功能>/` 建立有独立职责的功能包；业务参数与数据约定按需放入 `data.py`，可复用流程放入不依赖 Qt 的 `service.py`。通用编解码、网络/系统接口和配置继续复用各自基础模块。
 2. 需要 CLI 时，在功能的 `cli.py` 定义 `register()` 并注册本功能参数，在 `start/parser.py` 的对应分组显式调用；在 `start/cli.py` 接入执行分发。
-3. 需要界面时，在 `NeoJiYuTrainerUI/gui/pages/<功能>/` 下定义 `page.py`，交互协调按需放入同目录的 `service.py`，Qt 数据通知适配按需放入 `data.py`。在 `gui/window/main.py` 显式导入、创建页面和服务、连接信号与槽，并更新 `gui/window/data.py` 的导航描述及相关菜单装配；仅有内部服务的功能不必创建页面。
+3. 需要界面时,在 `NeoJiYuTrainerUI/features/<功能>/gui/` 下定义 `page.py`,交互协调按需放入同目录的 `service.py`,Qt 数据通知适配按需放入 `data.py`。在 `gui/window/main.py` 显式导入、创建页面和服务、连接信号与槽,并更新 `gui/window/data.py` 的导航描述及相关菜单装配;仅有内部服务的功能不必创建页面。
 4. 耗时任务交给 `NeoJiYuTrainerUI/gui/workers/` 的线程与任务服务；通用控件复用 `gui/widgets/`。核心服务保持独立于窗口和 Qt 对象，界面不得反向被核心包导入。
 5. 涉及原生行为时，修改 `NeoJiYuTrainerHooks/` 或 `NeoJiYuTrainerDriver/` 的源码与 `build.bat`，把产物同步到 `NeoJiYuTrainer/resources/native/`，并在 `pack/NeoJiYuTrainer.spec` 里确认收集规则。
 6. 业务、报文与参数单元测试放入 `tests/unit/`，CLI/跨模块流程放入 `tests/integration/`，界面与线程行为放入 `tests/gui/`，打包或版本变化补 `tests/pack/`，共用替身复用 `tests/fixtures/offline.py`。按影响范围更新 [CLI 文档](../usage/CLI.md)、[GUI 文档](../usage/GUI.md) 与本结构说明；新增依赖写入依赖清单并说明打包影响。提交类型与作用域按[项目作用域](CONTRIBUTING.md#项目作用域)选择。

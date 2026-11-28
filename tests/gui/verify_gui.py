@@ -14,9 +14,9 @@ from qfluentwidgets import Theme, setTheme
 
 from NeoJiYuTrainer.features.settings.data import FIRST_CLOSE_PROMPT_SETTINGS_KEY
 from NeoJiYuTrainer.features.settings.service import portable_settings
-from NeoJiYuTrainer.gui.window import main as gui
 from NeoJiYuTrainer.shared.paths import DATA_DIRECTORY_NAME
 from NeoJiYuTrainer.start import gui as startup
+from NeoJiYuTrainerUI.gui.window import main as gui
 
 
 def main():

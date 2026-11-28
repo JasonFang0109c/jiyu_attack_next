@@ -85,7 +85,7 @@ class LogEntry:
     message: str
     thread_id: int = 0
     thread_name: str = "MainThread"
-    logger_name: str = "NeoJiYuTrainer.gui"
+    logger_name: str = "NeoJiYuTrainerUI.gui"
     line_number: int = 0
     details: str = ""
     uid: int = 0
@@ -128,7 +128,7 @@ class LogEntry:
             str(
                 record.get("logger_name")
                 or record.get("source")
-                or "NeoJiYuTrainer.gui"
+                or "NeoJiYuTrainerUI.gui"
             ),
             int(record.get("line_number") or record.get("line") or 0),
             str(record.get("details") or ""),

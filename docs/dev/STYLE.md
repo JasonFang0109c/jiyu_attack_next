@@ -105,7 +105,7 @@ self.table.blockSignals(True)
 
 ## 界面视觉规范
 
-界面数值以 Windows 11 的 WinUI 3 主题资源为准，写在 `NeoJiYuTrainer/gui/theme.py`，改界面时先取这里的常量，不要就地写字面量。`qfluentwidgets` 的默认值只作参考：浅色下它的卡片描边比 WinUI 淡，窗口底色也偏蓝。
+界面数值以 Windows 11 的 WinUI 3 主题资源为准，写在 `NeoJiYuTrainerUI/gui/theme.py`，改界面时先取这里的常量，不要就地写字面量。`qfluentwidgets` 的默认值只作参考：浅色下它的卡片描边比 WinUI 淡，窗口底色也偏蓝。
 
 ### 三档圆角
 
@@ -155,7 +155,7 @@ WinUI 3 的全局资源只有两个：`ControlCornerRadius`（4）与 `OverlayCo
 
 窗口宽度低于 `minimumExpandWidth` 时展开的侧边栏浮在窗口上（`MENU` 模式，面板的父控件是窗口、接口宽度收到 48），宽度够时贴边展开（`EXPAND`，面板回到 `NavigationInterface` 里参与布局）。组件库只在 `EXPAND` 与 `COMPACT` 之间自动往返，浮出状态没有对应分支，`SidebarPanel.eventFilter` 因此在窗口变宽到阈值以上时调用 `expand(useAni=False)` 把浮出换成贴边展开：面板宽度不变，只是重新参与布局，内容区随之被推到它右侧。换布局排在本轮尺寸事件之后执行，避免在窗口缩放中重排面板。
 
-导航项本身不自带间距，首项的下沉量加在侧边栏顶部，所以 `SidebarPanel` 用 `topLayout` 的上边距——组件库会把“顶部”位置的导航项插进同一个布局，用间距只会把它们排在按钮之后。改动这些数值时同步改 `NeoJiYuTrainer/gui/window/data.py` 的常量，不要在 `sidebar.py` 里另写一份。
+导航项本身不自带间距，首项的下沉量加在侧边栏顶部，所以 `SidebarPanel` 用 `topLayout` 的上边距——组件库会把“顶部”位置的导航项插进同一个布局，用间距只会把它们排在按钮之后。改动这些数值时同步改 `NeoJiYuTrainerUI/gui/window/data.py` 的常量，不要在 `sidebar.py` 里另写一份。
 
 ### 颜色
 
@@ -177,15 +177,15 @@ WinUI 3 的全局资源只有两个：`ControlCornerRadius`（4）与 `OverlayCo
 
 ### 落点
 
-- `NeoJiYuTrainer/gui/theme.py` 存常量与取值函数：`card_fill()`、`card_stroke()`、`window_background(dark=None)`、`tone_color(tone)`（`ok`/`warning`/`error`/`neutral`）、`scroll_colors()`。
-- `NeoJiYuTrainer/gui/widgets/common.py` 的 `FluentCard` 用 `paintEvent` 画填充与描边，`FluentDialog` 追加一条 QSS 覆盖组件库写死的 10 像素对话框圆角。
+- `NeoJiYuTrainerUI/gui/theme.py` 存常量与取值函数：`card_fill()`、`card_stroke()`、`window_background(dark=None)`、`tone_color(tone)`（`ok`/`warning`/`error`/`neutral`）、`scroll_colors()`。
+- `NeoJiYuTrainerUI/gui/widgets/common.py` 的 `FluentCard` 用 `paintEvent` 画填充与描边，`FluentDialog` 追加一条 QSS 覆盖组件库写死的 10 像素对话框圆角。
 - 新增卡片一律继承 `FluentCard`，不要直接用 `SimpleCardWidget`；新增对话框用 `FluentDialog`，不要直接用 `Dialog`。
 - 卡片圆角由 `FluentCard.__init__` 统一设成 `SURFACE_CORNER_RADIUS`，`SectionCard`、`ShortcutCard`、`ActionCard` 都继承它，不再各自写字面量。
 - 浮出层圆角覆盖到 `OVERLAY_CORNER_RADIUS`：`FluentDialog` 追加 `#centerWidget` 的圆角；菜单用 `round_menu()` 把组件库写死的 9 像素改成 8（下拉框走 `FluentComboBox`、托盘菜单在创建后调用）。`ToolTip` 不去覆盖，组件库给的 4 像素正是规范里的例外值。描边与阴影仍由组件库绘制，只是不再保留它自己的菜单圆角数值。
 - 表格表头统一用 `table_widget()` 装好的 `ResizableHeader`：它把列边界两侧各 6 像素都算作拖动区（Qt 自带只有 2 像素，缩放比例高的屏幕上抓不准），悬停时给出左右拖动光标；自定义表格不要再直接 `QHeaderView`，也不要给列设 `Stretch`，末列保持 `stretchLastSection` 跟随剩余宽度即可。
 - 状态文字的颜色一律走 `tone_color()`，不在页面里写 `#c42b1c` 这类字面量；滚动条滑块同理，用 `scroll_colors()` 取色。
 - 强调色走 `accent_color(accent)`，由 `WindowService.apply_theme_accent` 调组件库的 `setThemeColor` 下发；组件库 1.11 没有读取系统强调色的接口，`system_accent_color()` 自己读 `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent` 的 `AccentColorMenu`（ABGR 排列），读不到再退 `DWM\AccentColor`，最后回落 `#0078d4`。选择存在 `settings.json` 的 `gui/theme/accent`，默认蓝色。
-- 云母与亚克力材质开启时窗口必须是全透明，只有实色材质才用窗口底色，主窗口的 `_normalBackgroundColor` 委托给 `NeoJiYuTrainer/gui/window/service.py` 的 `WindowService`，窗口材质由该服务的 `apply_window_material` 统一应用。
+- 云母与亚克力材质开启时窗口必须是全透明，只有实色材质才用窗口底色，主窗口的 `_normalBackgroundColor` 委托给 `NeoJiYuTrainerUI/gui/window/service.py` 的 `WindowService`，窗口材质由该服务的 `apply_window_material` 统一应用。
 
 ## 每次写完代码跑格式化
 

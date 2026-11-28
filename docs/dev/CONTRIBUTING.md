@@ -29,7 +29,7 @@ python --version
 python -m NeoJiYuTrainer -h
 ```
 
-`python -m NeoJiYuTrainer` 是统一入口，由 `NeoJiYuTrainer/start/service.py` 分流到命令行或 GUI 启动流程。运行时代码按 `NeoJiYuTrainer/start/`、`NeoJiYuTrainer/features/`、`NeoJiYuTrainer/gui/`、`NeoJiYuTrainer/packets/`、`NeoJiYuTrainer/system/`、`NeoJiYuTrainer/shared/` 与 `NeoJiYuTrainer/resources/` 划分；功能参数由各自的 `cli.py` 注册，页面由主窗口显式装配，边界与接入步骤见[项目结构](STRUCTURE.md#新增功能)。
+`python -m NeoJiYuTrainer` 是统一入口，由 `NeoJiYuTrainer/start/service.py` 分流到命令行或 GUI 启动流程。运行时代码按 `NeoJiYuTrainer/start/`、`NeoJiYuTrainer/features/`、`NeoJiYuTrainerUI/gui/`、`NeoJiYuTrainer/packets/`、`NeoJiYuTrainer/system/`、`NeoJiYuTrainer/shared/` 与 `NeoJiYuTrainer/resources/` 划分；功能参数由各自的 `cli.py` 注册，页面由主窗口显式装配，边界与接入步骤见[项目结构](STRUCTURE.md#新增功能)。
 
 ## 启动与构建
 
@@ -63,7 +63,7 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Clean
 | 只改测试文件 | 跑被改的那个测试文件 | 全量测试、`compileall`、构建 |
 | 改 `NeoJiYuTrainer/features/` 的非界面业务、`NeoJiYuTrainer/packets/`、`NeoJiYuTrainer/system/`、`NeoJiYuTrainer/shared/` | 跑对应 `tests/unit/`、`tests/integration/` 测试；改动跨模块或涉及报文字节布局时跑全量测试 | 截图、构建 |
 | 改命令行启动或 `NeoJiYuTrainer/features/*/cli.py` | 跑 `tests.unit.test_cli_parser` 及对应的 `tests.integration.test_cli_commands`、`tests.integration.test_cli_lifecycle`、`tests.integration.test_entry` | 截图、构建 |
-| 改 `NeoJiYuTrainer/gui/`、`NeoJiYuTrainer/start/gui.py` 或 `NeoJiYuTrainer/features/*/gui/` 的逻辑（线程、任务分发、信号） | 跑 `tests.gui.test_window` 加对应界面或业务测试 | 截图（除非外观也变了） |
+| 改 `NeoJiYuTrainerUI/gui/`、`NeoJiYuTrainer/start/gui.py` 或 `NeoJiYuTrainerUI/features/*/gui/` 的逻辑（线程、任务分发、信号） | 跑 `tests.gui.test_window` 加对应界面或业务测试 | 截图（除非外观也变了） |
 | 改 GUI 外观、布局、文案或交互（含功能目录中的 GUI） | 跑 `tests.gui.test_window` 与对应界面测试，并按需截图确认 | 全量测试 |
 | 改 `pack/`、`scripts/`、依赖清单、构建配置 | 实际执行一次[构建](BUILD.md#构建-exe)，并用构建出的 EXE 冒烟 | 全量测试（除非同时改了 `NeoJiYuTrainer/`） |
 | 同时涉及多类 | 取并集，但每一项只做一次 | — |

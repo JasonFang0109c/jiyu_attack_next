@@ -31,14 +31,14 @@ from NeoJiYuTrainer.features.settings.data import (
     normalize_switch,
 )
 from NeoJiYuTrainer.features.settings.service import portable_settings
-from NeoJiYuTrainer.gui.resources import app_icon
-from NeoJiYuTrainer.gui.splash import create_splash
-from NeoJiYuTrainer.gui.widgets.common import FluentDialog, center_dialog
-from NeoJiYuTrainer.gui.window.data import (
+from NeoJiYuTrainer.shared.paths import portable_data_dir
+from NeoJiYuTrainerUI.gui.resources import app_icon
+from NeoJiYuTrainerUI.gui.splash import create_splash
+from NeoJiYuTrainerUI.gui.widgets.common import FluentDialog, center_dialog
+from NeoJiYuTrainerUI.gui.window.data import (
     APP_NAME,
 )
-from NeoJiYuTrainer.gui.window.main import MainWindow
-from NeoJiYuTrainer.shared.paths import portable_data_dir
+from NeoJiYuTrainerUI.gui.window.main import MainWindow
 
 SINGLE_INSTANCE_KEY = "NeoJiYuTrainer-single-instance"
 

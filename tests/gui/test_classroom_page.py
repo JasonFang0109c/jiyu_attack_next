@@ -19,7 +19,7 @@ from NeoJiYuTrainer.features.classroom.data import (
     SETTINGS_GUARD_FLAGS,
     SETTINGS_INTERVAL,
 )
-from NeoJiYuTrainer.features.classroom.gui.page import ClassroomPage
+from NeoJiYuTrainerUI.features.classroom.gui.page import ClassroomPage
 
 
 def _snapshot(windows_list=(), running=True, supported=True):
