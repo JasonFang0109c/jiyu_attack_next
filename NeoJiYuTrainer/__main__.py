@@ -3,7 +3,7 @@
 import sys
 from multiprocessing import freeze_support
 
-from NeoJiYuTrainer.start.service import main
+from NeoJiYuTrainer.Start.Service import main
 
 if __name__ == "__main__":
     freeze_support()

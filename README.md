@@ -1,6 +1,6 @@
 <div align="center">
 <h1>NeoJiYuTrainer</h1>
-<img src="NeoJiYuTrainer/resources/icons/app.svg" width="150" height="150" alt="NeoJiYuTrainer">
+<img src="NeoJiYuTrainer/Resources/Icons/App.svg" width="150" height="150" alt="NeoJiYuTrainer">
 <p></p>
 <p>
    <a href="https://github.com/JasonFang0109c/NeoJiYuTrainer"><img alt="GitHub stars" src="https://img.shields.io/github/stars/JasonFang0109c/NeoJiYuTrainer?label=Stars&style=flat&color=orange&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCc+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J00xMiAxNy4yN0wxOC4xOCAyMWwtMS42NC03LjAzTDIyIDkuMjRsLTcuMTktLjYxTDEyIDIgOS4xOSA4LjYzIDIgOS4yNGw1LjQ2IDQuNzNMNS44MiAyMXonLz48L3N2Zz4="></a>
@@ -127,7 +127,7 @@ EXE 无需安装 Python；从源码运行 CLI 需要按 `requirements.txt` 安�
 - EXE：`NeoJiYuTrainer.exe`，同一个文件支持 GUI 与 CLI，无需安装 Python
 - CLI 不再单独发布脚本；需要从源码调试时使用 `python -m NeoJiYuTrainer ...`
 
-推送 `main` 且改动涉及 `NeoJiYuTrainer/`、`NeoJiYuTrainerUI/`、`pack/`、`scripts/`、`requirements.txt` 或工作流文件时，会自动构建并滚动更新 `nightly` 预发布版本；纯文档改动不触发构建。正式版需在 Actions 页面手动运行 `Release`，版本号规则见[版本规范](docs/dev/VERSIONING.md)。
+推送 `main` 且改动涉及 `NeoJiYuTrainer/`、`NeoJiYuTrainerUI/`、`Pack/`、`Scripts/`、`requirements.txt` 或工作流文件时，会自动构建并滚动更新 `nightly` 预发布版本；纯文档改动不触发构建。正式版需在 Actions 页面手动运行 `Release`，版本号规则见[版本规范](Docs/Dev/Versioning.md)。
 
 ## 文档
 
@@ -135,18 +135,18 @@ EXE 无需安装 Python；从源码运行 CLI 需要按 `requirements.txt` 安�
 
 | 文档 | 内容 |
 | --- | --- |
-| [CLI 模式使用](docs/usage/CLI.md) | 命令行参数、目标地址格式、多行消息、使用示例与排查说明 |
-| [GUI 模式使用](docs/usage/GUI.md) | 源码启动、EXE 运行、界面操作与行为说明 |
+| [CLI 模式使用](Docs/Usage/Cli.md) | 命令行参数、目标地址格式、多行消息、使用示例与排查说明 |
+| [GUI 模式使用](Docs/Usage/Gui.md) | 源码启动、EXE 运行、界面操作与行为说明 |
 
 ### 🛠️ 开发文档
 
 | 文档 | 内容 |
 | --- | --- |
-| [项目结构](docs/dev/STRUCTURE.md) | 目录布局与模块职责 |
-| [代码风格](docs/dev/STYLE.md) | ruff 格式化与 lint、Google docstring 与中文注释规范 |
-| [EXE 构建](docs/dev/BUILD.md) | 环境准备、编译脚本、输出位置与验证步骤 |
-| [版本规范](docs/dev/VERSIONING.md) | 语义化版本号、nightly 与正式版通道、发布流程 |
-| [开发与提交规范](docs/dev/CONTRIBUTING.md) | 开发环境、离线测试及中文提交规范 |
+| [项目结构](Docs/Dev/Structure.md) | 目录布局与模块职责 |
+| [代码风格](Docs/Dev/Style.md) | ruff 格式化与 lint、Google Docstring 与中文注释规范 |
+| [EXE 构建](Docs/Dev/Build.md) | 环境准备、编译脚本、输出位置与验证步骤 |
+| [版本规范](Docs/Dev/Versioning.md) | 语义化版本号、nightly 与正式版通道、发布流程 |
+| [开发与提交规范](Docs/Dev/Contributing.md) | 开发环境、离线测试及中文提交规范 |
 
 ## 开发环境
 
@@ -165,13 +165,13 @@ python -m NeoJiYuTrainer
 构建 EXE：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\pack\build.ps1
+powershell -ExecutionPolicy Bypass -File .\Pack\Build.ps1
 ```
 
 没有第二台测试设备时，可用本机 IPv4 地址验证报文收发：
 
 ```powershell
-.\.venv\Scripts\python.exe -B .\scripts\test_local_ip.py
+.\.venv\Scripts\python.exe -B .\Scripts\TestLocalIp.py
 ```
 
 脚本会自动选择本机局域网地址，在系统分配的空闲 UDP 端口上依次验证文本消息、远程命令、重启、关机、注销和连续发送，无需安装或运行学生端。`--target 127.0.0.1` 可改用回环地址，`--repeat` 可调整连续发送次数。
@@ -180,7 +180,7 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1
 
 ### 项目来源
 
-- [imengyu/JiYuTrainer](https://github.com/imengyu/JiYuTrainer)（MIT）<br>本项目的上游与主要功能参考：课堂助手的窗口识别与修复规则、假全屏尺寸、解锁密码读取与 Knock1 解密算法；课堂防护的进程内 Hook 思路、远程命令确认流程、内核驱动自保护与强杀思路，以及 mhook/disasm-lib 第三方源码。驱动按本项目接口重新实现为可选组件；原项目的自动更新与崩溃报告未引入。
+- [imengyu/JiYuTrainer](https://github.com/imengyu/JiYuTrainer)（MIT）<br>本项目的上游与主要功能参考：课堂助手的窗口识别与修复规则、假全屏尺寸、解锁密码读取与 Knock1 解密算法；课堂防护的进程内 Hook 思路、远程命令确认流程、内核驱动自保护与强杀思路，以及 Mhook/disasm-lib 第三方源码。驱动按本项目接口重新实现为可选组件；原项目的自动更新与崩溃报告未引入。
 
 ### 第三方仓库
 

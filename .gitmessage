@@ -1,12 +1,12 @@
 # Header：<type>(<scope>): <中文描述>
 # 示例：feat(cli): 支持多行文本消息
-# type：feat fix docs style refactor perf test build ci chore revert
+# type：feat fix Docs style refactor perf test build ci chore revert
 # type 与 scope 使用小写英文；scope 默认填写，尽可能要有标注scope
 # 确实没有合适 scope 时可省略：type: 中文描述；不设硬性校验
 # scope 多词用 - 连接；按主功能选最具体范围，跨模块取共同职责或 repo
-# scope 取值与职责见 docs/dev/CONTRIBUTING.md 的“项目作用域”表
+# scope 取值与职责见 Docs/Dev/Contributing.md 的“项目作用域”表
 # 类型与范围独立，例如 test(files)、docs(cli)；不必每个文件夹设 scope
-# GUI 内部 widgets/menu/workers 归 gui，测试 fixtures 归 tests
+# GUI 内部 Widgets/Menu/Workers 归 gui，测试 fixtures 归 tests
 # 新增 scope 须有独立职责并同步作用域表
 # 圆括号与冒号使用半角字符，冒号后留一个空格
 # Header 整行不超过 50 个字符（含前缀与 !），不以句号结尾
@@ -24,6 +24,6 @@
 # 仅引用问题用 Refs: #<实际编号>；替换为真实编号并去掉尖括号
 # 无关联 issue 就省略，不虚构编号；revert 用 Refs: <真实提交哈希>
 # feat/fix/破坏变更是 MINOR/PATCH/MAJOR 发布语义，不会自动更新版本
-# 0.y.z 的递增规则及完整提交规范见 docs/dev/CONTRIBUTING.md
+# 0.y.z 的递增规则及完整提交规范见 Docs/Dev/Contributing.md
 # 粒度：一个任务一次提交；仅暂存相关文件，保留历史提交
 # 提交信息只描述源码、文档、测试与构建配置，不描述忽略的产物或缓存
