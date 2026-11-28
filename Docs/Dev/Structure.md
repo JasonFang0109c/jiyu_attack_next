@@ -197,7 +197,7 @@ NeoJiYuTrainer/
 | `Features/Settings/` | `SendOptions`、参数校验、报文准备和发送协调；供不同页面与 CLI 发送功能复用。 |
 | `Features/Classroom/` | 课堂助手：`Windows.py` 用 `ctypes` 枚举并修复广播、黑屏与全屏窗口，`Passwords.py` 读取并解密极域卸载密码，`Service.py` 组合窗口与学生端状态并保存看护设置。课堂防护通过 `System/Windows/Guard.py` 注入进程内 DLL，支持五个开关，其中“监控远程命令”把 `CreateProcess`/`WinExec` 请求写入命名共享内存，由界面逐条允许或拒绝。窗口规则与密码算法移植自 JiYuTrainer（MIT）；`Classroom/Service.py` 还提供卸载极域网络过滤驱动 `TDNetFilter` 的入口。 |
 | `Features/{files,student,shell}/` | 分别承载文件传送、学生端进程与终端业务；平台命令、地址解析和套接字操作复用 `System/`。学生端的常量与设置键在 `Student/Data.py`，进程识别、定位、启停与提权助手在 `Student/Service.py`。 |
-| `Features/Uninstall/` | 卸载服务：删除桌面与开始菜单快捷方式、可选删除用户数据，并在退出后清理安装目录；由设置页和 `local uninstall` 共用。 |
+| `Features/Uninstall/` | 卸载服务：删除桌面与开始菜单快捷方式、可选删除用户数据，并在退出后清理安装目录；由设置页和 `app uninstall` 共用。 |
 | `Packets/` | `Constants.py` 保存报文数组和命令表，`Codec.py` 负责构造、编码与分片；`BlueScreen.py` 临时托管蓝屏脚本；不负责界面。 |
 | `System/Net/` | 目标解析、本机地址、UDP 发送、ICMP/ARP 探测与送达结果；结果数据在 `Data.py`。 |
 | `System/Windows/` | Windows 命令、进程枚举与结束、端口表、提权助手、热键解析与可选内核驱动接口。进程与端口直接走 `kernel32` 与 `iphlpapi`，不依赖 `tasklist` / `netstat` 的文本输出。`Guard.py` 负责课堂防护 DLL 的注入、策略与远程命令共享内存；`DriverLoader.py` 只封装 `sc.exe` 与 IOCTL，不在导入时加载驱动；`Hotkey.py` 只做文本解析，不创建窗口或消息循环。 |
