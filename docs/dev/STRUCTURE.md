@@ -4,7 +4,7 @@
    <img alt="Python 3.13" src="https://img.shields.io/badge/Python-3.13-3776AB?style=for-the-badge&logo=python&logoColor=white&labelColor=212121">
    <img alt="PySide6" src="https://img.shields.io/badge/GUI-PySide6-41CD52?style=for-the-badge&logo=qt&logoColor=white&labelColor=212121">
 </p>
-<p><a href="../../README.md">← 返回项目首页</a> 丨 <a href="BUILD.md">EXE 构建</a> 丨 <a href="VERSIONING.md">版本规范</a> 丨 <a href="CONTRIBUTING.md">开发与提交规范</a></p>
+<p><a href="../../README.md">← 返回项目首页</a> 丨 <a href="BUILD.md">EXE 构建</a> 丨 <a href="VERSIONING.md">版本规范</a> 丨 <a href="CONTRIBUTING.md">开发与提交规范</a> 丨 <a href="REFACTOR.md">上游骨架重构路线</a></p>
 </div>
 
 ---
@@ -66,6 +66,13 @@ NeoJiYuTrainer/
 |   |       |-- data.py            # 设置键、默认值与规范化
 |   |       |-- service.py         # 便携设置存储的创建
 |   |       `-- gui/page.py        # 设置页
+|   |-- compat/                    # Qt-free 模型、协议与旧 API 兼容转发
+|   |   |-- models.py              # 跨服务共享的数据模型
+|   |   |-- protocols.py           # 学生端、窗口、Guard、Driver 等后端接口
+|   |   |-- errors.py              # 结构化兼容层异常
+|   |   |-- flags.py               # 与原生策略对应的防护位
+|   |   |-- constants.py           # 跨服务稳定常量
+|   |   `-- legacy.py              # 旧服务入口的延迟转发 shim
 |   |-- gui/                       # 跨功能共用的 Qt 基础与装配
 |   |   |-- __main__.py            # 转交 start/gui.py
 |   |   |-- data.py                # 仅 ConnectionState
@@ -181,6 +188,7 @@ NeoJiYuTrainer/
 | 模块 | 职责与依赖边界 |
 | --- | --- |
 | `app/features/<功能>/service.py` | 与界面无关的业务流程；按需调用报文、系统适配与公共基础，不导入 Qt。并非每个功能都需要单独服务，命令和设备功能共用发送服务。 |
+| `app/compat/` | Qt-free 的迁移边界：`models.py` 保存跨服务数据模型，`protocols.py` 定义 Fake/Windows 后端接口，`legacy.py` 在调用时转发到现有服务。第一阶段只增加契约，不替换现有实现。 |
 | `app/features/<功能>/data.py` | 功能数据、设置键、默认值与规范化；Qt 信号适配另放在功能的 `gui/data.py`。 |
 | `app/features/send/` | `SendOptions`、参数校验、报文准备和发送协调；供不同页面与 CLI 发送功能复用。 |
 | `app/features/files/`、`firewall/`、`local/`、`student/`、`shell/` | 分别承载文件传送、防火墙、本机信息、学生端进程与终端业务；平台命令、地址解析和套接字操作复用 `app/system/`。学生端的常量与设置键在 `student/data.py`，进程识别、定位、启停与提权助手在 `student/service.py`。 |

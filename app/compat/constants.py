@@ -1,0 +1,5 @@
+"""兼容层使用的默认运行参数。"""
+
+STUDENT_PORT = 4705
+REMOTE_COMMAND_TIMEOUT = 30.0
+DEFAULT_DATA_DIRECTORY = "data"
