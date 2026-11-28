@@ -10,7 +10,7 @@ on:
         required: false
         default: stable
       version:
-        description: 显式指定版本号；留空时读取 app/shared/version.py 的 __version__
+        description: 显式指定版本号；留空时读取 NeoJiYuTrainer/shared/version.py 的 __version__
         type: string
         required: false
         default: ""
@@ -66,7 +66,7 @@ jobs:
         run: |
           $version = $env:INPUT_VERSION.Trim()
           if (-not $version) {
-            $version = (& .\.venv\Scripts\python.exe -X utf8 -c "import app; print(app.__version__)").Trim()
+            $version = (& .\.venv\Scripts\python.exe -X utf8 -c "import NeoJiYuTrainer; print(NeoJiYuTrainer.__version__)").Trim()
           }
           # 基础版本号用于产物名与界面显示；带日期的版本号只进标签、标题与发布说明。
           $base = $version
@@ -92,7 +92,7 @@ jobs:
         shell: pwsh
         run: |
           .\.venv\Scripts\python.exe -B -m unittest discover -s tests -v
-          .\.venv\Scripts\python.exe -X utf8 -m compileall -q app tests
+          .\.venv\Scripts\python.exe -X utf8 -m compileall -q NeoJiYuTrainer tests
 
       - name: Build EXE
         shell: pwsh

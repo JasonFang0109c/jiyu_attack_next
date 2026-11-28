@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import app.packets.constants as constants
+import NeoJiYuTrainer.packets.constants as constants
 
 
 class OfflineCase(unittest.TestCase):

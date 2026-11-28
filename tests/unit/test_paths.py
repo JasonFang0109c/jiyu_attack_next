@@ -4,7 +4,7 @@ import shutil
 import unittest
 from pathlib import Path
 
-import app.shared.paths as paths
+import NeoJiYuTrainer.shared.paths as paths
 
 
 class PortableDataDirTests(unittest.TestCase):

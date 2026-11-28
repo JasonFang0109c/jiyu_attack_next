@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class ModuleLayoutTests(unittest.TestCase):
     def test_lower_layers_do_not_depend_on_features_or_gui(self):
         for layer in ("packets", "system", "shared"):
-            for path in (ROOT / "app" / layer).rglob("*.py"):
+            for path in (ROOT / "NeoJiYuTrainer" / layer).rglob("*.py"):
                 tree = ast.parse(path.read_text(encoding="utf-8"))
                 imports = []
                 for node in ast.walk(tree):
@@ -27,9 +27,9 @@ class ModuleLayoutTests(unittest.TestCase):
                             name == prefix or name.startswith(prefix + ".")
                             for name in imports
                             for prefix in (
-                                "app.features",
-                                "app.gui",
-                                "app.start",
+                                "NeoJiYuTrainer.features",
+                                "NeoJiYuTrainer.gui",
+                                "NeoJiYuTrainer.start",
                                 "PySide6",
                                 "qfluentwidgets",
                             )
@@ -38,7 +38,7 @@ class ModuleLayoutTests(unittest.TestCase):
                     )
 
     def test_runtime_imports_have_no_legacy_aggregation_layer(self):
-        for path in (ROOT / "app").rglob("*.py"):
+        for path in (ROOT / "NeoJiYuTrainer").rglob("*.py"):
             for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
                 if isinstance(node, ast.ImportFrom):
                     names = [node.module or ""]
@@ -56,14 +56,18 @@ class ModuleLayoutTests(unittest.TestCase):
                         any(
                             name == prefix or name.startswith(prefix + ".")
                             for name in names
-                            for prefix in ("app.core", "app.cli", "app.gui.pages")
+                            for prefix in (
+                                "NeoJiYuTrainer.core",
+                                "NeoJiYuTrainer.cli",
+                                "NeoJiYuTrainer.gui.pages",
+                            )
                         ),
                         names,
                     )
 
     def test_business_modules_import_without_gui_or_qt(self):
         modules = []
-        for path in (ROOT / "app" / "features").rglob("*.py"):
+        for path in (ROOT / "NeoJiYuTrainer" / "features").rglob("*.py"):
             if "gui" not in path.parts:
                 module = ".".join(path.relative_to(ROOT).with_suffix("").parts)
                 if module.endswith(".__init__"):
@@ -75,7 +79,7 @@ class ModuleLayoutTests(unittest.TestCase):
             "[importlib.import_module(name) for name in modules]; "
             "bad=[name for name in sys.modules if "
             "name.split('.')[0] in {'PySide6','qfluentwidgets'} "
-            "or name == 'app.gui' or name.startswith('app.gui.')]; "
+            "or name == 'NeoJiYuTrainer.gui' or name.startswith('NeoJiYuTrainer.gui.')]; "
             "assert not bad, bad"
         )
         result = subprocess.run(

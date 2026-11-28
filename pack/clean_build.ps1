@@ -10,9 +10,9 @@ if (-not $ProjectRoot) {
 $root = (Resolve-Path -LiteralPath $ProjectRoot).Path
 if (
     -not (Test-Path -LiteralPath (Join-Path $root "pack/build.ps1") -PathType Leaf) -or
-    -not (Test-Path -LiteralPath (Join-Path $root "app") -PathType Container)
+    -not (Test-Path -LiteralPath (Join-Path $root "NeoJiYuTrainer") -PathType Container)
 ) {
-    throw "ProjectRoot 必须指向包含 pack/build.ps1 与 app/ 的项目根目录。"
+    throw "ProjectRoot 必须指向包含 pack/build.ps1 与 NeoJiYuTrainer/ 的项目根目录。"
 }
 $outputRoot = Join-Path $root "output"
 
@@ -89,7 +89,7 @@ foreach ($relativePath in @(
 )) {
     Remove-CleanupTarget -LiteralPath (Join-Path $root $relativePath)
 }
-foreach ($sourceDirectory in @("app", "pack", "scripts", "tests")) {
+foreach ($sourceDirectory in @("NeoJiYuTrainer", "pack", "scripts", "tests")) {
     $sourceRoot = Join-Path $root $sourceDirectory
     if (-not (Test-Path -LiteralPath $sourceRoot -PathType Container)) {
         continue

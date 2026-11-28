@@ -4,7 +4,7 @@
 #define JIYU_GUARD_POLICY_MAGIC 0x3150474Au  // 'JGP1'
 #define JIYU_GUARD_POLICY_VERSION 1u
 
-// 策略位与 app/features/classroom/data.py 的 GUARD_* 常量一一对应。
+// 策略位与 NeoJiYuTrainer/features/classroom/data.py 的 GUARD_* 常量一一对应。
 enum JiyuGuardFlags {
     JIYU_GUARD_ANTI_MONITOR = 1u << 0,
     JIYU_GUARD_ANTI_CONTROL = 1u << 1,

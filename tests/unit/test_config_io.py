@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from app.shared import config
+from NeoJiYuTrainer.shared import config
 
 
 class ConfigCommentTests(unittest.TestCase):

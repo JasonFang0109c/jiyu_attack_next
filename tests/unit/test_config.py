@@ -4,7 +4,7 @@ import shutil
 import unittest
 from pathlib import Path
 
-import app.shared.config as config
+import NeoJiYuTrainer.shared.config as config
 
 
 class ConfigFileTests(unittest.TestCase):

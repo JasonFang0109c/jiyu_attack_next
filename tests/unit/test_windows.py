@@ -3,9 +3,9 @@
 from pathlib import Path
 from unittest.mock import patch
 
-import app.features.student.service as student_service
-import app.system.windows.command as windows_command
-import app.system.windows.elevation as elevation
+import NeoJiYuTrainer.features.student.service as student_service
+import NeoJiYuTrainer.system.windows.command as windows_command
+import NeoJiYuTrainer.system.windows.elevation as elevation
 from tests.fixtures.offline import OfflineCase
 
 
@@ -29,7 +29,7 @@ class WindowsTests(OfflineCase):
             fake_sys.frozen = False
             with self.assertRaises(RuntimeError):
                 student_service._run_student_elevated("17600")
-        self.assertTrue(seen["parameters"].startswith("-m app"))
+        self.assertTrue(seen["parameters"].startswith("-m NeoJiYuTrainer"))
         self.assertTrue(seen["parameters"].endswith(".json"))
         self.assertEqual(
             Path(seen["directory"]).name,

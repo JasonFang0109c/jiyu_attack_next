@@ -6,7 +6,7 @@ from ctypes import wintypes
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from app.system.windows import ports
+from NeoJiYuTrainer.system.windows import ports
 
 
 class PortTableTests(unittest.TestCase):

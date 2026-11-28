@@ -3,10 +3,10 @@
 import unittest
 from unittest.mock import patch
 
-import app.features.classroom.passwords as passwords
-import app.features.classroom.service as classroom
-import app.features.classroom.windows as windows
-from app.features.classroom.data import (
+import NeoJiYuTrainer.features.classroom.passwords as passwords
+import NeoJiYuTrainer.features.classroom.service as classroom
+import NeoJiYuTrainer.features.classroom.windows as windows
+from NeoJiYuTrainer.features.classroom.data import (
     DEFAULT_INTERVAL,
     SETTINGS_ALLOW_TOP,
     SETTINGS_AUTO_REPAIR,

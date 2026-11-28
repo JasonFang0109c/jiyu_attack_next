@@ -4,7 +4,7 @@ import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import app.features.firewall.service as firewall_service
+import NeoJiYuTrainer.features.firewall.service as firewall_service
 from tests.fixtures.offline import OfflineCase
 
 

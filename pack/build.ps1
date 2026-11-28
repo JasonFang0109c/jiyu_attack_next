@@ -34,9 +34,9 @@ try {
     }
 
     if (-not $Version) {
-        $Version = (& $pythonExe -X utf8 -c "import app; print(app.__version__)").Trim()
+        $Version = (& $pythonExe -X utf8 -c "import NeoJiYuTrainer; print(NeoJiYuTrainer.__version__)").Trim()
         if ($LASTEXITCODE -ne 0 -or -not $Version) {
-            throw "无法从 app/shared/version.py 读取版本号，请使用 -Version 指定。"
+            throw "无法从 NeoJiYuTrainer/shared/version.py 读取版本号，请使用 -Version 指定。"
         }
     }
     $versionPattern = '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
@@ -80,17 +80,17 @@ try {
     & $cleanupScript -ProjectRoot $projectRoot
 
     New-Item -ItemType Directory -Path (Join-Path $buildRoot "assets") -Force | Out-Null
-    $iconScript = "from PySide6.QtGui import QGuiApplication, QIcon; from PySide6.QtCore import QSize; app = QGuiApplication([]); icon = QIcon('app/resources/icons/app.svg'); ok = icon.pixmap(QSize(256, 256)).save('build/assets/app.ico', 'ICO'); raise SystemExit(0 if ok else 1)"
+    $iconScript = "from PySide6.QtGui import QGuiApplication, QIcon; from PySide6.QtCore import QSize; app = QGuiApplication([]); icon = QIcon('NeoJiYuTrainer/resources/icons/app.svg'); ok = icon.pixmap(QSize(256, 256)).save('build/assets/app.ico', 'ICO'); raise SystemExit(0 if ok else 1)"
     & $pythonExe -X utf8 -c $iconScript
     if ($LASTEXITCODE -ne 0) {
         throw "图标转换失败，退出码：$LASTEXITCODE"
     }
-    $buildTimeScript = "from app.shared.build_info import write_build_time; write_build_time('build/assets/build_time.txt')"
+    $buildTimeScript = "from NeoJiYuTrainer.shared.build_info import write_build_time; write_build_time('build/assets/build_time.txt')"
     & $pythonExe -X utf8 -c $buildTimeScript
     if ($LASTEXITCODE -ne 0) {
         throw "构建时间写入失败，退出码：$LASTEXITCODE"
     }
-    $versionScript = "from app.shared.version import write_version; write_version('build/assets/version.txt', '$displayVersion')"
+    $versionScript = "from NeoJiYuTrainer.shared.version import write_version; write_version('build/assets/version.txt', '$displayVersion')"
     & $pythonExe -X utf8 -c $versionScript
     if ($LASTEXITCODE -ne 0) {
         throw "版本号写入失败，退出码：$LASTEXITCODE"

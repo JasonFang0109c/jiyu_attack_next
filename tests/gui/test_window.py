@@ -60,43 +60,43 @@ from qfluentwidgets import (
     setTheme,
 )
 
-import app.features.files.service as files_service_business
-import app.features.firewall.service as firewall_service_business
-import app.features.logs.data as logs_data
-import app.features.logs.gui.data as log_store
-import app.features.names.data as names_data
-import app.features.send.service as send_service
-import app.features.settings.data as settings_data
-import app.features.settings.service as settings_service
-import app.features.shell.service as shell_service_business
-import app.features.student.service as student_service
-import app.gui.widgets.page as page_widgets
-import app.gui.window.data as gui_data
-import app.shared.config as shared_config
-import app.shared.paths as data_paths
-import app.shared.settings as settings_store
-import app.system.net.data as system_net_data
-import app.system.net.targets as system_net_targets
-from app.features.files.gui import service as files_service
-from app.features.firewall.gui import service as firewall_service
-from app.features.local.gui import service as local_service
-from app.gui import service as gui_service
-from app.gui import splash, theme, window_effect
-from app.gui.menu import service as navigation_service
-from app.gui.menu.sidebar import SidebarTreeWidget
-from app.gui.widgets import common as components
-from app.gui.widgets.page import (
+import NeoJiYuTrainer.features.files.service as files_service_business
+import NeoJiYuTrainer.features.firewall.service as firewall_service_business
+import NeoJiYuTrainer.features.logs.data as logs_data
+import NeoJiYuTrainer.features.logs.gui.data as log_store
+import NeoJiYuTrainer.features.names.data as names_data
+import NeoJiYuTrainer.features.send.service as send_service
+import NeoJiYuTrainer.features.settings.data as settings_data
+import NeoJiYuTrainer.features.settings.service as settings_service
+import NeoJiYuTrainer.features.shell.service as shell_service_business
+import NeoJiYuTrainer.features.student.service as student_service
+import NeoJiYuTrainer.gui.widgets.page as page_widgets
+import NeoJiYuTrainer.gui.window.data as gui_data
+import NeoJiYuTrainer.shared.config as shared_config
+import NeoJiYuTrainer.shared.paths as data_paths
+import NeoJiYuTrainer.shared.settings as settings_store
+import NeoJiYuTrainer.system.net.data as system_net_data
+import NeoJiYuTrainer.system.net.targets as system_net_targets
+from NeoJiYuTrainer.features.files.gui import service as files_service
+from NeoJiYuTrainer.features.firewall.gui import service as firewall_service
+from NeoJiYuTrainer.features.local.gui import service as local_service
+from NeoJiYuTrainer.gui import service as gui_service
+from NeoJiYuTrainer.gui import splash, theme, window_effect
+from NeoJiYuTrainer.gui.menu import service as navigation_service
+from NeoJiYuTrainer.gui.menu.sidebar import SidebarTreeWidget
+from NeoJiYuTrainer.gui.widgets import common as components
+from NeoJiYuTrainer.gui.widgets.page import (
     CompactHeaderCheckBox,
     CompactTreeItemDelegate,
     FileTreeHeader,
 )
-from app.gui.window import main as gui
-from app.gui.window import tray as tray_service
-from app.gui.window.data import HOME_LINKS
-from app.gui.workers.tasks import ProbeWorker, TaskWorker
-from app.shared.build_info import version_text
-from app.shared.logs import levels
-from app.start import gui as startup
+from NeoJiYuTrainer.gui.window import main as gui
+from NeoJiYuTrainer.gui.window import tray as tray_service
+from NeoJiYuTrainer.gui.window.data import HOME_LINKS
+from NeoJiYuTrainer.gui.workers.tasks import ProbeWorker, TaskWorker
+from NeoJiYuTrainer.shared.build_info import version_text
+from NeoJiYuTrainer.shared.logs import levels
+from NeoJiYuTrainer.start import gui as startup
 
 
 class GuiTests(unittest.TestCase):
@@ -264,7 +264,7 @@ class GuiTests(unittest.TestCase):
         self.assertFalse(hero.findChildren(components.SectionCard))
 
     def test_about_page_groups_version_and_repository_info(self):
-        from app.shared import build_info
+        from NeoJiYuTrainer.shared import build_info
 
         about = self.window.pages["about"]
         # 版本与构建时间合并到“版本信息”，组件版本改名为“组件信息”。
@@ -424,7 +424,7 @@ class GuiTests(unittest.TestCase):
         )
 
     def test_build_time_comes_from_bundle_asset(self):
-        from app.shared import build_info
+        from NeoJiYuTrainer.shared import build_info
 
         self.assertEqual(build_info.build_time_text(), "源码运行")
         time_file = self.temp_root / "bundle" / build_info.BUILD_TIME_FILE_NAME
@@ -439,8 +439,8 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(build_info.build_time_text(), "源码运行")
 
     def test_version_comes_from_bundle_asset(self):
-        from app import __version__
-        from app.shared import build_info
+        from NeoJiYuTrainer import __version__
+        from NeoJiYuTrainer.shared import build_info
 
         self.assertEqual(build_info.version_text(), __version__)
         version_file = self.temp_root / "bundle" / build_info.VERSION_FILE_NAME

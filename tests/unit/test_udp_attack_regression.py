@@ -9,11 +9,11 @@ import inspect
 import unittest
 from unittest.mock import patch
 
-import app.features.send.data as send_data
-import app.features.send.service as send_service
-import app.packets.codec as codec
-import app.packets.constants as constants
-import app.start.parser as parser
+import NeoJiYuTrainer.features.send.data as send_data
+import NeoJiYuTrainer.features.send.service as send_service
+import NeoJiYuTrainer.packets.codec as codec
+import NeoJiYuTrainer.packets.constants as constants
+import NeoJiYuTrainer.start.parser as parser
 from tests.fixtures.offline import OfflineCase
 
 

@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from app.system.windows import driver
+from NeoJiYuTrainer.system.windows import driver
 
 
 class DriverProtocolTests(unittest.TestCase):

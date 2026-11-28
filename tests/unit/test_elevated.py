@@ -3,8 +3,8 @@
 import urllib.request
 from base64 import b64decode
 
-import app.packets.codec as codec
-import app.packets.elevated as elevated
+import NeoJiYuTrainer.packets.codec as codec
+import NeoJiYuTrainer.packets.elevated as elevated
 from tests.fixtures.offline import OfflineCase
 
 

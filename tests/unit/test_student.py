@@ -5,8 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import app.features.student.service as student_service
-import app.system.windows.process as windows_process
+import NeoJiYuTrainer.features.student.service as student_service
+import NeoJiYuTrainer.system.windows.process as windows_process
 from tests.fixtures.offline import OfflineCase
 
 

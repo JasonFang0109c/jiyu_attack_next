@@ -10,8 +10,8 @@ from unittest.mock import Mock, patch
 from PySide6.QtCore import QObject, Slot
 from PySide6.QtWidgets import QApplication
 
-from app.features.logs.data import LogEntry
-from app.features.logs.gui.data import LogStore
+from NeoJiYuTrainer.features.logs.data import LogEntry
+from NeoJiYuTrainer.features.logs.gui.data import LogStore
 
 
 class _ObservedLock:

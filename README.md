@@ -1,6 +1,6 @@
 <div align="center">
 <h1>NeoJiYuTrainer</h1>
-<img src="app/resources/icons/app.svg" width="150" height="150" alt="NeoJiYuTrainer">
+<img src="NeoJiYuTrainer/resources/icons/app.svg" width="150" height="150" alt="NeoJiYuTrainer">
 <p></p>
 <p>
    <a href="https://github.com/JasonFang0109c/NeoJiYuTrainer"><img alt="GitHub stars" src="https://img.shields.io/github/stars/JasonFang0109c/NeoJiYuTrainer?label=Stars&style=flat&color=orange&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCc+PHBhdGggZmlsbD0nd2hpdGUnIGQ9J00xMiAxNy4yN0wxOC4xOCAyMWwtMS42NC03LjAzTDIyIDkuMjRsLTcuMTktLjYxTDEyIDIgOS4xOSA4LjYzIDIgOS4yNGw1LjQ2IDQuNzNMNS44MiAyMXonLz48L3N2Zz4="></a>
@@ -108,8 +108,8 @@
 
 | 模式 | 启动方式 | 说明 |
 | --- | --- | --- |
-| GUI | 双击 EXE；源码 `python -m app` | 无参数启动，首次启动显示使用须知，确认后打开图形界面 |
-| CLI | `NeoJiYuTrainer.exe remote message -ip ...`；源码 `python -m app remote message -ip ...` | 带参数启动，在终端显示输出 |
+| GUI | 双击 EXE；源码 `python -m NeoJiYuTrainer` | 无参数启动，首次启动显示使用须知，确认后打开图形界面 |
+| CLI | `NeoJiYuTrainer.exe remote message -ip ...`；源码 `python -m NeoJiYuTrainer remote message -ip ...` | 带参数启动，在终端显示输出 |
 
 命令行按图形界面的三组分类组织，一个页面一条子命令：`restriction`（解除限制）、`remote`（远程攻击）、`local`（本机工具），例如 `restriction student --start`、`remote message`、`local info`。旧的扁平写法已移除，请迁移到分组子命令。
 
@@ -125,9 +125,9 @@ EXE 无需安装 Python；从源码运行 CLI 需要按 `requirements.txt` 安�
 | 正式版 | 版本号形如 `v0.1.0`，标记为 Latest；暂无发布 | [最新正式版](https://github.com/JasonFang0109c/NeoJiYuTrainer/releases/latest) |
 
 - EXE：`NeoJiYuTrainer.exe`，同一个文件支持 GUI 与 CLI，无需安装 Python
-- CLI 不再单独发布脚本；需要从源码调试时使用 `python -m app ...`
+- CLI 不再单独发布脚本；需要从源码调试时使用 `python -m NeoJiYuTrainer ...`
 
-推送 `main` 且改动涉及 `app/`、`pack/`、`scripts/`、`requirements.txt` 或工作流文件时，会自动构建并滚动更新 `nightly` 预发布版本；纯文档改动不触发构建。正式版需在 Actions 页面手动运行 `Release`，版本号规则见[版本规范](docs/dev/VERSIONING.md)。
+推送 `main` 且改动涉及 `NeoJiYuTrainer/`、`pack/`、`scripts/`、`requirements.txt` 或工作流文件时，会自动构建并滚动更新 `nightly` 预发布版本；纯文档改动不触发构建。正式版需在 Actions 页面手动运行 `Release`，版本号规则见[版本规范](docs/dev/VERSIONING.md)。
 
 ## 文档
 
@@ -157,10 +157,10 @@ EXE 无需安装 Python；从源码运行 CLI 需要按 `requirements.txt` 安�
 py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python -m app
+python -m NeoJiYuTrainer
 ```
 
-`python -m app` 是无参数统一入口；源码运行 CLI 可用 `python -m app -h`。
+`python -m NeoJiYuTrainer` 是无参数统一入口；源码运行 CLI 可用 `python -m NeoJiYuTrainer -h`。
 
 构建 EXE：
 

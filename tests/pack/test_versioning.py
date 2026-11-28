@@ -6,9 +6,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from app import __version__ as package_version
-from app.shared import build_info, version
-from app.start.parser import build_group_parser
+from NeoJiYuTrainer import __version__ as package_version
+from NeoJiYuTrainer.shared import build_info, version
+from NeoJiYuTrainer.start.parser import build_group_parser
 
 SEMVER_PATTERN = re.compile(
     r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
@@ -82,10 +82,10 @@ class VersionTests(unittest.TestCase):
 
 class BuildResourceTests(unittest.TestCase):
     def test_source_and_bundle_use_the_same_icon_layout(self):
-        from app.shared.resources import resource_path
+        from NeoJiYuTrainer.shared.resources import resource_path
 
         project_root = Path(__file__).resolve().parents[2]
-        expected = project_root / "app" / "resources" / "icons" / "app.svg"
+        expected = project_root / "NeoJiYuTrainer" / "resources" / "icons" / "app.svg"
         with patch.object(sys, "_MEIPASS", None, create=True):
             self.assertEqual(resource_path("icons", "app.svg"), expected)
             self.assertTrue(expected.is_file())
@@ -93,7 +93,7 @@ class BuildResourceTests(unittest.TestCase):
         with patch.object(sys, "_MEIPASS", str(bundle_root), create=True):
             self.assertEqual(
                 resource_path("icons", "app.svg"),
-                bundle_root / "app" / "resources" / "icons" / "app.svg",
+                bundle_root / "NeoJiYuTrainer" / "resources" / "icons" / "app.svg",
             )
 
     def test_packaging_uses_the_resource_icon_and_preserves_script_encoding(self):
@@ -101,15 +101,19 @@ class BuildResourceTests(unittest.TestCase):
         spec = (project_root / "pack" / "NeoJiYuTrainer.spec").read_text(
             encoding="utf-8"
         )
-        self.assertIn('root / "app" / "resources" / "icons" / "app.svg"', spec)
-        self.assertIn('"app/resources/icons"', spec)
+        self.assertIn(
+            'root / "NeoJiYuTrainer" / "resources" / "icons" / "app.svg"', spec
+        )
+        self.assertIn('"NeoJiYuTrainer/resources/icons"', spec)
         script_bytes = (project_root / "pack" / "build.ps1").read_bytes()
         self.assertTrue(script_bytes.startswith(b"\xef\xbb\xbf"))
         self.assertNotIn(b"\n", script_bytes.replace(b"\r\n", b""))
         script = script_bytes.decode("utf-8-sig")
-        self.assertIn("QIcon('app/resources/icons/app.svg')", script)
-        self.assertIn("from app.shared.build_info import write_build_time", script)
-        self.assertIn("from app.shared.version import write_version", script)
+        self.assertIn("QIcon('NeoJiYuTrainer/resources/icons/app.svg')", script)
+        self.assertIn(
+            "from NeoJiYuTrainer.shared.build_info import write_build_time", script
+        )
+        self.assertIn("from NeoJiYuTrainer.shared.version import write_version", script)
 
 
 if __name__ == "__main__":

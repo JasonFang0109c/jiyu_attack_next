@@ -1,7 +1,7 @@
 """按模块组织的离线回归测试。"""
 
-import app.packets.codec as codec
-import app.packets.constants as constants
+import NeoJiYuTrainer.packets.codec as codec
+import NeoJiYuTrainer.packets.constants as constants
 from tests.fixtures.offline import OfflineCase
 
 

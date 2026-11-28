@@ -13,8 +13,8 @@ os.environ.setdefault(
 from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtWidgets import QApplication
 
-from app.features.logs.gui.data import LogStore
-from app.features.logs.gui.page import LogPage
+from NeoJiYuTrainer.features.logs.gui.data import LogStore
+from NeoJiYuTrainer.features.logs.gui.page import LogPage
 
 
 class LogPageTests(unittest.TestCase):

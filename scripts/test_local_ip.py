@@ -14,10 +14,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.features.send import service as send_service  # noqa: E402
-from app.features.send.data import SendOptions  # noqa: E402
-from app.packets import constants  # noqa: E402
-from app.system.net.local import detect_local_ip  # noqa: E402
+from NeoJiYuTrainer.features.send import service as send_service  # noqa: E402
+from NeoJiYuTrainer.features.send.data import SendOptions  # noqa: E402
+from NeoJiYuTrainer.packets import constants  # noqa: E402
+from NeoJiYuTrainer.system.net.local import detect_local_ip  # noqa: E402
 
 
 class TestFailure(RuntimeError):

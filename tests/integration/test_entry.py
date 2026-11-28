@@ -9,18 +9,18 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from app import __version__
-from app.__main__ import main
-from app.features.send.cli import print_delivery
-from app.start.console import _show_cli_console
-from app.system.net.data import Delivery, DeliveryState, SendOutcome
+from NeoJiYuTrainer import __version__
+from NeoJiYuTrainer.__main__ import main
+from NeoJiYuTrainer.features.send.cli import print_delivery
+from NeoJiYuTrainer.start.console import _show_cli_console
+from NeoJiYuTrainer.system.net.data import Delivery, DeliveryState, SendOutcome
 
 
 class EntryTests(unittest.TestCase):
     def test_package_cli_help_works(self):
         project_root = Path(__file__).resolve().parents[2]
         result = subprocess.run(
-            [sys.executable, "-X", "utf8", "-B", "-m", "app", "-h"],
+            [sys.executable, "-X", "utf8", "-B", "-m", "NeoJiYuTrainer", "-h"],
             cwd=project_root,
             capture_output=True,
             text=True,
@@ -40,7 +40,7 @@ class EntryTests(unittest.TestCase):
                 "utf8",
                 "-B",
                 "-m",
-                "app",
+                "NeoJiYuTrainer",
                 "remote",
                 "message",
                 "-h",
@@ -58,8 +58,8 @@ class EntryTests(unittest.TestCase):
     def test_cli_entry_does_not_import_qt(self):
         project_root = Path(__file__).resolve().parents[2]
         program = """import sys
-import app
-from app.start import cli, parser
+import NeoJiYuTrainer
+from NeoJiYuTrainer.start import cli, parser
 assert not any(name.startswith(('PySide6', 'qfluentwidgets')) for name in sys.modules)
 for arguments in (['-h'], ['--version'], ['remote', 'message', '-h']):
     try:
@@ -83,8 +83,11 @@ for arguments in (['-h'], ['--version'], ['remote', 'message', '-h']):
     def test_gui_package_entry_dispatches_to_gui(self):
         # 启动分流只需要入口契约，避免为测试这个分支初始化 Qt。
         with (
-            patch("app.start.service._show_cli_console") as show,
-            patch.dict(sys.modules, {"app.start.gui": SimpleNamespace(main=lambda: 7)}),
+            patch("NeoJiYuTrainer.start.service._show_cli_console") as show,
+            patch.dict(
+                sys.modules,
+                {"NeoJiYuTrainer.start.gui": SimpleNamespace(main=lambda: 7)},
+            ),
         ):
             self.assertEqual(main([]), 7)
         show.assert_not_called()
@@ -92,8 +95,8 @@ for arguments in (['-h'], ['--version'], ['remote', 'message', '-h']):
     def test_cli_arguments_dispatch_to_cli(self):
         arguments = ["-ip", "10.49.151.29", "-msg", "Hello"]
         with (
-            patch("app.start.service._show_cli_console") as show,
-            patch("app.start.cli.main", return_value=3) as run_cli,
+            patch("NeoJiYuTrainer.start.service._show_cli_console") as show,
+            patch("NeoJiYuTrainer.start.cli.main", return_value=3) as run_cli,
         ):
             self.assertEqual(main(arguments), 3)
         show.assert_called_once_with()
@@ -101,15 +104,20 @@ for arguments in (['-h'], ['--version'], ['remote', 'message', '-h']):
 
     def test_cli_console_keeps_streams_that_already_exist(self):
         with (
-            patch("app.start.console.sys.stdout", new=io.StringIO()),
-            patch("app.start.console.sys.stderr", new=io.StringIO()),
-            patch("app.start.console._rebind_inherited_streams") as rebind,
+            patch("NeoJiYuTrainer.start.console.sys.stdout", new=io.StringIO()),
+            patch("NeoJiYuTrainer.start.console.sys.stderr", new=io.StringIO()),
+            patch("NeoJiYuTrainer.start.console._rebind_inherited_streams") as rebind,
         ):
             _show_cli_console()
         rebind.assert_not_called()
 
     def test_console_helper_never_allocates_a_window(self):
-        source = Path(__file__).resolve().parents[2] / "app" / "start" / "console.py"
+        source = (
+            Path(__file__).resolve().parents[2]
+            / "NeoJiYuTrainer"
+            / "start"
+            / "console.py"
+        )
         self.assertNotIn("AllocConsole", source.read_text(encoding="utf-8"))
 
     def test_hidden_helpers_dispatch_without_console(self):
@@ -119,8 +127,8 @@ for arguments in (['-h'], ['--version'], ['remote', 'message', '-h']):
         ):
             with (
                 self.subTest(arguments=arguments),
-                patch("app.start.service._show_cli_console") as show,
-                patch("app.start.cli.main", return_value=0) as run_cli,
+                patch("NeoJiYuTrainer.start.service._show_cli_console") as show,
+                patch("NeoJiYuTrainer.start.cli.main", return_value=0) as run_cli,
             ):
                 self.assertEqual(main(arguments), 0)
             show.assert_not_called()
@@ -130,7 +138,7 @@ for arguments in (['-h'], ['--version'], ['remote', 'message', '-h']):
         project_root = Path(__file__).resolve().parents[2]
         program = """import runpy, sys
 sys.argv = ['NeoJiYuTrainer.exe', '--version']
-runpy.run_path('app/__main__.py', run_name='__main__')
+runpy.run_path('NeoJiYuTrainer/__main__.py', run_name='__main__')
 """
         result = subprocess.run(
             [sys.executable, "-X", "utf8", "-B", "-c", program],
@@ -146,8 +154,8 @@ runpy.run_path('app/__main__.py', run_name='__main__')
     def test_unified_entry_runs_cli_without_importing_qt(self):
         project_root = Path(__file__).resolve().parents[2]
         program = """import sys
-from app.__main__ import main
-assert 'app.start.gui' not in sys.modules
+from NeoJiYuTrainer.__main__ import main
+assert 'NeoJiYuTrainer.start.gui' not in sys.modules
 assert not any(name.startswith(('PySide6', 'qfluentwidgets')) for name in sys.modules)
 for arguments in (['-h'], ['--version']):
     try:
@@ -156,7 +164,7 @@ for arguments in (['-h'], ['--version']):
         assert error.code == 0, error.code
     else:
         raise AssertionError('Expected help/version exit')
-    assert 'app.start.gui' not in sys.modules
+    assert 'NeoJiYuTrainer.start.gui' not in sys.modules
     assert not any(name.startswith(('PySide6', 'qfluentwidgets')) for name in sys.modules)
 """
         result = subprocess.run(

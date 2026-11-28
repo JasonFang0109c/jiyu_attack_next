@@ -5,8 +5,8 @@ import urllib.request
 from threading import Event
 from unittest.mock import patch
 
-import app.features.files.service as files_service
-import app.packets.constants as constants
+import NeoJiYuTrainer.features.files.service as files_service
+import NeoJiYuTrainer.packets.constants as constants
 from tests.fixtures.offline import OfflineCase
 
 

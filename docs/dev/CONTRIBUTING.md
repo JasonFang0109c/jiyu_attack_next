@@ -26,25 +26,25 @@ python -m pip install -r requirements-dev.txt
 
 ```powershell
 python --version
-python -m app -h
+python -m NeoJiYuTrainer -h
 ```
 
-`python -m app` 是统一入口，由 `app/start/service.py` 分流到命令行或 GUI 启动流程。运行时代码按 `app/start/`、`app/features/`、`app/gui/`、`app/packets/`、`app/system/`、`app/shared/` 与 `app/resources/` 划分；功能参数由各自的 `cli.py` 注册，页面由主窗口显式装配，边界与接入步骤见[项目结构](STRUCTURE.md#新增功能)。
+`python -m NeoJiYuTrainer` 是统一入口，由 `NeoJiYuTrainer/start/service.py` 分流到命令行或 GUI 启动流程。运行时代码按 `NeoJiYuTrainer/start/`、`NeoJiYuTrainer/features/`、`NeoJiYuTrainer/gui/`、`NeoJiYuTrainer/packets/`、`NeoJiYuTrainer/system/`、`NeoJiYuTrainer/shared/` 与 `NeoJiYuTrainer/resources/` 划分；功能参数由各自的 `cli.py` 注册，页面由主窗口显式装配，边界与接入步骤见[项目结构](STRUCTURE.md#新增功能)。
 
 ## 启动与构建
 
 ```powershell
-python -m app
+python -m NeoJiYuTrainer
 powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Clean
 ```
 
-`pack/build.ps1` 接受 `-Python` 参数指定其他虚拟环境解释器，`-Version` 覆盖版本号（默认读取 `app/shared/version.py` 的 `__version__`）。构建产物与虚拟环境、缓存文件均由 `.gitignore` 排除，不提交到仓库。
+`pack/build.ps1` 接受 `-Python` 参数指定其他虚拟环境解释器，`-Version` 覆盖版本号（默认读取 `NeoJiYuTrainer/shared/version.py` 的 `__version__`）。构建产物与虚拟环境、缓存文件均由 `.gitignore` 排除，不提交到仓库。
 
 ## 版本号
 
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)，当前处于 `0.y.z` 阶段，完整规则与发布流程见[版本规范](VERSIONING.md)。
 
-- 权威来源是 `app/shared/version.py` 的 `__version__`；`app/__init__.py` 只重新导出该值，命令行 `--version` 也读取同一来源，由 `tests/pack/test_versioning.py` 校验。
+- 权威来源是 `NeoJiYuTrainer/shared/version.py` 的 `__version__`；`NeoJiYuTrainer/__init__.py` 只重新导出该值，命令行 `--version` 也读取同一来源，由 `tests/pack/test_versioning.py` 校验。
 - 新增功能升次版本号，修复升修订号，文档、测试、工作流等不影响产物的改动不递增。
 - nightly 与正式版共用同一版本号；nightly 的显示版本由工作流在基础版本号后追加 7 位提交哈希，带日期的版本号只出现在发布说明与标签里，都不需要手工维护。
 - 正式版通过 Actions 页面的 `Release` 工作流手动发布，不要在本地打标签后手工上传资产。
@@ -61,11 +61,11 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Clean
 | --- | --- | --- |
 | 只改 Markdown、注释、docstring | 通读一遍，确认示例命令与路径没有写错 | 测试、`compileall`、构建、截图 |
 | 只改测试文件 | 跑被改的那个测试文件 | 全量测试、`compileall`、构建 |
-| 改 `app/features/` 的非界面业务、`app/packets/`、`app/system/`、`app/shared/` | 跑对应 `tests/unit/`、`tests/integration/` 测试；改动跨模块或涉及报文字节布局时跑全量测试 | 截图、构建 |
-| 改命令行启动或 `app/features/*/cli.py` | 跑 `tests.unit.test_cli_parser` 及对应的 `tests.integration.test_cli_commands`、`tests.integration.test_cli_lifecycle`、`tests.integration.test_entry` | 截图、构建 |
-| 改 `app/gui/`、`app/start/gui.py` 或 `app/features/*/gui/` 的逻辑（线程、任务分发、信号） | 跑 `tests.gui.test_window` 加对应界面或业务测试 | 截图（除非外观也变了） |
+| 改 `NeoJiYuTrainer/features/` 的非界面业务、`NeoJiYuTrainer/packets/`、`NeoJiYuTrainer/system/`、`NeoJiYuTrainer/shared/` | 跑对应 `tests/unit/`、`tests/integration/` 测试；改动跨模块或涉及报文字节布局时跑全量测试 | 截图、构建 |
+| 改命令行启动或 `NeoJiYuTrainer/features/*/cli.py` | 跑 `tests.unit.test_cli_parser` 及对应的 `tests.integration.test_cli_commands`、`tests.integration.test_cli_lifecycle`、`tests.integration.test_entry` | 截图、构建 |
+| 改 `NeoJiYuTrainer/gui/`、`NeoJiYuTrainer/start/gui.py` 或 `NeoJiYuTrainer/features/*/gui/` 的逻辑（线程、任务分发、信号） | 跑 `tests.gui.test_window` 加对应界面或业务测试 | 截图（除非外观也变了） |
 | 改 GUI 外观、布局、文案或交互（含功能目录中的 GUI） | 跑 `tests.gui.test_window` 与对应界面测试，并按需截图确认 | 全量测试 |
-| 改 `pack/`、`scripts/`、依赖清单、构建配置 | 实际执行一次[构建](BUILD.md#构建-exe)，并用构建出的 EXE 冒烟 | 全量测试（除非同时改了 `app/`） |
+| 改 `pack/`、`scripts/`、依赖清单、构建配置 | 实际执行一次[构建](BUILD.md#构建-exe)，并用构建出的 EXE 冒烟 | 全量测试（除非同时改了 `NeoJiYuTrainer/`） |
 | 同时涉及多类 | 取并集，但每一项只做一次 | — |
 
 ```powershell
@@ -99,20 +99,20 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Clean
 仅在改动 GUI 或 CLI 日志行为、调用点时适用。GUI 运行日志遵循 [日志规范](https://itliwei.github.io/technology/engineer/develop/logger.html)，等级统一使用 `DEBUG`、`INFO`、`WARNING`、`ERROR`，其中 `warn` 写作 `warning`。正常版本默认 `WARNING`，可在“设置”页切到 `INFO` 或 `ERROR`；调试版本固定从 `DEBUG` 起全量记录，下拉框不可用。低于写入阈值的记录不会进入列表和 `runtime.log`。
 
 ```text
-2026-10-23 12:34:56.789 [12345] [MainThread] INFO    app.gui.service.GuiService.start_send:175 - [文本消息] 开始发送：192.168.1.20，端口 4705，1 轮
+2026-10-23 12:34:56.789 [12345] [MainThread] INFO    NeoJiYuTrainer..service.GuiService.start_send:175 - [文本消息] 开始发送：192.168.1.20，端口 4705，1 轮
     目标设备数：1
 ```
 
 新增日志优先调用 `LogStore.debug/info/warning/error`，关键节点携带目标、端口、文件名、耗时等定位信息，异常附带堆栈，不记录密码、令牌等敏感信息。日志页支持功能与级别筛选、多选、导出选中、删除选中和表头全选；相关行为变更需同步更新 [GUI 模式使用说明](../usage/GUI.md) 和 `tests/gui/test_window.py`、`tests/gui/test_log_page.py`、`tests/gui/test_log_store.py` 中的对应测试。
 
-命令行模式写自己的日志文件 `cli.log`，与界面的 `runtime.log` 分开，两者共用一个数据目录，规则在 `app/shared/paths.py`。实现位于 `app/shared/logs/cli.py` 的 `CliLog`：只依赖标准库，写入阈值跟构建变体一致（正常版 `WARNING`、调试版 `DEBUG`），命令行没有等级开关，命令行启动层与各功能的 CLI 适配使用它记录日志，而不是 `LogStore`（`LogStore` 依赖 PySide6，命令行入口不允许导入 Qt）。格式与界面日志一致，便于同一套工具阅读：
+命令行模式写自己的日志文件 `cli.log`，与界面的 `runtime.log` 分开，两者共用一个数据目录，规则在 `NeoJiYuTrainer/shared/paths.py`。实现位于 `NeoJiYuTrainer/shared/logs/cli.py` 的 `CliLog`：只依赖标准库，写入阈值跟构建变体一致（正常版 `WARNING`、调试版 `DEBUG`），命令行没有等级开关，命令行启动层与各功能的 CLI 适配使用它记录日志，而不是 `LogStore`（`LogStore` 依赖 PySide6，命令行入口不允许导入 Qt）。格式与界面日志一致，便于同一套工具阅读：
 
 ```text
-2026-11-04 13:29:10.527 [10440] [MainThread] DEBUG   app.start.cli.log_arguments:31 - [命令行] 命令行参数
+2026-11-04 13:29:10.527 [10440] [MainThread] DEBUG   NeoJiYuTrainer..cli.log_arguments:31 - [命令行] 命令行参数
     group=remote；command=message；target=10.49.151.29；port=4705；message=已提供；command_text=未提供；file_count=0；loops=1；interval=22
 ```
 
-新增命令行日志按功能分类记录目标、端口、报文数量、送达判定与异常等诊断信息；只记录消息和命令正文是否提供，不记录正文内容、密码或令牌。`app/start/cli.py` 的 `main()` 已用 `finally` 关闭句柄，无需在分支里手动关闭。
+新增命令行日志按功能分类记录目标、端口、报文数量、送达判定与异常等诊断信息；只记录消息和命令正文是否提供，不记录正文内容、密码或令牌。`NeoJiYuTrainer/start/cli.py` 的 `main()` 已用 `finally` 关闭句柄，无需在分支里手动关闭。
 
 ## 提交信息
 

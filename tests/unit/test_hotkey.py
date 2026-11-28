@@ -2,7 +2,7 @@
 
 import unittest
 
-from app.system.windows.hotkey import MOD_ALT, MOD_CONTROL, parse_hotkey
+from NeoJiYuTrainer.system.windows.hotkey import MOD_ALT, MOD_CONTROL, parse_hotkey
 
 
 class HotkeyTests(unittest.TestCase):

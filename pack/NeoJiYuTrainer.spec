@@ -19,18 +19,18 @@ default_name = "NeoJiYuTrainer_Debug" if variant == "debug" else "NeoJiYuTrainer
 exe_name = os.environ.get("JY_BUILD_NAME", "").strip() or default_name
 
 a = Analysis(
-    [str(root / "app" / "__main__.py")],
+    [str(root / "NeoJiYuTrainer" / "__main__.py")],
     pathex=[str(root)],
     binaries=[],
-    datas=[(str(root / "app" / "resources" / "icons" / "app.svg"), "app/resources/icons")]
+    datas=[(str(root / "NeoJiYuTrainer" / "resources" / "icons" / "app.svg"), "NeoJiYuTrainer/resources/icons")]
           + [
-              (str(root / "app" / "resources" / "native" / name), "app/resources/native")
+              (str(root / "NeoJiYuTrainer" / "resources" / "native" / name), "NeoJiYuTrainer/resources/native")
               for name in ("guard_x64.dll", "guard_x86.dll", "LICENSE-JiYuTrainer.txt")
           ]
           + [
               (
-                  str(root / "app" / "resources" / "native" / "driver" / "jiyu_guard_driver.sys"),
-                  "app/resources/native/driver",
+                  str(root / "NeoJiYuTrainer" / "resources" / "native" / "driver" / "jiyu_guard_driver.sys"),
+                  "NeoJiYuTrainer/resources/native/driver",
               )
           ]
           + ([(str(build_time), ".")] if build_time.exists() else [])
@@ -142,7 +142,7 @@ exe = EXE(
     strip=False,
     upx=False,
     # 窗口化子系统：双击启动不会创建控制台窗口。带参数运行时由
-    # app/start/console.py 把输出接回调用方的控制台。
+    # NeoJiYuTrainer/start/console.py 把输出接回调用方的控制台。
     console=False,
     # 不随程序启动请求管理员权限，避免终端启动时另开提升的控制台；
     # 防火墙操作在需要时通过 UAC 启动隐藏助手。

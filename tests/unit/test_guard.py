@@ -5,7 +5,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
-import app.system.windows.guard as guard
+import NeoJiYuTrainer.system.windows.guard as guard
 
 
 class FakeChannel:
@@ -109,7 +109,9 @@ class GuardSessionTests(unittest.TestCase):
     def _session(self):
         channel = FakeChannel(17600)
         process = FakeProcess(17600)
-        session = guard.GuardSession(17600, "C:/app/resources/native/guard_x64.dll")
+        session = guard.GuardSession(
+            17600, "C:/NeoJiYuTrainer/resources/native/guard_x64.dll"
+        )
         return session, channel, process
 
     def test_start_update_and_stop(self):

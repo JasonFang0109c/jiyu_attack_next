@@ -2,9 +2,9 @@
 
 import urllib.request
 
-import app.packets.blue_screen as blue_screen
-import app.packets.codec as codec
-import app.packets.constants as constants
+import NeoJiYuTrainer.packets.blue_screen as blue_screen
+import NeoJiYuTrainer.packets.codec as codec
+import NeoJiYuTrainer.packets.constants as constants
 from tests.fixtures.offline import OfflineCase
 
 

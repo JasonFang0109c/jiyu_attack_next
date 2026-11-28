@@ -1,6 +1,6 @@
 """按模块组织的离线回归测试。"""
 
-import app.system.net.targets as targets
+import NeoJiYuTrainer.system.net.targets as targets
 from tests.fixtures.offline import OfflineCase
 
 

@@ -6,7 +6,7 @@
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
 $signing = Join-Path $repo "build\signing"
-$driver = Join-Path $repo "app\resources\native\driver\jiyu_guard_driver.sys"
+$driver = Join-Path $repo "NeoJiYuTrainer\resources\native\driver\jiyu_guard_driver.sys"
 
 if (-not (Test-Path -LiteralPath $driver)) {
     throw "找不到驱动文件：$driver"
@@ -44,7 +44,7 @@ $batch = Join-Path $signing "sign-driver.bat"
 @"
 @echo off
 cd /d "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x86"
-signtool.exe sign /fd SHA256 /f C:\src\build\signing\jiyu_guard_test.pfx /p $Password C:\src\app\resources\native\driver\jiyu_guard_driver.sys
+signtool.exe sign /fd SHA256 /f C:\src\build\signing\jiyu_guard_test.pfx /p $Password C:\src\NeoJiYuTrainer\resources\native\driver\jiyu_guard_driver.sys
 exit /b %ERRORLEVEL%
 "@ | Set-Content -LiteralPath $batch -Encoding ASCII
 

@@ -13,13 +13,13 @@ os.environ.setdefault(
 from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
 
-from app.features.classroom.data import (
+from NeoJiYuTrainer.features.classroom.data import (
     SETTINGS_ALLOW_TOP,
     SETTINGS_AUTO_REPAIR,
     SETTINGS_GUARD_FLAGS,
     SETTINGS_INTERVAL,
 )
-from app.features.classroom.gui.page import ClassroomPage
+from NeoJiYuTrainer.features.classroom.gui.page import ClassroomPage
 
 
 def _snapshot(windows_list=(), running=True, supported=True):

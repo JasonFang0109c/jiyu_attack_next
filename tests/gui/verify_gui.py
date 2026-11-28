@@ -12,11 +12,11 @@ from PySide6.QtCore import QCoreApplication, QEvent, QTimer
 from PySide6.QtWidgets import QApplication
 from qfluentwidgets import Theme, setTheme
 
-from app.features.settings.data import FIRST_CLOSE_PROMPT_SETTINGS_KEY
-from app.features.settings.service import portable_settings
-from app.gui.window import main as gui
-from app.shared.paths import DATA_DIRECTORY_NAME
-from app.start import gui as startup
+from NeoJiYuTrainer.features.settings.data import FIRST_CLOSE_PROMPT_SETTINGS_KEY
+from NeoJiYuTrainer.features.settings.service import portable_settings
+from NeoJiYuTrainer.gui.window import main as gui
+from NeoJiYuTrainer.shared.paths import DATA_DIRECTORY_NAME
+from NeoJiYuTrainer.start import gui as startup
 
 
 def main():

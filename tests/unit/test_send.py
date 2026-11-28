@@ -4,15 +4,15 @@ import socket
 from threading import Event
 from unittest.mock import MagicMock, call, patch
 
-import app.features.send.data as send_data
-import app.features.send.service as send_service
-import app.packets.blue_screen as blue_screen
-import app.packets.codec as codec
-import app.packets.constants as constants
-import app.packets.elevated as elevated
-import app.system.net.data as net_data
-import app.system.net.reachability as reachability
-import app.system.net.udp as udp
+import NeoJiYuTrainer.features.send.data as send_data
+import NeoJiYuTrainer.features.send.service as send_service
+import NeoJiYuTrainer.packets.blue_screen as blue_screen
+import NeoJiYuTrainer.packets.codec as codec
+import NeoJiYuTrainer.packets.constants as constants
+import NeoJiYuTrainer.packets.elevated as elevated
+import NeoJiYuTrainer.system.net.data as net_data
+import NeoJiYuTrainer.system.net.reachability as reachability
+import NeoJiYuTrainer.system.net.udp as udp
 from tests.fixtures.offline import OfflineCase
 
 

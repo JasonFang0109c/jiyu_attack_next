@@ -6,15 +6,15 @@ from contextlib import redirect_stdout
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import app.packets.constants as constants
-import app.packets.elevated as packets_elevated
-import app.shared.logs.cli as cli_log
-from app.features.command import cli as command_cli
-from app.features.files import cli as files_cli
-from app.features.send import cli as send_cli
-from app.features.shell import cli as shell_cli
-from app.start import cli
-from app.start.parser import build_group_parser
+import NeoJiYuTrainer.packets.constants as constants
+import NeoJiYuTrainer.packets.elevated as packets_elevated
+import NeoJiYuTrainer.shared.logs.cli as cli_log
+from NeoJiYuTrainer.features.command import cli as command_cli
+from NeoJiYuTrainer.features.files import cli as files_cli
+from NeoJiYuTrainer.features.send import cli as send_cli
+from NeoJiYuTrainer.features.shell import cli as shell_cli
+from NeoJiYuTrainer.start import cli
+from NeoJiYuTrainer.start.parser import build_group_parser
 from tests.fixtures.offline import OfflineCase
 
 

@@ -5,7 +5,7 @@ import time
 import unittest
 from contextlib import suppress
 
-from app.features.shell import service as shell
+from NeoJiYuTrainer.features.shell import service as shell
 
 
 class PayloadTests(unittest.TestCase):

@@ -28,11 +28,11 @@ python -m pip install -r requirements.txt
 
 | 运行方式 | 命令 |
 | --- | --- |
-| 图形界面（无参数） | `python -m app` |
-| 命令行帮助 | `python -m app -h` |
+| 图形界面（无参数） | `python -m NeoJiYuTrainer` |
+| 命令行帮助 | `python -m NeoJiYuTrainer -h` |
 | 虚拟环境启动脚本 | `powershell -ExecutionPolicy Bypass -File .\scripts\run_gui.ps1` |
 
-`app/__main__.py` 保留统一入口，并交给 `app/start/service.py` 分流：无参数时调用 `app/start/gui.py`，带参数时调用 `app/start/cli.py`。运行时代码集中在 `app/`：`features/` 按功能组织业务与 CLI/GUI 适配，`packets/` 负责报文编解码，`system/` 负责网络和 Windows 适配，`shared/` 保存配置、日志与版本等公共基础，`gui/` 提供通用界面组件与装配。EXE 以普通用户权限启动，避免在终端运行 CLI 时另开提升窗口；只有防火墙操作在未提升时按需通过 UAC 启动隐藏助手。
+`NeoJiYuTrainer/__main__.py` 保留统一入口，并交给 `NeoJiYuTrainer/start/service.py` 分流：无参数时调用 `NeoJiYuTrainer/start/gui.py`，带参数时调用 `NeoJiYuTrainer/start/cli.py`。运行时代码集中在 `NeoJiYuTrainer/`：`features/` 按功能组织业务与 CLI/GUI 适配，`packets/` 负责报文编解码，`system/` 负责网络和 Windows 适配，`shared/` 保存配置、日志与版本等公共基础，`gui/` 提供通用界面组件与装配。EXE 以普通用户权限启动，避免在终端运行 CLI 时另开提升窗口；只有防火墙操作在未提升时按需通过 UAC 启动隐藏助手。
 
 ## 构建 EXE
 
@@ -49,7 +49,7 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Python "C:\Python313\
 - 无参数时执行清理后构建；`-Clean` 额外要求 PyInstaller 清理其自身缓存，`-Python` 指定其他解释器。
 - `-Variant` 取 `both`、`release` 或 `debug`，默认 `both`：一次产出 `NeoJiYuTrainer-<显示版本>.exe` 与 `NeoJiYuTrainer_Debug-<显示版本>.exe`，两份代码完全相同，只有构建变体标记不同。`-Variant debug` 只重建调试版本，调试时不必等两份都打包完。
 - 两个变体使用独立的 `--workpath`（`build/release` 与 `build/debug`），避免 PyInstaller 复用另一份变体的分析缓存。
-- `-Version` 覆盖版本号；省略时读取 `app/shared/version.py` 的 `__version__`。版本号须符合语义化版本格式，规则见[版本规范](VERSIONING.md)。
+- `-Version` 覆盖版本号；省略时读取 `NeoJiYuTrainer/shared/version.py` 的 `__version__`。版本号须符合语义化版本格式，规则见[版本规范](VERSIONING.md)。
 - 产物名直接带显示版本，例如 `output/NeoJiYuTrainer-0.1.0-e1f9608.exe` 与 `output/NeoJiYuTrainer_Debug-0.1.0-e1f9608.exe`；显示版本是版本号加提交哈希，因此从文件名就能看出对应哪次提交。本地构建不再产出 `NeoJiYuTrainer.exe` 这类不带版本号的固定名，旧版 EXE 会在构建前由清理脚本删除。
 - `output/` 只留最近一次构建所选变体的 EXE：重新构建前删除旧版本产物，避免与当前构建混淆，不保留历史版本。
 - 提交哈希省略 `-Commit` 时自动取 `git rev-parse --short=7 HEAD`；显式传 `-Commit ""` 表示不要哈希（正式版发布用它），此时产物名就是 `output/NeoJiYuTrainer-0.1.0.exe`；不在 Git 仓库内构建时同样只带版本号。
@@ -61,16 +61,16 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Python "C:\Python313\
 ### 课堂防护原生组件
 
 - 源码在 `NeoJiYuTrainerHooks/`（即上游 `JiYuTrainerHooks` 项目边界）：`guard.cpp` 为窄接口 Hook DLL，`mhook/` 与 `disasm-lib/` 来自 JiYuTrainer 的第三方源码（MIT 与原作者版权，见目录内说明）。
-- 仓库提交 `app/resources/native/guard_x86.dll`、`guard_x64.dll` 的预编译产物，普通 EXE 构建不需要编译器；PyInstaller 通过 `pack/NeoJiYuTrainer.spec` 一并收集。
-- 只有修改 `guard.cpp` 或升级第三方源码时才需要重新编译：在装有 MSVC 与 Windows SDK 的 Windows 容器内执行 `NeoJiYuTrainerHooks/build.ps1`，脚本用 `build.bat` 分别编译 x86/x64，产物落在 `build/native/hooks/`，再复制到 `app/resources/native/`。宿主机不安装编译器与 SDK。需要一次重建两个原生项目时，依次执行 `NeoJiYuTrainerHooks/build.ps1` 与 `NeoJiYuTrainerDriver/build.ps1`。
+- 仓库提交 `NeoJiYuTrainer/resources/native/guard_x86.dll`、`guard_x64.dll` 的预编译产物，普通 EXE 构建不需要编译器；PyInstaller 通过 `pack/NeoJiYuTrainer.spec` 一并收集。
+- 只有修改 `guard.cpp` 或升级第三方源码时才需要重新编译：在装有 MSVC 与 Windows SDK 的 Windows 容器内执行 `NeoJiYuTrainerHooks/build.ps1`，脚本用 `build.bat` 分别编译 x86/x64，产物落在 `build/native/hooks/`，再复制到 `NeoJiYuTrainer/resources/native/`。宿主机不安装编译器与 SDK。需要一次重建两个原生项目时，依次执行 `NeoJiYuTrainerHooks/build.ps1` 与 `NeoJiYuTrainerDriver/build.ps1`。
 - `build/native/hooks/guard_fixture_*.exe` 是自测夹具，只在构建容器或隔离测试环境中运行，不加载驱动、不改系统配置。
 
 ### 内核驱动（可选）
 
 - 源码在 `NeoJiYuTrainerDriver/`（即上游 `JiYuTrainerDriver` 项目边界）：`jiyu_guard_driver.c` 是 WDM 驱动，用 `ObRegisterCallbacks` 阻止其它进程结束受保护进程，并通过 IOCTL 提供内核强杀；`driver_ioctl.h` 定义设备名与请求结构。
-- 在装有 WDK 10.0.26100 与 MSVC 的 Windows 容器内执行 `NeoJiYuTrainerDriver/build.ps1`，产物为 `build/native/driver/jiyu_guard_driver.sys`，复制到 `app/resources/native/driver/` 后由 PyInstaller 收集。
+- 在装有 WDK 10.0.26100 与 MSVC 的 Windows 容器内执行 `NeoJiYuTrainerDriver/build.ps1`，产物为 `build/native/driver/jiyu_guard_driver.sys`，复制到 `NeoJiYuTrainer/resources/native/driver/` 后由 PyInstaller 收集。
 - 驱动默认不加载、不安装服务；只有用户在“设置 → 内核驱动（可选）”里显式启用才调用 `sc.exe` 创建并启动 `JiyuGuardDriver`。测试时必须使用可丢弃的隔离虚拟机或启用了测试签名的环境，宿主机不要加载未通过微软正式签名的驱动。
-- 测试签名用 `pack/sign-driver.ps1`：脚本在当前用户证书库生成 `CN=JiYuGuard Test` 代码签名证书，导出到 `build/signing/`，再调用容器内的 x86 `signtool.exe` 给 `app/resources/native/driver/jiyu_guard_driver.sys` 签名；签名后重新执行 `pack/build.ps1` 打包。目标机器需要管理员导入 `build/signing/jiyu_guard_test.cer` 到 `LocalMachine\Root` 与 `LocalMachine\TrustedPublisher`，并以管理员执行 `bcdedit /set testsigning on` 后重启，Secure Boot 必须关闭。
+- 测试签名用 `pack/sign-driver.ps1`：脚本在当前用户证书库生成 `CN=JiYuGuard Test` 代码签名证书，导出到 `build/signing/`，再调用容器内的 x86 `signtool.exe` 给 `NeoJiYuTrainer/resources/native/driver/jiyu_guard_driver.sys` 签名；签名后重新执行 `pack/build.ps1` 打包。目标机器需要管理员导入 `build/signing/jiyu_guard_test.cer` 到 `LocalMachine\Root` 与 `LocalMachine\TrustedPublisher`，并以管理员执行 `bcdedit /set testsigning on` 后重启，Secure Boot 必须关闭。
 - 驱动加载失败、系统未开启测试签名或权限不足时，课堂防护与其它纯用户态功能不受影响。
 
 ## 输出与生成内容
@@ -81,7 +81,7 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Python "C:\Python313\
 | `output/NeoJiYuTrainer_Debug-<显示版本>.exe` | 同上，但日志从 `DEBUG` 起记录 | 保留，供排查问题使用，旧版本号的删除 |
 | `build/release/`、`build/debug/` | 两个变体各自的打包中间文件与分析结果 | 构建后可删除 |
 | `build/assets/variant.txt` | 本次打包的变体标记，运行时打进 EXE | 构建后可删除 |
-| `build/assets/app.ico` | 从唯一图标源 `app/resources/icons/app.svg` 转换的构建图标 | 构建后可删除 |
+| `build/assets/app.ico` | 从唯一图标源 `NeoJiYuTrainer/resources/icons/app.svg` 转换的构建图标 | 构建后可删除 |
 | `build/assets/build_time.txt` | 本次构建时间，打包进 EXE | 构建后可删除 |
 | `build/assets/version.txt` | 本次构建版本号，打包进 EXE | 构建后可删除 |
 | `build/assets/version_info.txt` | EXE 版本资源，由 `pack/gen_version_info.py` 生成 | 构建后可删除 |
@@ -100,7 +100,7 @@ powershell -ExecutionPolicy Bypass -File ./pack/clean_build.ps1
 powershell -ExecutionPolicy Bypass -File ./pack/clean_build.ps1 -WhatIf
 ```
 
-清理脚本只接受包含 `pack/build.ps1` 与 `app/` 的项目根目录，并按下表删除固定目标。构建前请关闭正在运行的 EXE；若检测到项目旧 EXE 仍在运行，脚本会报错并中止构建。
+清理脚本只接受包含 `pack/build.ps1` 与 `NeoJiYuTrainer/` 的项目根目录，并按下表删除固定目标。构建前请关闭正在运行的 EXE；若检测到项目旧 EXE 仍在运行，脚本会报错并中止构建。
 
 | 清理目标 | 说明 |
 | --- | --- |
@@ -109,7 +109,7 @@ powershell -ExecutionPolicy Bypass -File ./pack/clean_build.ps1 -WhatIf
 | `output/data/cli.log`、`output/data/runtime.log` | 清理 EXE 数据目录中的运行日志 |
 | `data/cli.log`、`data/runtime.log` | 清理源码运行目录中的运行日志 |
 | `.ruff_cache/`、`.pytest_cache/`、`.mypy_cache/`、`.coverage`、`htmlcov/` | 清除工具缓存与覆盖率结果 |
-| `app/`、`pack/`、`scripts/`、`tests/` 下的 `__pycache__/` | 清除源码字节码缓存，不遍历 `.venv/` |
+| `NeoJiYuTrainer/`、`pack/`、`scripts/`、`tests/` 下的 `__pycache__/` | 清除源码字节码缓存，不遍历 `.venv/` |
 
 **明确保留 `settings.json`、备注和其他运行数据**：脚本仅删除上表列出的两个日志文件，不删除 `data/` 目录，也不会递归清理 `output/`。由于脚本会删除旧 EXE，不要在构建完成后再次运行；验证产生的临时截图可按需单独删除。需要干净的验证环境时改用临时数据目录（截图验证用 `build/verify-gui-data`）。
 
@@ -151,7 +151,7 @@ EXE 在其所在目录创建 `data` 子文件夹，目录内容与不可写时�
 
 ### Nightly Build
 
-- 推送到 `main` 时按改动路径决定是否运行：只有 `app/`（含 `app/resources/`）、`pack/`、`scripts/`、`requirements.txt` 或工作流文件本身发生变化才会触发，纯文档与测试改动不会重新编译 EXE。
+- 推送到 `main` 时按改动路径决定是否运行：只有 `NeoJiYuTrainer/`（含 `NeoJiYuTrainer/resources/`）、`pack/`、`scripts/`、`requirements.txt` 或工作流文件本身发生变化才会触发，纯文档与测试改动不会重新编译 EXE。
 - 也可在 Actions 页面选择该工作流并点击 `Run workflow` 手动运行，手动运行需选择 `main` 分支才会发布；手动运行不受路径过滤限制。
 - 工作流文件首次进入默认分支后，Actions 页面才会显示手动运行入口。
 - 在 `windows-latest` 上使用 Python 3.13 安装依赖、执行离线检查（见[验证](CONTRIBUTING.md#验证)）并运行 `pack/build.ps1 -Clean`；构建脚本直接产出 `output/NeoJiYuTrainer-<显示版本>.exe` 与对应的调试版本，工作流再据此准备 `dist/` 下的资产。
@@ -166,7 +166,7 @@ EXE 在其所在目录创建 `data` 子文件夹，目录内容与不可写时�
 
 ### Release
 
-- 只支持手动触发，不随推送自动运行；不会自动递增版本号，需先修改 `app/shared/version.py` 的 `__version__` 并提交。
+- 只支持手动触发，不随推送自动运行；不会自动递增版本号，需先修改 `NeoJiYuTrainer/shared/version.py` 的 `__version__` 并提交。
 - 发布前校验版本号与源码一致、正式版不带预发布后缀、标签 `vX.Y.Z` 尚不存在，任一不满足即失败。
 - 资产为固定名 `NeoJiYuTrainer.exe` 与 `NeoJiYuTrainer_Debug.exe`，另附版本号副本`NeoJiYuTrainer-X.Y.Z.exe`；同一文件同时提供 GUI 与 CLI。固定名副本由工作流从构建脚本产出的 `output/NeoJiYuTrainer-X.Y.Z.exe` 复制而来，本地 `output/` 里只有带版本号的那一份。正式版的产物体内不带提交哈希，工作流以 `-Commit ""` 显式关闭，nightly 则传当前提交哈希。
 - 发布说明的 `Changes` 章节列出上一个 `v*` 标签以来的提交标题；`make_latest: true` 使正式版成为最新版本，nightly 不受影响。
@@ -177,7 +177,7 @@ EXE 在其所在目录创建 `data` 子文件夹，目录内容与不可写时�
 
 ## 验证
 
-验证按改动范围选择，完整规则、命令与残留清理见[开发与提交规范](CONTRIBUTING.md#验证)。与构建相关的只有一条硬要求：改动 `pack/`、`scripts/`、依赖清单或 `app/` 后必须实际构建，并用产出的 EXE 冒烟——`output\NeoJiYuTrainer-<显示版本>.exe --version`、`-h`，再打开一次图形界面确认平台插件、图标与命令行都没坏。
+验证按改动范围选择，完整规则、命令与残留清理见[开发与提交规范](CONTRIBUTING.md#验证)。与构建相关的只有一条硬要求：改动 `pack/`、`scripts/`、依赖清单或 `NeoJiYuTrainer/` 后必须实际构建，并用产出的 EXE 冒烟——`output\NeoJiYuTrainer-<显示版本>.exe --version`、`-h`，再打开一次图形界面确认平台插件、图标与命令行都没坏。
 
 没有第二台测试设备时，可另外运行本机 IP 自测：
 
@@ -185,4 +185,4 @@ EXE 在其所在目录创建 `data` 子文件夹，目录内容与不可写时�
 .\.venv\Scripts\python.exe -B .\scripts\test_local_ip.py
 ```
 
-生成的 EXE 无参数时打开图形界面，带参数时运行命令行模式；两种模式都无需安装 Python。EXE 打包为窗口化子系统（`console=False`），双击启动不会出现控制台窗口；带参数运行时由 `app/start/service.py` 调用 `app/start/console.py` 的 `_show_cli_console()` 把标准流接回调用方的终端：优先沿用调用方传入的句柄（命令提示符的控制台句柄、Windows Terminal 的伪控制台管道、重定向到的文件），取不到时再挂到父进程的控制台，任何情况下都不新建控制台窗口；确实拿不到终端时丢弃输出，命令本身照常执行。因此从终端启动不会阻塞提示符，需要等待命令结束时用 `start /wait`。EXE 不强制请求管理员权限；防火墙操作在需要时单独弹出 UAC，并由隐藏助手执行。
+生成的 EXE 无参数时打开图形界面，带参数时运行命令行模式；两种模式都无需安装 Python。EXE 打包为窗口化子系统（`console=False`），双击启动不会出现控制台窗口；带参数运行时由 `NeoJiYuTrainer/start/service.py` 调用 `NeoJiYuTrainer/start/console.py` 的 `_show_cli_console()` 把标准流接回调用方的终端：优先沿用调用方传入的句柄（命令提示符的控制台句柄、Windows Terminal 的伪控制台管道、重定向到的文件），取不到时再挂到父进程的控制台，任何情况下都不新建控制台窗口；确实拿不到终端时丢弃输出，命令本身照常执行。因此从终端启动不会阻塞提示符，需要等待命令结束时用 `start /wait`。EXE 不强制请求管理员权限；防火墙操作在需要时单独弹出 UAC，并由隐藏助手执行。

@@ -4,8 +4,8 @@ import socket
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import app.features.local.service as local_service
-import app.system.net.local as local_net
+import NeoJiYuTrainer.features.local.service as local_service
+import NeoJiYuTrainer.system.net.local as local_net
 from tests.fixtures.offline import OfflineCase
 
 

@@ -26,7 +26,7 @@ class NightlyWorkflowTests(unittest.TestCase):
     def test_workflow_skips_docs_only_changes(self):
         self.assertIn("paths:", self.workflow)
         for pattern in (
-            '"app/**"',
+            '"NeoJiYuTrainer/**"',
             '"pack/**"',
             '"scripts/**"',
             '"requirements.txt"',
@@ -134,8 +134,8 @@ class NightlyWorkflowTests(unittest.TestCase):
         expression = re.search(r"build_paths='([^']+)'", self.workflow).group(1)
         pattern = re.compile(expression)
         for path in (
-            "app/start/service.py",
-            "app/resources/icons/app.svg",
+            "NeoJiYuTrainer/start/service.py",
+            "NeoJiYuTrainer/resources/icons/app.svg",
             "pack/build.ps1",
             "scripts/run_gui.ps1",
             "requirements.txt",
@@ -257,8 +257,8 @@ class ReleaseWorkflowTests(unittest.TestCase):
         self.assertIn(
             'git rev-parse -q --verify "refs/tags/v${version}"', self.workflow
         )
-        self.assertIn("app/shared/version.py", self.workflow)
-        self.assertNotIn("app/core/constants.py", self.workflow)
+        self.assertIn("NeoJiYuTrainer/shared/version.py", self.workflow)
+        self.assertNotIn("NeoJiYuTrainer/core/constants.py", self.workflow)
         self.assertIn("正式版版本号不能带预发布后缀", self.workflow)
 
     def test_release_creates_semver_tag_and_marks_latest(self):
@@ -285,7 +285,7 @@ class ReleaseWorkflowTests(unittest.TestCase):
 class WorkflowVersionSourceTests(unittest.TestCase):
     def test_workflows_read_version_from_package(self):
         build = read_workflow("build.yml")
-        self.assertIn("import app; print(app.__version__)", build)
+        self.assertIn("import NeoJiYuTrainer; print(NeoJiYuTrainer.__version__)", build)
         self.assertIsNone(re.search(r'__version__\s*=\s*"', build))
 
 

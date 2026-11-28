@@ -7,8 +7,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from app.start import cli
-from app.start.parser import COMMANDS, GROUP_NAMES
+from NeoJiYuTrainer.start import cli
+from NeoJiYuTrainer.start.parser import COMMANDS, GROUP_NAMES
 
 
 class CliLifecycleTests(unittest.TestCase):

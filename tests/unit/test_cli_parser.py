@@ -2,7 +2,7 @@
 
 import unittest
 
-from app.start import parser as cli_parser
+from NeoJiYuTrainer.start import parser as cli_parser
 
 
 class GroupParserTests(unittest.TestCase):

@@ -2,7 +2,7 @@
 
 import unittest
 
-import app.features.classroom.windows as windows
+import NeoJiYuTrainer.features.classroom.windows as windows
 from tests.fixtures.offline import OfflineCase
 
 KIND_BROADCAST = windows.KIND_BROADCAST

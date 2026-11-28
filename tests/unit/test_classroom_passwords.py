@@ -3,8 +3,8 @@
 import unittest
 from unittest.mock import patch
 
-import app.features.classroom.passwords as passwords
-from app.features.classroom.data import (
+import NeoJiYuTrainer.features.classroom.passwords as passwords
+from NeoJiYuTrainer.features.classroom.data import (
     KNOCK_XOR_FIRST,
     KNOCK_XOR_SECOND,
     PASSWORD_KNOCK_SENTINEL,
