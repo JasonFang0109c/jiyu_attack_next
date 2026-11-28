@@ -79,7 +79,7 @@ def build_group_parser():
     parser = argparse.ArgumentParser(
         prog="NeoJiYuTrainer",
         description="NeoJiYuTrainer：对抗极域电子教室的课堂工具，命令按图形界面的分组组织",
-        epilog="分组：classroom 课堂助手、remote 远程攻击、local 本机工具。"
+        epilog="分组：classroom 课堂助手、remote 远程攻击、app 应用。"
         "每条子命令对应图形界面里的一个页面，例如 remote message 对应“文本消息”。",
     )
     parser.add_argument(
