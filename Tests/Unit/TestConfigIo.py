@@ -64,6 +64,10 @@ class ConfigWriteTests(unittest.TestCase):
         staged = []
 
         def interleave(source, destination):
+            # Path.replace 是全局补丁，其它线程（界面日志、设置保存）也会走到
+            # 这里；只拦截本用例目录下的替换，避免无关调用把断言带崩。
+            if Path(source).parent != self.root:
+                return replace(source, destination)
             staged.append(source)
             if len(staged) == 1:
                 config.write(self.target, {"writer": "second"})
