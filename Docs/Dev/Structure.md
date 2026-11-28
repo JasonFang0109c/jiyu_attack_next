@@ -72,6 +72,7 @@ NeoJiYuTrainer/
 |   |       `-- Elevation.py        # UAC 隐藏助手与结果回传
 |   |-- Shared/
 |   |   |-- Config.py               # JSONC 解析与原子读写
+|   |   |-- Crash.py                # 未捕获异常与硬崩溃的报告与待提示标记
 |   |   |-- Settings.py             # 通用分组设置存储
 |   |   |-- Paths.py                # 项目根目录与便携数据路径
 |   |   |-- Resources.py            # resource_path 静态资源定位
@@ -97,9 +98,7 @@ NeoJiYuTrainer/
 |   |-- Menu.h
 |   |-- Policy.h                    # 防护位与共享内存约定
 |   |-- Remote.h                    # 远程命令确认协议
-|   |-- GuardFixture.cpp           # 构建夹具
 |   |-- GuardTarget.cpp
-|   |-- MenuFixture.cpp
 |   |-- DisasmLib/                 # 第三方反汇编库，原样保留
 |   `-- Mhook/                      # 第三方 Hook 库，原样保留
 |-- NeoJiYuTrainerDriver/           # 可选 WDM 驱动，独立构建
@@ -243,7 +242,7 @@ NeoJiYuTrainer/
 | `.venv/` | Python 虚拟环境 | 保留供开发和构建使用 |
 | `Build/` | 全部生成物：PyInstaller 中间文件、构建资源、测试与截图临时目录、驱动签名临时材料 | 整目录可删，构建脚本按需重建；构建前清理会自动删除 |
 | `Output/` | 最终 EXE | 保留需要运行或分发的产物 |
-| `Data/` | 便携数据目录：EXE 同级生成，源码运行时位于项目根目录；保存设备备注、关闭窗口行为、界面日志 `runtime.log` 与命令行日志 `cli.log` | 需要保留配置时随 EXE 一起移动，删除后恢复默认；也可在 GUI“设置”页底部清除；脚本与文档都不删除它 |
+| `Data/` | 便携数据目录：EXE 同级生成，源码运行时位于项目根目录；保存设备备注、关闭窗口行为、界面日志 `runtime.log`、命令行日志 `cli.log`，以及崩溃报告目录 `Crash/`（未捕获异常与硬崩溃各留一份文本，`Fatal.log` 记硬崩溃） | 需要保留配置时随 EXE 一起移动，删除后恢复默认；也可在 GUI“设置”页底部清除；脚本与文档都不删除它 |
 
 以上目录及 `__pycache__/`、工具缓存均由 `.gitignore` 排除（其中用户数据按 `/Data/` 规则排除），不提交 Git。根目录不保留重复的旧入口文件或遗留截图。
 

@@ -16,10 +16,12 @@
 #>
 
 param(
-    [string]$Container = "jiyu-native"
+    [string]$Container = "jiyu-native",
+    [switch]$SkipSign
 )
 
 $ErrorActionPreference = "Stop"
+$repo = Split-Path -Parent $PSScriptRoot
 $work = "C:\work\driver"
 $out = "C:\src\Build\Native\Driver"
 
@@ -38,4 +40,27 @@ if ($LASTEXITCODE -ne 0) {
     throw "驱动程序构建失败:$LASTEXITCODE"
 }
 
-Write-Host "构建产物:Build\Native\Driver"
+$built = Join-Path $repo "Build\Native\Driver\JiYuGuardDriver.sys"
+$target = Join-Path $repo "NeoJiYuTrainer\Resources\Native\Driver\JiYuGuardDriver.sys"
+if (-not (Test-Path -LiteralPath $built)) {
+    throw "找不到构建产物：$built"
+}
+
+Copy-Item -LiteralPath $built -Destination $target -Force
+Write-Host "已更新打包用驱动：$target"
+
+if ($SkipSign) {
+    Write-Host "已跳过签名（-SkipSign）"
+    return
+}
+
+& (Join-Path $repo "Pack\SignDriver.ps1") -Container $Container
+if ($LASTEXITCODE -ne 0) {
+    throw "驱动签名失败：$LASTEXITCODE"
+}
+
+$signature = Get-AuthenticodeSignature -LiteralPath $target
+if ($signature.Status -ne "Valid") {
+    throw "驱动签名状态不是 Valid：$($signature.Status)"
+}
+Write-Host "驱动已签名并更新到 Resources（$($signature.SignerCertificate.Subject)）"

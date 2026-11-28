@@ -613,13 +613,10 @@ struct ConfirmRequest {
     wchar_t path[512];
     wchar_t params[1024];
     ConfirmResult* result;
-    DWORD deadline;
     ConfirmRequest* next;
 };
 
 const wchar_t kConfirmClass[] = L"JiyuGuardConfirmWindow";
-const UINT_PTR kConfirmTimer = 1;
-const int kConfirmTimeoutSeconds = 30;
 const int kConfirmButtonAllow = 1001;
 const int kConfirmButtonDeny = 1002;
 const int kConfirmButtonAllowAll = 1003;
@@ -635,7 +632,6 @@ ConfirmRequest* g_confirm_head = nullptr;
 ConfirmRequest* g_confirm_tail = nullptr;
 ConfirmRequest* g_confirm_current = nullptr;
 HWND g_confirm_hwnd = nullptr;
-int g_confirm_seconds = 0;
 bool g_confirm_finalized = false;
 bool g_confirm_class_registered = false;
 
@@ -702,7 +698,7 @@ void LayoutConfirmControls(HWND window) {
                                  reinterpret_cast<HMENU>(
                                      static_cast<INT_PTR>(kConfirmButtonAllow)),
                                  g_module, nullptr);
-    HWND deny = CreateWindowExW(0, L"BUTTON", L"拒绝 (30)",
+    HWND deny = CreateWindowExW(0, L"BUTTON", L"拒绝",
                                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                                 392, 190, 90, 32, window,
                                 reinterpret_cast<HMENU>(
@@ -731,31 +727,6 @@ LRESULT CALLBACK ConfirmWindowProc(HWND window, UINT message, WPARAM wparam,
     case WM_CREATE:
         g_confirm_hwnd = window;
         LayoutConfirmControls(window);
-        if (g_confirm_current != nullptr) {
-            const DWORD now = GetTickCount();
-            const DWORD remain = g_confirm_current->deadline > now
-                                     ? g_confirm_current->deadline - now
-                                     : 0;
-            g_confirm_seconds = static_cast<int>(remain / 1000);
-            if (g_confirm_seconds < 1) {
-                g_confirm_seconds = 1;
-            }
-        } else {
-            g_confirm_seconds = kConfirmTimeoutSeconds;
-        }
-        SetTimer(window, kConfirmTimer, 1000, nullptr);
-        return 0;
-    case WM_TIMER:
-        if (wparam == kConfirmTimer) {
-            --g_confirm_seconds;
-            if (g_confirm_seconds <= 0) {
-                FinalizeConfirm(kConfirmDeny);
-            } else {
-                wchar_t label[32] = {};
-                swprintf_s(label, L"拒绝 (%d)", g_confirm_seconds);
-                SetDlgItemTextW(window, kConfirmButtonDeny, label);
-            }
-        }
         return 0;
     case WM_COMMAND:
         switch (LOWORD(wparam)) {
@@ -776,7 +747,6 @@ LRESULT CALLBACK ConfirmWindowProc(HWND window, UINT message, WPARAM wparam,
         FinalizeConfirm(kConfirmDeny);
         return 0;
     case WM_DESTROY:
-        KillTimer(window, kConfirmTimer);
         g_confirm_hwnd = nullptr;
         PostQuitMessage(0);
         return 0;
@@ -852,11 +822,6 @@ DWORD WINAPI ConfirmThreadProc(LPVOID parameter) {
         }
         ConfirmRequest* request = PopConfirmRequest();
         if (request == nullptr) {
-            continue;
-        }
-        if (static_cast<LONG>(GetTickCount() - request->deadline) >= 0) {
-            CompleteConfirmRequest(request, kConfirmDeny);
-            delete request;
             continue;
         }
         g_confirm_current = request;
@@ -996,15 +961,12 @@ ConfirmDecision ShowCommandConfirm(const std::wstring& path,
     wcsncpy_s(request->path, path.c_str(), _TRUNCATE);
     wcsncpy_s(request->params, params.c_str(), _TRUNCATE);
     request->result = result;
-    request->deadline = GetTickCount() + kConfirmTimeoutSeconds * 1000;
     request->next = nullptr;
     PushConfirmRequest(request);
 
-    const DWORD wait = WaitForSingleObject(result->done, 65000);
-    if (wait != WAIT_OBJECT_0) {
-        // 对话框线程卡住时返回拒绝；结果对象故意不释放，避免迟到的回调踩栈。
-        return kConfirmDeny;
-    }
+    // 与上游一致：没有超时，没人处理就一直等。注入线程退出时
+    // StopConfirmThread 会把队列里的请求按拒绝收尾。
+    WaitForSingleObject(result->done, INFINITE);
     const ConfirmDecision decision =
         static_cast<ConfirmDecision>(result->decision);
     CloseHandle(result->done);
@@ -1386,13 +1348,17 @@ BOOL WINAPI HookSetWindowPos(HWND window, HWND insert_after, int x, int y,
             return TRUE;
         }
         SetLockState(window, false);
-        const HWND target =
-            HasFlag(JIYU_GUARD_ANTI_MONITOR) ? HWND_NOTOPMOST : insert_after;
+        if (HasFlag(JIYU_GUARD_ANTI_MONITOR)) {
+            return TrueSetWindowPos
+                       ? TrueSetWindowPos(window, HWND_NOTOPMOST, x, y, cx, cy,
+                                          flags)
+                       : FALSE;
+        }
         if (IsIllegalWindow(window)) {
             return TRUE;
         }
         return TrueSetWindowPos
-                   ? TrueSetWindowPos(window, target, x, y, cx, cy, flags)
+                   ? TrueSetWindowPos(window, insert_after, x, y, cx, cy, flags)
                    : FALSE;
     }
     if (IsIllegalWindow(window)) {
@@ -1437,14 +1403,18 @@ HDWP WINAPI HookDeferWindowPos(HDWP position, HWND window, HWND insert_after,
             return nullptr;
         }
         SetLockState(window, false);
-        const HWND target =
-            HasFlag(JIYU_GUARD_ANTI_MONITOR) ? HWND_NOTOPMOST : insert_after;
+        if (HasFlag(JIYU_GUARD_ANTI_MONITOR)) {
+            return TrueDeferWindowPos
+                       ? TrueDeferWindowPos(position, window, HWND_NOTOPMOST, x,
+                                            y, cx, cy, flags)
+                       : nullptr;
+        }
         if (IsIllegalWindow(window)) {
             return nullptr;
         }
         return TrueDeferWindowPos
-                   ? TrueDeferWindowPos(position, window, target, x, y, cx, cy,
-                                        flags)
+                   ? TrueDeferWindowPos(position, window, insert_after, x, y,
+                                        cx, cy, flags)
                    : nullptr;
     }
     if (IsIllegalWindow(window)) {
@@ -1478,6 +1448,10 @@ BOOL WINAPI HookMoveWindow(HWND window, int x, int y, int cx, int cy,
         return TRUE;
     }
     SetLockState(window, false);
+    if (HasFlag(JIYU_GUARD_ANTI_MONITOR)) {
+        return TrueMoveWindow ? TrueMoveWindow(window, x, y, cx, cy, repaint)
+                              : FALSE;
+    }
     if (IsIllegalWindow(window)) {
         return TRUE;
     }

@@ -4,6 +4,7 @@
 // 设备名 \Device\JiyuGuard、符号链接 \??\JiyuGuard 与 5 个 IOCTL 功能码由用户态
 // 与已签名产物依赖，保持与旧实现完全一致。
 #include "Driver.h"
+#include "Monitor.h"
 #include "Protect.h"
 #include "UnExp.h"
 
@@ -143,6 +144,7 @@ JiyuGuardUnload(_In_ PDRIVER_OBJECT DriverObject)
     PDEVICE_OBJECT device_object;
     PDEVICE_OBJECT next;
 
+    JiyuGuardMonitorUninit();
     JiyuGuardProtectUninit();
 
     RtlInitUnicodeString(&symlink, JIYU_GUARD_SYMLINK_NAME);
@@ -202,6 +204,10 @@ DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath)
         IoDeleteDevice(device_object);
         return status;
     }
+
+    // 进程退出回调需要 /integritycheck 与有效签名，拿不到只记录，
+    // 保护表仍有清理接口，功能不受影响。
+    JiyuGuardMonitorInit();
 
     return STATUS_SUCCESS;
 }

@@ -10,11 +10,11 @@ set "WDK=C:\wdk\c"
 call C:\BuildTools\VC\Auxiliary\Build\vcvars64.bat >nul
 if errorlevel 1 exit /b 1
 if not exist "%OUT%" mkdir "%OUT%"
-set "SRC=Driver.c Protect.c UnExp.c"
+set "SRC=Driver.c Protect.c UnExp.c Monitor.c"
 pushd "%WORK%"
 cl /nologo /kernel /GS- /W4 /O2 /utf-8 /D_AMD64_ /DAMD64 /DWIN32=100 /D_WIN32_WINNT=0x0A00 /DNTDDI_VERSION=0x0A000000 /I"%WDK%\Include\10.0.26100.0\km" /I"%WDK%\Include\10.0.26100.0\shared" /c %SRC%
 if errorlevel 1 goto :fail
-link /nologo /DRIVER /SUBSYSTEM:NATIVE /ENTRY:DriverEntry /OUT:JiYuGuardDriver.sys Driver.obj Protect.obj UnExp.obj /LIBPATH:"%WDK%\Lib\10.0.26100.0\km\x64" ntoskrnl.lib
+link /nologo /DRIVER /INTEGRITYCHECK /SUBSYSTEM:NATIVE /ENTRY:DriverEntry /OUT:JiYuGuardDriver.sys Driver.obj Protect.obj UnExp.obj Monitor.obj /LIBPATH:"%WDK%\Lib\10.0.26100.0\km\x64" ntoskrnl.lib
 if errorlevel 1 goto :fail
 copy /Y JiYuGuardDriver.sys "%OUT%\JiYuGuardDriver.sys" >nul
 echo BUILD_OK driver

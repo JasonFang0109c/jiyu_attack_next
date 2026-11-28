@@ -8,7 +8,7 @@
 - 阻止远程控制：拦截低级鼠标、键盘、CBT 钩子与 `SendInput`/`mouse_event`，拒绝极域键鼠与网络过滤驱动句柄。
 - 禁止关闭窗口：拒绝其它进程发来的 `WM_CLOSE` / `WM_DESTROY`，并拦截关闭菜单与 `CS_NOCLOSE` 清除。
 - 禁止结束进程：拒绝其它进程对本进程调用 `TerminateProcess`。
-- 监控远程命令：拦截 `CreateProcessW/A`、`WinExec` 与 `ExitWindowsEx`，在被控进程内弹出确认窗口；同一时刻只显示一个对话框，30 秒未操作自动拒绝。
+- 监控远程命令：拦截 `CreateProcessW/A`、`WinExec` 与 `ExitWindowsEx`，在被控进程内弹出确认窗口；同一时刻只显示一个对话框，没人处理就一直等待（与上游一致）。
 - 运行白名单：确认窗口的“允许全部运行”会写入 DLL 同目录的 `JiYuKillerOpWhiteList.txt`，下次启动自动放行。
 - 广播窗口右键菜单：在注入进程内子类化标题含“广播/演示/共享”的窗口，提供全屏、还原、置顶与关闭。
 
@@ -29,9 +29,7 @@ powershell -ExecutionPolicy Bypass -File .\NeoJiYuTrainerHooks\Build.ps1
 写入 `Build/Native/Hooks/`。把 `GuardX64.dll` 与 `GuardX86.dll` 复制到
 `NeoJiYuTrainer/Resources/Native/` 后重新打包 EXE。
 
-`hooks_fixture_*.exe` 会自动加载同目录的 DLL 并验证每类钩子，`menu_fixture_*.exe`
-额外创建“广播测试窗口”验证右键菜单子类化与卸载恢复，二者只在构建容器或隔离
-测试环境中运行。
+构建脚本只产出两个 DLL，不再编译自测程序。
 
 ## 第三方代码
 

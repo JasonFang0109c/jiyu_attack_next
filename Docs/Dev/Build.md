@@ -63,7 +63,7 @@ powershell -ExecutionPolicy Bypass -File .\Pack\Build.ps1 -Python "C:\Python313\
 - 源码在 `NeoJiYuTrainerHooks/`（对应上游 JiYuTrainer 的 `JiYuTrainerHooks`）：`Hooks.cpp` 为窄接口 Hook DLL，`Mhook/` 与 `DisasmLib/` 来自 JiYuTrainer 的第三方源码（MIT 与原作者版权，见目录内说明）。
 - 仓库提交 `NeoJiYuTrainer/Resources/Native/GuardX86.dll`、`GuardX64.dll` 的预编译产物，普通 EXE 构建不需要编译器；PyInstaller 通过 `Pack/NeoJiYuTrainer.spec` 一并收集。
 - 只有修改 `Hooks.cpp` 或升级第三方源码时才需要重新编译：在装有 MSVC 与 Windows SDK 的 Windows 容器内执行 `NeoJiYuTrainerHooks/Build.ps1`，脚本用 `Build.bat` 分别编译 x86/x64，产物落在 `Build/Native/Hooks/`，再复制到 `NeoJiYuTrainer/Resources/Native/`。宿主机不安装编译器与 SDK。需要一次重建两个原生项目时，依次执行 `NeoJiYuTrainerHooks/Build.ps1` 与 `NeoJiYuTrainerDriver/Build.ps1`。
-- `Build/Native/Hooks/guard_fixture_*.exe` 是自测夹具，只在构建容器或隔离测试环境中运行，不加载驱动、不改系统配置。
+- `Build/Native/Hooks/` 里只有 `GuardX64.dll` 与 `GuardX86.dll` 两个产物，构建脚本不再生成任何自测程序。
 
 ### 内核驱动（可选）
 
