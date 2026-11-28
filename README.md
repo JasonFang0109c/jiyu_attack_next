@@ -127,7 +127,7 @@ EXE 无需安装 Python；从源码运行 CLI 需要按 `requirements.txt` 安�
 - EXE：`NeoJiYuTrainer.exe`，同一个文件支持 GUI 与 CLI，无需安装 Python
 - CLI 不再单独发布脚本；需要从源码调试时使用 `python -m NeoJiYuTrainer ...`
 
-推送 `main` 且改动涉及 `NeoJiYuTrainer/`、`pack/`、`scripts/`、`requirements.txt` 或工作流文件时，会自动构建并滚动更新 `nightly` 预发布版本；纯文档改动不触发构建。正式版需在 Actions 页面手动运行 `Release`，版本号规则见[版本规范](docs/dev/VERSIONING.md)。
+推送 `main` 且改动涉及 `NeoJiYuTrainer/`、`NeoJiYuTrainerUI/`、`pack/`、`scripts/`、`requirements.txt` 或工作流文件时，会自动构建并滚动更新 `nightly` 预发布版本；纯文档改动不触发构建。正式版需在 Actions 页面手动运行 `Release`，版本号规则见[版本规范](docs/dev/VERSIONING.md)。
 
 ## 文档
 

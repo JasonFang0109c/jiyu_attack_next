@@ -29,7 +29,7 @@ python --version
 python -m NeoJiYuTrainer -h
 ```
 
-`python -m NeoJiYuTrainer` 是统一入口，由 `NeoJiYuTrainer/start/service.py` 分流到命令行或 GUI 启动流程。运行时代码按 `NeoJiYuTrainer/start/`、`NeoJiYuTrainer/features/`、`NeoJiYuTrainerUI/gui/`、`NeoJiYuTrainer/packets/`、`NeoJiYuTrainer/system/`、`NeoJiYuTrainer/shared/` 与 `NeoJiYuTrainer/resources/` 划分；功能参数由各自的 `cli.py` 注册，页面由主窗口显式装配，边界与接入步骤见[项目结构](STRUCTURE.md#新增功能)。
+`python -m NeoJiYuTrainer` 是统一入口，由 `NeoJiYuTrainer/start/service.py` 分流到命令行或 GUI 启动流程。运行时代码按 `NeoJiYuTrainer/start/`、`NeoJiYuTrainer/features/`、`NeoJiYuTrainerUI/gui/`、`NeoJiYuTrainerUI/features/`、`NeoJiYuTrainer/packets/`、`NeoJiYuTrainer/system/`、`NeoJiYuTrainer/shared/` 与 `NeoJiYuTrainer/resources/` 划分；功能参数由各自的 `cli.py` 注册，页面由主窗口显式装配，边界与接入步骤见[项目结构](STRUCTURE.md#新增功能)。
 
 ## 启动与构建
 
