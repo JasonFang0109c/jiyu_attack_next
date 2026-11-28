@@ -111,7 +111,23 @@ powershell -ExecutionPolicy Bypass -File ./Pack/CleanBuild.ps1 -WhatIf
 | `.ruff_cache/`、`.pytest_cache/`、`.mypy_cache/`、`.coverage`、`htmlcov/` | 清除工具缓存与覆盖率结果 |
 | `NeoJiYuTrainer/`、`Pack/`、`Scripts/`、`Tests/` 下的 `__pycache__/` | 清除源码字节码缓存，不遍历 `.venv/` |
 
-**明确保留 `settings.json`、备注和其他运行数据**：脚本仅删除上表列出的两个日志文件，不删除 `Data/` 目录，也不会递归清理 `Output/`。由于脚本会删除旧 EXE，不要在构建完成后再次运行；验证产生的临时截图可按需单独删除。需要干净的验证环境时改用临时数据目录（截图验证用 `Build/verify-gui-data`）。
+**明确保留 `settings.json`、备注和其他运行数据**：脚本仅删除上表列出的两个日志文件，不删除 `Data/` 目录，也不会递归清理 `Output/`。由于脚本会删除旧 EXE，不要在构建完成后再次运行；验证产生的截图、脚本与数据目录按下一节处理。需要干净的验证环境时改用临时数据目录（截图验证用 `Build/verify-gui-data`）。
+
+### 残留清理
+
+测试、构建与截图验证结束后，把这次产生的临时东西清掉再提交。`Build/` 与 `Output/` 都由 `.gitignore` 排除，不留 Git 痕迹，但目录会越积越大——一次原生冒烟、一次界面截图、一次 EXE 试跑各留一份，很快就是几百兆。
+
+| 清理对象 | 处理方式 |
+| --- | --- |
+| 一次性脚本（探针、批量替换、截图、临时校验） | 用完立即删除，不留到下一次改动 |
+| 截图与临时数据目录（`Build/previews/`、`Build/verify-gui-data/`，以及自建的 `Build/Shots*`、`Build/*Data`） | 截图确认外观后即可删除；数据目录整目录删除 |
+| `Build/` 下其他手建目录（原生夹具、冒烟目录、旧调试副本） | 确认不再需要就删；需要时按本文命令重新生成 |
+| PyInstaller 中间产物 `Build/release/`、`Build/debug/` 与旧 EXE | 交给 `Pack/CleanBuild.ps1` 处理，不手工挑文件 |
+| 工具缓存与字节码：`.ruff_cache/`、`.pytest_cache/`、`.coverage`、`__pycache__/` | 同上，由清理脚本统一删除 |
+
+**保留**：`Output/Data/`（用户备注、设置与日志，任何时候都不删）、`Build/Assets/`（本轮构建的图标与版本脚本，构建会重新生成）、`Build/Signing/`（驱动测试签名材料，重新生成要额外操作）。构建产物 `Output/*.exe` 保留最近一轮用于冒烟，下一轮构建前由清理脚本删除。
+
+清理完毕用 `git status` 确认工作区只剩本次该提交的改动；被忽略的目录不会出现在里面，需要时用 `ls Build` 看一眼是否还有本次的临时文件。
 
 ## 体积控制
 
