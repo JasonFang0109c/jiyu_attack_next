@@ -9,7 +9,7 @@ class GroupParserTests(unittest.TestCase):
     def test_groups_match_gui_sidebar(self):
         self.assertEqual(
             list(cli_parser.GROUPS),
-            ["restriction", "remote", "local"],
+            ["classroom", "remote", "local"],
         )
         self.assertEqual(
             list(cli_parser.COMMANDS["remote"]),
@@ -18,7 +18,7 @@ class GroupParserTests(unittest.TestCase):
         self.assertEqual(
             list(cli_parser.COMMANDS["local"]), ["info", "uninstall", "firewall"]
         )
-        self.assertEqual(list(cli_parser.COMMANDS["restriction"]), ["student"])
+        self.assertEqual(list(cli_parser.COMMANDS["classroom"]), ["student"])
 
     def test_every_command_has_a_parser(self):
         group = cli_parser.build_group_parser()
@@ -71,25 +71,25 @@ class GroupParserTests(unittest.TestCase):
             parser.parse_args(["local", "firewall", "allow"]).firewall, "allow"
         )
 
-    def test_restriction_group_lists_stops_and_starts_student(self):
+    def test_classroom_group_lists_stops_and_starts_student(self):
         parser = cli_parser.build_group_parser()
-        stop = parser.parse_args(["restriction", "student"])
+        stop = parser.parse_args(["classroom", "student"])
         self.assertTrue(stop.endstudent)
         self.assertFalse(stop.start_student)
         self.assertIsNone(stop.pid)
         self.assertFalse(stop.list)
-        listing = parser.parse_args(["restriction", "student", "--list"])
+        listing = parser.parse_args(["classroom", "student", "--list"])
         self.assertTrue(listing.list)
-        single = parser.parse_args(["restriction", "student", "--pid", "17600"])
+        single = parser.parse_args(["classroom", "student", "--pid", "17600"])
         self.assertEqual(single.pid, [17600])
         self.assertIsNone(single.ip)
         started = parser.parse_args(
-            ["restriction", "student", "--start", "--exe", "C:/x/StudentMain.exe"]
+            ["classroom", "student", "--start", "--exe", "C:/x/StudentMain.exe"]
         )
         self.assertTrue(started.start_student)
         self.assertEqual(started.student_exe, "C:/x/StudentMain.exe")
         self.assertTrue(
-            parser.parse_args(["restriction", "endstudent"]).endstudent,
+            parser.parse_args(["classroom", "endstudent"]).endstudent,
         )
 
     def test_legacy_flat_syntax_is_rejected(self):

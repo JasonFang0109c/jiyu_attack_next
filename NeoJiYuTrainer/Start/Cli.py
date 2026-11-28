@@ -58,7 +58,7 @@ def run_from_cmd(arguments):
     log_arguments(arguments)
     log = cli_log.LOG
     try:
-        if arguments.group == "restriction":
+        if arguments.group == "classroom":
             return student_cli.run_student_command(arguments)
         if arguments.group == "local":
             if arguments.command == "firewall":

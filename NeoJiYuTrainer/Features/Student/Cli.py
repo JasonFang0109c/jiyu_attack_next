@@ -20,9 +20,9 @@ def register(commands, defaults):
         description="启停本机极域学生端。不带选项时按当前状态决定方向："
         "有学生端在运行就结束它、腾出被独占的 4705 端口；没有就启动它、"
         "恢复课堂管理。非管理员时通过 UAC 提权执行。",
-        epilog="示例：restriction student 按状态切换；"
-        "restriction student --list 只查看；restriction student --path 查看安装位置；"
-        "restriction student --start 强制启动。",
+        epilog="示例：classroom student 按状态切换；"
+        "classroom student --list 只查看；classroom student --path 查看安装位置；"
+        "classroom student --start 强制启动。",
     )
     defaults = dict(defaults)
     defaults["endstudent"] = True

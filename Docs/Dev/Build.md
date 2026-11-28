@@ -134,7 +134,7 @@ powershell -ExecutionPolicy Bypass -File ./Pack/CleanBuild.ps1 -WhatIf
 
 `_is_qt_translation` 另外滤掉 `PySide6	ranslations` 下的 `.qm`：Qt 自带翻译只有显式 `QTranslator` 加载才生效，界面用的是组件库自带的中文资源。过滤按文件名比对，`_stem` 会去掉扩展名与 ABI 后缀，因此 `_avif.cp313-win_amd64.pyd` 这类带后缀的扩展模块也能命中。
 
-改动这份清单前先确认运行期确实不加载：`pyi-archive_viewer -l Output/NeoJiYuTrainer-<显示版本>.exe` 看打进包里的文件，`pyi-archive_viewer -r -b` 看 Python 模块清单。裁剪后必须启动一次打包版界面，并跑 `-h`、`local info`、`restriction student --list`，确认平台插件、图标与命令行都没坏。按当前清单，两份 EXE 从 84 MB 降到 62 MB 左右。
+改动这份清单前先确认运行期确实不加载：`pyi-archive_viewer -l Output/NeoJiYuTrainer-<显示版本>.exe` 看打进包里的文件，`pyi-archive_viewer -r -b` 看 Python 模块清单。裁剪后必须启动一次打包版界面，并跑 `-h`、`local info`、`classroom student --list`，确认平台插件、图标与命令行都没坏。按当前清单，两份 EXE 从 84 MB 降到 62 MB 左右。
 
 ## 运行数据
 

@@ -28,7 +28,7 @@ class EntryTests(unittest.TestCase):
             timeout=10,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        for name in ("restriction", "remote", "local"):
+        for name in ("classroom", "remote", "local"):
             self.assertIn(name, result.stdout)
 
     def test_group_help_lists_message_options(self):

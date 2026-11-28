@@ -39,7 +39,7 @@ class CliLifecycleTests(unittest.TestCase):
             for group, commands in COMMANDS.items()
             for command in commands
         )
-        prefixes.append(["restriction", "endstudent"])
+        prefixes.append(["classroom", "endstudent"])
         for prefix in prefixes:
             for flag in ("-h", "--help"):
                 with self.subTest(arguments=[*prefix, flag]):
@@ -145,7 +145,7 @@ class CliDispatchTests(unittest.TestCase):
                 "options",
             ),
             (["remote", "shell"], "run_shell", "options"),
-            (["restriction", "student", "--list"], "run_student_command", "options"),
+            (["classroom", "student", "--list"], "run_student_command", "options"),
             (["local", "info"], "print_local_info", None),
             (["local", "firewall", "block"], "apply_firewall", "block"),
         )

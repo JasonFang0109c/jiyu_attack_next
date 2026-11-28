@@ -14,14 +14,14 @@ from NeoJiYuTrainer.Shared.Version import runtime_version
 
 # 与图形界面侧边栏的分组一一对应。
 GROUPS = {
-    "restriction": "课堂助手",
+    "classroom": "课堂助手",
     "remote": "远程攻击",
     "local": "本机工具",
 }
 
 # 每个分组下的子命令，同样对应图形界面的页面。
 COMMANDS = {
-    "restriction": {
+    "classroom": {
         "student": "启停学生端",
     },
     "remote": {
@@ -82,7 +82,7 @@ def build_group_parser():
     parser = argparse.ArgumentParser(
         prog="NeoJiYuTrainer",
         description="NeoJiYuTrainer：对抗极域电子教室的课堂工具，命令按图形界面的分组组织",
-        epilog="分组：restriction 课堂助手、remote 远程攻击、local 本机工具。"
+        epilog="分组：classroom 课堂助手、remote 远程攻击、local 本机工具。"
         "每条子命令对应图形界面里的一个页面，例如 remote message 对应“文本消息”。",
     )
     parser.add_argument(
@@ -96,11 +96,11 @@ def build_group_parser():
         title="分组", dest="group", metavar="分组", required=True
     )
 
-    restriction = groups.add_parser("restriction", help="课堂助手")
-    restriction_commands = restriction.add_subparsers(
+    classroom = groups.add_parser("classroom", help="课堂助手")
+    classroom_commands = classroom.add_subparsers(
         title="子命令", dest="command", metavar="子命令", required=True
     )
-    student_cli.register(restriction_commands, _base_defaults())
+    student_cli.register(classroom_commands, _base_defaults())
 
     remote = groups.add_parser("remote", help="远程攻击")
     remote_commands = remote.add_subparsers(

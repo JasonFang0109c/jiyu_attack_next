@@ -39,7 +39,7 @@ GUI 与 CLI 已合并到同一个单文件 EXE：从 [Nightly Build](https://git
 | `remote file` | 文件传送 | 将文件或文件夹传送到学生机桌面（`--file`） |
 | `remote device` | 设备操作 | `--reboot` 重启、`--shutdown` 关机、`--logoff` 注销、`--bluescreen` 蓝屏；四个动作互斥，重启与关机用固定报文，不带倒计时与提示 |
 | `remote shell` | 反弹终端 | 在学生机上建立可持续交互的命令行会话 |
-| `restriction student` | 启停学生端 | 按当前状态启动或结束本机极域学生端，腾出被独占的 4705 端口 |
+| `classroom student` | 启停学生端 | 按当前状态启动或结束本机极域学生端，腾出被独占的 4705 端口 |
 | `local info` | 本机信息 | 查询本机 IP 地址与学生端端口 |
 | `local firewall` | 防火墙 | `block` 阻止学生端网络通信，`allow` 恢复通信 |
 | `local uninstall` | 设置 → 卸载应用 | 删除快捷方式、可选驱动服务与安装目录，`--keep-data` 保留用户数据 |
@@ -57,7 +57,7 @@ GUI 与 CLI 已合并到同一个单文件 EXE：从 [Nightly Build](https://git
 | --- | --- |
 | `JiYuTrainer` | 课堂助手、课堂防护与广播窗口右键菜单所依据的窗口处理规则、反监视/防控制 Hook 思路、远程命令确认流程和内核强杀思路；命令行不直接提供这些窗口操作 |
 | `Jiyu_udp_attack` | 文本消息（`remote message`）、远程命令（`remote command`）、重启与关机（`remote device`）、本机信息（`local info`）、防火墙规则（`local firewall`）的报文结构 |
-| 本程序新增 | 注销（`remote device --logoff`）、蓝屏（`remote device --bluescreen`）、文件传送（`remote file`）、反弹终端（`remote shell`）、启停学生端（`restriction student`） |
+| 本程序新增 | 注销（`remote device --logoff`）、蓝屏（`remote device --bluescreen`）、文件传送（`remote file`）、反弹终端（`remote shell`）、启停学生端（`classroom student`） |
 
 来源的 `-e r` / `-e s` 是重发一份固定模板，本程序照旧重发同一份模板；来源的 `-e nc` 依赖外网脚本与 `powercat`，本程序的 `remote shell` 自己起脚本服务。
 
@@ -103,7 +103,7 @@ Windows 10/11。EXE 已包含 Python 运行时，命令行模式无需安装 Pyt
 NeoJiYuTrainer.exe <分组> <子命令> [-ip <目标地址>] [-p <目标端口>] <该页面的参数>
 ```
 
-先写分组与子命令，再跟这个页面的参数。`-ip` 只有需要目标的功能才要求，默认 UDP 端口为 `4705`；`local info`、`local firewall` 与 `restriction student` 不需要目标地址。无参数启动会打开 GUI，带 `-h`、`--version` 或其他参数时运行 CLI；GUI 的启动与操作见 [GUI 模式使用说明](Gui.md)。
+先写分组与子命令，再跟这个页面的参数。`-ip` 只有需要目标的功能才要求，默认 UDP 端口为 `4705`；`local info`、`local firewall` 与 `classroom student` 不需要目标地址。无参数启动会打开 GUI，带 `-h`、`--version` 或其他参数时运行 CLI；GUI 的启动与操作见 [GUI 模式使用说明](Gui.md)。
 
 在命令提示符（cmd）中可直接运行：
 
@@ -133,7 +133,7 @@ start /wait NeoJiYuTrainer.exe remote message -ip 10.49.151.29 -msg "Hello"
 
 | 子命令 | 例子 |
 | --- | --- |
-| `restriction student` | `restriction student --list`、`restriction student --path`、`restriction student --start` |
+| `classroom student` | `classroom student --list`、`classroom student --path`、`classroom student --start` |
 | `remote message` | `remote message -ip 192.168.1.10 -msg "下课了"` |
 | `remote file` | `remote file -ip 192.168.1.10 --file 报告.pdf` |
 | `remote device` | `remote device -ip 192.168.1.10 --shutdown` |
@@ -211,7 +211,7 @@ debug 版本会在发送前写一条 `DEBUG` 日志“蓝屏载荷”，给出�
 
 子命令本身就会启动反弹终端：先在本机随机空闲端口启动 TCP 终端监听和仅提供启动脚本的临时 HTTP 服务，再通过远程命令让目标下载脚本并连回来，连上后逐条输入命令。本机回连地址按目标地址自动挑选出口网卡，监听端口由系统分配，两者都不再提供单独开关；连接命令要挤进单条远程命令的 163 个 UTF-16 单元里，因此地址与端口都由程序自己挑选。目标是窗口化的 EXE 时，程序会把标准输入重新绑定到控制台，交互与在源码里运行一致。
 
-### restriction student（启停学生端）
+### classroom student（启停学生端）
 
 | 参数 | 类型 | 默认值 | 用途与说明 |
 | --- | --- | --- | --- |
@@ -245,7 +245,7 @@ debug 版本会在发送前写一条 `DEBUG` 日志“蓝屏载荷”，给出�
 
 ### 从旧命令迁移
 
-旧的扁平命令不再支持；请使用对应的分组子命令。例如，原 `-e r` 改为 `remote device --reboot`，`-e g` 改为 `local info`，`--start-student` 改为 `restriction student --start`。原来一次组合的多项操作需要分别执行多个子命令。
+旧的扁平命令不再支持；请使用对应的分组子命令。例如，原 `-e r` 改为 `remote device --reboot`，`-e g` 改为 `local info`，`--start-student` 改为 `classroom student --start`。原来一次组合的多项操作需要分别执行多个子命令。分组名也统一成界面称呼：原 `restriction student` 改为 `classroom student`。
 
 ## 目标地址格式
 
@@ -364,25 +364,25 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 
 ```powershell
 # 只列进程与占用端口，不动进程
-.\NeoJiYuTrainer.exe restriction student --list
+.\NeoJiYuTrainer.exe classroom student --list
 
 # 只查程序位置：按记住的路径、运行中的进程、卸载信息与常见目录查找
-.\NeoJiYuTrainer.exe restriction student --path
+.\NeoJiYuTrainer.exe classroom student --path
 
 # 按当前状态切换：存在进程时结束，否则启动，与界面的单按钮一致
-.\NeoJiYuTrainer.exe restriction student
+.\NeoJiYuTrainer.exe classroom student
 
 # 只结束指定进程
-.\NeoJiYuTrainer.exe restriction student --pid 17600
+.\NeoJiYuTrainer.exe classroom student --pid 17600
 
 # 结束后不等 2 秒复查，直接返回
-.\NeoJiYuTrainer.exe restriction student --no-guardian
+.\NeoJiYuTrainer.exe classroom student --no-guardian
 
 # 启动学生端，留空路径时自动查找安装位置
-.\NeoJiYuTrainer.exe restriction student --start
+.\NeoJiYuTrainer.exe classroom student --start
 
 # 指定程序路径启动
-.\NeoJiYuTrainer.exe restriction student --start --exe "C:\Program Files\TopDomain\e-Learning Class Standard\1.00\StudentMain.exe"
+.\NeoJiYuTrainer.exe classroom student --start --exe "C:\Program Files\TopDomain\e-Learning Class Standard\1.00\StudentMain.exe"
 ```
 
 结束时先给有窗口的同名进程发关闭消息请它自己退出，等不到进程消失再强制结束，仍被拒绝才走管理员授权；极域学生端不响应正常退出，所以判定以进程是否真的消失为准。结束前会校验进程创建时间，进程号恰好被别的程序复用时不会误杀。默认结束后停留 2 秒复查，学生端又被拉起来时提示是守护服务重启了它，`--no-guardian` 可以跳过这段等待。
