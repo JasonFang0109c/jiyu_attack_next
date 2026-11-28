@@ -24,7 +24,7 @@ NeoJiYuTrainer 以本地 `D:\Code\Project\JiYuTrainer` 作为行为和功能的�
 | 用户态关闭与强制结束 | `app/features/student/service.py`、`app/system/windows/process.py` | 保留用户态链；可选驱动失败后再走内核强杀 |
 | 课堂广播窗口识别、窗口化、假全屏、置顶 | `app/features/classroom/windows.py`、`service.py` | 保留 Python 窗口规则；Guard DLL 负责进程内菜单和 Hook |
 | 极域卸载密码（明文/Knock1） | `app/features/classroom/passwords.py` | 保留算法与 golden/单元测试，不凭猜测改常量 |
-| 反监视、防控制、禁止关闭、禁止结束 | `app/system/windows/guard.py`、`pack/native/guard/` | 保留当前策略协议、DLL、x86/x64 资源和构建夹具 |
+| 反监视、防控制、禁止关闭、禁止结束 | `app/system/windows/guard.py`、`pack/native/hooks/` | 保留当前策略协议、DLL、x86/x64 资源和构建夹具 |
 | 远程命令逐条允许 | `guard.py` 共享内存、课堂 GUI 服务、Guard DLL | 保留 30 秒超时拒绝、逐条确认和“全部允许”行为 |
 | UDP 消息、远程命令、重启/关机/注销 | `app/packets/`、`app/system/net/`、`app/features/send/` | 以当前回归测试为基线；不直接覆盖上游报文实现 |
 | 文件传送 | `app/features/files/` | 项目新增能力，保留 HTTP 临时服务、取消、重试和多文件目录树 |
@@ -44,11 +44,11 @@ NeoJiYuTrainer 以本地 `D:\Code\Project\JiYuTrainer` 作为行为和功能的�
 | `JiYuTrainer/JiYuTrainer.cpp`、`App.h` | `app/__main__.py`、`app/start/`、`app/shared/` | 保留 Python/Qt 事件循环，不搬 `wWinMain` 和 Sciter 装载 |
 | `JiYuTrainer/TrainerWorker.*` | `app/features/student/`、`app/features/classroom/`、`app/gui/workers/` | 按领域拆开进程、窗口和后台任务，避免重新制造巨型服务 |
 | `JiYuTrainer/JyUdpAttack.*` | `app/packets/`、`app/system/net/`、`app/features/send/` | 复用协议行为；保留取消、轮次、进度和送达结果 |
-| `JiYuTrainerHooks/` | `pack/native/guard/`、`app/system/windows/guard.py` | 当前 Guard 协议独立维护；先对照导出、策略、位数和夹具 |
+| `JiYuTrainerHooks/` | `pack/native/hooks/`、`app/system/windows/guard.py` | 当前 Guard 协议独立维护；先对照导出、策略、位数和夹具 |
 | `JiYuTrainerDriver/` | `pack/native/driver/`、`app/system/windows/driver.py` | 当前设备名、IOCTL、签名和服务生命周期不与上游混用 |
 | `JiYuTrainerUI/` | `app/gui/window/`、各 `features/*/gui/` | 迁移页面语义，不迁移 Sciter HTML、DOM 事件和控件实现 |
 | `JiYuTrainerUpdater/` | `.github/workflows/`、`pack/` | 当前发布链先保留；自动更新另立需求，不作为隐式迁移项 |
-| 上游 `mhook`、`disasm-lib`、许可证 | `pack/native/guard/mhook/`、`disasm-lib/`、资源许可证 | 原样保留第三方声明，禁止覆盖 GPL-3.0 |
+| 上游 `mhook`、`disasm-lib`、许可证 | `pack/native/hooks/mhook/`、`disasm-lib/`、资源许可证 | 原样保留第三方声明，禁止覆盖 GPL-3.0 |
 
 上游部分 C++ 文件不是 UTF-8。迁移时按原始字节或正确代码页读取；没有逐函数证据前，不重写密码、报文、Hook 或驱动常量。
 

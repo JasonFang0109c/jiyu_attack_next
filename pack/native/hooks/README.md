@@ -19,11 +19,11 @@
 容器构建，宿主机不安装编译器：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\pack\native\build-guard.ps1
+powershell -ExecutionPolicy Bypass -File .\pack\native\build-hooks.ps1
 ```
 
 脚本在容器 `jiyu-native` 内分别执行 `build.bat x64` 与 `build.bat x86`，产物
-写入 `build/native/guard/`。把 `guard_x64.dll` 与 `guard_x86.dll` 复制到
+写入 `build/native/hooks/`。把 `guard_x64.dll` 与 `guard_x86.dll` 复制到
 `app/resources/native/` 后重新打包 EXE。
 
 `guard_fixture_*.exe` 会自动加载同目录的 DLL 并验证每类钩子，`menu_fixture_*.exe`

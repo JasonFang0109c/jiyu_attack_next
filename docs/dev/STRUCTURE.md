@@ -129,11 +129,18 @@ NeoJiYuTrainer/
 |-- pack/
 |   |-- build.ps1                  # EXE 构建脚本
 |   |-- gen_version_info.py        # EXE 版本资源生成器
-|   `-- NeoJiYuTrainer.spec        # PyInstaller 配置
+|   |-- native/
+|   |   |-- hooks/                 # 对应 JiYuTrainerHooks：课堂防护 DLL 与夹具
+|   |   |-- driver/                # 对应 JiYuTrainerDriver：可选 WDM 驱动
+|   |   |   `-- README.md           # 原生边界与排除项说明
+|   |   `-- NeoJiYuTrainer.spec    # PyInstaller 配置
 |-- scripts/
 |   |-- run_gui.ps1                # 使用虚拟环境启动 GUI
 |   `-- test_local_ip.py           # 本机 IPv4 报文收发自测
 |-- tests/
+|   |-- contract/                  # 跨服务契约与目录边界测试
+|   |   |-- test_compat_contract.py
+|   |   `-- test_native_layout.py
 |   |-- fixtures/offline.py        # 离线网络替身与共用 fixture
 |   |-- unit/                     # 报文、地址、业务与配置单元测试
 |   |   |-- test_packets.py
@@ -214,7 +221,7 @@ NeoJiYuTrainer/
 
 ### 打包与测试
 
-- `pack/` 只放构建脚本、PyInstaller 配置、版本资源生成器与 `native/` 原生组件源码；运行时入口仍为 `app/__main__.py`，静态图标按 `app/resources/icons/app.svg` 收集。
+- `pack/` 只放构建脚本、PyInstaller 配置、版本资源生成器与 `native/` 原生组件源码；`native/hooks/` 对应上游 `JiYuTrainerHooks`，`native/driver/` 对应上游 `JiYuTrainerDriver`；当前不复制上游 Sciter UI、Updater、Debug/Release 或旧 VS 工程文件。运行时入口仍为 `app/__main__.py`，静态图标按 `app/resources/icons/app.svg` 收集。
 - `.github/workflows/build.yml` 为可复用打包流程；`nightly-build.yml` 在推送 `main` 且涉及 `app/`、`pack/`、`scripts/`、`requirements.txt` 或工作流文件时构建，静态资源已包含在 `app/` 过滤内。`release.yml` 仍仅手动触发，详见[版本规范](VERSIONING.md)。
 - `tests/unit/` 检查报文、业务与配置单元，`tests/integration/` 检查入口和跨模块协作，其中 `test_layout.py` 检查底层依赖方向、移除旧聚合入口及业务模块不加载 Qt；`tests/gui/` 检查窗口与日志界面，`tests/pack/` 检查版本和工作流。公共离线替身集中在 `tests/fixtures/offline.py`，测试不执行真实目标发送或防火墙变更。
 - 全量发现使用 `python -B -m unittest discover -s tests -t .`，保证按 `tests` 包导入；单个模块使用完整包名，例如 `python -B -m unittest tests.gui.test_window -v`。截图工具为 `python -B -m tests.gui.verify_gui --screenshot <截图路径>`。

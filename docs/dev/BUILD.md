@@ -60,10 +60,10 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Python "C:\Python313\
 
 ### 课堂防护原生组件
 
-- 源码在 `pack/native/guard`：`guard.cpp` 为窄接口 Hook DLL，`mhook/` 与 `disasm-lib/` 来自 JiYuTrainer 的第三方源码（MIT 与原作者版权，见目录内说明）。
+- 源码在 `pack/native/hooks`：`guard.cpp` 为窄接口 Hook DLL，`mhook/` 与 `disasm-lib/` 来自 JiYuTrainer 的第三方源码（MIT 与原作者版权，见目录内说明）。
 - 仓库提交 `app/resources/native/guard_x86.dll`、`guard_x64.dll` 的预编译产物，普通 EXE 构建不需要编译器；PyInstaller 通过 `pack/NeoJiYuTrainer.spec` 一并收集。
-- 只有修改 `guard.cpp` 或升级第三方源码时才需要重新编译：在装有 MSVC 与 Windows SDK 的 Windows 容器内执行 `pack/native/build-guard.ps1`，脚本用 `build.bat` 分别编译 x86/x64，产物落在 `build/native/guard/`，再复制到 `app/resources/native/`。宿主机不安装编译器与 SDK。
-- `build/native/guard/guard_fixture_*.exe` 是自测夹具，只在构建容器或隔离测试环境中运行，不加载驱动、不改系统配置。
+- 只有修改 `guard.cpp` 或升级第三方源码时才需要重新编译：在装有 MSVC 与 Windows SDK 的 Windows 容器内执行 `pack/native/build-hooks.ps1`，脚本用 `build.bat` 分别编译 x86/x64，产物落在 `build/native/hooks/`，再复制到 `app/resources/native/`。宿主机不安装编译器与 SDK。
+- `build/native/hooks/guard_fixture_*.exe` 是自测夹具，只在构建容器或隔离测试环境中运行，不加载驱动、不改系统配置。
 
 ### 内核驱动（可选）
 

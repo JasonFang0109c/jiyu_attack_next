@@ -32,7 +32,7 @@ INTERVAL_RANGE = (1, 10)
 DEFAULT_ALLOW_TOP = False
 DEFAULT_INCLUDE_FULLSCREEN = True
 DEFAULT_HIDE_BLACK_SCREEN = True
-# 课堂防护位与 pack/native/guard/policy.h 的 JIYU_GUARD_* 一一对应。
+# 课堂防护位与 pack/native/hooks/policy.h 的 JIYU_GUARD_* 一一对应。
 DEFAULT_GUARD_FLAGS = 0
 GUARD_ITEMS = (
     (1, "阻止屏幕监视"),
