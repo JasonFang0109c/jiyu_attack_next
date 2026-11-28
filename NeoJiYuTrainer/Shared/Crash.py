@@ -171,7 +171,7 @@ def pending_report(directory):
     """
     marker = crash_dir(directory) / PENDING_NAME
     try:
-        text = marker.read_text(encoding="utf-8").strip()
+        text = marker.read_text(encoding="utf-8-sig").strip()
     except OSError:
         return None
     if not text:

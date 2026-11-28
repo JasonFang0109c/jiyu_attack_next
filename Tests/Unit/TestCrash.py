@@ -73,6 +73,16 @@ class CrashTests(unittest.TestCase):
         )
         self.assertIsNone(Crash.pending_report(self.data))
 
+    def test_pending_report_tolerates_byte_order_mark(self):
+        target = Crash.crash_dir(self.data)
+        target.mkdir(parents=True, exist_ok=True)
+        report = target / "CrashInfo-bom.txt"
+        report.write_text("手工记录", encoding="utf-8")
+        (target / Crash.PENDING_NAME).write_text(
+            "\ufeff" + str(report), encoding="utf-8"
+        )
+        self.assertEqual(Crash.pending_report(self.data), report)
+
     def test_write_report_without_install(self):
         report = Crash.write_report(self.data, "手工记录", "细节")
         self.assertEqual(Crash.pending_report(self.data), report)
