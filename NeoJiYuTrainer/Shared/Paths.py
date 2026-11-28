@@ -1,15 +1,20 @@
 """运行数据目录与日志文件位置，命令行与界面共用同一套规则。
 
-数据目录与可执行文件同级，便于把 EXE 与 ``data`` 一起拷贝；
+数据目录与可执行文件同级，便于把 EXE 与 ``Data`` 一起拷贝；
 源码运行时退回项目根目录，避免在 ``NeoJiYuTrainer/`` 里散落运行数据。
 """
 
 import contextlib
+import os
 import sys
 from pathlib import Path
 
-DATA_DIRECTORY_NAME = "data"
-LEGACY_DATA_DIRECTORY_NAMES = ("NeoJiYuTrainerData", "JiYuAttackNextData")
+DATA_DIRECTORY_NAME = "Data"
+LEGACY_DATA_DIRECTORY_NAMES = (
+    "NeoJiYuTrainerData",
+    "JiYuAttackNextData",
+    "data",
+)
 LOG_FILE_NAME = "runtime.log"
 CLI_LOG_FILE_NAME = "cli.log"
 
@@ -21,17 +26,36 @@ def _migrate_legacy_data_dir(parent):
         parent: 数据目录的父目录，通常是 EXE 所在目录或源码仓库根目录。
     """
     target = parent / DATA_DIRECTORY_NAME
-    if target.exists():
-        return
     for name in LEGACY_DATA_DIRECTORY_NAMES:
         legacy = parent / name
         if not legacy.is_dir():
             continue
+        if _is_same_directory(legacy, target):
+            # 只差大小写时两者是同一个目录，NTFS 上必须经临时名才能换掉显示名。
+            _rename_case_variant(legacy, target)
+            continue
+        if target.exists():
+            continue
         # 目录被占用或权限不足时保留旧目录，不能让启动因为迁移失败而中断。
         with contextlib.suppress(OSError):
             legacy.rename(target)
-        if target.exists():
-            return
+
+
+def _is_same_directory(left, right):
+    """判断两个路径是否指向同一个目录，Windows 下大小写不敏感。"""
+    left_path = os.path.normcase(str(left.resolve()))
+    right_path = os.path.normcase(str(right.resolve()))
+    return left_path == right_path
+
+
+def _rename_case_variant(source, target):
+    """把只差大小写的目录改成目标名，NTFS 上先移到临时名再改名。"""
+    if target.resolve().name == target.name:
+        return
+    temporary = source.with_name(f"{source.name}.migrating")
+    with contextlib.suppress(OSError):
+        source.rename(temporary)
+        temporary.rename(target)
 
 
 def project_root():
@@ -46,7 +70,7 @@ def portable_data_dir(executable=None):
         executable: 可执行文件路径；None 表示按当前运行方式推断。
 
     Returns:
-        Path: ``data`` 目录的完整路径。
+        Path: ``Data`` 目录的完整路径。
     """
     if executable is not None:
         executable_dir = Path(executable).resolve().parent

@@ -43,7 +43,7 @@ class ConfigCommentTests(unittest.TestCase):
 
 class ConfigWriteTests(unittest.TestCase):
     def setUp(self):
-        build = Path("build")
+        build = Path("Build")
         build.mkdir(exist_ok=True)
         directory = tempfile.TemporaryDirectory(dir=build, prefix="audit_cli_config_")
         self.addCleanup(directory.cleanup)

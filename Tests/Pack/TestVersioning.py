@@ -33,12 +33,12 @@ class VersionTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, 0)
 
     def test_version_text_falls_back_to_package_version(self):
-        with patch.object(sys, "_MEIPASS", str(Path("build") / "missing"), create=True):
+        with patch.object(sys, "_MEIPASS", str(Path("Build") / "missing"), create=True):
             self.assertEqual(build_info.version_text(), package_version)
 
     def test_version_text_prefers_bundled_version(self):
         target = (
-            Path("build") / "test-versioning" / "bundle" / build_info.VERSION_FILE_NAME
+            Path("Build") / "test-versioning" / "bundle" / build_info.VERSION_FILE_NAME
         )
         build_info.write_version(target, "9.9.9")
         self.addCleanup(lambda: target.unlink(missing_ok=True))
@@ -60,7 +60,7 @@ class VersionTests(unittest.TestCase):
     def test_runtime_version_uses_bundled_display_version(self):
         # 打包后界面与命令行都读同一份 version.txt，因此都会带上提交哈希。
         target = (
-            Path("build") / "test-versioning" / "display" / build_info.VERSION_FILE_NAME
+            Path("Build") / "test-versioning" / "display" / build_info.VERSION_FILE_NAME
         )
         version.write_version(target, "0.1.0-nightly.20261029-1a8ede3")
         self.addCleanup(lambda: target.unlink(missing_ok=True))

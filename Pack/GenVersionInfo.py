@@ -1,7 +1,7 @@
 """生成 PyInstaller 使用的 Windows 版本资源文件。
 
-由 pack/build.ps1 调用，使 EXE 属性中显示版本号。
-用法：python pack/gen_version_info.py <版本号> <输出路径>
+由 Pack/Build.ps1 调用，使 EXE 属性中显示版本号。
+用法：python Pack/GenVersionInfo.py <版本号> <输出路径>
 """
 
 import sys
@@ -69,7 +69,7 @@ def write_version_info(path, version):
 def main(argv):
     if len(argv) != 3:
         print(
-            "用法：python pack/gen_version_info.py <版本号> <输出路径>",
+            "用法：python Pack/GenVersionInfo.py <版本号> <输出路径>",
             file=sys.stderr,
         )
         return 2

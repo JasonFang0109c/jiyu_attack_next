@@ -143,7 +143,11 @@ class NightlyWorkflowTests(unittest.TestCase):
         ):
             with self.subTest(path=path):
                 self.assertIsNotNone(pattern.match(path))
-        for path in ("Docs/Dev/Build.md", "Tests/TestEntry.py", "packaging/build.ps1"):
+        for path in (
+            "Docs/Dev/Build.md",
+            "Tests/Integration/TestEntry.py",
+            "NeoJiYuTrainerHooks/Build.ps1",
+        ):
             with self.subTest(path=path):
                 self.assertIsNone(pattern.match(path))
         self.assertIn("for sha in $(git log --format=%H", self.workflow)

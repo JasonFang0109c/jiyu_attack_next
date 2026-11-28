@@ -60,7 +60,7 @@ def main():
     )
     app = QApplication(sys.argv)
     startup.configure_application(app)
-    data_root = Path("build") / "verify-gui-data"
+    data_root = Path("Build") / "verify-gui-data"
     data_dir = data_root / DATA_DIRECTORY_NAME
     data_dir.mkdir(parents=True, exist_ok=True)
     settings = portable_settings(data_dir)

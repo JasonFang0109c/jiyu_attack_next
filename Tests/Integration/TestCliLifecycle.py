@@ -13,12 +13,12 @@ from NeoJiYuTrainer.Start.Parser import COMMANDS, GROUP_NAMES
 
 class CliLifecycleTests(unittest.TestCase):
     def setUp(self):
-        build = Path("build")
+        build = Path("Build")
         build.mkdir(exist_ok=True)
         directory = tempfile.TemporaryDirectory(dir=build, prefix="audit_cli_log_")
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
-        self.log_path = self.root / "data" / "cli.log"
+        self.log_path = self.root / "Data" / "cli.log"
         self.log = cli.cli_log.CliLog()
         self.addCleanup(self.log.close)
         self.enterContext(patch.object(cli.cli_log, "LOG", self.log))

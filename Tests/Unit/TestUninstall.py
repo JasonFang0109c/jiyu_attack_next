@@ -20,7 +20,7 @@ class UninstallTests(unittest.TestCase):
 
     def test_remove_data(self):
         with tempfile.TemporaryDirectory() as directory:
-            target = Path(directory) / "data"
+            target = Path(directory) / "Data"
             target.mkdir()
             (target / "settings.json").write_text("{}", encoding="utf-8")
             self.assertTrue(service.remove_data(target))

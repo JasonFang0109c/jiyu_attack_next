@@ -11,7 +11,7 @@ class ConfigFileTests(unittest.TestCase):
     """JSON with comments 配置文件的解析与写回。"""
 
     def setUp(self):
-        self.root = Path("build") / "test-config-temp"
+        self.root = Path("Build") / "test-config-temp"
         shutil.rmtree(self.root, ignore_errors=True)
         self.root.mkdir(parents=True, exist_ok=True)
         self.addCleanup(lambda: shutil.rmtree(self.root, ignore_errors=True))

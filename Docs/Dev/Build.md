@@ -70,7 +70,7 @@ powershell -ExecutionPolicy Bypass -File .\Pack\Build.ps1 -Python "C:\Python313\
 - 源码在 `NeoJiYuTrainerDriver/`（即上游 `JiYuTrainerDriver` 项目边界）：`JiYuGuardDriver.c` 是 WDM 驱动，用 `ObRegisterCallbacks` 阻止其它进程结束受保护进程，并通过 IOCTL 提供内核强杀；`DriverIoctl.h` 定义设备名与请求结构。
 - 在装有 WDK 10.0.26100 与 MSVC 的 Windows 容器内执行 `NeoJiYuTrainerDriver/Build.ps1`，产物为 `Build/Native/Driver/JiYuGuardDriver.sys`，复制到 `NeoJiYuTrainer/Resources/Native/Driver/` 后由 PyInstaller 收集。
 - 驱动默认不加载、不安装服务；只有用户在“设置 → 内核驱动（可选）”里显式启用才调用 `sc.exe` 创建并启动 `JiyuGuardDriver`。测试时必须使用可丢弃的隔离虚拟机或启用了测试签名的环境，宿主机不要加载未通过微软正式签名的驱动。
-- 测试签名用 `Pack/SignDriver.ps1`：脚本在当前用户证书库生成 `CN=JiYuGuard Test` 代码签名证书，导出到 `Build/Signing/`，再调用容器内的 x86 `signtool.exe` 给 `NeoJiYuTrainer/Resources/Native/Driver/JiYuGuardDriver.sys` 签名；签名后重新执行 `Pack/Build.ps1` 打包。目标机器需要管理员导入 `Build/Signing/jiyu_guard_test.cer` 到 `LocalMachine\Root` 与 `LocalMachine\TrustedPublisher`，并以管理员执行 `bcdedit /set Testsigning on` 后重启，Secure Boot 必须关闭。
+- 测试签名用 `Pack/SignDriver.ps1`：脚本在当前用户证书库生成 `CN=JiYuGuard Test` 代码签名证书，导出到 `Build/Signing/`，再调用容器内的 x86 `signtool.exe` 给 `NeoJiYuTrainer/Resources/Native/Driver/JiYuGuardDriver.sys` 签名；签名后重新执行 `Pack/Build.ps1` 打包。目标机器需要管理员导入 `Build/Signing/JiYuGuardTest.cer` 到 `LocalMachine\Root` 与 `LocalMachine\TrustedPublisher`，并以管理员执行 `bcdedit /set Testsigning on` 后重启，Secure Boot 必须关闭。
 - 驱动加载失败、系统未开启测试签名或权限不足时，课堂防护与其它纯用户态功能不受影响。
 
 ## 输出与生成内容

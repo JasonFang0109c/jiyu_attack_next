@@ -117,12 +117,12 @@ class GuiTests(unittest.TestCase):
         # 用测试名而不是 id(self) 命名：CPython 会复用对象地址，id 命名会让
         # 不同测试共用同一临时目录，残留的 runtime.log 干扰后续断言。
         self.temp_root = (
-            Path("build") / "jiyu-gui-test" / self._testMethodName.replace("/", "_")
+            Path("Build") / "jiyu-gui-test" / self._testMethodName.replace("/", "_")
         )
         shutil.rmtree(self.temp_root, ignore_errors=True)
         self.temp_root.mkdir(parents=True, exist_ok=True)
         self.addCleanup(lambda: shutil.rmtree(self.temp_root, ignore_errors=True))
-        self.data_dir = self.temp_root / "data"
+        self.data_dir = self.temp_root / "Data"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.settings_path = str(self.data_dir / "settings.json")
         # 正常构建只写 WARNING 及以上，而这些用例验证 INFO 记录的内容与联动，
@@ -660,9 +660,13 @@ class GuiTests(unittest.TestCase):
         self.window.show_page("home")
         self.application.processEvents()
         self.assertFalse(self.window._studentproc_timer.isActive())
-        # 侧边栏直接点进去要走和 show_page 相同的轮询与首查逻辑。
-        item = self.window._navigation_item("studentproc")
+        # 侧边栏点进「课堂助手」分组，再切到组内的启停学生端，
+        # 要走和 show_page 相同的轮询与首查逻辑。
+        item = self.window._navigation_item("classroomhub")
         item.clicked.emit(True)
+        self.application.processEvents()
+        hub = self.window.pages["classroomhub"]
+        QTest.mouseClick(hub.pivot.items["studentproc"], Qt.MouseButton.LeftButton)
         self.application.processEvents()
         self.assertEqual(self.window.current_page(), "studentproc")
         self.assertTrue(self.window._studentproc_timer.isActive())
@@ -701,9 +705,9 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(remote.pivot.width(), remote.pivot.sizeHint().width())
         # 组标题的顶部留白与普通页一致，换页时标题不会上下跳。
         title = remote.findChild(SubtitleLabel)
-        self.window.show_page("studentproc")
+        self.window.show_page("logs")
         self.application.processEvents()
-        plain = self.window.pages["studentproc"].findChild(SubtitleLabel)
+        plain = self.window.pages["logs"].findChild(SubtitleLabel)
         self.assertEqual(
             title.mapTo(self.window, title.rect().topLeft()).y(),
             plain.mapTo(self.window, plain.rect().topLeft()).y(),
@@ -768,10 +772,15 @@ class GuiTests(unittest.TestCase):
             and item.routeKey not in ("logs", "settings", "about")
         ]
         self.assertEqual(
-            top, ["home", "studentproc", "remote", "aliases", "localtools"]
+            top, ["home", "classroomhub", "remote", "aliases", "localtools"]
         )
-        for route in ("studentproc", "remote", "aliases", "localtools"):
+        for route in ("classroomhub", "remote", "aliases", "localtools"):
             self.assertEqual(panel.widget(route).treeChildren, [])
+        hub = self.window.pages["classroomhub"]
+        self.assertEqual(
+            [item.text() for item in hub.pivot.items.values()],
+            ["启停学生端", "课堂助手"],
+        )
         remote = self.window.pages["remote"]
         self.assertEqual(
             [item.text() for item in remote.pivot.items.values()],
@@ -780,7 +789,7 @@ class GuiTests(unittest.TestCase):
         local = self.window.pages["localtools"]
         self.assertEqual(
             [item.text() for item in local.pivot.items.values()],
-            ["本机信息", "防火墙", "课堂助手"],
+            ["本机信息", "防火墙"],
         )
 
     def test_navigation_groups_have_no_header_text(self):
@@ -1312,7 +1321,15 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(
             set(home.cards),
             set(self.window.pages)
-            - {"home", "settings", "about", "aliases", "remote", "localtools"},
+            - {
+                "home",
+                "settings",
+                "about",
+                "aliases",
+                "remote",
+                "localtools",
+                "classroomhub",
+            },
         )
         self.assertEqual(home.cards["message"].objectName(), "homeCard_message")
         for card in home.shortcuts.values():
@@ -3309,7 +3326,7 @@ class UsageNoticeTests(unittest.TestCase):
 
     def setUp(self):
         self.temp_root = (
-            Path("build") / "jiyu-gui-test" / self._testMethodName.replace("/", "_")
+            Path("Build") / "jiyu-gui-test" / self._testMethodName.replace("/", "_")
         )
         shutil.rmtree(self.temp_root, ignore_errors=True)
         self.temp_root.mkdir(parents=True, exist_ok=True)

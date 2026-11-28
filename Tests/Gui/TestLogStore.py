@@ -86,8 +86,8 @@ class LogStoreConcurrencyTests(unittest.TestCase):
         cls.application = QApplication.instance() or QApplication([])
 
     def setUp(self):
-        Path("build").mkdir(exist_ok=True)
-        temporary = TemporaryDirectory(prefix="log-concurrency-", dir="build")
+        Path("Build").mkdir(exist_ok=True)
+        temporary = TemporaryDirectory(prefix="log-concurrency-", dir="Build")
         self.addCleanup(temporary.cleanup)
         self.log_path = Path(temporary.name) / "runtime.log"
         self.store = LogStore(log_path=self.log_path, minimum_level="INFO")

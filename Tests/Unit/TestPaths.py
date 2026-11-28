@@ -11,7 +11,7 @@ class PortableDataDirTests(unittest.TestCase):
     """旧版数据目录改名到 data。"""
 
     def setUp(self):
-        self.root = Path("build") / "test-paths-temp"
+        self.root = Path("Build") / "test-paths-temp"
         shutil.rmtree(self.root, ignore_errors=True)
         self.root.mkdir(parents=True, exist_ok=True)
         self.addCleanup(lambda: shutil.rmtree(self.root, ignore_errors=True))
@@ -56,3 +56,16 @@ class PortableDataDirTests(unittest.TestCase):
         self.assertEqual(result.resolve(), target.resolve())
         self.assertTrue((legacy / "settings.json").is_file())
         self.assertTrue((target / "new.txt").is_file())
+
+    def test_portable_data_dir_fixes_lowercase_directory_name(self):
+        lowercase = self.root / "data"
+        lowercase.mkdir()
+        (lowercase / "settings.json").write_text("{}", encoding="utf-8")
+
+        result = paths.portable_data_dir(self.root / "NeoJiYuTrainer.exe")
+
+        entries = {entry.name for entry in self.root.iterdir()}
+        self.assertIn(paths.DATA_DIRECTORY_NAME, entries)
+        self.assertNotIn("data", entries)
+        self.assertEqual(result.name, paths.DATA_DIRECTORY_NAME)
+        self.assertTrue((result / "settings.json").is_file())

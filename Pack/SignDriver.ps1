@@ -5,7 +5,7 @@
 
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
-$signing = Join-Path $repo "Build\signing"
+$signing = Join-Path $repo "Build\Signing"
 $driver = Join-Path $repo "NeoJiYuTrainer\Resources\Native\Driver\JiYuGuardDriver.sys"
 
 if (-not (Test-Path -LiteralPath $driver)) {
@@ -30,8 +30,8 @@ if ($null -eq $certificate) {
 Write-Host "代码签名证书：$($certificate.Thumbprint)"
 
 $securePassword = ConvertTo-SecureString -String $Password -Force -AsPlainText
-$pfx = Join-Path $signing "jiyu_guard_test.pfx"
-$cer = Join-Path $signing "jiyu_guard_test.cer"
+$pfx = Join-Path $signing "JiYuGuardTest.pfx"
+$cer = Join-Path $signing "JiYuGuardTest.cer"
 Export-PfxCertificate -Cert $certificate -FilePath $pfx -Password $securePassword | Out-Null
 Export-Certificate -Cert $certificate -FilePath $cer | Out-Null
 
@@ -40,11 +40,11 @@ Export-Certificate -Cert $certificate -FilePath $cer | Out-Null
 Import-Certificate -FilePath $cer -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
 Import-Certificate -FilePath $cer -CertStoreLocation "Cert:\CurrentUser\TrustedPublisher" | Out-Null
 
-$batch = Join-Path $signing "sign-driver.bat"
+$batch = Join-Path $signing "SignDriver.bat"
 @"
 @echo off
 cd /d "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x86"
-signtool.exe sign /fd SHA256 /f C:\src\Build\Signing\jiyu_guard_test.pfx /p $Password C:\src\NeoJiYuTrainer\Resources\Native\Driver\JiYuGuardDriver.sys
+signtool.exe sign /fd SHA256 /f C:\src\Build\Signing\JiYuGuardTest.pfx /p $Password C:\src\NeoJiYuTrainer\Resources\Native\Driver\JiYuGuardDriver.sys
 exit /b %ERRORLEVEL%
 "@ | Set-Content -LiteralPath $batch -Encoding ASCII
 
@@ -55,7 +55,7 @@ if ($LASTEXITCODE -ne 0 -or $info.Trim() -ne "true") {
         throw "无法启动构建容器：$Container"
     }
 }
-docker exec $Container cmd /c "C:\src\Build\Signing\sign-driver.bat"
+docker exec $Container cmd /c "C:\src\Build\Signing\SignDriver.bat"
 if ($LASTEXITCODE -ne 0) {
     throw "signtool 签名失败：$LASTEXITCODE"
 }

@@ -11,7 +11,7 @@ import NeoJiYuTrainer.Packets.Constants as constants
 class OfflineCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.test_root = Path("build") / "Tests" / cls.__name__
+        cls.test_root = Path("Build") / "Tests" / cls.__name__
         cls.test_root.mkdir(parents=True, exist_ok=True)
         cls.real_socket = socket.socket
         cls.network_guard = patch.object(
