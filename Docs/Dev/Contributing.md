@@ -183,7 +183,7 @@ powershell -ExecutionPolicy Bypass -File .\Pack\Build.ps1 -Clean
 
 ### 描述与长度
 
-- Header 整行不超过 50 个字符，包含类型、可选范围、冒号后的空格与可选 `!`；按字符数而非 UTF-8 字节数或终端显示宽度计。描述不以句号结尾，使用“新增”“修复”“补充”等明确动作。
+- Header 整行不超过 50 个字符，包含类型、可选范围、冒号后的空格；按字符数而非 UTF-8 字节数或终端显示宽度计。描述不以句号结尾，使用“新增”“修复”“补充”等明确动作。
 - body 可省略；需要时与 Header 间留一个空行，每行不超过 72 个字符，可分段说明为什么改、如何实现与实际完成的验证。
 - 上述 50/72 限制是项目沿用的严格要求，并非 Conventional Commits 强制的通用长度限制。
 - description、body 与 footer 的说明文字使用中文；`BREAKING CHANGE`、`Closes`、`Fixes`、`Refs` 等关键字保留英文，必要标识符保留原样。
@@ -191,8 +191,8 @@ powershell -ExecutionPolicy Bypass -File .\Pack\Build.ps1 -Clean
 
 ### 破坏性变更与 footer
 
-- 破坏性变更使用 `type(scope)!: 中文描述`（省略范围时为 `type!: 中文描述`），或在 footer 中添加 `BREAKING CHANGE: 中文说明`，也可同时使用。任意类型都可以包含破坏性变更，`!` 紧贴冒号前。
-- 使用 `!` 时，description 应直接说明不兼容改动；`BREAKING CHANGE` footer 可省略，但仍须在描述或正文交代迁移方式。两种标记同时使用时，footer 说明具体影响与迁移方法。`BREAKING CHANGE` 必须大写，`BREAKING-CHANGE` 是官方认可的等价 token。
+- 破坏性变更**不在标题加 `!`**：Header 照常写 `type(scope): 中文描述`，在 footer 中添加 `BREAKING CHANGE: 中文说明`。任意类型都可以包含破坏性变更，是否破坏性只由 footer 判断。
+- `BREAKING CHANGE` 的值要说明具体影响与迁移方式，不要只写“有破坏性变更”；body 里也可先交代改动原因。`BREAKING CHANGE` 必须大写，`BREAKING-CHANGE` 是官方认可的等价 token。
 - footer 位于提交末尾，与 body 间留一个空行；没有 body 时与 Header 间留一个空行。每项使用 `Token: 值` 或 `Token #值`，分隔符分别为半角冒号加空格、空格加 `#`。
 - 多词 token 用 `-` 连接，例如 `Reviewed-by`；`BREAKING CHANGE` 是允许空格的特例。值可跨行，下一项 token 与分隔符开始新的 footer。说明文字用中文，真实编号、姓名、哈希等标识值保留原样。
 - 关联 issue 放在 footer：关闭问题用 `Closes #<实际编号>` 或 `Fixes #<实际编号>`，仅引用时用 `Refs: #<实际编号>`。这里只展示占位语法，实际使用须将占位符替换为真实关联编号并去掉尖括号；没有关联 issue 就省略，不编造编号。
@@ -207,7 +207,7 @@ fix(Packets): 修复长消息打包越界
 ```
 
 ```text
-feat(cli)!: 移除旧的参数别名
+feat(cli): 移除旧的参数别名
 
 统一参数名称，减少同一选项的多种写法。
 
