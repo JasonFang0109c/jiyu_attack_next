@@ -198,7 +198,9 @@ class ClassroomWindowsTests(OfflineCase):
             [_window(topmost=False), _window(hwnd=12, kind=KIND_BLACK)], True, api=api
         )
         self.assertTrue(api.exstyles[11] & windows.WS_EX_TOPMOST)
-        self.assertEqual([call[0] for call in api.positions], [11])
+        # 上游把黑屏窗口与广播窗口一起纳入置顶处理。
+        self.assertEqual([call[0] for call in api.positions], [11, 12])
+        self.assertTrue(api.exstyles[12] & windows.WS_EX_TOPMOST)
         self.assertEqual(api.positions[0][1], "topmost")
         windows.set_topmost([_window()], False, api=api)
         self.assertFalse(api.exstyles[11] & windows.WS_EX_TOPMOST)

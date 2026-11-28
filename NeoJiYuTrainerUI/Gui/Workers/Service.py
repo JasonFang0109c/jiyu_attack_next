@@ -80,9 +80,6 @@ class TaskService:
         window.pages["file"].set_busy(
             busy, window.active_cancel is not None, queueable=True
         )
-        for key in ("local", "firewall"):
-            window.pages[key].footer.set_busy(busy)
-        window.pages["firewall"].action_box.setEnabled(not busy)
         window.pages["settings"].clear_data_button.setEnabled(not busy)
         window.pages["logs"].cancel_button.setEnabled(
             busy and window.active_cancel is not None

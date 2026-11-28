@@ -5,18 +5,17 @@ import argparse
 from NeoJiYuTrainer.Features.Command import Cli as command_cli
 from NeoJiYuTrainer.Features.Device import Cli as device_cli
 from NeoJiYuTrainer.Features.Files import Cli as files_cli
-from NeoJiYuTrainer.Features.Firewall import Cli as firewall_cli
-from NeoJiYuTrainer.Features.Local import Cli as local_cli
 from NeoJiYuTrainer.Features.Message import Cli as message_cli
 from NeoJiYuTrainer.Features.Shell import Cli as shell_cli
 from NeoJiYuTrainer.Features.Student import Cli as student_cli
+from NeoJiYuTrainer.Features.Uninstall import Cli as uninstall_cli
 from NeoJiYuTrainer.Shared.Version import runtime_version
 
 # 与图形界面侧边栏的分组一一对应。
 GROUPS = {
     "classroom": "课堂助手",
     "remote": "远程攻击",
-    "local": "本机工具",
+    "app": "应用",
 }
 
 # 每个分组下的子命令，同样对应图形界面的页面。
@@ -31,10 +30,8 @@ COMMANDS = {
         "command": "远程命令",
         "shell": "反弹终端",
     },
-    "local": {
-        "info": "本机信息",
+    "app": {
         "uninstall": "卸载应用",
-        "firewall": "防火墙",
     },
 }
 
@@ -112,11 +109,10 @@ def build_group_parser():
     command_cli.register(remote_commands, _base_defaults())
     shell_cli.register(remote_commands, _base_defaults())
 
-    local = groups.add_parser("local", help="本机工具")
-    local_commands = local.add_subparsers(
+    app = groups.add_parser("app", help="应用")
+    app_commands = app.add_subparsers(
         title="子命令", dest="command", metavar="子命令", required=True
     )
-    local_cli.register(local_commands, _base_defaults())
-    firewall_cli.register(local_commands, _base_defaults())
+    uninstall_cli.register(app_commands, _base_defaults())
 
     return parser

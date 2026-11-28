@@ -3,12 +3,6 @@
 import sys
 
 from NeoJiYuTrainer.Features.Files import Cli as files_cli
-from NeoJiYuTrainer.Features.Firewall import Cli as firewall_cli
-from NeoJiYuTrainer.Features.Firewall.Service import (
-    FIREWALL_HELPER_ARGUMENT,
-    run_firewall_helper,
-)
-from NeoJiYuTrainer.Features.Local import Cli as local_cli
 from NeoJiYuTrainer.Features.Send import Cli as send_cli
 from NeoJiYuTrainer.Features.Shell import Cli as shell_cli
 from NeoJiYuTrainer.Features.Student import Cli as student_cli
@@ -16,6 +10,7 @@ from NeoJiYuTrainer.Features.Student.Service import (
     STUDENT_HELPER_ARGUMENT,
     run_student_helper,
 )
+from NeoJiYuTrainer.Features.Uninstall import Cli as uninstall_cli
 from NeoJiYuTrainer.Shared.Logs import Cli as cli_log
 from NeoJiYuTrainer.Shared.Paths import portable_cli_log_path
 from NeoJiYuTrainer.Start.Parser import build_group_parser
@@ -60,12 +55,8 @@ def run_from_cmd(arguments):
     try:
         if arguments.group == "classroom":
             return student_cli.run_student_command(arguments)
-        if arguments.group == "local":
-            if arguments.command == "firewall":
-                return firewall_cli.apply_firewall(arguments.firewall)
-            if arguments.command == "uninstall":
-                return local_cli.print_uninstall_info(arguments)
-            return local_cli.print_local_info()
+        if arguments.group == "app":
+            return uninstall_cli.run_uninstall_command(arguments)
         if arguments.command == "shell":
             return shell_cli.run_shell(arguments)
         if arguments.command == "file":
@@ -78,10 +69,8 @@ def run_from_cmd(arguments):
 
 
 def main(argv=None):
-    """解析参数并执行 CLI 或隐藏的防火墙助手。"""
+    """解析参数并执行 CLI 或隐藏的学生端助手。"""
     arguments = list(sys.argv[1:] if argv is None else argv)
-    if arguments[:1] == [FIREWALL_HELPER_ARGUMENT]:
-        return run_firewall_helper(arguments[1:])
     if arguments[:1] == [STUDENT_HELPER_ARGUMENT]:
         return run_student_helper(arguments[1:])
     parse_error = None

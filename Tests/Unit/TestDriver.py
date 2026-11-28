@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from NeoJiYuTrainer.System.Windows import Driver as driver
+from NeoJiYuTrainer.System.Windows import DriverLoader as driver
 
 
 class DriverProtocolTests(unittest.TestCase):
@@ -75,6 +75,68 @@ class DriverProtocolTests(unittest.TestCase):
             session.install()
         self.assertEqual(calls[0][0], "create")
         self.assertEqual(calls[1], ("start", "JiyuGuardDriver"))
+
+    def test_install_retries_after_marked_for_delete(self):
+        session = driver.DriverSession(Path("C:/driver.sys"))
+        calls = []
+        results = [
+            (1, "[SC] CreateService FAILED 1072: The service is marked for deletion"),
+            (0, "SUCCESS"),
+            (0, "SUCCESS"),
+        ]
+
+        def fake_run(*args):
+            calls.append(args)
+            return results[len(calls) - 1]
+
+        with (
+            patch.object(session, "service_state", return_value="absent"),
+            patch.object(session, "_run_sc", side_effect=fake_run),
+            patch.object(session, "_force_delete_service_key") as force,
+        ):
+            session.install()
+        force.assert_called_once_with()
+        self.assertEqual([call[0] for call in calls], ["create", "create", "start"])
+
+    def test_install_treats_running_service_as_success(self):
+        session = driver.DriverSession(Path("C:/driver.sys"))
+
+        def fake_run(*args):
+            return (1, "[SC] StartService FAILED 1056: already running")
+
+        with (
+            patch.object(session, "service_state", return_value="stopped"),
+            patch.object(session, "_run_sc", side_effect=fake_run),
+        ):
+            session.install()
+
+    def test_uninstall_removes_service_key_after_delete(self):
+        session = driver.DriverSession(Path("C:/driver.sys"))
+
+        def fake_run(*args):
+            return (0, "SUCCESS")
+
+        with (
+            patch.object(session, "_run_sc", side_effect=fake_run),
+            patch.object(session, "_force_delete_service_key") as force,
+        ):
+            session.uninstall()
+        force.assert_called_once_with()
+
+    def test_uninstall_cleans_key_when_service_marked_for_delete(self):
+        session = driver.DriverSession(Path("C:/driver.sys"))
+
+        def fake_run(*args):
+            if args[0] == "delete":
+                return (1, "[SC] DeleteService FAILED 1072: marked for deletion")
+            return (0, "SUCCESS")
+
+        with (
+            patch.object(session, "_run_sc", side_effect=fake_run),
+            patch.object(session, "_force_delete_service_key") as force,
+        ):
+            session.uninstall()
+        force.assert_called_once_with()
 
 
 if __name__ == "__main__":

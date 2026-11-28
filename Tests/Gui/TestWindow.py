@@ -61,7 +61,6 @@ from qfluentwidgets import (
 )
 
 import NeoJiYuTrainer.Features.Files.Service as files_service_business
-import NeoJiYuTrainer.Features.Firewall.Service as firewall_service_business
 import NeoJiYuTrainer.Features.Logs.Data as logs_data
 import NeoJiYuTrainer.Features.Names.Data as names_data
 import NeoJiYuTrainer.Features.Send.Service as send_service
@@ -81,8 +80,6 @@ from NeoJiYuTrainer.Shared.BuildInfo import version_text
 from NeoJiYuTrainer.Shared.Logs import Levels as levels
 from NeoJiYuTrainer.Start import Gui as startup
 from NeoJiYuTrainerUI.Features.Files.Gui import Service as files_service
-from NeoJiYuTrainerUI.Features.Firewall.Gui import Service as firewall_service
-from NeoJiYuTrainerUI.Features.Local.Gui import Service as local_service
 from NeoJiYuTrainerUI.Gui import Service as gui_service
 from NeoJiYuTrainerUI.Gui import Splash as splash
 from NeoJiYuTrainerUI.Gui import Theme as theme
@@ -224,9 +221,9 @@ class GuiTests(unittest.TestCase):
         self.assertIsInstance(self.window, FluentWindow)
         self.assertEqual(self.window.windowTitle(), gui.APP_NAME)
         self.assertFalse(self.window.windowIcon().isNull())
-        # 首页、启停学生端、两个顶部导航容器（远程攻击与本机工具）、设备备注、
-        # 运行日志、设置与关于，共 8 个一级页面。
-        self.assertEqual(self.window.stackedWidget.count(), 8)
+        # 首页、两个顶部导航容器（课堂助手与远程攻击）、设备备注、
+        # 运行日志、设置与关于，共 7 个一级页面。
+        self.assertEqual(self.window.stackedWidget.count(), 7)
         self.assertEqual(self.window.current_page(), "home")
         self.assertEqual(self.state.values["target"], "")
         self.assertEqual(self.state.values["port"], 4705)
@@ -731,8 +728,6 @@ class GuiTests(unittest.TestCase):
             self.window.pages["device"].preview,
             self.window.pages["logs"].table,
             self.window.pages["aliases"].table,
-            self.window.pages["local"].port_table,
-            self.window.pages["firewall"].result_table,
         ]
         for table in tables:
             header = table.horizontalHeader()
@@ -755,8 +750,6 @@ class GuiTests(unittest.TestCase):
             "command",
             "shell",
             "aliases",
-            "local",
-            "firewall",
             "logs",
             "settings",
             "about",
@@ -776,10 +769,8 @@ class GuiTests(unittest.TestCase):
             if not item.parentRouteKey
             and item.routeKey not in ("logs", "settings", "about")
         ]
-        self.assertEqual(
-            top, ["home", "classroomhub", "remote", "aliases", "localtools"]
-        )
-        for route in ("classroomhub", "remote", "aliases", "localtools"):
+        self.assertEqual(top, ["home", "classroomhub", "remote", "aliases"])
+        for route in ("classroomhub", "remote", "aliases"):
             self.assertEqual(panel.widget(route).treeChildren, [])
         hub = self.window.pages["classroomhub"]
         self.assertEqual(
@@ -790,11 +781,6 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(
             [item.text() for item in remote.pivot.items.values()],
             ["文本消息", "文件传送", "设备操作", "远程命令", "反弹终端"],
-        )
-        local = self.window.pages["localtools"]
-        self.assertEqual(
-            [item.text() for item in local.pivot.items.values()],
-            ["本机信息", "防火墙"],
         )
 
     def test_navigation_groups_have_no_header_text(self):
@@ -836,21 +822,21 @@ class GuiTests(unittest.TestCase):
 
     def test_switching_to_child_page_selects_tab_and_sidebar_item(self):
         panel = self.window.navigationInterface.panel
-        self.window.show_page("firewall")
-        self.assertEqual(self.window.current_page(), "firewall")
+        self.window.show_page("command")
+        self.assertEqual(self.window.current_page(), "command")
         self.assertIs(
             self.window.stackedWidget.currentWidget(),
-            self.window.pages["localtools"],
+            self.window.pages["remote"],
         )
-        self.assertEqual(self.window.pages["localtools"].current_route(), "firewall")
-        self.assertTrue(panel.widget("localtools").isSelected)
-        self.assertFalse(panel.widget("remote").isSelected)
+        self.assertEqual(self.window.pages["remote"].current_route(), "command")
+        self.assertTrue(panel.widget("remote").isSelected)
+        self.assertFalse(panel.widget("aliases").isSelected)
 
     def test_collapsed_sidebar_keeps_flat_items_selected(self):
         self.window.apply_window_material(settings_data.MATERIAL_SOLID)
         self.window.show()
         panel = self.window.navigationInterface.panel
-        for route in ("remote", "localtools"):
+        for route in ("remote", "aliases"):
             with self.subTest(route=route):
                 self.window.expand_navigation()
                 self.window.show_page(route)
@@ -866,7 +852,7 @@ class GuiTests(unittest.TestCase):
                 self.assertTrue(item.itemWidget._canDrawIndicator())
                 panel.expand(useAni=False)
                 self.application.processEvents()
-                expected = {"remote": "message", "localtools": "local"}[route]
+                expected = {"remote": "message", "aliases": "aliases"}[route]
                 self.assertEqual(self.window.current_page(), expected)
                 self.assertEqual(item.itemWidget.width(), 190)
 
@@ -904,11 +890,11 @@ class GuiTests(unittest.TestCase):
         self.wait_for(
             lambda: panel.expandAni.state() == QAbstractAnimation.State.Stopped
         )
-        self.window.show_page("firewall")
-        self.assertEqual(self.window.current_page(), "firewall")
-        self.assertFalse(panel.widget("localtools").isHidden())
+        self.window.show_page("command")
+        self.assertEqual(self.window.current_page(), "command")
+        self.assertFalse(panel.widget("remote").isHidden())
         panel.expand(useAni=False)
-        self.assertFalse(panel.widget("localtools").isHidden())
+        self.assertFalse(panel.widget("remote").isHidden())
 
     def test_sidebar_narrow_overlay_returns_to_interface(self):
         self.window.show()
@@ -992,7 +978,7 @@ class GuiTests(unittest.TestCase):
         self.window.show()
         panel = self.window.navigationInterface.panel
         first = panel.widget("remote")
-        second = panel.widget("localtools")
+        second = panel.widget("aliases")
         self.window.show_page("message")
         self.application.processEvents()
         self.assertTrue(first.itemWidget._canDrawIndicator())
@@ -1001,7 +987,7 @@ class GuiTests(unittest.TestCase):
             patch.object(first.itemWidget, "update") as first_update,
             patch.object(second.itemWidget, "update") as second_update,
         ):
-            self.window.show_page("firewall")
+            self.window.show_page("aliases")
             first_update.assert_called()
             second_update.assert_called()
         self.assertFalse(first.itemWidget._canDrawIndicator())
@@ -1332,7 +1318,6 @@ class GuiTests(unittest.TestCase):
                 "about",
                 "aliases",
                 "remote",
-                "localtools",
                 "classroomhub",
             },
         )
@@ -2419,63 +2404,6 @@ class GuiTests(unittest.TestCase):
         self.assertIsNone(self.window.thread)
         self.confirm.assert_called_once()
 
-    def test_local_query_uses_background_task(self):
-        with patch.object(
-            local_service, "probe_local", return_value=("模拟本机", ["4705"])
-        ) as probe:
-            self.window.start_local_probe()
-            self.wait_for(lambda: self.window.thread is None)
-        probe.assert_called_once()
-        self.assertEqual(self.window.pages["local"].ip_label.text(), "模拟本机")
-        self.assertEqual(self.window.pages["local"].port_table.rowCount(), 1)
-
-    def test_apply_firewall_uses_on_demand_elevation(self):
-        with patch.object(
-            firewall_service_business, "request_firewall_rule", return_value=[]
-        ) as request:
-            self.assertEqual(firewall_service.apply_firewall("block"), [])
-        request.assert_called_once_with("block")
-
-    def test_firewall_result_preserves_failure_status(self):
-        result = [
-            {
-                "command": "netsh advfirewall firewall set rule name=StudentMain.exe "
-                "new action=block",
-                "code": 1,
-                "stdout": "",
-                "stderr": "模拟失败",
-                "success": False,
-                "detail": "",
-            }
-        ]
-        with patch.object(
-            firewall_service, "apply_firewall", return_value=result
-        ) as apply:
-            self.window.start_firewall()
-            self.wait_for(lambda: self.window.thread is None)
-        apply.assert_called_once()
-        page = self.window.pages["firewall"]
-        self.assertIn("失败", page.footer.status.text())
-        self.assertEqual(page.result_table.item(0, 1).text(), "失败")
-
-    def test_firewall_result_keeps_multiline_utf8_output_readable(self):
-        page = self.window.pages["firewall"]
-        page.set_result(
-            [
-                {
-                    "command": "netsh advfirewall firewall set rule name=StudentMain.exe new action=block",
-                    "code": 0,
-                    "stdout": "已更新 6 规则。\n确定。",
-                    "stderr": "",
-                    "success": True,
-                    "detail": "",
-                }
-            ]
-        )
-        self.assertEqual(page.result_table.item(0, 0).text(), "目标规则")
-        self.assertEqual(page.result_table.item(0, 1).text(), "成功")
-        self.assertEqual(page.result_table.item(0, 2).text(), "已更新 6 规则。\n确定。")
-
     def test_log_search_filter_export_and_clear(self):
         store = self.window.logs
         store.clear()
@@ -2652,18 +2580,6 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(store.entries[-1].category, "文件传送")
         self.assertEqual(store.entries[-1].level, logs_data.LogLevel.INFO)
         self.assertEqual(store.entries[-1].message, "用户取消了文件选择")
-
-    def test_busy_window_rejects_local_probe_with_warning(self):
-        store = self.window.logs
-        store.clear()
-        # 直接占用线程句柄模拟正在执行的任务，避免真的启动后台线程。
-        self.window.thread = object()
-        try:
-            self.window.start_local_probe()
-        finally:
-            self.window.thread = None
-        self.assertEqual(store.entries[-1].level, logs_data.LogLevel.WARNING)
-        self.assertEqual(store.entries[-1].message, "已有任务在运行，本机查询未开始")
 
     def test_background_worker_records_debug_trace(self):
         store = self.window.logs

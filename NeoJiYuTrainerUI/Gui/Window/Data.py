@@ -16,8 +16,6 @@ CATEGORIES = {
     "command": "远程命令",
     "device": "设备操作",
     "file": "文件传送",
-    "local": "本机信息",
-    "firewall": "防火墙",
     "studentproc": "课堂助手",
 }
 
@@ -75,22 +73,12 @@ TAB_GROUPS = (
             ("shell", FIF.SPEED_HIGH, "反弹终端"),
         ),
     ),
-    (
-        "localtools",
-        FIF.DEVELOPER_TOOLS,
-        "本机工具",
-        (
-            ("local", FIF.IOT, "本机信息"),
-            ("firewall", FIF.CERTIFICATE, "防火墙"),
-        ),
-    ),
 )
 
 NAVIGATION_ITEMS = (
     ("classroomhub", FIF.EDUCATION, "课堂助手"),
     ("remote", FIF.GLOBE, "远程攻击"),
     ("aliases", FIF.QUICK_NOTE, "设备备注"),
-    ("localtools", FIF.DEVELOPER_TOOLS, "本机工具"),
 )
 
 # 子页面到容器页的映射，供 show_page 与当前页面识别使用。

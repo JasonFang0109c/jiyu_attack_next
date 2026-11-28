@@ -47,13 +47,14 @@ from NeoJiYuTrainer.Features.Student.Data import (
     registry_paths,
 )
 from NeoJiYuTrainer.System.Windows.Command import run_windows_command
-from NeoJiYuTrainer.System.Windows.Driver import kernel_kill
+from NeoJiYuTrainer.System.Windows.DriverLoader import kernel_kill
 from NeoJiYuTrainer.System.Windows.Elevation import _is_admin, run_elevated_helper
 from NeoJiYuTrainer.System.Windows.Ports import listening_ports
 from NeoJiYuTrainer.System.Windows.Process import (
     close_main_windows,
     is_process_alive,
     list_processes,
+    nt_terminate_process,
     process_creation_time,
     process_rows,
     terminate_process,
@@ -243,8 +244,14 @@ def _terminate(entry, report=None):
         report("PID %d 未响应关闭请求，正在强制结束…" % pid)
     outcome = terminate_process(pid, creation, FORCED_TIMEOUT)
     if not outcome.get("success"):
-        # 与 JiYuTrainer 的 KillProcess 一致：用户态被拒绝时，若可选内核驱动
-        # 已加载，再走一次内核强杀。驱动缺失时保持原来的失败/提权路径。
+        # 与 JiYuTrainer 的 KillProcess 一致：普通用户态接口失败后先走 NT
+        # 原生终止（SeDebugPrivilege + 全权限重试），仍失败才交给可选驱动。
+        nt_outcome = nt_terminate_process(pid, creation, 1, FORCED_TIMEOUT)
+        if nt_outcome.get("success"):
+            outcome = nt_outcome
+    if not outcome.get("success"):
+        # 用户态两条路径都被拒绝时，若可选内核驱动已加载，再走一次内核强杀。
+        # 驱动缺失时保持原来的失败/提权路径。
         if report:
             report("PID %d 用户态结束失败，尝试内核驱动强杀…" % pid)
         if kernel_kill(pid):

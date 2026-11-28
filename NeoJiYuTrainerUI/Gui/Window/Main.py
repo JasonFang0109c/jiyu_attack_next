@@ -33,7 +33,7 @@ from NeoJiYuTrainer.Features.Settings.Data import (
 from NeoJiYuTrainer.Features.Settings.Service import portable_settings
 from NeoJiYuTrainer.Features.Uninstall.Service import install_root, run_uninstall
 from NeoJiYuTrainer.Shared.Paths import portable_data_dir, portable_log_path
-from NeoJiYuTrainer.System.Windows.Driver import DriverSession
+from NeoJiYuTrainer.System.Windows.DriverLoader import DriverSession
 from NeoJiYuTrainerUI.Features.About.Gui.Page import AboutPage
 from NeoJiYuTrainerUI.Features.Classroom.Gui.Page import (
     ClassroomGuardPage,
@@ -46,11 +46,7 @@ from NeoJiYuTrainerUI.Features.Command.Gui.Page import CommandPage
 from NeoJiYuTrainerUI.Features.Device.Gui.Page import DevicePage
 from NeoJiYuTrainerUI.Features.Files.Gui.Page import FilePage
 from NeoJiYuTrainerUI.Features.Files.Gui.Service import FileService
-from NeoJiYuTrainerUI.Features.Firewall.Gui.Page import FirewallPage
-from NeoJiYuTrainerUI.Features.Firewall.Gui.Service import FirewallService
 from NeoJiYuTrainerUI.Features.Home.Gui.Page import HomePage
-from NeoJiYuTrainerUI.Features.Local.Gui.Page import LocalPage
-from NeoJiYuTrainerUI.Features.Local.Gui.Service import LocalService
 from NeoJiYuTrainerUI.Features.Logs.Gui.Data import LogStore
 from NeoJiYuTrainerUI.Features.Logs.Gui.Page import LogPage
 from NeoJiYuTrainerUI.Features.Logs.Gui.Service import LogService
@@ -108,8 +104,6 @@ class MainWindow(FluentWindow):
         self._navigation_service = NavigationService(self)
         self._file_service = FileService(self)
         self._message_service = MessageService(self)
-        self._local_service = LocalService(self)
-        self._firewall_service = FirewallService(self)
         self._log_service = LogService(self)
         self._gui_service = GuiService(self)
         self.data_dir = (
@@ -192,8 +186,6 @@ class MainWindow(FluentWindow):
             "device": DevicePage(self.connection_state, self),
             "file": FilePage(self.connection_state, self),
             "aliases": AliasPage(self.connection_state, self, logs=self.logs),
-            "local": LocalPage(self),
-            "firewall": FirewallPage(self),
             "classroom": ClassroomWindowPage(self),
             "classroomguard": ClassroomGuardPage(self),
             "classroompassword": ClassroomPasswordPage(self),
@@ -230,8 +222,6 @@ class MainWindow(FluentWindow):
         self.task_pages = [
             *self.network_pages,
             self.pages["file"],
-            self.pages["local"],
-            self.pages["firewall"],
         ]
         self._build_navigation()
         self._connect_actions()
@@ -342,7 +332,7 @@ class MainWindow(FluentWindow):
             self._notify("驱动操作失败", str(error))
 
     def _driver_path(self):
-        from NeoJiYuTrainer.System.Windows.Driver import default_driver_path
+        from NeoJiYuTrainer.System.Windows.DriverLoader import default_driver_path
 
         return default_driver_path()
 
@@ -481,9 +471,6 @@ class MainWindow(FluentWindow):
         self.pages["file"].chooseFilesRequested.connect(self.choose_transfer_files)
         self.pages["file"].chooseFolderRequested.connect(self.choose_transfer_folder)
         self.pages["file"].deleteRequested.connect(self.delete_transfer_files)
-        self.pages["local"].footer.requested.connect(self.start_local_probe)
-        self.pages["local"].copyRequested.connect(self.copy_local_ip)
-        self.pages["firewall"].footer.requested.connect(self.start_firewall)
         self.pages["studentproc"].toggleRequested.connect(self.toggle_local_student)
         self.pages["studentproc"].copyPortRequested.connect(self.copy_student_port)
         self.pages["studentproc"].rowPathRequested.connect(self.copy_student_row_path)
@@ -569,12 +556,6 @@ class MainWindow(FluentWindow):
     def _claim_task(self, category, action):
         return self._task_service._claim_task(category, action)
 
-    def start_local_probe(self):
-        return self._local_service.start_local_probe()
-
-    def start_firewall(self):
-        return self._firewall_service.start_firewall()
-
     def refresh_student_processes(self):
         return self._student_service.refresh_student_processes()
 
@@ -637,14 +618,6 @@ class MainWindow(FluentWindow):
     @Slot(str, str)
     def _send_failed(self, message, details=""):
         return self._gui_service._send_failed(message, details)
-
-    @Slot(object)
-    def _probe_finished(self, result):
-        return self._local_service._probe_finished(result)
-
-    @Slot(object)
-    def _firewall_finished(self, results):
-        return self._firewall_service._firewall_finished(results)
 
     @Slot(str, str)
     def _local_failed(self, message, details=""):

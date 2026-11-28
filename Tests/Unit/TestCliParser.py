@@ -9,15 +9,13 @@ class GroupParserTests(unittest.TestCase):
     def test_groups_match_gui_sidebar(self):
         self.assertEqual(
             list(cli_parser.GROUPS),
-            ["classroom", "remote", "local"],
+            ["classroom", "remote", "app"],
         )
         self.assertEqual(
             list(cli_parser.COMMANDS["remote"]),
             ["message", "file", "device", "command", "shell"],
         )
-        self.assertEqual(
-            list(cli_parser.COMMANDS["local"]), ["info", "uninstall", "firewall"]
-        )
+        self.assertEqual(list(cli_parser.COMMANDS["app"]), ["uninstall"])
         self.assertEqual(list(cli_parser.COMMANDS["classroom"]), ["student"])
 
     def test_every_command_has_a_parser(self):
@@ -61,14 +59,11 @@ class GroupParserTests(unittest.TestCase):
             "b",
         )
 
-    def test_local_commands(self):
+    def test_app_commands(self):
         parser = cli_parser.build_group_parser()
-        self.assertEqual(parser.parse_args(["local", "info"]).e, "g")
-        self.assertEqual(
-            parser.parse_args(["local", "firewall", "block"]).firewall, "block"
-        )
-        self.assertEqual(
-            parser.parse_args(["local", "firewall", "allow"]).firewall, "allow"
+        self.assertFalse(parser.parse_args(["app", "uninstall"]).keep_data)
+        self.assertTrue(
+            parser.parse_args(["app", "uninstall", "--keep-data"]).keep_data
         )
 
     def test_classroom_group_lists_stops_and_starts_student(self):

@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 from NeoJiYuTrainer.Shared.Paths import DATA_DIRECTORY_NAME, portable_data_dir
-from NeoJiYuTrainer.System.Windows.Driver import DriverSession
+from NeoJiYuTrainer.System.Windows.DriverLoader import DriverSession
 
 APP_NAME = "NeoJiYuTrainer"
 

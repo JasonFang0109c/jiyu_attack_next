@@ -100,6 +100,7 @@ class ClassroomService:
             page.optionChanged.connect(self.set_option)
             page.guardRequested.connect(self.apply_guard)
             page.guardStopRequested.connect(self.stop_guard)
+            page.netFilterRequested.connect(self.uninstall_net_filter)
         # 只有课堂窗口页负责轮询：它一显示就开始扫描，切走就停。
         views.window.activated.connect(self._start_polling)
         views.window.deactivated.connect(self._stop_polling)
@@ -414,6 +415,18 @@ class ClassroomService:
             self.page.set_guard_state(False)
 
     # ---- 密码 -------------------------------------------------------------
+
+    def uninstall_net_filter(self):
+        """卸载极域网络过滤驱动（TDNetFilter）。"""
+        self.page.set_busy(True)
+        try:
+            message = classroom.uninstall_net_filter()
+        except Exception as error:
+            self._action_failed(str(error), "")
+            return
+        self.page.set_busy(False)
+        self.window.logs.info(CATEGORY, "卸载网络过滤驱动", message)
+        self.window._notify("课堂助手", message, "成功")
 
     def read_password(self):
         """后台读取注册表里的极域解锁密码。"""

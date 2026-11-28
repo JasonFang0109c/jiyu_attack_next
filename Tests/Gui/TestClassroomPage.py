@@ -228,6 +228,13 @@ class ClassroomPageTests(unittest.TestCase):
         self.assertTrue(self.guard_page.guard_start_button.isEnabled())
         self.assertFalse(self.guard_page.guard_stop_button.isEnabled())
 
+    def test_net_filter_button_emits_request(self):
+        requests = []
+        self.guard_page.netFilterRequested.connect(lambda: requests.append(True))
+        self.assertIn("卸载网络过滤驱动", self.guard_page.netfilter_button.text())
+        self.guard_page.netfilter_button.click()
+        self.assertEqual(requests, [True])
+
     def test_views_forward_guard_and_password(self):
         self.views.set_guard_state(True, 3, 17600)
         self.assertTrue(self.guard_page.guard_enabled)

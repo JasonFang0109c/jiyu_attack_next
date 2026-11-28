@@ -6,6 +6,7 @@ import ctypes
 import struct
 import subprocess
 import sys
+import winreg
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -20,6 +21,10 @@ GENERIC_READ = 0x80000000
 GENERIC_WRITE = 0x40000000
 OPEN_EXISTING = 3
 INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
+ERROR_SERVICE_ALREADY_RUNNING = 1056
+ERROR_SERVICE_DOES_NOT_EXIST = 1060
+ERROR_SERVICE_MARKED_FOR_DELETE = 1072
+SERVICE_KEY = rf"SYSTEM\CurrentControlSet\Services\{SERVICE_NAME}"
 
 
 def ctl_code(function: int) -> int:
@@ -37,6 +42,41 @@ IOCTL_UNPROTECT = ctl_code(0x801)
 IOCTL_KILL = ctl_code(0x802)
 IOCTL_STATUS = ctl_code(0x803)
 IOCTL_CLEAR = ctl_code(0x804)
+
+
+def force_delete_service_key(service_name: str) -> None:
+    """递归删除指定服务的注册表键（含子键与全部值）。"""
+    path = rf"SYSTEM\CurrentControlSet\Services\{service_name}"
+
+    def delete_tree(current: str) -> None:
+        try:
+            handle = winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                current,
+                0,
+                winreg.KEY_ALL_ACCESS | winreg.KEY_WOW64_64KEY,
+            )
+        except FileNotFoundError:
+            return
+        with handle:
+            while True:
+                try:
+                    child = winreg.EnumKey(handle, 0)
+                except OSError:
+                    break
+                delete_tree(f"{current}\\{child}")
+            while True:
+                try:
+                    name, _, _ = winreg.EnumValue(handle, 0)
+                except OSError:
+                    break
+                winreg.DeleteValue(handle, name)
+        winreg.DeleteKey(winreg.HKEY_LOCAL_MACHINE, current)
+
+    try:
+        delete_tree(path)
+    except OSError as error:
+        raise OSError(f"清理驱动服务注册表失败：{error}") from error
 
 
 @dataclass(frozen=True)
@@ -90,31 +130,53 @@ class DriverSession:
             return "running"
         return "stopped"
 
+    @staticmethod
+    def _force_delete_service_key() -> None:
+        """递归删除服务注册表键，用于清理被标记删除的残留服务。"""
+        force_delete_service_key(SERVICE_NAME)
+
+    def _create_service(self) -> None:
+        """创建内核服务；遇到「标记删除」残留时清理后重试一次。"""
+        args = (
+            "create",
+            SERVICE_NAME,
+            "binPath=",
+            str(self.sys_path),
+            "type=",
+            "kernel",
+            "start=",
+            "demand",
+        )
+        code, output = self._run_sc(*args)
+        if code == 0:
+            return
+        if str(ERROR_SERVICE_MARKED_FOR_DELETE) in output:
+            self._force_delete_service_key()
+            code, output = self._run_sc(*args)
+            if code == 0:
+                return
+        if str(1073) in output:  # ERROR_SERVICE_EXISTS：沿用现有服务
+            return
+        raise OSError(f"创建驱动服务失败：{output.strip()}")
+
     def install(self) -> None:
         """创建并启动内核服务。"""
         if self.service_state() == "absent":
-            code, output = self._run_sc(
-                "create",
-                SERVICE_NAME,
-                "binPath=",
-                str(self.sys_path),
-                "type=",
-                "kernel",
-                "start=",
-                "demand",
-            )
-            if code != 0:
-                raise OSError(f"创建驱动服务失败：{output.strip()}")
+            self._create_service()
         code, output = self._run_sc("start", SERVICE_NAME)
-        if code != 0 and "1056" not in output:
+        if code != 0 and str(ERROR_SERVICE_ALREADY_RUNNING) not in output:
             raise OSError(f"启动驱动服务失败：{output.strip()}")
 
     def uninstall(self) -> None:
         """停止并删除内核服务。"""
         self._run_sc("stop", SERVICE_NAME)
         code, output = self._run_sc("delete", SERVICE_NAME)
-        if code != 0 and "1060" not in output:
+        if code != 0 and str(ERROR_SERVICE_DOES_NOT_EXIST) not in output:
+            if str(ERROR_SERVICE_MARKED_FOR_DELETE) in output:
+                self._force_delete_service_key()
+                return
             raise OSError(f"删除驱动服务失败：{output.strip()}")
+        self._force_delete_service_key()
 
     def _open(self) -> int:
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)

@@ -28,7 +28,7 @@ class EntryTests(unittest.TestCase):
             timeout=10,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        for name in ("classroom", "remote", "local"):
+        for name in ("classroom", "remote", "app"):
             self.assertIn(name, result.stdout)
 
     def test_group_help_lists_message_options(self):
@@ -115,16 +115,13 @@ for arguments in (['-h'], ['--version'], ['remote', 'message', '-h']):
         source = (
             Path(__file__).resolve().parents[2]
             / "NeoJiYuTrainer"
-            / "start"
+            / "Start"
             / "Console.py"
         )
         self.assertNotIn("AllocConsole", source.read_text(encoding="utf-8"))
 
     def test_hidden_helpers_dispatch_without_console(self):
-        for arguments in (
-            ["--firewall-helper", "block", "--firewall-result", "result.json"],
-            ["--student-helper", "--student-result", "result.json"],
-        ):
+        for arguments in (["--student-helper", "--student-result", "result.json"],):
             with (
                 self.subTest(arguments=arguments),
                 patch("NeoJiYuTrainer.Start.Service._show_cli_console") as show,

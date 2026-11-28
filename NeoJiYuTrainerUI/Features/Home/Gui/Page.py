@@ -157,13 +157,6 @@ SECTIONS = (
     (
         "本机工具",
         (
-            ("local", FIF.IOT, "本机信息", "查询本机 IP 与 Student 相关的监听端口"),
-            (
-                "firewall",
-                FIF.CERTIFICATE,
-                "防火墙",
-                "调整 StudentMain.exe 的防火墙规则",
-            ),
             (
                 "logs",
                 FIF.HISTORY,

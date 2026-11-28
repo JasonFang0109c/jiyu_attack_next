@@ -69,10 +69,8 @@
       </ul>
     </td>
     <td width="33%" valign="top" style="padding: 16px 16px 32px;">
-      <h3 style="margin: 0 0 10px 0;">🧰 本机与防火墙</h3>
+      <h3 style="margin: 0 0 10px 0;">🛡️ 课堂助手与终端</h3>
       <ul style="margin: 14px 0 0; padding-left: 1.25em; list-style-position: outside;">
-        <li><b>本机信息</b>：查询 IP 与 Student 端口</li>
-        <li><b>防火墙</b>：修改现有规则并查看结果</li>
         <li><b>课堂助手</b>：广播窗口化、假全屏、右键菜单与解锁密码</li>
         <li><b>课堂防护</b>：阻止屏幕监视、远程控制、关闭窗口、结束进程，逐条确认远程命令，并可在用户态失败后调用可选内核驱动强杀学生端</li>
         <li><b>目标地址</b>：IPv4、末段与 <code>/24</code></li>
@@ -111,7 +109,7 @@
 | GUI | 双击 EXE；源码 `python -m NeoJiYuTrainer` | 无参数启动，首次启动显示使用须知，确认后打开图形界面 |
 | CLI | `NeoJiYuTrainer.exe remote message -ip ...`；源码 `python -m NeoJiYuTrainer remote message -ip ...` | 带参数启动，在终端显示输出 |
 
-命令行按图形界面的三组分类组织，一个页面一条子命令：`classroom`（课堂助手）、`remote`（远程攻击）、`local`（本机工具），例如 `classroom student --start`、`remote message`、`local info`。旧的扁平写法已移除，请迁移到分组子命令。
+命令行按图形界面的三组分类组织，一个页面一条子命令：`classroom`（课堂助手）、`remote`（远程攻击）、`app`（应用），例如 `classroom student --start`、`remote message`、`app uninstall`。旧的扁平写法已移除，请迁移到分组子命令。
 
 EXE 无需安装 Python；从源码运行 CLI 需要按 `requirements.txt` 安装依赖。两者共用同一套报文实现，默认通信为 UDP，目标端口 `4705`。EXE 为窗口化程序，双击不会创建控制台窗口，带参数运行时把输出写回启动它的终端、不会另开窗口；由于它不占用控制台，提示符会立即返回——需要等命令执行完再继续时用 `start /wait NeoJiYuTrainer.exe ...`。PowerShell 中若 EXE 不在 `PATH`，需写成 `.\NeoJiYuTrainer.exe ...`；cmd 可直接运行。
 

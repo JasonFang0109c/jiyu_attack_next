@@ -60,10 +60,7 @@ class CliLifecycleTests(unittest.TestCase):
         self.assertFalse(self.log_path.parent.exists())
 
     def test_hidden_helpers_skip_parser_and_log_lifecycle(self):
-        for flag, handler in (
-            ("--firewall-helper", "run_firewall_helper"),
-            ("--student-helper", "run_student_helper"),
-        ):
+        for flag, handler in (("--student-helper", "run_student_helper"),):
             with (
                 self.subTest(flag=flag),
                 patch.object(cli, handler, return_value=9) as helper,
@@ -88,7 +85,7 @@ class CliLifecycleTests(unittest.TestCase):
         self.assertIsNone(self.log._handle)
 
     def test_parameter_error_is_logged_and_closes_handle(self):
-        for arguments in (["local"], ["local", "missing", "--help"]):
+        for arguments in (["app"], ["app", "missing", "--help"]):
             with self.subTest(arguments=arguments):
                 with self.assertRaises(SystemExit) as caught:
                     cli.main(arguments)
@@ -101,7 +98,7 @@ class CliLifecycleTests(unittest.TestCase):
 
     def test_success_returns_dispatch_status_and_closes_handle(self):
         self.dispatch.return_value = 7
-        self.assertEqual(cli.main(["local", "info"]), 7)
+        self.assertEqual(cli.main(["app", "uninstall"]), 7)
         self.assertIsNone(self.log._handle)
         self.assertIsNone(self.log.path)
         self.log.error("命令结束后的模块日志", "测试")
@@ -112,7 +109,7 @@ class CliLifecycleTests(unittest.TestCase):
     def test_dispatch_exception_closes_handle(self):
         self.dispatch.side_effect = RuntimeError("handler failed")
         with self.assertRaisesRegex(RuntimeError, "handler failed"):
-            cli.main(["local", "info"])
+            cli.main(["app", "uninstall"])
         self.assertTrue(self.log_path.exists())
         self.assertIsNone(self.log._handle)
 
@@ -127,8 +124,7 @@ class CliDispatchTests(unittest.TestCase):
             for module, name in (
                 ("shell_cli", "run_shell"),
                 ("student_cli", "run_student_command"),
-                ("firewall_cli", "apply_firewall"),
-                ("local_cli", "print_local_info"),
+                ("uninstall_cli", "run_uninstall_command"),
                 ("files_cli", "run_file_transfer"),
                 ("send_cli", "run_send"),
             )
@@ -146,8 +142,7 @@ class CliDispatchTests(unittest.TestCase):
             ),
             (["remote", "shell"], "run_shell", "options"),
             (["classroom", "student", "--list"], "run_student_command", "options"),
-            (["local", "info"], "print_local_info", None),
-            (["local", "firewall", "block"], "apply_firewall", "block"),
+            (["app", "uninstall"], "run_uninstall_command", "options"),
         )
         for arguments, name, argument in cases:
             if arguments[0] == "remote":

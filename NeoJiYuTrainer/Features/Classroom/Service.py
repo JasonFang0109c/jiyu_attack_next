@@ -215,6 +215,13 @@ def set_topmost(enabled, data_dir=None):
     return {"topmost": bool(enabled), "windows": collect(pid, options)}
 
 
+def uninstall_net_filter() -> str:
+    """停止并删除极域安装的 TDNetFilter 网络过滤驱动。"""
+    from NeoJiYuTrainer.System.Windows.NetFilter import uninstall
+
+    return uninstall()
+
+
 def read_password():
     """读取极域解锁密码，结果见 ``passwords.read_password``。"""
     return passwords.read_password()

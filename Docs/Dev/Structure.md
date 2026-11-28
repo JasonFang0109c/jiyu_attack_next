@@ -42,8 +42,6 @@ NeoJiYuTrainer/
 |   |   |-- Message/                # Service.py、Cli.py：文本消息
 |   |   |-- Files/                  # Service.py、Cli.py：文件传送
 |   |   |-- Classroom/              # Data.py、Windows.py、Passwords.py、Service.py
-|   |   |-- Firewall/               # Service.py、Cli.py
-|   |   |-- Local/                  # Service.py、Cli.py
 |   |   |-- Student/                # Data.py、Service.py、Cli.py
 |   |   |-- Uninstall/Service.py    # 快捷方式、数据目录与驱动服务清理
 |   |   |-- Shell/                  # Service.py、Cli.py：反弹终端
@@ -68,7 +66,8 @@ NeoJiYuTrainer/
 |   |       |-- Process.py          # 进程枚举、路径、存活校验与结束
 |   |       |-- Ports.py            # iphlpapi 端口到进程映射
 |   |       |-- Guard.py            # 课堂防护 DLL 注入、策略与远程命令共享内存
-|   |       |-- Driver.py           # 可选内核驱动服务与 IOCTL 封装
+|   |       |-- DriverLoader.py     # 可选内核驱动服务与 IOCTL 封装
+|   |       |-- NetFilter.py        # 卸载极域 TDNetFilter 网络过滤驱动
 |   |       |-- Hotkey.py           # 热键文本解析与虚拟键表（纯解析）
 |   |       `-- Elevation.py        # UAC 隐藏助手与结果回传
 |   |-- Shared/
@@ -93,7 +92,7 @@ NeoJiYuTrainer/
 |-- NeoJiYuTrainerHooks/            # 原生课堂防护 DLL，独立构建
 |   |-- README.md
 |   |-- Build.bat
-|   |-- Guard.cpp                   # 注入、策略与 Hook 主体
+|   |-- Hooks.cpp                   # 注入、策略与 Hook 主体
 |   |-- Menu.cpp                   # 广播窗口右键菜单
 |   |-- Menu.h
 |   |-- Policy.h                    # 防护位与共享内存约定
@@ -105,8 +104,14 @@ NeoJiYuTrainer/
 |   `-- Mhook/                      # 第三方 Hook 库，原样保留
 |-- NeoJiYuTrainerDriver/           # 可选 WDM 驱动，独立构建
 |   |-- Build.bat
-|   |-- DriverIoctl.h
-|   `-- JiYuGuardDriver.c
+|   |-- Build.ps1
+|   |-- Driver.c                    # 驱动入口、IOCTL 分发与强杀编排
+|   |-- Driver.h
+|   |-- IoCtl.h                     # 设备名、IOCTL 功能码与请求结构
+|   |-- Protect.c                   # ObRegisterCallbacks 保护
+|   |-- Protect.h
+|   |-- UnExp.c                     # 未导出例程定位与逐线程强杀
+|   `-- UnExp.h
 |-- NeoJiYuTrainerUI/               # PySide6 界面:只调用核心服务
 |   |-- __init__.py
 |   |-- Features/                   # 各功能的界面适配,与核心包功能目录同名
@@ -115,9 +120,7 @@ NeoJiYuTrainer/
 |   |   |-- Command/Gui/Page.py
 |   |   |-- Device/Gui/Page.py
 |   |   |-- Files/Gui/              # Page.py、Service.py
-|   |   |-- Firewall/Gui/           # Page.py、Service.py
 |   |   |-- Home/Gui/Page.py
-|   |   |-- Local/Gui/              # Page.py、Service.py
 |   |   |-- Logs/Gui/               # Data.py(LogStore)、Page.py、Service.py
 |   |   |-- Message/Gui/            # Page.py、Service.py
 |   |   |-- Names/Gui/              # Data.py(DeviceAliasStore)、Page.py
@@ -193,16 +196,16 @@ NeoJiYuTrainer/
 | `NeoJiYuTrainer/Features/<功能>/Service.py` | 与界面无关的业务流程；按需调用报文、系统适配与公共基础，不导入 Qt。并非每个功能都需要单独服务，命令和设备功能共用发送服务。 |
 | `NeoJiYuTrainer/Features/<功能>/Data.py` | 功能数据、设置键、默认值与规范化。界面侧的信号适配放在界面项目的对应页面目录，不回流到核心包。 |
 | `Features/Settings/` | `SendOptions`、参数校验、报文准备和发送协调；供不同页面与 CLI 发送功能复用。 |
-| `Features/Classroom/` | 课堂助手：`Windows.py` 用 `ctypes` 枚举并修复广播、黑屏与全屏窗口，`Passwords.py` 读取并解密极域卸载密码，`Service.py` 组合窗口与学生端状态并保存看护设置。课堂防护通过 `System/Windows/Guard.py` 注入进程内 DLL，支持五个开关，其中“监控远程命令”把 `CreateProcess`/`WinExec` 请求写入命名共享内存，由界面逐条允许或拒绝。窗口规则与密码算法移植自 JiYuTrainer（MIT）。 |
-| `Features/{files,firewall,local,student,shell}/` | 分别承载文件传送、防火墙、本机信息、学生端进程与终端业务；平台命令、地址解析和套接字操作复用 `System/`。学生端的常量与设置键在 `Student/Data.py`，进程识别、定位、启停与提权助手在 `Student/Service.py`。 |
+| `Features/Classroom/` | 课堂助手：`Windows.py` 用 `ctypes` 枚举并修复广播、黑屏与全屏窗口，`Passwords.py` 读取并解密极域卸载密码，`Service.py` 组合窗口与学生端状态并保存看护设置。课堂防护通过 `System/Windows/Guard.py` 注入进程内 DLL，支持五个开关，其中“监控远程命令”把 `CreateProcess`/`WinExec` 请求写入命名共享内存，由界面逐条允许或拒绝。窗口规则与密码算法移植自 JiYuTrainer（MIT）；`Classroom/Service.py` 还提供卸载极域网络过滤驱动 `TDNetFilter` 的入口。 |
+| `Features/{files,student,shell}/` | 分别承载文件传送、学生端进程与终端业务；平台命令、地址解析和套接字操作复用 `System/`。学生端的常量与设置键在 `Student/Data.py`，进程识别、定位、启停与提权助手在 `Student/Service.py`。 |
 | `Features/Uninstall/` | 卸载服务：删除桌面与开始菜单快捷方式、可选删除用户数据，并在退出后清理安装目录；由设置页和 `local uninstall` 共用。 |
 | `Packets/` | `Constants.py` 保存报文数组和命令表，`Codec.py` 负责构造、编码与分片；`BlueScreen.py` 临时托管蓝屏脚本；不负责界面。 |
 | `System/Net/` | 目标解析、本机地址、UDP 发送、ICMP/ARP 探测与送达结果；结果数据在 `Data.py`。 |
-| `System/Windows/` | Windows 命令、进程枚举与结束、端口表、提权助手、热键解析与可选内核驱动接口。进程与端口直接走 `kernel32` 与 `iphlpapi`，不依赖 `tasklist` / `netstat` 的文本输出。`Guard.py` 负责课堂防护 DLL 的注入、策略与远程命令共享内存；`Driver.py` 只封装 `sc.exe` 与 IOCTL，不在导入时加载驱动；`Hotkey.py` 只做文本解析，不创建窗口或消息循环。 |
+| `System/Windows/` | Windows 命令、进程枚举与结束、端口表、提权助手、热键解析与可选内核驱动接口。进程与端口直接走 `kernel32` 与 `iphlpapi`，不依赖 `tasklist` / `netstat` 的文本输出。`Guard.py` 负责课堂防护 DLL 的注入、策略与远程命令共享内存；`DriverLoader.py` 只封装 `sc.exe` 与 IOCTL，不在导入时加载驱动；`Hotkey.py` 只做文本解析，不创建窗口或消息循环。 |
 | `Shared/` | JSONC、设置存储、数据路径、构建信息、版本与日志基础；不依赖界面功能。 |
 | `Resources/` | 仅放静态资源。图标源为 `Icons/App.svg`；`Native/` 放课堂防护的 x86/x64 DLL、可选内核驱动 `Driver/JiYuGuardDriver.sys` 与上游许可证。运行时通过 `Shared/Resources.py` 的 `resource_path()` 统一定位源码与解包目录，Qt 图标由界面项目的 `Resources.py` 适配。 |
 | `NeoJiYuTrainerHooks/` | 独立原生项目：Hook DLL、窗口处理、输入拦截、远程命令与广播窗口菜单。由 `Build.bat` 单独构建，产物由 `Pack/` 收集进 `Resources/Native/`；Python 侧只通过 `Guard.py` 的注入与共享内存协议交互。`disasm-lib`、`mhook` 是第三方裸源码，原样保留。 |
-| `NeoJiYuTrainerDriver/` | 独立原生项目：WDM 驱动、自保护、进程强杀与 IOCTL。由 `Build.bat` 单独构建，产物由 `Pack/SignDriver.ps1` 签名后随包分发；Python 侧只通过 `Driver.py` 调用，默认不加载。 |
+| `NeoJiYuTrainerDriver/` | 独立原生项目：WDM 驱动、自保护、进程强杀与 IOCTL。由 `Build.bat` 单独构建，产物由 `Pack/SignDriver.ps1` 签名后随包分发；Python 侧只通过 `DriverLoader.py` 调用，默认不加载。 |
 
 版本号唯一来源是 `Shared/Version.py` 的 `__version__`；核心包 `__init__.py` 只重新导出，`Shared/BuildInfo.py` 转调版本读取接口并提供构建时间。`Packets/Constants.py` 只维护报文相关常量，不能把版本号放回该文件。
 
@@ -220,7 +223,7 @@ NeoJiYuTrainer/
 
 - `Pack/` 只放构建脚本、PyInstaller 配置、版本资源生成器、签名脚本与打包用 hooks；运行时入口为 `NeoJiYuTrainer/__main__.py`，静态图标按 `NeoJiYuTrainer/Resources/Icons/App.svg` 收集。
 - `.github/workflows/Build.yml` 为可复用打包流程；`NightlyBuild.yml` 在推送 `main` 且涉及核心包、界面项目、`Pack/`、`Scripts/`、`requirements.txt` 或工作流文件时构建；`Release.yml` 仍仅手动触发，详见[版本规范](Versioning.md)。
-- `Tests/Unit/` 检查报文、业务与配置单元;`Tests/Integration/` 检查入口和跨模块协作,其中 `TestLayout.py` 检查底层依赖方向、显式导入、核心包除 `Start/` 外不出现 Qt 与界面项目导入,并确认业务模块能在没有 Qt 的环境里导入;`Tests/Gui/` 检查窗口与页面,`Tests/Pack/` 检查版本、工作流与打包布局。公共离线替身集中在 `Tests/Fixtures/Offline.py`,测试不执行真实目标发送或防火墙变更。
+- `Tests/Unit/` 检查报文、业务与配置单元;`Tests/Integration/` 检查入口和跨模块协作,其中 `TestLayout.py` 检查底层依赖方向、显式导入、核心包除 `Start/` 外不出现 Qt 与界面项目导入,并确认业务模块能在没有 Qt 的环境里导入;`Tests/Gui/` 检查窗口与页面,`Tests/Pack/` 检查版本、工作流与打包布局。公共离线替身集中在 `Tests/Fixtures/Offline.py`,测试不执行真实目标发送或网络配置变更。
 - 全量发现使用 `python -B -m unittest discover -s Tests -t .`，保证按 `Tests` 包导入；单个模块使用完整包名，例如 `python -B -m unittest Tests.Gui.TestWindow -v`。截图工具为 `python -B -m Tests.Gui.VerifyGui --screenshot <截图路径>`。
 - `Scripts/` 保留虚拟环境启动与本机自测入口；`TestLocalIp.py` 是真实本机报文收发自测，与离线测试套件分开。
 

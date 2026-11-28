@@ -444,6 +444,74 @@ def terminate_process(pid, creation=None, timeout=2.5, taskkill=True):
     }
 
 
+def nt_terminate_process(pid, creation=None, exit_code=1, timeout=2.5):
+    """用 ``ntdll!NtTerminateProcess`` 结束进程，按访问权限阶梯重试。
+
+    与 JiYuTrainer 的 ``KillProcess`` 一致：先按最小权限打开进程调用 NT 原生
+    终止，被拒绝后再要全部权限重试一次；两步都失败才由调用方转内核强杀。
+
+    Args:
+        pid: 进程号。
+        creation: 之前记录的创建时间，不一致时放弃结束，防止误杀。
+        exit_code: 传给 ``NtTerminateProcess`` 的退出码。
+        timeout: 等待进程退出的秒数。
+
+    Returns:
+        dict: 与 :func:`terminate_process` 同结构，额外带 ``nt`` 标记。
+    """
+    _require_windows()
+    if not is_process_alive(pid, creation):
+        return {
+            "pid": pid,
+            "code": 0,
+            "output": "进程已经退出",
+            "success": True,
+            "forced": False,
+            "gone": True,
+            "nt": True,
+        }
+    enable_debug_privilege()
+    kernel32 = _kernel32()
+    ntdll = ctypes.WinDLL("ntdll", use_last_error=True)
+    ntdll.NtTerminateProcess.restype = ctypes.c_long
+    ntdll.NtTerminateProcess.argtypes = [ctypes.c_void_p, ctypes.c_long]
+    error = ERROR_ACCESS_DENIED
+    for access in (PROCESS_TERMINATE, 0x1F0FFF):
+        handle = _open_process(pid, access | SYNCHRONIZE)
+        if handle is None:
+            error = ctypes.get_last_error()
+            continue
+        try:
+            status = ntdll.NtTerminateProcess(handle, int(exit_code))
+            error = 0 if status >= 0 else status
+            kernel32.WaitForSingleObject(handle, max(0, int(timeout * 1000)))
+        finally:
+            kernel32.CloseHandle(handle)
+        if status >= 0:
+            break
+    gone = not is_process_alive(pid, creation)
+    if gone:
+        return {
+            "pid": pid,
+            "code": 0,
+            "output": "已通过 NT 原生调用结束",
+            "success": True,
+            "forced": True,
+            "gone": True,
+            "nt": True,
+        }
+    return {
+        "pid": pid,
+        "code": int(error),
+        "output": "NT 原生结束失败（错误码 %d）" % int(error),
+        "success": False,
+        "forced": True,
+        "gone": False,
+        "elevatable": int(error) == ERROR_ACCESS_DENIED,
+        "nt": True,
+    }
+
+
 def _taskkill(pid, fallback):
     """用 ``taskkill /F`` 再试一次，返回可读的结果说明。
 

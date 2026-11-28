@@ -144,6 +144,9 @@ class StudentTests(OfflineCase):
             patch.object(
                 student_service, "terminate_process", return_value=dict(denied)
             ),
+            patch.object(
+                student_service, "nt_terminate_process", return_value=dict(denied)
+            ),
             patch.object(student_service, "kernel_kill", return_value=True) as kill,
             patch.object(student_service, "is_process_alive", return_value=False),
             patch.object(student_service, "_is_admin", return_value=True),
@@ -197,6 +200,9 @@ class StudentTests(OfflineCase):
             patch.object(student_service, "_wait_gone", return_value=False),
             patch.object(
                 student_service, "terminate_process", return_value=dict(denied)
+            ),
+            patch.object(
+                student_service, "nt_terminate_process", return_value=dict(denied)
             ),
             patch.object(student_service, "_is_admin", return_value=False),
             patch.object(

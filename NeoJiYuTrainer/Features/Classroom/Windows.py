@@ -350,8 +350,6 @@ def set_topmost(windows, enabled, api=None):
     api = _api(api)
     zone = "topmost" if enabled else "notopmost"
     for window in windows:
-        if window["kind"] == KIND_BLACK:
-            continue
         hwnd = window["hwnd"]
         old_ex = api.get_exstyle(hwnd)
         wanted_ex = old_ex | WS_EX_TOPMOST if enabled else old_ex & ~WS_EX_TOPMOST
@@ -366,12 +364,14 @@ def set_topmost(windows, enabled, api=None):
 
 
 def fake_full(windows, api=None):
-    """把广播窗口临时铺满并置顶，对应上游 FakeFull(TRUE)。"""
+    """把广播窗口与黑屏窗口临时铺满并置顶，对应上游 FakeFull(TRUE)。
+
+    上游对黑屏窗口也做同样的铺满处理：老师端切换到黑屏时，本机仍能看到
+    被铺满的黑屏窗口，而不是一个缩在角落的小窗。
+    """
     api = _api(api)
     screen = api.screen_size()
     for window in windows:
-        if window["kind"] == KIND_BLACK:
-            continue
         hwnd = window["hwnd"]
         api.set_exstyle(hwnd, api.get_exstyle(hwnd) | WS_EX_TOPMOST)
         api.set_style(

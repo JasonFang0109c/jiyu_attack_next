@@ -17,7 +17,7 @@ GUI 与 CLI 已合并到同一个单文件 EXE：从 [Nightly Build](https://git
 
 ## 使用概览
 
-命令行模式通过命令执行图形界面中的主要操作，包括向一台或多台学生机发送消息或指令、执行设备操作，以及在本机启动反弹终端。命令按界面分组组织：先写分组和子命令，再填写该子命令对应的参数，例如 `remote message` 是文本消息页、`remote device` 是设备操作页、`local info` 是本机信息页。常用参数包括：`-ip` 指定目标地址，`-msg` 指定消息内容，`-c` 指定命令，`--reboot` / `--shutdown` 执行重启或关机；其他以 `--` 开头的选项由对应子命令定义。
+命令行模式通过命令执行图形界面中的主要操作，包括向一台或多台学生机发送消息或指令、执行设备操作，以及在本机启动反弹终端。命令按界面分组组织：先写分组和子命令，再填写该子命令对应的参数，例如 `remote message` 是文本消息页、`remote device` 是设备操作页、`app uninstall` 是卸载命令。常用参数包括：`-ip` 指定目标地址，`-msg` 指定消息内容，`-c` 指定命令，`--reboot` / `--shutdown` 执行重启或关机；其他以 `--` 开头的选项由对应子命令定义。
 
 ### 术语说明
 
@@ -40,9 +40,7 @@ GUI 与 CLI 已合并到同一个单文件 EXE：从 [Nightly Build](https://git
 | `remote device` | 设备操作 | `--reboot` 重启、`--shutdown` 关机、`--logoff` 注销、`--bluescreen` 蓝屏；四个动作互斥，重启与关机用固定报文，不带倒计时与提示 |
 | `remote shell` | 反弹终端 | 在学生机上建立可持续交互的命令行会话 |
 | `classroom student` | 启停学生端 | 按当前状态启动或结束本机极域学生端，腾出被独占的 4705 端口 |
-| `local info` | 本机信息 | 查询本机 IP 地址与学生端端口 |
-| `local firewall` | 防火墙 | `block` 阻止学生端网络通信，`allow` 恢复通信 |
-| `local uninstall` | 设置 → 卸载应用 | 删除快捷方式、可选驱动服务与安装目录，`--keep-data` 保留用户数据 |
+| `app uninstall` | 设置 → 卸载应用 | 删除快捷方式、可选驱动服务与安装目录，`--keep-data` 保留用户数据 |
 
 ### 常见疑问
 
@@ -56,7 +54,7 @@ GUI 与 CLI 已合并到同一个单文件 EXE：从 [Nightly Build](https://git
 | 来源 | 对应功能 |
 | --- | --- |
 | `JiYuTrainer` | 课堂助手、课堂防护与广播窗口右键菜单所依据的窗口处理规则、反监视/防控制 Hook 思路、远程命令确认流程和内核强杀思路；命令行不直接提供这些窗口操作 |
-| `Jiyu_udp_attack` | 文本消息（`remote message`）、远程命令（`remote command`）、重启与关机（`remote device`）、本机信息（`local info`）、防火墙规则（`local firewall`）的报文结构 |
+| `Jiyu_udp_attack` | 文本消息（`remote message`）、远程命令（`remote command`）、重启与关机（`remote device`）的报文结构 |
 | 本程序新增 | 注销（`remote device --logoff`）、蓝屏（`remote device --bluescreen`）、文件传送（`remote file`）、反弹终端（`remote shell`）、启停学生端（`classroom student`） |
 
 来源的 `-e r` / `-e s` 是重发一份固定模板，本程序照旧重发同一份模板；来源的 `-e nc` 依赖外网脚本与 `powercat`，本程序的 `remote shell` 自己起脚本服务。
@@ -103,7 +101,7 @@ Windows 10/11。EXE 已包含 Python 运行时，命令行模式无需安装 Pyt
 NeoJiYuTrainer.exe <分组> <子命令> [-ip <目标地址>] [-p <目标端口>] <该页面的参数>
 ```
 
-先写分组与子命令，再跟这个页面的参数。`-ip` 只有需要目标的功能才要求，默认 UDP 端口为 `4705`；`local info`、`local firewall` 与 `classroom student` 不需要目标地址。无参数启动会打开 GUI，带 `-h`、`--version` 或其他参数时运行 CLI；GUI 的启动与操作见 [GUI 模式使用说明](Gui.md)。
+先写分组与子命令，再跟这个页面的参数。`-ip` 只有需要目标的功能才要求，默认 UDP 端口为 `4705`；`app uninstall` 与 `classroom student` 不需要目标地址。无参数启动会打开 GUI，带 `-h`、`--version` 或其他参数时运行 CLI；GUI 的启动与操作见 [GUI 模式使用说明](Gui.md)。
 
 在命令提示符（cmd）中可直接运行：
 
@@ -139,9 +137,7 @@ start /wait NeoJiYuTrainer.exe remote message -ip 10.49.151.29 -msg "Hello"
 | `remote device` | `remote device -ip 192.168.1.10 --shutdown` |
 | `remote command` | `remote command -ip 192.168.1.10 -c whoami` |
 | `remote shell` | `remote shell -ip 192.168.1.10` |
-| `local info` | `local info` |
-| `local firewall` | `local firewall block`、`local firewall allow` |
-| `local uninstall` | `local uninstall`、`local uninstall --keep-data` |
+| `app uninstall` | `app uninstall`、`app uninstall --keep-data` |
 
 子命令之后的参数见下方“参数参考”。旧的扁平写法已移除；原命令需要迁移为对应的分组子命令，例如 `-ip 地址 -msg 内容` 改为 `remote message -ip 地址 -msg 内容`。
 
@@ -223,29 +219,17 @@ debug 版本会在发送前写一条 `DEBUG` 日志“蓝屏载荷”，给出�
 | `--pid PID` | 整数 | 无 | 只结束指定进程，可重复 |
 | `--no-guardian` | 开关 | 关 | 结束后不等待复查，直接返回；默认为停留 2 秒确认没有被守护服务重新拉起 |
 
-### local info（本机信息）
-
-没有额外参数：打印本机 IPv4 与 `Student` 相关进程可能监听的端口，等价于早期的 `-e g`。只查运行命令的本机，不发任何报文。
-
-### local firewall（防火墙）
+### app uninstall（卸载应用）
 
 | 参数 | 类型 | 默认值 | 用途与说明 |
 | --- | --- | --- | --- |
-| `block` / `allow` | 位置参数 | 无 | `block` 阻断学生端连接，`allow` 把规则改回允许 |
-
-`block` 会启动 `MpsSvc`、打开全部配置文件的防火墙，并把名为 `StudentMain.exe` 的规则改成阻断；`allow` 只把该规则改回允许，不还原其他防火墙设置。两项都需要管理员权限，未提升时弹出 UAC，由隐藏的管理员助手完成后回传结果。
-
-### local uninstall（卸载应用）
-
-| 参数 | 类型 | 默认值 | 用途与说明 |
-| --- | --- | --- | --- |
-| `--keep-data` | 开关 | 关 | 保留 `data`；不写该选项时连同备注、设置与日志一起删除 |
+| `--keep-data` | 开关 | 关 | 保留 `Data`；不写该选项时连同备注、设置与日志一起删除 |
 
 只允许在打包后的 EXE 中执行：源码运行时没有可清理的安装目录，会直接返回提示。卸载会删除桌面与开始菜单快捷方式，尝试停止并删除 `JiyuGuardDriver` 服务，然后安排退出后清理 EXE 所在目录；建议先关闭正在运行的程序。
 
 ### 从旧命令迁移
 
-旧的扁平命令不再支持；请使用对应的分组子命令。例如，原 `-e r` 改为 `remote device --reboot`，`-e g` 改为 `local info`，`--start-student` 改为 `classroom student --start`。原来一次组合的多项操作需要分别执行多个子命令。分组名也统一成界面称呼：原 `restriction student` 改为 `classroom student`。
+旧的扁平命令不再支持；请使用对应的分组子命令。例如，原 `-e r` 改为 `remote device --reboot`，`-e g` 改为 `app uninstall`，`--start-student` 改为 `classroom student --start`。原来一次组合的多项操作需要分别执行多个子命令。分组名也统一成界面称呼：原 `restriction student` 改为 `classroom student`。
 
 ## 目标地址格式
 
@@ -349,14 +333,6 @@ CLI 模式按目标逐个启动本机 HTTP 文件服务，向目标发送随机�
 - 自动检测会忽略 `198.18.0.0/15` 等虚拟或基准测试网段，并在出口地址不可用时选择与目标网段更接近的真实局域网地址。TUN/VPN 或多网卡环境仍检测错误时，使用 `--file-ip 10.49.151.20` 手动指定发送端 IP。
 - 多个目标按顺序逐个传送，每个目标单独等待下载，某个目标失败后继续尝试其余目标并汇总失败目标；`--file-timeout` 按单个目标计算。
 - 每个目标的文件服务只在该目标等待下载期间运行，超时或任务取消后停止。失败信息会区分“目标未访问文件服务”“目标已取脚本但未下载”和“下载中断”。
-
-### 查询本机信息
-
-```powershell
-.\NeoJiYuTrainer.exe local info
-```
-
-仅查询运行 CLI 模式的本机，不查询远程目标；未匹配到学生端进程或端口时输出可能不完整。
 
 ### 启停本机学生端
 
@@ -478,7 +454,6 @@ CLI 模式也会写运行日志，文件是数据目录下的 `cli.log`，与 GU
 | 双击后只打开 GUI | 无参数启动按设计进入 GUI | 在终端带功能参数启动 CLI，例如 `.\NeoJiYuTrainer.exe remote message -ip 10.49.151.29 -msg "Hello"` |
 | 提示“发送成功”，目标无响应 | 地址或端口不匹配、报文被拦截、学生端未监听、目标未执行指令 | 核对目标地址、UDP 端口、学生端状态及目标端执行结果 |
 | 包含空格的路径处理失败 | 路径未完整加引号，或引号在终端传参时发生变化 | 参考包含空格路径的示例，并核对目标端路径 |
-| `local info` 未显示端口 | 未找到 `Student` 相关进程或其 UDP 监听端口 | 在本机核对进程与监听状态；查询失败时会显示错误原因 |
 | 只有 IP、没有功能参数时无法发送 | 没有生成任何待发送报文 | 补上子命令与动作，例如 `remote message -msg ...`、`remote command -c ...` |
 | 长命令报错 | 命令超过固定报文缓冲区容量 | 缩短命令，检查终端输出的异常信息 |
 | 长消息只显示部分内容或顺序不一致 | 消息被拆成独立报文，未提供接收端重组与可靠交付机制 | 核对目标端实际显示结果；分条发送不能保证合并为单条消息 |

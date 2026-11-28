@@ -74,6 +74,7 @@ class ClassroomPane(Page):
     optionChanged = Signal(str, object)
     guardRequested = Signal(int)
     guardStopRequested = Signal()
+    netFilterRequested = Signal()
     # 标签页被切换显示时才轮询，隐藏后不再占用后台线程。
     activated = Signal()
     deactivated = Signal()
@@ -500,6 +501,13 @@ class ClassroomGuardPage(ClassroomPane):
         self.guard_stop_button.setEnabled(False)
         self.guard_stop_button.clicked.connect(self.guardStopRequested.emit)
         buttons.addWidget(self.guard_stop_button)
+        self.netfilter_button = PushButton(FIF.DELETE, "卸载网络过滤驱动", card)
+        self.netfilter_button.setMinimumHeight(34)
+        self.netfilter_button.setToolTip(
+            "停止并删除极域安装的 TDNetFilter 服务；没有安装时只提示，不会报错。"
+        )
+        self.netfilter_button.clicked.connect(self.netFilterRequested.emit)
+        buttons.addWidget(self.netfilter_button)
         buttons.addStretch()
         card.body.addLayout(buttons)
         return card
