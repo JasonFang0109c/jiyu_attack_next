@@ -1,4 +1,6 @@
-# 课堂防护原生组件
+# 课堂防护原生组件(NeoJiYuTrainerHooks)
+
+本目录对应 JiYuTrainer 上游的 `JiYuTrainerHooks` 工程,是独立的原生项目边界:只放课堂防护 DLL、广播窗口菜单与自测夹具的 C++ 源码,不依赖 Python 代码即可编译。
 
 `guard.dll` 是课堂助手的可选进程内防护模块，提供五类窄接口拦截与一个广播窗口菜单：
 
@@ -19,7 +21,7 @@
 容器构建，宿主机不安装编译器：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\pack\native\build-hooks.ps1
+powershell -ExecutionPolicy Bypass -File .\NeoJiYuTrainerHooks\build.ps1
 ```
 
 脚本在容器 `jiyu-native` 内分别执行 `build.bat x64` 与 `build.bat x86`，产物

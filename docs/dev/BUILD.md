@@ -60,15 +60,15 @@ powershell -ExecutionPolicy Bypass -File .\pack\build.ps1 -Python "C:\Python313\
 
 ### 课堂防护原生组件
 
-- 源码在 `pack/native/hooks`：`guard.cpp` 为窄接口 Hook DLL，`mhook/` 与 `disasm-lib/` 来自 JiYuTrainer 的第三方源码（MIT 与原作者版权，见目录内说明）。
+- 源码在 `NeoJiYuTrainerHooks/`（即上游 `JiYuTrainerHooks` 项目边界）：`guard.cpp` 为窄接口 Hook DLL，`mhook/` 与 `disasm-lib/` 来自 JiYuTrainer 的第三方源码（MIT 与原作者版权，见目录内说明）。
 - 仓库提交 `app/resources/native/guard_x86.dll`、`guard_x64.dll` 的预编译产物，普通 EXE 构建不需要编译器；PyInstaller 通过 `pack/NeoJiYuTrainer.spec` 一并收集。
-- 只有修改 `guard.cpp` 或升级第三方源码时才需要重新编译：在装有 MSVC 与 Windows SDK 的 Windows 容器内执行 `pack/native/build-hooks.ps1`，脚本用 `build.bat` 分别编译 x86/x64，产物落在 `build/native/hooks/`，再复制到 `app/resources/native/`。宿主机不安装编译器与 SDK。
+- 只有修改 `guard.cpp` 或升级第三方源码时才需要重新编译：在装有 MSVC 与 Windows SDK 的 Windows 容器内执行 `NeoJiYuTrainerHooks/build.ps1`，脚本用 `build.bat` 分别编译 x86/x64，产物落在 `build/native/hooks/`，再复制到 `app/resources/native/`。宿主机不安装编译器与 SDK。需要一次重建两个原生项目时，依次执行 `NeoJiYuTrainerHooks/build.ps1` 与 `NeoJiYuTrainerDriver/build.ps1`。
 - `build/native/hooks/guard_fixture_*.exe` 是自测夹具，只在构建容器或隔离测试环境中运行，不加载驱动、不改系统配置。
 
 ### 内核驱动（可选）
 
-- 源码在 `pack/native/driver`：`jiyu_guard_driver.c` 是 WDM 驱动，用 `ObRegisterCallbacks` 阻止其它进程结束受保护进程，并通过 IOCTL 提供内核强杀；`driver_ioctl.h` 定义设备名与请求结构。
-- 在装有 WDK 10.0.26100 与 MSVC 的 Windows 容器内执行 `pack/native/build-driver.ps1`，产物为 `build/native/driver/jiyu_guard_driver.sys`，复制到 `app/resources/native/driver/` 后由 PyInstaller 收集。
+- 源码在 `NeoJiYuTrainerDriver/`（即上游 `JiYuTrainerDriver` 项目边界）：`jiyu_guard_driver.c` 是 WDM 驱动，用 `ObRegisterCallbacks` 阻止其它进程结束受保护进程，并通过 IOCTL 提供内核强杀；`driver_ioctl.h` 定义设备名与请求结构。
+- 在装有 WDK 10.0.26100 与 MSVC 的 Windows 容器内执行 `NeoJiYuTrainerDriver/build.ps1`，产物为 `build/native/driver/jiyu_guard_driver.sys`，复制到 `app/resources/native/driver/` 后由 PyInstaller 收集。
 - 驱动默认不加载、不安装服务；只有用户在“设置 → 内核驱动（可选）”里显式启用才调用 `sc.exe` 创建并启动 `JiyuGuardDriver`。测试时必须使用可丢弃的隔离虚拟机或启用了测试签名的环境，宿主机不要加载未通过微软正式签名的驱动。
 - 测试签名用 `pack/sign-driver.ps1`：脚本在当前用户证书库生成 `CN=JiYuGuard Test` 代码签名证书，导出到 `build/signing/`，再调用容器内的 x86 `signtool.exe` 给 `app/resources/native/driver/jiyu_guard_driver.sys` 签名；签名后重新执行 `pack/build.ps1` 打包。目标机器需要管理员导入 `build/signing/jiyu_guard_test.cer` 到 `LocalMachine\Root` 与 `LocalMachine\TrustedPublisher`，并以管理员执行 `bcdedit /set testsigning on` 后重启，Secure Boot 必须关闭。
 - 驱动加载失败、系统未开启测试签名或权限不足时，课堂防护与其它纯用户态功能不受影响。
