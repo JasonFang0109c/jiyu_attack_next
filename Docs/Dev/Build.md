@@ -70,7 +70,7 @@ powershell -ExecutionPolicy Bypass -File .\Pack\Build.ps1 -Python "C:\Python313\
 - 源码在 `NeoJiYuTrainerDriver/`（即上游 `JiYuTrainerDriver` 项目边界）：`JiYuGuardDriver.c` 是 WDM 驱动，用 `ObRegisterCallbacks` 阻止其它进程结束受保护进程，并通过 IOCTL 提供内核强杀；`DriverIoctl.h` 定义设备名与请求结构。
 - 在装有 WDK 10.0.26100 与 MSVC 的 Windows 容器内执行 `NeoJiYuTrainerDriver/Build.ps1`，产物为 `Build/Native/Driver/JiYuGuardDriver.sys`，复制到 `NeoJiYuTrainer/Resources/Native/Driver/` 后由 PyInstaller 收集。
 - 驱动默认不加载、不安装服务；只有用户在“设置 → 内核驱动（可选）”里显式启用才调用 `sc.exe` 创建并启动 `JiyuGuardDriver`。测试时必须使用可丢弃的隔离虚拟机或启用了测试签名的环境，宿主机不要加载未通过微软正式签名的驱动。
-- 测试签名用 `Pack/SignDriver.ps1`：脚本在当前用户证书库生成 `CN=JiYuGuard Test` 代码签名证书，导出到 `Build/Signing/`，再调用容器内的 x86 `signtool.exe` 给 `NeoJiYuTrainer/Resources/Native/Driver/JiYuGuardDriver.sys` 签名；签名后重新执行 `Pack/Build.ps1` 打包。目标机器需要管理员导入 `Build/Signing/JiYuGuardTest.cer` 到 `LocalMachine\Root` 与 `LocalMachine\TrustedPublisher`，并以管理员执行 `bcdedit /set Testsigning on` 后重启，Secure Boot 必须关闭。
+- 测试签名用 `Pack/SignDriver.ps1`：脚本在当前用户证书库生成 `CN=JiYuGuard Test` 代码签名证书，导出到 `Build/Signing/`，再调用容器内的 x86 `signtool.exe` 给 `NeoJiYuTrainer/Resources/Native/Driver/JiYuGuardDriver.sys` 签名；签名后重新执行 `Pack/Build.ps1` 打包。整个 `Build/` 被删除后重新签名会得到一张新证书（指纹随之改变），目标机器要重新导入新的 cer。目标机器需要管理员导入 `Build/Signing/JiYuGuardTest.cer` 到 `LocalMachine\Root` 与 `LocalMachine\TrustedPublisher`，并以管理员执行 `bcdedit /set Testsigning on` 后重启，Secure Boot 必须关闭。
 - 驱动加载失败、系统未开启测试签名或权限不足时，课堂防护与其它纯用户态功能不受影响。
 
 ## 输出与生成内容
@@ -79,15 +79,9 @@ powershell -ExecutionPolicy Bypass -File .\Pack\Build.ps1 -Python "C:\Python313\
 | --- | --- | --- |
 | `Output/NeoJiYuTrainer-<显示版本>.exe` | 单文件程序，GUI 与 CLI 共用；只写 `WARNING` 及以上的日志 | 保留用于运行和分发，旧版本号的删除 |
 | `Output/NeoJiYuTrainer_Debug-<显示版本>.exe` | 同上，但日志从 `DEBUG` 起记录 | 保留，供排查问题使用，旧版本号的删除 |
-| `Build/Release/`、`Build/Debug/` | 两个变体各自的打包中间文件与分析结果 | 构建后可删除 |
-| `Build/Assets/variant.txt` | 本次打包的变体标记，运行时打进 EXE | 构建后可删除 |
-| `Build/Assets/app.ico` | 从唯一图标源 `NeoJiYuTrainer/Resources/Icons/App.svg` 转换的构建图标 | 构建后可删除 |
-| `Build/Assets/build_time.txt` | 本次构建时间，打包进 EXE | 构建后可删除 |
-| `Build/Assets/version.txt` | 本次构建版本号，打包进 EXE | 构建后可删除 |
-| `Build/Assets/version_info.txt` | EXE 版本资源，由 `Pack/GenVersionInfo.py` 生成 | 构建后可删除 |
-| `Build/Previews/` | 手动生成的界面验证截图 | 检查后可删除 |
+| `Build/` | 全部生成物：两个变体的 PyInstaller 中间文件（`Release/`、`Debug/`）、打包资源（`Assets/`）、测试与截图临时目录（`TestData/`、`VerifyGuiData/`、`Previews/`），以及驱动签名临时材料（`Signing/`） | 下次构建前整目录删除 |
 
-删除 `Build/` 不影响已生成的 EXE，下次构建会重新生成所需文件。`Build/`、`Output/` 与 `.venv/` 均由 `.gitignore` 排除，不提交 Git。构建前请关闭正在运行的同名程序。项目生成的是未签名 EXE，首次启动需数秒解压资源；EXE 只允许同时运行一个实例，再次启动会唤醒已有窗口。
+整个 `Build/` 都是生成物：删除不影响已生成的 EXE，构建会按需重建；其中 `Assets/` 由 `Pack/Build.ps1` 生成，`Signing/` 由 `Pack/SignDriver.ps1` 重新签发测试证书并导出。`Build/`、`Output/` 与 `.venv/` 均由 `.gitignore` 排除，不提交 Git。构建前请关闭正在运行的同名程序。项目生成的是未签名 EXE，首次启动需数秒解压资源；EXE 只允许同时运行一个实例，再次启动会唤醒已有窗口。
 
 ### 构建前清理
 
@@ -105,8 +99,7 @@ powershell -ExecutionPolicy Bypass -File ./Pack/CleanBuild.ps1 -WhatIf
 | 清理目标 | 说明 |
 | --- | --- |
 | `Output/NeoJiYuTrainer*.exe` | 删除旧版与上一轮 EXE，构建完成后仅留下本轮选中变体的产物 |
-| `Build/Release/`、`Build/Debug/`、`Build/Assets/` | 清除 PyInstaller 中间文件与生成资源；构建会重新生成 |
-| `Build/TestData/`、`Build/VerifyGuiData/`、`Build/Previews/` | 清除测试、截图验证与手动预览留下的临时目录 |
+| `Build/`（整个目录） | 一次性清除 PyInstaller 中间文件、生成资源、测试与截图临时目录、驱动签名临时材料；下次构建全部重建 |
 | `Output/Data/cli.log`、`Output/Data/runtime.log` | 清理 EXE 数据目录中的运行日志 |
 | `Data/cli.log`、`Data/runtime.log` | 清理源码运行目录中的运行日志 |
 | `.ruff_cache/`、`.pytest_cache/`、`.mypy_cache/`、`.coverage`、`htmlcov/` | 清除工具缓存与覆盖率结果 |
@@ -121,13 +114,10 @@ powershell -ExecutionPolicy Bypass -File ./Pack/CleanBuild.ps1 -WhatIf
 | 清理对象 | 处理方式 |
 | --- | --- |
 | 一次性脚本（探针、批量替换、截图、临时校验） | 用完立即删除，不留到下一次改动 |
-| 截图与临时数据目录（`Build/Previews/`、`Build/VerifyGuiData/`，以及自建的 `Build/Shots*`、`Build/*Data`） | 截图确认外观后即可删除；数据目录整目录删除 |
-| 测试临时目录 `Build/TestData/` | 用例收尾会尽量自删；被日志句柄占住的残目录留给构建前清理统一删除 |
-| `Build/` 下其他手建目录（原生夹具、冒烟目录、旧调试副本） | 确认不再需要就删；需要时按本文命令重新生成 |
-| PyInstaller 中间产物 `Build/Release/`、`Build/Debug/` 与旧 EXE | 交给 `Pack/CleanBuild.ps1` 处理，不手工挑文件 |
+| `Build/` 整个目录 | 直接删除，或交给 `Pack/CleanBuild.ps1 -WhatIf` 预览后删除；目录里的一切都可由构建脚本重建 |
 | 工具缓存与字节码：`.ruff_cache/`、`.pytest_cache/`、`.coverage`、`__pycache__/` | 同上，由清理脚本统一删除 |
 
-**保留**：`Output/Data/`（用户备注、设置与日志，任何时候都不删）、`Build/Assets/`（本轮构建的图标与版本脚本，构建会重新生成）、`Build/Signing/`（驱动测试签名材料，重新生成要额外操作）。构建产物 `Output/*.exe` 保留最近一轮用于冒烟，下一轮构建前由清理脚本删除。
+**保留**：`Output/Data/`（用户备注、设置与日志，任何时候都不删）。构建产物 `Output/*.exe` 保留最近一轮用于冒烟，下一轮构建前由清理脚本删除。`Build/Signing/` 里是测试签名证书与 `signtool` 批处理，删掉后由 `Pack/SignDriver.ps1` 重新签发，不需要手工备份。
 
 清理完毕用 `git status` 确认工作区只剩本次该提交的改动；被忽略的目录不会出现在里面，需要时用 `ls Build` 看一眼是否还有本次的临时文件。
 

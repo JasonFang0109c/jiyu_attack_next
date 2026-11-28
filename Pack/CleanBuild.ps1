@@ -60,17 +60,10 @@ if (Test-Path -LiteralPath $outputRoot -PathType Container) {
     }
 }
 
-# Remove only reproducible PyInstaller work directories.
-foreach ($relativePath in @(
-    "Build/Release",
-    "Build/Debug",
-    "Build/Assets",
-    "Build/TestData",
-    "Build/VerifyGuiData",
-    "Build/Previews"
-)) {
-    Remove-CleanupTarget -LiteralPath (Join-Path $root $relativePath)
-}
+# The whole Build directory is generated: PyInstaller work directories, generated
+# assets, test scratch space, screenshots and the driver signing scratch files.
+# Removing it as a whole cannot miss a new target added later.
+Remove-CleanupTarget -LiteralPath (Join-Path $root "Build")
 
 # Remove logs while preserving settings.json and all other user data.
 foreach ($dataDirectory in @(
