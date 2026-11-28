@@ -15,8 +15,18 @@ LEGACY_DATA_DIRECTORY_NAMES = (
     "JiYuAttackNextData",
     "data",
 )
-LOG_FILE_NAME = "runtime.log"
-CLI_LOG_FILE_NAME = "cli.log"
+LOG_DIRECTORY_NAME = "Log"
+LOG_FILE_NAME = "Runtime.log"
+CLI_LOG_FILE_NAME = "Cli.log"
+FATAL_LOG_NAME = "Fatal.log"
+PENDING_LOG_NAME = "Pending.txt"
+LEGACY_CRASH_DIRECTORY_NAME = "Crash"
+LEGACY_LOG_NAMES = {
+    "runtime.log": LOG_FILE_NAME,
+    "cli.log": CLI_LOG_FILE_NAME,
+    "fatal.log": FATAL_LOG_NAME,
+    "pending.txt": PENDING_LOG_NAME,
+}
 
 
 def _migrate_legacy_data_dir(parent):
@@ -82,8 +92,21 @@ def portable_data_dir(executable=None):
     return executable_dir / DATA_DIRECTORY_NAME
 
 
+def log_dir(data_dir=None):
+    """返回日志目录 ``Log`` 的完整路径。
+
+    Args:
+        data_dir: 数据目录；None 表示由 :func:`portable_data_dir` 推断。
+
+    Returns:
+        Path: 日志目录路径。
+    """
+    root = Path(data_dir).resolve() if data_dir is not None else portable_data_dir()
+    return root / LOG_DIRECTORY_NAME
+
+
 def portable_log_path(data_dir=None):
-    """返回界面运行日志 ``runtime.log`` 的完整路径。
+    """返回界面运行日志 ``Log/Runtime.log`` 的完整路径。
 
     Args:
         data_dir: 数据目录；None 表示由 :func:`portable_data_dir` 推断。
@@ -91,12 +114,11 @@ def portable_log_path(data_dir=None):
     Returns:
         Path: 日志文件路径。
     """
-    root = Path(data_dir).resolve() if data_dir is not None else portable_data_dir()
-    return root / LOG_FILE_NAME
+    return log_dir(data_dir) / LOG_FILE_NAME
 
 
 def portable_cli_log_path(data_dir=None):
-    """返回命令行运行日志 ``cli.log`` 的完整路径。
+    """返回命令行运行日志 ``Log/Cli.log`` 的完整路径。
 
     Args:
         data_dir: 数据目录；None 表示由 :func:`portable_data_dir` 推断。
@@ -104,5 +126,53 @@ def portable_cli_log_path(data_dir=None):
     Returns:
         Path: 日志文件路径。
     """
+    return log_dir(data_dir) / CLI_LOG_FILE_NAME
+
+
+def migrate_legacy_logs(data_dir=None):
+    """把旧位置的日志与崩溃报告移进 ``Log`` 目录。
+
+    旧版把 ``runtime.log``、``cli.log`` 直接放在数据目录，崩溃报告另放
+    ``Crash`` 目录；这里统一搬到 ``Log`` 并把文件名改成大驼峰。目录不存在、
+    目标已存在或文件被占用时保留原样，迁移失败不阻断启动。
+
+    Args:
+        data_dir: 数据目录；None 表示由 :func:`portable_data_dir` 推断。
+    """
     root = Path(data_dir).resolve() if data_dir is not None else portable_data_dir()
-    return root / CLI_LOG_FILE_NAME
+    target = root / LOG_DIRECTORY_NAME
+    with contextlib.suppress(OSError):
+        target.mkdir(parents=True, exist_ok=True)
+
+    sources = []
+    with contextlib.suppress(OSError):
+        sources.extend(item for item in root.iterdir() if item.is_file())
+    crash = root / LEGACY_CRASH_DIRECTORY_NAME
+    if crash.is_dir():
+        with contextlib.suppress(OSError):
+            sources.extend(item for item in crash.iterdir() if item.is_file())
+
+    for item in sources:
+        name = _migrated_log_name(item.name)
+        if name is None:
+            continue
+        destination = target / name
+        if destination.exists():
+            continue
+        with contextlib.suppress(OSError):
+            item.replace(destination)
+
+    with contextlib.suppress(OSError):
+        if crash.is_dir() and not any(crash.iterdir()):
+            crash.rmdir()
+
+
+def _migrated_log_name(name):
+    """返回旧文件名对应的新文件名，无需迁移时返回 None。"""
+    lowered = name.lower()
+    mapped = LEGACY_LOG_NAMES.get(lowered)
+    if mapped is not None:
+        return mapped
+    if lowered.startswith("crashinfo-") and lowered.endswith(".txt"):
+        return name
+    return None

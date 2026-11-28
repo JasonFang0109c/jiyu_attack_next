@@ -70,9 +70,8 @@ foreach ($dataDirectory in @(
     (Join-Path $root "Data"),
     (Join-Path $outputRoot "Data")
 )) {
-    foreach ($logName in @("cli.log", "runtime.log")) {
-        Remove-CleanupTarget -LiteralPath (Join-Path $dataDirectory $logName)
-    }
+    # Log holds Runtime.log, Cli.log and the crash reports; settings stay put.
+    Remove-CleanupTarget -LiteralPath (Join-Path $dataDirectory "Log")
 }
 
 # Remove common tool caches without traversing .venv or user data directories.

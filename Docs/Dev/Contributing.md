@@ -96,7 +96,7 @@ powershell -ExecutionPolicy Bypass -File .\Pack\Build.ps1 -Clean
 
 ## 运行日志
 
-仅在改动 GUI 或 CLI 日志行为、调用点时适用。GUI 运行日志遵循 [日志规范](https://itliwei.github.io/technology/engineer/develop/logger.html)，等级统一使用 `DEBUG`、`INFO`、`WARNING`、`ERROR`，其中 `warn` 写作 `warning`。正常版本默认 `WARNING`，可在“设置”页切到 `INFO` 或 `ERROR`；调试版本固定从 `DEBUG` 起全量记录，下拉框不可用。低于写入阈值的记录不会进入列表和 `runtime.log`。
+仅在改动 GUI 或 CLI 日志行为、调用点时适用。GUI 运行日志遵循 [日志规范](https://itliwei.github.io/technology/engineer/develop/logger.html)，等级统一使用 `DEBUG`、`INFO`、`WARNING`、`ERROR`，其中 `warn` 写作 `warning`。正常版本默认 `WARNING`，可在“设置”页切到 `INFO` 或 `ERROR`；调试版本固定从 `DEBUG` 起全量记录，下拉框不可用。低于写入阈值的记录不会进入列表和 `Log/Runtime.log`。
 
 ```text
 2026-10-23 12:34:56.789 [12345] [MainThread] INFO    NeoJiYuTrainerUI.Gui.Service.GuiService:183 - [文本消息] 开始发送：[REDACTED]，端口 4705，1 轮
@@ -105,10 +105,10 @@ powershell -ExecutionPolicy Bypass -File .\Pack\Build.ps1 -Clean
 
 新增日志优先调用 `LogStore.debug/info/warning/error`，关键节点携带目标、端口、文件名、耗时等定位信息，异常附带堆栈，不记录密码、令牌等敏感信息。日志页支持功能与级别筛选、多选、导出选中、删除选中和表头全选；相关行为变更需同步更新 [GUI 模式使用说明](../Usage/Gui.md) 和 `Tests/Gui/TestWindow.py`、`Tests/Gui/TestLogPage.py`、`Tests/Gui/TestLogStore.py` 中的对应测试。
 
-命令行模式写自己的日志文件 `cli.log`，与界面的 `runtime.log` 分开，两者共用一个数据目录，规则在 `NeoJiYuTrainer/Shared/Paths.py`。实现位于 `NeoJiYuTrainer/Shared/Logs/Cli.py` 的 `CliLog`：只依赖标准库，写入阈值跟构建变体一致（正常版 `WARNING`、调试版 `DEBUG`），命令行没有等级开关，命令行启动层与各功能的 CLI 适配使用它记录日志，而不是 `LogStore`（`LogStore` 依赖 PySide6，命令行入口不允许导入 Qt）。格式与界面日志一致，便于同一套工具阅读：
+命令行模式写自己的日志文件 `Log/Cli.log`，与界面的 `Log/Runtime.log` 分开，两者共用一个数据目录，规则在 `NeoJiYuTrainer/Shared/Paths.py`。实现位于 `NeoJiYuTrainer/Shared/Logs/Cli.py` 的 `CliLog`：只依赖标准库，写入阈值跟构建变体一致（正常版 `WARNING`、调试版 `DEBUG`），命令行没有等级开关，命令行启动层与各功能的 CLI 适配使用它记录日志，而不是 `LogStore`（`LogStore` 依赖 PySide6，命令行入口不允许导入 Qt）。格式与界面日志一致，便于同一套工具阅读：
 
 ```text
-2026-11-04 13:29:10.527 [10440] [MainThread] DEBUG   NeoJiYuTrainer..cli.log_arguments:31 - [命令行] 命令行参数
+2026-11-04 13:29:10.527 [10440] [MainThread] DEBUG   NeoJiYuTrainer.Start.Cli.log_arguments:31 - [命令行] 命令行参数
     group=remote；command=message；target=10.49.151.29；port=4705；message=已提供；command_text=未提供；file_count=0；loops=1；interval=22
 ```
 

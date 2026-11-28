@@ -89,7 +89,7 @@ class LogStoreConcurrencyTests(unittest.TestCase):
         Path("Build").mkdir(exist_ok=True)
         temporary = TemporaryDirectory(prefix="log-concurrency-", dir="Build")
         self.addCleanup(temporary.cleanup)
-        self.log_path = Path(temporary.name) / "runtime.log"
+        self.log_path = Path(temporary.name) / "Runtime.log"
         self.store = LogStore(log_path=self.log_path, minimum_level="INFO")
         self.addCleanup(self.store.close)
 

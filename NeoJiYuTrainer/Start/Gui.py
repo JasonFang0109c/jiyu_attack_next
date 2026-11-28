@@ -32,7 +32,7 @@ from NeoJiYuTrainer.Features.Settings.Data import (
 )
 from NeoJiYuTrainer.Features.Settings.Service import portable_settings
 from NeoJiYuTrainer.Shared import Crash
-from NeoJiYuTrainer.Shared.Paths import portable_data_dir
+from NeoJiYuTrainer.Shared.Paths import migrate_legacy_logs, portable_data_dir
 from NeoJiYuTrainerUI.Gui.Resources import app_icon
 from NeoJiYuTrainerUI.Gui.Splash import create_splash
 from NeoJiYuTrainerUI.Gui.Widgets.Common import FluentDialog, center_dialog
@@ -309,6 +309,7 @@ def main():
         int: 进程退出码。
     """
     data_directory = portable_data_dir()
+    migrate_legacy_logs(data_directory)
     # 崩溃钩子要尽早装：界面搭建期间的异常同样需要留下报告。
     Crash.install(data_directory)
     QApplication.setApplicationName(APP_NAME)

@@ -14,6 +14,7 @@ class CrashTests(unittest.TestCase):
     """验证报告写入、待提示标记与摘要。"""
 
     def setUp(self):
+        Path("Build").mkdir(exist_ok=True)
         self._root = tempfile.TemporaryDirectory(dir="Build")
         self.addCleanup(self._root.cleanup)
         self.data = Path(self._root.name) / "Data"
@@ -39,7 +40,7 @@ class CrashTests(unittest.TestCase):
 
     def test_install_creates_directory_and_chains_previous_hook(self):
         target = Crash.install(self.data)
-        self.assertEqual(target, self.data / "Crash")
+        self.assertEqual(target, self.data / "Log")
         self.assertTrue((target / "Fatal.log").is_file())
         try:
             raise RuntimeError("boom")
@@ -87,6 +88,20 @@ class CrashTests(unittest.TestCase):
         report = Crash.write_report(self.data, "手工记录", "细节")
         self.assertEqual(Crash.pending_report(self.data), report)
         self.assertIn("手工记录", report.read_text(encoding="utf-8"))
+
+    def test_write_report_appends_runtime_log_entry(self):
+        report = Crash.write_report(
+            self.data, "未捕获异常", "Traceback\nValueError: 示例失败\n"
+        )
+
+        log_path = self.data / "Log" / "Runtime.log"
+        self.assertTrue(log_path.is_file())
+        text = log_path.read_text(encoding="utf-8")
+        line = text.strip().splitlines()[-1]
+        self.assertIn("[崩溃报告]", line)
+        self.assertIn("ValueError: 示例失败", line)
+        self.assertIn(report.name, line)
+        self.assertRegex(line, r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \[\d+\] ")
 
 
 if __name__ == "__main__":

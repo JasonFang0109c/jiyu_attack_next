@@ -18,7 +18,7 @@ class CliLifecycleTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory(dir=build, prefix="audit_cli_log_")
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
-        self.log_path = self.root / "Data" / "cli.log"
+        self.log_path = self.root / "Data" / "Log" / "Cli.log"
         self.log = cli.cli_log.CliLog()
         self.addCleanup(self.log.close)
         self.enterContext(patch.object(cli.cli_log, "LOG", self.log))

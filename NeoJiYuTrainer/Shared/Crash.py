@@ -1,4 +1,4 @@
-"""崩溃报告：把未捕获异常与硬崩溃写进数据目录下的 ``Crash`` 文件夹。
+"""崩溃报告：把未捕获异常与硬崩溃写进数据目录下的 ``Log`` 文件夹。
 
 对应上游 ``GenerateCrashInfo``：进程异常结束时留下可读的报告，下次启动
 由界面提示上次未正常退出。硬崩溃（访问违例、栈溢出）走 ``faulthandler``，
@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import faulthandler
+import os
 import sys
 import tempfile
 import threading
@@ -15,9 +17,15 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-DIRECTORY_NAME = "Crash"
-PENDING_NAME = "Pending.txt"
-FATAL_NAME = "Fatal.log"
+from NeoJiYuTrainer.Shared.Paths import (
+    FATAL_LOG_NAME,
+    LOG_FILE_NAME,
+    PENDING_LOG_NAME,
+    log_dir,
+)
+
+PENDING_NAME = PENDING_LOG_NAME
+FATAL_NAME = FATAL_LOG_NAME
 
 _fatal_stream = None
 _fatal_dir: Path | None = None
@@ -31,9 +39,9 @@ def crash_dir(directory):
         directory: 数据目录（通常是 ``Data``）。
 
     Returns:
-        Path: ``Crash`` 子目录路径。
+        Path: 日志目录路径，崩溃报告与运行日志放在一起。
     """
-    return Path(directory) / DIRECTORY_NAME
+    return log_dir(directory)
 
 
 def _timestamp():
@@ -70,7 +78,36 @@ def write_report(directory, title, details):
     text = "%s\n时间：%s\n\n%s" % (title, datetime.now().isoformat(" "), details)
     path.write_text(text, encoding="utf-8", errors="replace")
     (target / PENDING_NAME).write_text(str(path), encoding="utf-8")
+    _append_log_line(target, title, details, path)
     return path
+
+
+def _append_log_line(target, title, details, path):
+    """在运行日志里追加一条崩溃记录，保留界面日志的文本格式。
+
+    报告文件被清空或日志被修剪时，这条记录仍能指回报告文件。
+    """
+    stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+    reason = _summary_reason(str(details).splitlines())
+    message = "%s：%s" % (title, reason) if reason else title
+    line = (
+        "%s [%d] [%s] ERROR   NeoJiYuTrainer.Shared.Crash._append_log_line:%d - [崩溃报告] %s；报告见 %s"
+        % (
+            stamp,
+            os.getpid(),
+            threading.current_thread().name,
+            sys._getframe().f_lineno,
+            message.replace("\r", " ").replace("\n", " "),
+            path.name,
+        )
+    )
+    try:
+        with (target / LOG_FILE_NAME).open(
+            "a", encoding="utf-8", newline="\n"
+        ) as handle:
+            handle.write(line + "\n")
+    except OSError:
+        return
 
 
 def install(directory):
@@ -100,10 +137,8 @@ def install(directory):
         faulthandler.enable(file=_fatal_stream, all_threads=True)
         _fatal_dir = target
         if previous_stream is not None:
-            try:
+            with contextlib.suppress(OSError):
                 previous_stream.close()
-            except OSError:
-                pass
     _patch_excepthook()
     _patch_thread_hook()
     _patch_unraisable_hook()
@@ -207,15 +242,18 @@ def summary(path):
         return ""
     lines = [line.strip() for line in lines if line.strip()]
     title = lines[0] if lines else ""
-    reason = ""
+    reason = _summary_reason(lines)
+    return "%s：%s" % (title, reason) if reason else title
+
+
+def _summary_reason(lines):
+    """从报告文本里挑出最能说明问题的一行。"""
     for line in reversed(lines):
         if "Error" in line or "Exception" in line:
-            reason = line
-            break
-    if not reason:
-        for line in reversed(lines):
-            if line.startswith(('File "', "File ", "Current thread", "Thread ")):
-                continue
-            reason = line
-            break
-    return "%s：%s" % (title, reason) if reason else title
+            return line.strip()
+    for line in reversed(lines):
+        stripped = line.strip()
+        if stripped.startswith(('File "', "File ", "Current thread", "Thread ")):
+            continue
+        return stripped
+    return ""

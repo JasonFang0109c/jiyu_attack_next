@@ -12,7 +12,7 @@ from NeoJiYuTrainer.Features.Student.Service import (
 )
 from NeoJiYuTrainer.Features.Uninstall import Cli as uninstall_cli
 from NeoJiYuTrainer.Shared.Logs import Cli as cli_log
-from NeoJiYuTrainer.Shared.Paths import portable_cli_log_path
+from NeoJiYuTrainer.Shared.Paths import migrate_legacy_logs, portable_cli_log_path
 from NeoJiYuTrainer.Start.Parser import build_group_parser
 
 
@@ -70,6 +70,7 @@ def run_from_cmd(arguments):
 
 def main(argv=None):
     """解析参数并执行 CLI 或隐藏的学生端助手。"""
+    migrate_legacy_logs()
     arguments = list(sys.argv[1:] if argv is None else argv)
     if arguments[:1] == [STUDENT_HELPER_ARGUMENT]:
         return run_student_helper(arguments[1:])

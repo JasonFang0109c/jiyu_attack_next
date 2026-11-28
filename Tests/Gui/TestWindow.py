@@ -119,7 +119,7 @@ class GuiTests(unittest.TestCase):
         guard.start()
         self.addCleanup(guard.stop)
         # 用测试名而不是 id(self) 命名：CPython 会复用对象地址，id 命名会让
-        # 不同测试共用同一临时目录，残留的 runtime.log 干扰后续断言。
+        # 不同测试共用同一临时目录，残留的 Runtime.log 干扰后续断言。
         self.temp_root = TEST_ROOT / self._testMethodName.replace("/", "_")
         shutil.rmtree(self.temp_root, ignore_errors=True)
         self.temp_root.mkdir(parents=True, exist_ok=True)
@@ -1455,7 +1455,8 @@ class GuiTests(unittest.TestCase):
             data_dir, executable.parent.resolve() / data_paths.DATA_DIRECTORY_NAME
         )
         self.assertEqual(
-            data_paths.portable_log_path(data_dir), data_dir / data_paths.LOG_FILE_NAME
+            data_paths.portable_log_path(data_dir),
+            data_dir / data_paths.LOG_DIRECTORY_NAME / data_paths.LOG_FILE_NAME,
         )
         self.assertTrue(
             settings_service.portable_settings(data_dir)
@@ -1510,7 +1511,7 @@ class GuiTests(unittest.TestCase):
     def test_runtime_logs_are_persisted_and_loaded(self):
         self.window.logs.clear()
         self.window.logs.add("应用", "第一行\n第二行", "成功")
-        log_path = self.data_dir / data_paths.LOG_FILE_NAME
+        log_path = data_paths.portable_log_path(self.data_dir)
         self.assertTrue(log_path.exists())
         text = log_path.read_text(encoding="utf-8")
         self.assertIn(" INFO    ", text)
@@ -2616,7 +2617,7 @@ class GuiTests(unittest.TestCase):
         store.clear()
         first = store.info("应用", "保留记录")
         removed = store.error("应用", "删除记录")
-        log_path = self.data_dir / data_paths.LOG_FILE_NAME
+        log_path = data_paths.portable_log_path(self.data_dir)
         page = self.window.pages["logs"]
         row = page._row_by_uid[removed.uid]
         page.table.item(row, 0).setCheckState(Qt.Checked)
@@ -2629,7 +2630,7 @@ class GuiTests(unittest.TestCase):
         self.assertNotIn("[应用] 删除记录", text)
 
     def test_legacy_json_log_is_loaded_and_migrated_on_next_write(self):
-        log_path = self.data_dir / data_paths.LOG_FILE_NAME
+        log_path = data_paths.portable_log_path(self.data_dir)
         legacy = {
             "time": "2026-01-02 03:04:05",
             "category": "应用",
@@ -2652,7 +2653,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(reloaded.entries[0].level, logs_data.LogLevel.WARNING)
 
     def test_log_file_keeps_one_handle_and_flushes_each_line(self):
-        log_path = self.data_dir / data_paths.LOG_FILE_NAME
+        log_path = data_paths.portable_log_path(self.data_dir)
         store = log_store.LogStore(log_path=log_path)
         try:
             store.info("应用", "第一行")
