@@ -31,6 +31,7 @@ from NeoJiYuTrainer.Features.Settings.Data import (
     normalize_switch,
 )
 from NeoJiYuTrainer.Features.Settings.Service import portable_settings
+from NeoJiYuTrainer.Shared import Crash
 from NeoJiYuTrainer.Shared.Paths import portable_data_dir
 from NeoJiYuTrainerUI.Gui.Resources import app_icon
 from NeoJiYuTrainerUI.Gui.Splash import create_splash
@@ -307,6 +308,9 @@ def main():
     Returns:
         int: 进程退出码。
     """
+    data_directory = portable_data_dir()
+    # 崩溃钩子要尽早装：界面搭建期间的异常同样需要留下报告。
+    Crash.install(data_directory)
     QApplication.setApplicationName(APP_NAME)
     QApplication.setOrganizationName("NeoJiYuTrainer")
     application = QApplication(sys.argv)
@@ -316,7 +320,7 @@ def main():
         # 已有实例在跑属于正常退出；服务端起不来要留下失败退出码。
         return 0 if instance.existing else 1
     # 单实例判定之后再询问：已被唤醒的第二次启动不该再弹一次声明。
-    settings = portable_settings(portable_data_dir())
+    settings = portable_settings(data_directory)
     if not usage_notice_accepted(settings) and not confirm_usage_notice(settings):
         instance.close()
         return 0
@@ -329,6 +333,14 @@ def main():
     # 仅靠 Qt 的“最后一个窗口关闭”规则不足以让 exec() 返回。
     window.quitRequested.connect(application.quit)
     install_exception_logging(window.logs)
+    report = Crash.pending_report(data_directory)
+    if report is not None:
+        window._notify(
+            "崩溃报告",
+            "上次运行异常结束，%s\n报告位于 %s" % (Crash.summary(report), report),
+            "警告",
+        )
+        Crash.clear_pending(data_directory)
     # 遮罩在窗口显示前创建：它会自动跟随父窗口尺寸并置顶，
     # 界面搭建期间的半成品布局不会露出来。
     splash = create_splash(window)
