@@ -28,3 +28,5 @@ htmlcov/
 Thumbs.db
 .DS_Store
 
+# 截图与视觉检查工具的运行产物
+.dsh-vision-router/
