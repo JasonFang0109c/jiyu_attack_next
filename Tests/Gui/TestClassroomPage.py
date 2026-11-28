@@ -1,4 +1,4 @@
-"""课堂助手页面的界面回归测试：状态、表格、密码与设置信号。"""
+"""课堂助手三个标签页的界面回归测试：状态、表格、密码与设置信号。"""
 
 import os
 import socket
@@ -19,7 +19,12 @@ from NeoJiYuTrainer.Features.Classroom.Data import (
     SETTINGS_GUARD_FLAGS,
     SETTINGS_INTERVAL,
 )
-from NeoJiYuTrainerUI.Features.Classroom.Gui.Page import ClassroomPage
+from NeoJiYuTrainerUI.Features.Classroom.Gui.Page import (
+    ClassroomGuardPage,
+    ClassroomPasswordPage,
+    ClassroomViews,
+    ClassroomWindowPage,
+)
 
 
 def _snapshot(windows_list=(), running=True, supported=True):
@@ -56,7 +61,7 @@ def _window(
 
 
 class ClassroomPageTests(unittest.TestCase):
-    """验证页面只做展示与发信号，不直接碰系统窗口。"""
+    """验证三个标签页只做展示与发信号，不直接碰系统窗口。"""
 
     @classmethod
     def setUpClass(cls):
@@ -68,27 +73,45 @@ class ClassroomPageTests(unittest.TestCase):
         )
         network_guard.start()
         self.addCleanup(network_guard.stop)
-        self.page = ClassroomPage()
-        self.addCleanup(self.dispose_page)
+        self.window_page = ClassroomWindowPage()
+        self.guard_page = ClassroomGuardPage()
+        self.password_page = ClassroomPasswordPage()
+        self.views = ClassroomViews(
+            self.window_page, self.guard_page, self.password_page
+        )
+        self.page = self.window_page
+        self.addCleanup(self.dispose_pages)
         self.emitted = []
-        self.page.optionChanged.connect(
-            lambda key, value: self.emitted.append((key, value))
+        for page in self.views.pages:
+            page.optionChanged.connect(
+                lambda key, value: self.emitted.append((key, value))
+            )
+
+    def dispose_pages(self):
+        """释放页面，避免影响其他界面用例。"""
+        for page in self.views.pages:
+            page.deleteLater()
+            QCoreApplication.sendPostedEvents(page, QEvent.Type.DeferredDelete)
+
+    def test_tabs_have_their_own_route_names(self):
+        self.assertEqual(
+            [page.objectName() for page in self.views.pages],
+            ["classroom", "classroomguard", "classroompassword"],
+        )
+        self.assertEqual(
+            [page.TITLE for page in self.views.pages],
+            ["课堂窗口", "课堂防护", "解锁密码"],
         )
 
-    def dispose_page(self):
-        """释放页面，避免影响其他界面用例。"""
-        page = self.page
-        page.deleteLater()
-        QCoreApplication.sendPostedEvents(page, QEvent.Type.DeferredDelete)
-
     def test_set_options_fills_controls_without_saving(self):
-        self.page.set_options(
+        self.views.set_options(
             {
                 "auto_repair": False,
                 "interval": 5,
                 "allow_top": True,
                 "include_fullscreen": False,
                 "hide_black_screen": False,
+                "guard_flags": 5,
             }
         )
         self.assertEqual(self.emitted, [])
@@ -97,6 +120,8 @@ class ClassroomPageTests(unittest.TestCase):
         self.assertTrue(self.page.allow_top_switch.isChecked())
         self.assertFalse(self.page.include_fullscreen_switch.isChecked())
         self.assertFalse(self.page.hide_black_switch.isChecked())
+        # 防护位只落在课堂防护页的开关上。
+        self.assertEqual(self.guard_page._guard_flags(), 5)
 
     def test_option_change_emits_settings_key(self):
         self.page.set_options({"auto_repair": True, "interval": 3})
@@ -129,23 +154,29 @@ class ClassroomPageTests(unittest.TestCase):
         self.assertIn("不支持窗口操作", self.page.status.text())
 
     def test_password_success_and_failure(self):
-        self.page.set_password({"password": "secret", "source": "knock", "error": ""})
-        self.assertEqual(self.page.password_label.text(), "secret")
-        self.assertTrue(self.page.copy_password_button.isEnabled())
-        self.assertIn("Knock1", self.page.password_detail.text())
+        self.password_page.set_password(
+            {"password": "secret", "source": "knock", "error": ""}
+        )
+        self.assertEqual(self.password_page.password_label.text(), "secret")
+        self.assertTrue(self.password_page.copy_password_button.isEnabled())
+        self.assertIn("Knock1", self.password_page.password_detail.text())
 
-        self.page.set_password({"password": "", "source": "", "error": "读取失败"})
-        self.assertEqual(self.page.password_label.text(), "未读取")
-        self.assertFalse(self.page.copy_password_button.isEnabled())
-        self.assertIn("读取失败", self.page.password_detail.text())
+        self.password_page.set_password(
+            {"password": "", "source": "", "error": "读取失败"}
+        )
+        self.assertEqual(self.password_page.password_label.text(), "未读取")
+        self.assertFalse(self.password_page.copy_password_button.isEnabled())
+        self.assertIn("读取失败", self.password_page.password_detail.text())
 
     def test_copy_request_only_with_password(self):
         copies = []
-        self.page.copyPasswordRequested.connect(copies.append)
-        self.page._request_password_copy()
+        self.password_page.copyPasswordRequested.connect(copies.append)
+        self.password_page._request_password_copy()
         self.assertEqual(copies, [])
-        self.page.set_password({"password": "secret", "source": "plain", "error": ""})
-        self.page._request_password_copy()
+        self.password_page.set_password(
+            {"password": "secret", "source": "plain", "error": ""}
+        )
+        self.password_page._request_password_copy()
         self.assertEqual(copies, ["secret"])
 
     def test_fake_full_and_topmost_labels(self):
@@ -160,36 +191,51 @@ class ClassroomPageTests(unittest.TestCase):
 
     def test_guard_card_emits_flags_and_shows_state(self):
         requests = []
-        self.page.guardRequested.connect(requests.append)
-        self.page.set_options({"auto_repair": True, "interval": 3, "guard_flags": 5})
-        self.assertEqual(self.page._guard_flags(), 5)
-        self.page.guard_start_button.click()
+        self.guard_page.guardRequested.connect(requests.append)
+        self.guard_page.set_options({"guard_flags": 5})
+        self.assertEqual(self.guard_page._guard_flags(), 5)
+        self.guard_page.guard_start_button.click()
         self.assertEqual(requests, [5])
         self.emitted.clear()
-        self.page._guard_switches[1][1].setChecked(True)
+        self.guard_page._guard_switches[1][1].setChecked(True)
         self.assertIn((SETTINGS_GUARD_FLAGS, 7), self.emitted)
-        self.page.set_guard_state(True, 5, 17600)
-        self.assertIn("已启用 2 项", self.page.guard_status.text())
-        self.assertIn("17600", self.page.guard_status.text())
-        self.assertFalse(self.page.guard_start_button.isEnabled())
-        self.assertTrue(self.page.guard_stop_button.isEnabled())
-        self.page.set_guard_state(False)
-        self.assertIn("未启用", self.page.guard_status.text())
-        self.assertTrue(self.page.guard_start_button.isEnabled())
-        self.assertFalse(self.page.guard_stop_button.isEnabled())
+        self.guard_page.set_guard_state(True, 5, 17600)
+        self.assertIn("已启用 2 项", self.guard_page.guard_status.text())
+        self.assertIn("17600", self.guard_page.guard_status.text())
+        self.assertFalse(self.guard_page.guard_start_button.isEnabled())
+        self.assertTrue(self.guard_page.guard_stop_button.isEnabled())
+        self.guard_page.set_guard_state(False)
+        self.assertIn("未启用", self.guard_page.guard_status.text())
+        self.assertTrue(self.guard_page.guard_start_button.isEnabled())
+        self.assertFalse(self.guard_page.guard_stop_button.isEnabled())
 
     def test_busy_disables_action_buttons(self):
-        self.page.set_busy(True)
+        self.views.set_busy(True)
         for button in (
             self.page.repair_button,
             self.page.fake_full_button,
             self.page.topmost_button,
-            self.page.read_password_button,
             self.page.refresh_button,
+            self.password_page.read_password_button,
+            self.guard_page.guard_start_button,
+            self.guard_page.guard_stop_button,
         ):
             self.assertFalse(button.isEnabled())
-        self.page.set_busy(False)
+        self.views.set_busy(False)
         self.assertTrue(self.page.repair_button.isEnabled())
+        self.assertTrue(self.password_page.read_password_button.isEnabled())
+        # 防护没启用时只有“启用防护”可点。
+        self.assertTrue(self.guard_page.guard_start_button.isEnabled())
+        self.assertFalse(self.guard_page.guard_stop_button.isEnabled())
+
+    def test_views_forward_guard_and_password(self):
+        self.views.set_guard_state(True, 3, 17600)
+        self.assertTrue(self.guard_page.guard_enabled)
+        self.assertIn("17600", self.guard_page.guard_status.text())
+        self.views.set_password({"password": "123456", "source": "plain", "error": ""})
+        self.assertEqual(self.password_page.password_label.text(), "123456")
+        self.views.set_snapshot(_snapshot([_window()]))
+        self.assertEqual(self.page.table.rowCount(), 1)
 
 
 if __name__ == "__main__":

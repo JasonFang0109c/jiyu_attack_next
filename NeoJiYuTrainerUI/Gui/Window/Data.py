@@ -58,7 +58,9 @@ TAB_GROUPS = (
         "课堂助手",
         (
             ("studentproc", FIF.POWER_BUTTON, "启停学生端"),
-            ("classroom", FIF.SCROLL, "课堂助手"),
+            ("classroom", FIF.SCROLL, "课堂窗口"),
+            ("classroomguard", FIF.CERTIFICATE, "课堂防护"),
+            ("classroompassword", FIF.FINGERPRINT, "解锁密码"),
         ),
     ),
     (

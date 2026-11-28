@@ -1,4 +1,4 @@
-"""课堂助手页：修复广播窗口、假全屏、置顶与读取解锁密码。"""
+"""课堂助手的三个标签页：课堂窗口、课堂防护与解锁密码。"""
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -51,11 +51,14 @@ KIND_LABELS = {
 }
 
 
-class ClassroomPage(Page):
-    """课堂助手：窗口列表、修复按钮、密码读取与看护设置。
+class ClassroomPane(Page):
+    """三个标签页共用的骨架：信号、滚动容器与设置项转发。
+
+    每个标签页都带一整套同名信号，服务接上全部页面后只会收到被点击那个
+    页面发出的信号；这样拆分标签页不需要服务判断当前显示的是哪一页。
 
     Attributes:
-        windows: 当前展示的课堂窗口记录。
+        windows: 当前展示的课堂窗口记录，只有课堂窗口页会用到。
         fake_full_enabled: 假全屏当前是否开启。
         topmost_enabled: 广播窗口是否被本页置顶。
         password: 最近一次读取到的解锁密码，空串表示没读到。
@@ -71,12 +74,14 @@ class ClassroomPage(Page):
     optionChanged = Signal(str, object)
     guardRequested = Signal(int)
     guardStopRequested = Signal()
-    # 子页被切换显示时才轮询，隐藏后不再占用后台线程。
+    # 标签页被切换显示时才轮询，隐藏后不再占用后台线程。
     activated = Signal()
     deactivated = Signal()
 
-    def __init__(self, parent=None):
-        super().__init__("classroom", parent)
+    TITLE = ""
+
+    def __init__(self, name, parent=None):
+        super().__init__(name, parent)
         self.windows = []
         self.fake_full_enabled = False
         self.topmost_enabled = False
@@ -92,23 +97,78 @@ class ClassroomPage(Page):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setObjectName("classroomScroll")
+        scroll.setObjectName(name + "Scroll")
         bar_width = scroll.verticalScrollBar().sizeHint().width()
-        content_host = QWidget(scroll)
-        content_host.setObjectName("classroomContent")
-        content = QVBoxLayout(content_host)
+        host = QWidget(scroll)
+        host.setObjectName(name + "Content")
+        content = QVBoxLayout(host)
         content.setContentsMargins(28, 24, 28 + bar_width, 24)
         content.setSpacing(12)
-        page_heading(content, "课堂助手")
-        content.addWidget(self._build_status_card(content_host))
-        content.addWidget(self._build_window_card(content_host))
-        content.addWidget(self._build_password_card(content_host))
-        content.addWidget(self._build_guard_card(content_host))
-        content.addWidget(self._build_option_card(content_host))
+        page_heading(content, self.TITLE)
+        self.scroll = scroll
+        self.content = content
+
+        self._fill(host)
+
         content.addStretch(1)
-        scroll.setWidget(content_host)
+        scroll.setWidget(host)
         clear_scroll_background(scroll)
         self.vbox.addWidget(scroll)
+
+    def _fill(self, parent):
+        """往滚动内容里加本标签页的卡片。
+
+        Args:
+            parent: 卡片应该挂到的父控件，即滚动区的内容宿主。
+        """
+        raise NotImplementedError
+
+    @staticmethod
+    def _option_row(card, text, control):
+        """在卡片里加一行“说明 + 控件”。”"""
+        row = QHBoxLayout()
+        row.setSpacing(12)
+        label = BodyLabel(text, card)
+        label.setWordWrap(True)
+        row.addWidget(label, 1)
+        control.setParent(card)
+        row.addWidget(control)
+        card.body.addLayout(row)
+
+    def _emit_option(self, key, value):
+        """把控件变化转成设置信号；填充设置时忽略。"""
+        if self._suspend_options:
+            return
+        self.optionChanged.emit(key, value)
+
+    def set_busy(self, busy):
+        """任务执行期间禁用本页按钮，子类按需覆盖。"""
+
+    # ---- 可见性 -----------------------------------------------------------
+
+    def showEvent(self, event):
+        """标签页显示时通知服务开始轮询。"""
+        super().showEvent(event)
+        self.activated.emit()
+
+    def hideEvent(self, event):
+        """标签页隐藏时停止轮询。"""
+        self.deactivated.emit()
+        super().hideEvent(event)
+
+
+class ClassroomWindowPage(ClassroomPane):
+    """课堂窗口：窗口列表、修复按钮与自动看护规则。"""
+
+    TITLE = "课堂窗口"
+
+    def __init__(self, parent=None):
+        super().__init__("classroom", parent)
+
+    def _fill(self, parent):
+        self.content.addWidget(self._build_status_card(parent))
+        self.content.addWidget(self._build_window_card(parent))
+        self.content.addWidget(self._build_option_card(parent))
 
     # ---- 布局 -------------------------------------------------------------
 
@@ -182,118 +242,12 @@ class ClassroomPage(Page):
 
         note = CaptionLabel(
             "修复只改窗口样式：不注入学生端、不需要驱动。"
-            "需要反监视、防控制时再打开下方的课堂防护。",
+            "需要反监视、防控制时再切到“课堂防护”。",
             card,
         )
         note.setWordWrap(True)
         card.body.addWidget(note)
         return card
-
-    def _build_password_card(self, parent):
-        """密码卡片：读取并复制极域解锁密码。"""
-        card = SectionCard(parent)
-        row = QHBoxLayout()
-        row.setSpacing(12)
-        row.addWidget(BodyLabel("解锁密码", card))
-        self.password_label = BodyLabel("未读取", card)
-        setFont(self.password_label, 16)
-        row.addWidget(self.password_label)
-        row.addStretch()
-        self.read_password_button = PushButton(FIF.FINGERPRINT, "读取", card)
-        self.read_password_button.setMinimumHeight(34)
-        self.read_password_button.clicked.connect(lambda: self.passwordRequested.emit())
-        row.addWidget(self.read_password_button)
-        self.copy_password_button = tool_button(
-            FIF.COPY,
-            "复制解锁密码",
-            card,
-            self._request_password_copy,
-        )
-        self.copy_password_button.setEnabled(False)
-        row.addWidget(self.copy_password_button)
-        card.body.addLayout(row)
-
-        self.password_detail = CaptionLabel(
-            "密码来自本机注册表，只读不改；读不到时会尝试解 Knock1。", card
-        )
-        self.password_detail.setWordWrap(True)
-        card.body.addWidget(self.password_detail)
-        return card
-
-    def _build_guard_card(self, parent):
-        """课堂防护卡片：把只读策略注入学生端进程。"""
-        card = SectionCard(parent)
-        header = QHBoxLayout()
-        title = BodyLabel("课堂防护", card)
-        setFont(title, 16)
-        header.addWidget(title)
-        header.addStretch()
-        self.guard_status = CaptionLabel("未启用", card)
-        header.addWidget(self.guard_status)
-        card.body.addLayout(header)
-
-        note = CaptionLabel(
-            "启用后向学生端加载 guard DLL，可拦截监视、控制、关闭窗口和结束进程；"
-            "“监控远程命令”会在教师发起命令时逐条询问是否允许。"
-            "不加载驱动，退出课堂助手或点“停止防护”即可卸载。",
-            card,
-        )
-        note.setWordWrap(True)
-        card.body.addWidget(note)
-
-        self._guard_switches = []
-        for flag, label in GUARD_ITEMS:
-            switch = SwitchButton(card)
-            # 勾选即保存策略位；已启用时服务会同步刷新 DLL 策略。
-            switch.checkedChanged.connect(
-                lambda checked: self._emit_option(
-                    SETTINGS_GUARD_FLAGS, self._guard_flags()
-                )
-            )
-            self._guard_switches.append((flag, switch))
-            self._option_row(card, label, switch)
-
-        buttons = QHBoxLayout()
-        buttons.setSpacing(8)
-        self.guard_start_button = PrimaryPushButton(FIF.PLAY, "启用防护", card)
-        self.guard_start_button.setMinimumHeight(34)
-        self.guard_start_button.clicked.connect(
-            lambda: self.guardRequested.emit(self._guard_flags())
-        )
-        buttons.addWidget(self.guard_start_button)
-        self.guard_stop_button = PushButton(FIF.CANCEL_MEDIUM, "停止防护", card)
-        self.guard_stop_button.setMinimumHeight(34)
-        self.guard_stop_button.setEnabled(False)
-        self.guard_stop_button.clicked.connect(self.guardStopRequested.emit)
-        buttons.addWidget(self.guard_stop_button)
-        buttons.addStretch()
-        card.body.addLayout(buttons)
-        return card
-
-    def _guard_flags(self):
-        """把五个开关合成一个防护位掩码。"""
-        flags = 0
-        for flag, switch in self._guard_switches:
-            if switch.isChecked():
-                flags |= flag
-        return flags
-
-    def set_guard_state(self, enabled, flags=0, pid=0):
-        """刷新课堂防护的启用状态与按钮。"""
-        self.guard_enabled = bool(enabled)
-        self.guard_flags = int(flags)
-        if enabled:
-            count = sum(1 for flag, _ in self._guard_switches if flags & flag)
-            text = "已启用 %d 项" % count
-            if pid:
-                text += " · 学生端 %d" % pid
-            self.guard_status.setText(text)
-            self.guard_status.setStyleSheet("color: %s;" % tone_color("ok").name())
-        else:
-            self.guard_status.setText("未启用")
-            self.guard_status.setStyleSheet("color: %s;" % tone_color("neutral").name())
-        self.guard_start_button.setEnabled(not enabled)
-        self.guard_stop_button.setEnabled(enabled)
 
     def _build_option_card(self, parent):
         """看护设置卡片：自动看护、轮询间隔与三条窗口处理规则。"""
@@ -354,18 +308,6 @@ class ClassroomPage(Page):
         )
         self._option_row(card, "隐藏黑屏窗口", self.hide_black_switch)
         return card
-
-    @staticmethod
-    def _option_row(card, text, control):
-        """在卡片里加一行“说明 + 控件”。"""
-        row = QHBoxLayout()
-        row.setSpacing(12)
-        label = BodyLabel(text, card)
-        label.setWordWrap(True)
-        row.addWidget(label, 1)
-        control.setParent(card)
-        row.addWidget(control)
-        card.body.addLayout(row)
 
     # ---- 状态刷新 ---------------------------------------------------------
 
@@ -467,30 +409,8 @@ class ClassroomPage(Page):
                 bool(options.get("include_fullscreen"))
             )
             self.hide_black_switch.setChecked(bool(options.get("hide_black_screen")))
-            flags = int(options.get("guard_flags") or 0)
-            for flag, switch in self._guard_switches:
-                switch.setChecked(bool(flags & flag))
         finally:
             self._suspend_options = False
-
-    def set_password(self, result):
-        """显示读取到的密码或失败原因。"""
-        password = result.get("password") or ""
-        error = result.get("error") or ""
-        self.password = password
-        if password:
-            self.password_label.setText(password)
-            self.password_label.setStyleSheet("color: %s;" % tone_color("ok").name())
-            source = "注册表明文" if result.get("source") == "plain" else "Knock1 解密"
-            self.password_detail.setText("来源：%s；只读，不修改注册表。" % source)
-            self.copy_password_button.setEnabled(True)
-        else:
-            self.password_label.setText("未读取")
-            self.password_label.setStyleSheet(
-                "color: %s;" % tone_color("warning").name()
-            )
-            self.password_detail.setText(error or "点“读取”从本机注册表取密码。")
-            self.copy_password_button.setEnabled(False)
 
     def set_fake_full(self, enabled):
         """刷新假全屏按钮文案与图标。"""
@@ -513,41 +433,238 @@ class ClassroomPage(Page):
             self.topmost_button.setIcon(FIF.PIN)
 
     def set_busy(self, busy):
-        """任务执行期间禁用按钮，避免重复触发。"""
+        """任务执行期间禁用本页按钮，避免重复触发。"""
         for button in (
             self.repair_button,
             self.fake_full_button,
             self.topmost_button,
-            self.read_password_button,
             self.refresh_button,
-            self.guard_start_button,
         ):
             button.setEnabled(not busy)
-        if not busy and self.guard_enabled:
+
+
+class ClassroomGuardPage(ClassroomPane):
+    """课堂防护：把只读策略注入学生端进程。"""
+
+    TITLE = "课堂防护"
+
+    def __init__(self, parent=None):
+        super().__init__("classroomguard", parent)
+
+    def _fill(self, parent):
+        self.content.addWidget(self._build_guard_card(parent))
+
+    def _build_guard_card(self, parent):
+        """课堂防护卡片：把只读策略注入学生端进程。"""
+        card = SectionCard(parent)
+        header = QHBoxLayout()
+        title = BodyLabel("课堂防护", card)
+        setFont(title, 16)
+        header.addWidget(title)
+        header.addStretch()
+        self.guard_status = CaptionLabel("未启用", card)
+        header.addWidget(self.guard_status)
+        card.body.addLayout(header)
+
+        note = CaptionLabel(
+            "启用后向学生端加载 guard DLL，可拦截监视、控制、关闭窗口和结束进程；"
+            "“监控远程命令”会在教师发起命令时逐条询问是否允许。"
+            "不加载驱动，退出课堂助手或点“停止防护”即可卸载。",
+            card,
+        )
+        note.setWordWrap(True)
+        card.body.addWidget(note)
+
+        self._guard_switches = []
+        for flag, label in GUARD_ITEMS:
+            switch = SwitchButton(card)
+            # 勾选即保存策略位；已启用时服务会同步刷新 DLL 策略。
+            switch.checkedChanged.connect(
+                lambda checked: self._emit_option(
+                    SETTINGS_GUARD_FLAGS, self._guard_flags()
+                )
+            )
+            self._guard_switches.append((flag, switch))
+            self._option_row(card, label, switch)
+
+        buttons = QHBoxLayout()
+        buttons.setSpacing(8)
+        self.guard_start_button = PrimaryPushButton(FIF.PLAY, "启用防护", card)
+        self.guard_start_button.setMinimumHeight(34)
+        self.guard_start_button.clicked.connect(
+            lambda: self.guardRequested.emit(self._guard_flags())
+        )
+        buttons.addWidget(self.guard_start_button)
+        self.guard_stop_button = PushButton(FIF.CANCEL_MEDIUM, "停止防护", card)
+        self.guard_stop_button.setMinimumHeight(34)
+        self.guard_stop_button.setEnabled(False)
+        self.guard_stop_button.clicked.connect(self.guardStopRequested.emit)
+        buttons.addWidget(self.guard_stop_button)
+        buttons.addStretch()
+        card.body.addLayout(buttons)
+        return card
+
+    def _guard_flags(self):
+        """把五个开关合成一个防护位掩码。"""
+        flags = 0
+        for flag, switch in self._guard_switches:
+            if switch.isChecked():
+                flags |= flag
+        return flags
+
+    def set_guard_state(self, enabled, flags=0, pid=0):
+        """刷新课堂防护的启用状态与按钮。"""
+        self.guard_enabled = bool(enabled)
+        self.guard_flags = int(flags)
+        if enabled:
+            count = sum(1 for flag, _ in self._guard_switches if flags & flag)
+            text = "已启用 %d 项" % count
+            if pid:
+                text += " · 学生端 %d" % pid
+            self.guard_status.setText(text)
+            self.guard_status.setStyleSheet("color: %s;" % tone_color("ok").name())
+        else:
+            self.guard_status.setText("未启用")
+            self.guard_status.setStyleSheet("color: %s;" % tone_color("neutral").name())
+        self.guard_start_button.setEnabled(not enabled)
+        self.guard_stop_button.setEnabled(enabled)
+
+    def set_options(self, options):
+        """把保存的防护位填进开关，不触发保存。"""
+        self._suspend_options = True
+        try:
+            flags = int(options.get("guard_flags") or 0)
+            for flag, switch in self._guard_switches:
+                switch.setChecked(bool(flags & flag))
+        finally:
+            self._suspend_options = False
+
+    def set_busy(self, busy):
+        """任务执行期间禁用防护按钮，恢复后按启用状态复位。"""
+        if busy:
             self.guard_start_button.setEnabled(False)
-            self.guard_stop_button.setEnabled(True)
-        elif not busy:
             self.guard_stop_button.setEnabled(False)
+            return
+        self.guard_start_button.setEnabled(not self.guard_enabled)
+        self.guard_stop_button.setEnabled(self.guard_enabled)
+
+
+class ClassroomPasswordPage(ClassroomPane):
+    """解锁密码：读取并复制极域卸载/解锁密码。"""
+
+    TITLE = "解锁密码"
+
+    def __init__(self, parent=None):
+        super().__init__("classroompassword", parent)
+
+    def _fill(self, parent):
+        self.content.addWidget(self._build_password_card(parent))
+
+    def _build_password_card(self, parent):
+        """密码卡片：读取并复制极域解锁密码。"""
+        card = SectionCard(parent)
+        row = QHBoxLayout()
+        row.setSpacing(12)
+        row.addWidget(BodyLabel("解锁密码", card))
+        self.password_label = BodyLabel("未读取", card)
+        setFont(self.password_label, 16)
+        row.addWidget(self.password_label)
+        row.addStretch()
+        self.read_password_button = PushButton(FIF.FINGERPRINT, "读取", card)
+        self.read_password_button.setMinimumHeight(34)
+        self.read_password_button.clicked.connect(lambda: self.passwordRequested.emit())
+        row.addWidget(self.read_password_button)
+        self.copy_password_button = tool_button(
+            FIF.COPY,
+            "复制解锁密码",
+            card,
+            self._request_password_copy,
+        )
+        self.copy_password_button.setEnabled(False)
+        row.addWidget(self.copy_password_button)
+        card.body.addLayout(row)
+
+        self.password_detail = CaptionLabel(
+            "密码来自本机注册表，只读不改；读不到时会尝试解 Knock1。", card
+        )
+        self.password_detail.setWordWrap(True)
+        card.body.addWidget(self.password_detail)
+        return card
+
+    def set_password(self, result):
+        """显示读取到的密码或失败原因。"""
+        password = result.get("password") or ""
+        error = result.get("error") or ""
+        self.password = password
+        if password:
+            self.password_label.setText(password)
+            self.password_label.setStyleSheet("color: %s;" % tone_color("ok").name())
+            source = "注册表明文" if result.get("source") == "plain" else "Knock1 解密"
+            self.password_detail.setText("来源：%s；只读，不修改注册表。" % source)
+            self.copy_password_button.setEnabled(True)
+        else:
+            self.password_label.setText("未读取")
+            self.password_label.setStyleSheet(
+                "color: %s;" % tone_color("warning").name()
+            )
+            self.password_detail.setText(error or "点“读取”从本机注册表取密码。")
+            self.copy_password_button.setEnabled(False)
+
+    def set_busy(self, busy):
+        """任务执行期间禁用读取按钮。"""
+        self.read_password_button.setEnabled(not busy)
 
     def _request_password_copy(self):
         """有密码时把复制请求发给界面服务。"""
         if self.password:
             self.copyPasswordRequested.emit(self.password)
 
-    def _emit_option(self, key, value):
-        """把控件变化转成设置信号；填充设置时忽略。"""
-        if self._suspend_options:
-            return
-        self.optionChanged.emit(key, value)
 
-    # ---- 可见性 -----------------------------------------------------------
+class ClassroomViews:
+    """课堂助手三个标签页的集合，服务只跟它打交道。
 
-    def showEvent(self, event):
-        """页面显示时通知服务开始轮询。"""
-        super().showEvent(event)
-        self.activated.emit()
+    拆分标签页后页面不再是一个对象，服务侧仍然按“填设置、刷快照、置忙”
+    这些用途调用，由这里分派到具体标签页。
 
-    def hideEvent(self, event):
-        """页面隐藏时停止轮询。"""
-        self.deactivated.emit()
-        super().hideEvent(event)
+    Attributes:
+        window: 课堂窗口页，承载表格、修复按钮与看护设置。
+        guard: 课堂防护页，承载防护开关与启用按钮。
+        password: 解锁密码页，承载密码显示与读取按钮。
+        pages: 三个页面的元组，按侧边栏标签顺序排列。
+    """
+
+    def __init__(self, window, guard, password):
+        self.window = window
+        self.guard = guard
+        self.password = password
+        self.pages = (window, guard, password)
+
+    def set_options(self, options):
+        """把已保存的设置填进两个页面，不触发保存。"""
+        self.window.set_options(options)
+        self.guard.set_options(options)
+
+    def set_snapshot(self, snapshot):
+        """把一次状态快照交给课堂窗口页。"""
+        self.window.set_snapshot(snapshot)
+
+    def set_busy(self, busy):
+        """同时切换三个页面的忙碌状态。"""
+        for page in self.pages:
+            page.set_busy(busy)
+
+    def set_fake_full(self, enabled):
+        """刷新课堂窗口页的假全屏按钮。"""
+        self.window.set_fake_full(enabled)
+
+    def set_topmost(self, enabled):
+        """刷新课堂窗口页的置顶按钮。"""
+        self.window.set_topmost(enabled)
+
+    def set_guard_state(self, enabled, flags=0, pid=0):
+        """刷新课堂防护页的启用状态。"""
+        self.guard.set_guard_state(enabled, flags, pid)
+
+    def set_password(self, result):
+        """把读取结果显示到解锁密码页。"""
+        self.password.set_password(result)

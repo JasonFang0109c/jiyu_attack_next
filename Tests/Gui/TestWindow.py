@@ -779,7 +779,7 @@ class GuiTests(unittest.TestCase):
         hub = self.window.pages["classroomhub"]
         self.assertEqual(
             [item.text() for item in hub.pivot.items.values()],
-            ["启停学生端", "课堂助手"],
+            ["启停学生端", "课堂窗口", "课堂防护", "解锁密码"],
         )
         remote = self.window.pages["remote"]
         self.assertEqual(

@@ -113,7 +113,7 @@ NeoJiYuTrainer/
 |   |-- __init__.py
 |   |-- Features/                   # 各功能的界面适配,与核心包功能目录同名
 |   |   |-- About/Gui/Page.py
-|   |   |-- Classroom/Gui/          # Page.py、Service.py
+|   |   |-- Classroom/Gui/          # Page.py(三个标签页)、Service.py
 |   |   |-- Command/Gui/Page.py
 |   |   |-- Device/Gui/Page.py
 |   |   |-- Files/Gui/              # Page.py、Service.py

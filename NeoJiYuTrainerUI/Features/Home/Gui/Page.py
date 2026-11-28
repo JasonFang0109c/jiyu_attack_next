@@ -112,8 +112,20 @@ SECTIONS = (
             (
                 "classroom",
                 FIF.SCROLL,
-                "课堂助手",
-                "把极域广播窗口恢复成可移动的窗口，支持假全屏与解锁密码",
+                "课堂窗口",
+                "把极域广播窗口恢复成可移动的窗口，支持假全屏与置顶",
+            ),
+            (
+                "classroomguard",
+                FIF.CERTIFICATE,
+                "课堂防护",
+                "向学生端加载 guard DLL，拦截监视、控制与结束进程",
+            ),
+            (
+                "classroompassword",
+                FIF.FINGERPRINT,
+                "解锁密码",
+                "从本机注册表读取极域解锁密码，读不到时解 Knock1",
             ),
         ),
     ),

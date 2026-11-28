@@ -77,24 +77,32 @@ class ClassroomService:
 
     # ---- 装配 -------------------------------------------------------------
 
-    def attach(self, page):
-        """接上页面信号并填入已保存的设置。"""
-        self.page = page
-        page.set_options(self.options)
-        page.set_fake_full(False)
-        page.set_topmost(False)
-        page.set_guard_state(False)
-        page.refreshRequested.connect(self.refresh)
-        page.repairRequested.connect(self.repair)
-        page.fakeFullRequested.connect(self.set_fake_full)
-        page.topmostRequested.connect(self.set_topmost)
-        page.passwordRequested.connect(self.read_password)
-        page.copyPasswordRequested.connect(self.copy_password)
-        page.optionChanged.connect(self.set_option)
-        page.guardRequested.connect(self.apply_guard)
-        page.guardStopRequested.connect(self.stop_guard)
-        page.activated.connect(self._start_polling)
-        page.deactivated.connect(self._stop_polling)
+    def attach(self, views):
+        """接上三个标签页的信号并填入已保存的设置。
+
+        Args:
+            views: ``Page`` 模块的 ``ClassroomViews``，把课堂窗口、课堂防护与
+                解锁密码三个页面合成一个对象；服务按用途调用它，不用关心
+                当前显示的是哪个标签页。
+        """
+        self.page = views
+        views.set_options(self.options)
+        views.set_fake_full(False)
+        views.set_topmost(False)
+        views.set_guard_state(False)
+        for page in views.pages:
+            page.refreshRequested.connect(self.refresh)
+            page.repairRequested.connect(self.repair)
+            page.fakeFullRequested.connect(self.set_fake_full)
+            page.topmostRequested.connect(self.set_topmost)
+            page.passwordRequested.connect(self.read_password)
+            page.copyPasswordRequested.connect(self.copy_password)
+            page.optionChanged.connect(self.set_option)
+            page.guardRequested.connect(self.apply_guard)
+            page.guardStopRequested.connect(self.stop_guard)
+        # 只有课堂窗口页负责轮询：它一显示就开始扫描，切走就停。
+        views.window.activated.connect(self._start_polling)
+        views.window.deactivated.connect(self._stop_polling)
 
     def stop(self):
         """窗口关闭前停掉定时器，避免回调打到已销毁的页面。"""

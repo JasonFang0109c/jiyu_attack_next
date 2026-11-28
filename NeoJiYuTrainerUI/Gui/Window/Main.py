@@ -35,7 +35,12 @@ from NeoJiYuTrainer.Features.Uninstall.Service import install_root, run_uninstal
 from NeoJiYuTrainer.Shared.Paths import portable_data_dir, portable_log_path
 from NeoJiYuTrainer.System.Windows.Driver import DriverSession
 from NeoJiYuTrainerUI.Features.About.Gui.Page import AboutPage
-from NeoJiYuTrainerUI.Features.Classroom.Gui.Page import ClassroomPage
+from NeoJiYuTrainerUI.Features.Classroom.Gui.Page import (
+    ClassroomGuardPage,
+    ClassroomPasswordPage,
+    ClassroomViews,
+    ClassroomWindowPage,
+)
 from NeoJiYuTrainerUI.Features.Classroom.Gui.Service import ClassroomService
 from NeoJiYuTrainerUI.Features.Command.Gui.Page import CommandPage
 from NeoJiYuTrainerUI.Features.Device.Gui.Page import DevicePage
@@ -189,7 +194,9 @@ class MainWindow(FluentWindow):
             "aliases": AliasPage(self.connection_state, self, logs=self.logs),
             "local": LocalPage(self),
             "firewall": FirewallPage(self),
-            "classroom": ClassroomPage(self),
+            "classroom": ClassroomWindowPage(self),
+            "classroomguard": ClassroomGuardPage(self),
+            "classroompassword": ClassroomPasswordPage(self),
             "studentproc": StudentProcessPage(self),
             "logs": LogPage(self.logs, self),
             "settings": SettingsPage(
@@ -209,7 +216,13 @@ class MainWindow(FluentWindow):
             for child_key, child_icon, child_title in children:
                 host.add_tab(self.pages[child_key], child_title, child_icon)
             self.pages[host_key] = host
-        self._classroom_service.attach(self.pages["classroom"])
+        self._classroom_service.attach(
+            ClassroomViews(
+                self.pages["classroom"],
+                self.pages["classroomguard"],
+                self.pages["classroompassword"],
+            )
+        )
         # 网络页都带目标输入区与底栏，忙碌状态由主窗口统一开关。
         self.network_pages = [
             self.pages[key] for key in ("message", "command", "device")
