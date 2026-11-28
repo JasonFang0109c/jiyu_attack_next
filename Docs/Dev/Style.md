@@ -35,6 +35,7 @@ python -m pip install -r requirements-dev.txt
 | `__init__.py`、`__main__.py` | 固定 | Python 包与入口的固定名字 |
 | `pyproject.toml`、`requirements.txt`、`requirements-dev.txt`、`.gitignore`、`.gitattributes`、`.gitmessage`、`AGENTS.md`、`README.md`、`LICENSE` | 固定 | 工具与平台按名字识别 |
 | `NeoJiYuTrainerHooks/Mhook/`、`NeoJiYuTrainerHooks/DisasmLib/` 内部文件 | 原样 | 第三方裸源码,保持与本家一致,便于比对升级 |
+| `Pack/Hooks/` 里的 PyInstaller 钩子 | 固定 `hook-<模块名>.py` | PyInstaller 按文件名识别钩子 |
 | 构建产物 | 由打包脚本决定 | `NeoJiYuTrainer.exe`、`NeoJiYuTrainer_Debug-<版本号>.exe` |
 | 运行数据文件名 | 固定小写 | `settings.json`、`runtime.log`、`cli.log` |
 | `settings.json` 的设置键 | 全小写 | `core/student/exe_path`、`gui/window/material`;键名是数据契约,不跟随目录改名 |

@@ -99,7 +99,7 @@ powershell -ExecutionPolicy Bypass -File .\Pack\Build.ps1 -Clean
 仅在改动 GUI 或 CLI 日志行为、调用点时适用。GUI 运行日志遵循 [日志规范](https://itliwei.github.io/technology/engineer/develop/logger.html)，等级统一使用 `DEBUG`、`INFO`、`WARNING`、`ERROR`，其中 `warn` 写作 `warning`。正常版本默认 `WARNING`，可在“设置”页切到 `INFO` 或 `ERROR`；调试版本固定从 `DEBUG` 起全量记录，下拉框不可用。低于写入阈值的记录不会进入列表和 `runtime.log`。
 
 ```text
-2026-10-23 12:34:56.789 [12345] [MainThread] INFO    NeoJiYuTrainer..service.GuiService.start_send:175 - [文本消息] 开始发送：192.168.1.20，端口 4705，1 轮
+2026-10-23 12:34:56.789 [12345] [MainThread] INFO    NeoJiYuTrainerUI.Gui.Service.GuiService:183 - [文本消息] 开始发送：[REDACTED]，端口 4705，1 轮
     目标设备数：1
 ```
 

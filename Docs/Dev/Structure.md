@@ -4,14 +4,12 @@
    <img alt="Python 3.13" src="https://img.shields.io/badge/Python-3.13-3776AB?style=for-the-badge&logo=python&logoColor=white&labelColor=212121">
    <img alt="PySide6" src="https://img.shields.io/badge/GUI-PySide6-41CD52?style=for-the-badge&logo=qt&logoColor=white&labelColor=212121">
 </p>
-<p><a href="../../README.md">← 返回项目首页</a> 丨 <a href="Build.md">EXE 构建</a> 丨 <a href="Versioning.md">版本规范</a> 丨 <a href="Contributing.md">开发与提交规范</a> 丨 <a href="Refactor.md">上游骨架重构路线</a></p>
+<p><a href="../../README.md">← 返回项目首页</a> 丨 <a href="Build.md">EXE 构建</a> 丨 <a href="Versioning.md">版本规范</a> 丨 <a href="Contributing.md">开发与提交规范</a></p>
 </div>
 
 ---
 
-仓库按四个一级项目边界划分：Python 核心包 `NeoJiYuTrainer/`、原生课堂防护 `NeoJiYuTrainerHooks/`、可选内核驱动 `NeoJiYuTrainerDriver/`、PySide6 界面 `NeoJiYuTrainerUI/`；打包、测试与文档分别独立。核心包不依赖 Qt，界面只调用核心服务，原生项目各自独立构建。
-
-> **界面已拆到 `NeoJiYuTrainerUI/`:窗口、导航、控件、后台任务与各功能页面都在该项目的 `Gui/` 与 `Features/<功能>/Gui/` 下。唯一的 Qt 装配入口是核心包的 `NeoJiYuTrainer/Start/Gui.py`,核心包其余部分导入时不加载 Qt。** `NeoJiYuTrainerHooks/`、`NeoJiYuTrainerDriver/` 已在仓库根目录。
+仓库按四个一级项目划分：Python 核心包 `NeoJiYuTrainer/`、原生课堂防护 `NeoJiYuTrainerHooks/`、可选内核驱动 `NeoJiYuTrainerDriver/`、PySide6 界面 `NeoJiYuTrainerUI/`；打包、测试与文档分别独立。核心包不依赖 Qt，界面只调用核心服务，原生项目各自独立构建；核心包唯一的 Qt 装配入口是 `NeoJiYuTrainer/Start/Gui.py`。
 
 下面列出主要文件，常规包内的 `__init__.py` 省略。
 
@@ -172,7 +170,6 @@ NeoJiYuTrainer/
     |   `-- Gui.md
     `-- Dev/
         |-- Structure.md
-        |-- Refactor.md
         |-- Build.md
         |-- Style.md
         |-- Versioning.md
@@ -221,8 +218,8 @@ NeoJiYuTrainer/
 
 ### 打包与测试
 
-- `Pack/` 只放构建脚本、PyInstaller 配置、版本资源生成器、签名脚本与打包用 hooks；原生源码已独立为 `NeoJiYuTrainerHooks/`、`NeoJiYuTrainerDriver/`，不再放在 `Pack` 下。运行时入口为 `NeoJiYuTrainer/__main__.py`，静态图标按 `NeoJiYuTrainer/Resources/Icons/App.svg` 收集；当前不复制上游 Sciter UI、Updater、`Debug/`、`Release/` 或旧 VS 工程文件。
-- `.github/workflows/Build.yml` 为可复用打包流程；`NightlyBuild.yml` 在推送 `main` 且涉及核心包、界面项目、`Pack/`、`Scripts/`、`requirements.txt` 或工作流文件时构建；`Release.yml` 仍仅手动触发，详见[版本规范](Versioning.md)。路径过滤已按核心包与界面项目的路径同步更新。
+- `Pack/` 只放构建脚本、PyInstaller 配置、版本资源生成器、签名脚本与打包用 hooks；运行时入口为 `NeoJiYuTrainer/__main__.py`，静态图标按 `NeoJiYuTrainer/Resources/Icons/App.svg` 收集。
+- `.github/workflows/Build.yml` 为可复用打包流程；`NightlyBuild.yml` 在推送 `main` 且涉及核心包、界面项目、`Pack/`、`Scripts/`、`requirements.txt` 或工作流文件时构建；`Release.yml` 仍仅手动触发，详见[版本规范](Versioning.md)。
 - `Tests/Unit/` 检查报文、业务与配置单元;`Tests/Integration/` 检查入口和跨模块协作,其中 `TestLayout.py` 检查底层依赖方向、显式导入、核心包除 `Start/` 外不出现 Qt 与界面项目导入,并确认业务模块能在没有 Qt 的环境里导入;`Tests/Gui/` 检查窗口与页面,`Tests/Pack/` 检查版本、工作流与打包布局。公共离线替身集中在 `Tests/Fixtures/Offline.py`,测试不执行真实目标发送或防火墙变更。
 - 全量发现使用 `python -B -m unittest discover -s Tests -t .`，保证按 `Tests` 包导入；单个模块使用完整包名，例如 `python -B -m unittest Tests.Gui.TestWindow -v`。截图工具为 `python -B -m Tests.Gui.VerifyGui --screenshot <截图路径>`。
 - `Scripts/` 保留虚拟环境启动与本机自测入口；`TestLocalIp.py` 是真实本机报文收发自测，与离线测试套件分开。
@@ -241,9 +238,9 @@ NeoJiYuTrainer/
 | 路径 | 用途 | 清理方式 |
 | --- | --- | --- |
 | `.venv/` | Python 虚拟环境 | 保留供开发和构建使用 |
-| `Build/` | 构建缓存、转换后的图标、测试临时目录与截图 | 验证结束后可删除，按需重新生成 |
+| `Build/` | 全部生成物：PyInstaller 中间文件、构建资源、测试与截图临时目录、驱动签名临时材料 | 整目录可删，构建脚本按需重建；构建前清理会自动删除 |
 | `Output/` | 最终 EXE | 保留需要运行或分发的产物 |
-| `Data/` | 便携数据目录：EXE 同级生成，源码运行时位于项目根目录；保存设备备注、关闭窗口行为、界面日志 `runtime.log` 与命令行日志 `cli.log` | 需要保留配置时随 EXE 一起移动，删除后恢复默认；也可在 GUI“设置”页底部清除；任何重构阶段都不主动删除 |
+| `Data/` | 便携数据目录：EXE 同级生成，源码运行时位于项目根目录；保存设备备注、关闭窗口行为、界面日志 `runtime.log` 与命令行日志 `cli.log` | 需要保留配置时随 EXE 一起移动，删除后恢复默认；也可在 GUI“设置”页底部清除；脚本与文档都不删除它 |
 
 以上目录及 `__pycache__/`、工具缓存均由 `.gitignore` 排除（其中用户数据按 `/Data/` 规则排除），不提交 Git。根目录不保留重复的旧入口文件或遗留截图。
 
@@ -251,6 +248,5 @@ NeoJiYuTrainer/
 
 - [CLI 模式使用说明](../Usage/Cli.md)
 - [GUI 模式使用说明](../Usage/Gui.md)
-- [上游骨架重构路线](Refactor.md)
 - [EXE 构建说明](Build.md)
 - [开发与提交规范](Contributing.md)
