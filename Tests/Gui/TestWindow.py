@@ -3335,6 +3335,7 @@ class UsageNoticeTests(unittest.TestCase):
             patch.object(startup, "usage_notice_accepted", return_value=False),
             patch.object(startup, "confirm_usage_notice", return_value=False) as notice,
             patch.object(startup, "MainWindow") as window_class,
+            patch.object(startup, "Crash"),
         ):
             self.assertEqual(startup.main(), 0)
         notice.assert_called_once()
@@ -3349,6 +3350,7 @@ class UsageNoticeTests(unittest.TestCase):
             patch.object(startup, "usage_notice_accepted", return_value=True),
             patch.object(startup, "confirm_usage_notice") as notice,
             patch.object(startup, "install_exception_logging"),
+            patch.object(startup, "Crash"),
             patch.object(startup, "MainWindow") as window_class,
         ):
             startup.main()
@@ -3363,6 +3365,7 @@ class UsageNoticeTests(unittest.TestCase):
             patch.object(startup, "usage_notice_accepted", return_value=False),
             patch.object(startup, "confirm_usage_notice", return_value=True),
             patch.object(startup, "install_exception_logging"),
+            patch.object(startup, "Crash"),
             patch.object(startup, "MainWindow") as window_class,
         ):
             startup.main()
@@ -3376,6 +3379,7 @@ class UsageNoticeTests(unittest.TestCase):
             patch.object(startup, "usage_notice_accepted", return_value=True),
             patch.object(startup, "confirm_usage_notice", return_value=True),
             patch.object(startup, "install_exception_logging"),
+            patch.object(startup, "Crash"),
             patch.object(startup, "MainWindow"),
             patch.object(startup, "create_splash") as create,
         ):
