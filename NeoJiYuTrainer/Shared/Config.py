@@ -5,6 +5,7 @@
 """
 
 import json
+import time
 from contextlib import suppress
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -219,7 +220,15 @@ def write(path, data, comments=None):
             temp_path = Path(temporary.name)
             temporary.write(text)
         # Windows 替换前需要先关闭句柄，独立文件名避免并发保存互相覆盖。
-        temp_path.replace(target)
+        # 杀毒软件或索引服务偶尔会短暂占用刚写完的临时文件，重试几次再放弃。
+        for attempt in range(3):
+            try:
+                temp_path.replace(target)
+                break
+            except PermissionError:
+                if attempt == 2:
+                    raise
+                time.sleep(0.05)
     finally:
         if temp_path is not None:
             with suppress(OSError):
