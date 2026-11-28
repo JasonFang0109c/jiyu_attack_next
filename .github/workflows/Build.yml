@@ -14,6 +14,11 @@ on:
         type: string
         required: false
         default: ""
+      variants:
+        description: 构建哪些变体（release、debug、both）；nightly 只构建正常版本
+        type: string
+        required: false
+        default: both
     outputs:
       version:
         description: 本次打包使用的版本号，含 nightly 日期、不含提交哈希
@@ -24,6 +29,9 @@ on:
       display:
         description: 产物与界面显示的版本号，测试版带提交哈希
         value: ${{ jobs.build.outputs.display }}
+      build_commit:
+        description: nightly 最后一次影响产物的提交；stable 通道为空
+        value: ${{ jobs.build.outputs.build_commit }}
 
 permissions:
   contents: read
@@ -39,10 +47,45 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       base: ${{ steps.version.outputs.base }}
       display: ${{ steps.version.outputs.display }}
+      build_commit: ${{ steps.build_commit.outputs.sha }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          # nightly 要在一段提交里找出最后一次真正影响产物的提交，浅克隆看不到历史。
+          fetch-depth: 0
+
+      # 一次推送可能「代码提交 + 文档提交」同时进来，tip 往往是文档那一笔。
+      # nightly 用最后一次改动构建路径的提交来命名与打包，避免两个产物看起来都
+      # 来自文档改动；同时把工作区切到该提交，保证测试与打包内容一致。
+      - name: Select build commit
+        if: ${{ inputs.channel == 'nightly' }}
+        id: build_commit
+        shell: pwsh
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+        run: |
+          $before = $env:EVENT_BEFORE
+          $zero = "0" * 40
+          $range = @("-1", $env:GITHUB_SHA)
+          if ($before -and $before -ne $zero) {
+            git cat-file -e "$before^{commit}" 2>$null
+            if ($LASTEXITCODE -eq 0) { $range = @("$before..$env:GITHUB_SHA") }
+          }
+          $patterns = '^(NeoJiYuTrainer/|NeoJiYuTrainerUI/|Pack/|Scripts/|requirements\.txt|\.github/workflows/)'
+          $selected = ""
+          foreach ($sha in (git log --format=%H @range)) {
+            $changed = git show --pretty=format: --name-only $sha
+            if ($changed | Select-String -Pattern $patterns -Quiet) {
+              $selected = $sha
+              break
+            }
+          }
+          if (-not $selected) { $selected = $env:GITHUB_SHA }
+          Write-Host "构建提交：$selected"
+          git checkout --quiet $selected
+          "sha=$selected" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Set up Python 3.13
         uses: actions/setup-python@v7
@@ -63,6 +106,7 @@ jobs:
         env:
           INPUT_CHANNEL: ${{ inputs.channel }}
           INPUT_VERSION: ${{ inputs.version }}
+          BUILD_COMMIT: ${{ steps.build_commit.outputs.sha }}
         run: |
           $version = $env:INPUT_VERSION.Trim()
           if (-not $version) {
@@ -79,7 +123,9 @@ jobs:
           $commit = ""
           $display = $version
           if ($env:INPUT_CHANNEL -eq "nightly") {
-            $commit = $env:GITHUB_SHA.Substring(0, 7)
+            $sha = $env:BUILD_COMMIT
+            if (-not $sha) { $sha = $env:GITHUB_SHA }
+            $commit = $sha.Substring(0, 7)
             $display = "$base-$commit"
           }
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
@@ -96,18 +142,25 @@ jobs:
 
       - name: Build EXE
         shell: pwsh
+        env:
+          VARIANTS: ${{ inputs.variants }}
         run: |
-          # 一次构建同时产出正常版本与 _Debug 版本，两者只差日志等级。
+          # both 同时产出正常版本与 _Debug 版本，两者只差日志等级；
+          # nightly 只传 release，调试版本没有发布渠道，编译它只是白费时间。
           powershell -ExecutionPolicy Bypass -File .\Pack\Build.ps1 -Clean `
-            -Variant both -Version "${{ steps.version.outputs.base }}" `
+            -Variant "$env:VARIANTS" -Version "${{ steps.version.outputs.base }}" `
             -Commit "${{ steps.version.outputs.commit }}"
 
       - name: Prepare release assets
         shell: pwsh
         env:
           VERSION: ${{ steps.version.outputs.display }}
+          VARIANTS: ${{ inputs.variants }}
         run: |
-          $names = @("NeoJiYuTrainer", "NeoJiYuTrainer_Debug")
+          $names = @("NeoJiYuTrainer")
+          if ($env:VARIANTS -ne "release") {
+            $names += "NeoJiYuTrainer_Debug"
+          }
           New-Item -ItemType Directory -Path "dist" -Force | Out-Null
           foreach ($name in $names) {
             # 构建脚本只写带显示版本的文件名，发布资产再按需要补固定名副本。

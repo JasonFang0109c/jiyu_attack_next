@@ -28,6 +28,8 @@ jobs:
     uses: ./.github/workflows/Build.yml
     with:
       channel: nightly
+      # 预发布只放正常版本，调试版本没有发布渠道，不必编译。
+      variants: release
 
   release:
     name: Publish Nightly Build
@@ -40,8 +42,7 @@ jobs:
       - name: Checkout repository metadata
         uses: actions/checkout@v7
         with:
-          # 需要完整历史才能看出本次 push（before..head）里哪个提交真正影响了构建：
-          # 深度为 1 时只能拿到 tip，文档提交排在代码提交之后会认错对象。
+          # 发布说明要读「本次构建提交」的说明，它往往不是 tip，浅克隆取不到。
           fetch-depth: 0
           persist-credentials: false
 
@@ -53,54 +54,38 @@ jobs:
 
       - name: Prepare release notes
         shell: bash
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          DISPLAY: ${{ needs.build.outputs.display }}
+          BUILD_COMMIT: ${{ needs.build.outputs.build_commit }}
         run: |
           set -euo pipefail
-          version="${{ needs.build.outputs.version }}"
-          # 资产文件名用带提交哈希的显示版本，发布说明仍只写带日期的版本号。
-          display="${{ needs.build.outputs.display }}"
-          exe_sha256="$(sha256sum dist/NeoJiYuTrainer.exe | awk '{print $1}')"
-          debug_sha256="$(sha256sum dist/NeoJiYuTrainer_Debug.exe | awk '{print $1}')"
+          # 预发布只放正常版本：调试版本仍在本次 Actions 运行的产物里，
+          # 需要时从运行页面下载，不再和正式产物混在同一个发布里。
+          exe_path="dist/NeoJiYuTrainer-${DISPLAY}.exe"
+          if [[ ! -f "${exe_path}" ]]; then
+            echo "::error::未找到发布资产：${exe_path}"
+            exit 1
+          fi
+          exe_sha256="$(sha256sum "${exe_path}" | awk '{print $1}')"
           built_at="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-          # paths 过滤按整个 push 判定，tip 可能只是一个文档提交，
-          # 真正的改动排在它前面：发布说明只记最新一个影响构建的提交。
-          before="${{ github.event.before }}"
-          # 提交范围：push 事件取 before..head，手动触发或首次推送退化为最后一次提交。
-          range=(-1 "${GITHUB_SHA}")
-          if [[ -n "${before}" && "${before}" != "0000000000000000000000000000000000000000" ]] && git cat-file -e "${before}^{commit}" 2>/Dev/null; then
-            range=("${before}..${GITHUB_SHA}")
-          fi
-          # 与 workflow 的 paths 过滤保持一致：只有改动这些路径的提交才会影响构建。
-          build_paths='^(NeoJiYuTrainer/|NeoJiYuTrainerUI/|Pack/|Scripts/|requirements\.txt|\.github/workflows/)'
-          build_commit=""
-          for sha in $(git log --format=%H "${range[@]}" || true); do
-            if git show --pretty=format: --name-only "${sha}" | grep -Eq "${build_paths}"; then
-              build_commit="${sha}"
-              break
-            fi
-          done
-          if [[ -z "${build_commit}" ]]; then
-            build_commit="${GITHUB_SHA}"
-          fi
-          short_sha="${build_commit::7}"
-          # 这一条提交带链接，点缩写哈希可以直接跳到对应改动。
-          commit_list="$(git log -1 --pretty=format:"- [\`%h\`](https://github.com/${GITHUB_REPOSITORY}/commit/%H) %s" "${build_commit}")"
+          short_sha="${BUILD_COMMIT::7}"
+          commit_list="$(git log -1 --pretty=format:"- [\`%h\`](https://github.com/${GITHUB_REPOSITORY}/commit/%H) %s" "${BUILD_COMMIT}")"
           cat > release-notes.md <<EOF
-          # Nightly Build ${version}
+          # Nightly Build ${VERSION}
 
-          - **Version:** \`${version}\`
+          - **Version:** \`${VERSION}\`
           - **Built at:** \`${built_at}\`
-          - **Commit:** [\`${short_sha}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${build_commit})
+          - **Commit:** [\`${short_sha}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${BUILD_COMMIT})
           - **Workflow run:** [#${GITHUB_RUN_NUMBER}](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})
 
           ## Assets
 
-          - \`NeoJiYuTrainer-${display}.exe\`（正常版本）
-          - \`NeoJiYuTrainer_Debug-${display}.exe\`（调试版本，记录完整日志）
+          - \`NeoJiYuTrainer-${DISPLAY}.exe\`（正常版本；调试版本只在本次 Actions 运行的产物里）
 
           ## SHA256
 
           - EXE: \`${exe_sha256}\`
-          - EXE (Debug): \`${debug_sha256}\`
 
           ## Commits
 
@@ -124,7 +109,7 @@ jobs:
           fi
           stamp="${VERSION##*-nightly.}"
           existing=""
-          if gh release view nightly >/Dev/null 2>&1; then
+          if gh release view nightly >/dev/null 2>&1; then
             existing="$(gh release view nightly --json name --jq '.name')"
           fi
           if [[ "${existing}" == *"${stamp}"* ]]; then
@@ -142,26 +127,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          if ! gh release view nightly >/Dev/null 2>&1; then
+          if ! gh release view nightly >/dev/null 2>&1; then
             echo "nightly 预发布尚不存在，无需清理"
             exit 0
           fi
           gh release delete nightly --yes --cleanup-tag
           echo "已删除旧的 nightly 预发布与标签"
-
-      # 资产名带提交哈希，每次构建都是新名字；只发两个产物时，旧名字的资产
-      # 不会被子句覆盖，会一直堆在发布页上，所以复用前先清空。
-      - name: Remove stale nightly assets
-        if: ${{ steps.nightly_state.outputs.reuse == 'true' }}
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          for asset in $(gh release view nightly --json assets --jq '.assets[].name'); do
-            gh release delete-asset nightly "${asset}" --yes
-            echo "已删除旧资产：${asset}"
-          done
 
       - name: Publish Nightly Build pre-release
         uses: softprops/action-gh-release@v3
@@ -171,30 +142,47 @@ jobs:
           body_path: release-notes.md
           draft: false
           prerelease: true
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ needs.build.outputs.build_commit }}
           fail_on_unmatched_files: true
-          # 同一天复用同一个预发布时用它替换已存在的同名资产。
+          # 资产名带提交哈希，同名才会被替换；清理交给下一步。
           overwrite_files: true
           make_latest: false
           files: |
             dist/NeoJiYuTrainer-${{ needs.build.outputs.display }}.exe
-            dist/NeoJiYuTrainer_Debug-${{ needs.build.outputs.display }}.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # 资产名带提交哈希，每次构建都是新名字；一旦有旧运行留下的资产或并发
+      # 运行补传，发布页会同时出现多个提交、多个版本的 EXE。这里只保留本次
+      # 构建的那一个文件，其余一律删除，保证发布页始终只有一个指向最新产物的资产。
+      - name: Prune unexpected nightly assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EXPECTED: NeoJiYuTrainer-${{ needs.build.outputs.display }}.exe
+        run: |
+          set -euo pipefail
+          for asset in $(gh release view nightly --json assets --jq '.assets[].name'); do
+            if [[ "${asset}" != "${EXPECTED}" ]]; then
+              gh release delete-asset nightly "${asset}" --yes
+              echo "已删除多余资产：${asset}"
+            fi
+          done
+
       # 复用当天的预发布时是原地更新，标签仍停在当天第一次构建的提交上，
-      # 这里把它挪到本次提交，保证 nightly 标签与资产始终对应。
+      # 这里把它挪到本次构建的提交，保证 nightly 标签与资产始终对应。
       - name: Point nightly tag at this build
         if: ${{ steps.nightly_state.outputs.reuse == 'true' }}
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BUILD_COMMIT: ${{ needs.build.outputs.build_commit }}
         run: |
           set -euo pipefail
           if gh api --method PATCH \
             "repos/${GITHUB_REPOSITORY}/git/refs/tags/nightly" \
-            -f sha="${GITHUB_SHA}" -F force=true >/Dev/null; then
-            echo "nightly 标签已指向 ${GITHUB_SHA}"
+            -f sha="${BUILD_COMMIT}" -F force=true >/dev/null; then
+            echo "nightly 标签已指向 ${BUILD_COMMIT}"
           else
             echo "::warning::nightly 标签未能移动，资产已是本次构建"
           fi
