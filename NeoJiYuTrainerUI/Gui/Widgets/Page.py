@@ -109,9 +109,47 @@ class SelectAllHeaderView(ResizableHeader):
         self.select_all_checkbox.setToolTip(tooltip)
         self.select_all_checkbox.setFixedSize(self.CHECKBOX_SIZE, self.CHECKBOX_SIZE)
         self.select_all_checkbox.raise_()
+        self._checkbox_visible = True
+        # 增删行不会让表头重绘，得直接盯模型的信号。
+        model = self._table_model()
+        if model is not None:
+            for signal in (
+                model.rowsInserted,
+                model.rowsRemoved,
+                model.modelReset,
+                model.layoutChanged,
+            ):
+                signal.connect(self.sync_checkbox_visibility)
 
     def _create_select_all_checkbox(self, parent):
         return StickySizeCheckBox(parent, self.CHECKBOX_SIZE)
+
+    def _table_model(self):
+        """沿父链找到承载本表头的表格模型。"""
+        widget = self.parentWidget()
+        while widget is not None:
+            if isinstance(widget, QAbstractItemView):
+                return widget.model()
+            widget = widget.parentWidget()
+        return None
+
+    def sync_checkbox_visibility(self, *_):
+        """表格没有数据行时隐藏全选框。
+
+        空表时表头首列只剩一个没有勾的空框，看上去像画坏的控件；
+        有行才需要全选，所以按行数显隐。
+        """
+        model = self._table_model()
+        visible = bool(model is not None and model.rowCount()) and self.count() > 0
+        if visible == self._checkbox_visible:
+            return
+        self._checkbox_visible = visible
+        self.select_all_checkbox.setVisible(visible)
+
+    def paintEvent(self, event):
+        """重绘表头时顺带同步全选框，模型变化不需要额外信号。"""
+        self.sync_checkbox_visibility()
+        super().paintEvent(event)
 
     def position_checkbox(self):
         """把全选框居中放到表头首列。"""

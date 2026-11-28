@@ -37,6 +37,7 @@ from NeoJiYuTrainerUI.Gui.Theme import tone_color
 from NeoJiYuTrainerUI.Gui.Widgets.Common import (
     ReadableSpinBox,
     SectionCard,
+    clear_scroll_background,
     page_heading,
     tool_button,
 )
@@ -106,6 +107,7 @@ class ClassroomPage(Page):
         content.addWidget(self._build_option_card(content_host))
         content.addStretch(1)
         scroll.setWidget(content_host)
+        clear_scroll_background(scroll)
         self.vbox.addWidget(scroll)
 
     # ---- 布局 -------------------------------------------------------------

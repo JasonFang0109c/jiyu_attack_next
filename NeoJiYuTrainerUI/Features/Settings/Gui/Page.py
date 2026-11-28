@@ -1,12 +1,13 @@
 """设置页：界面主题、窗口材质、日志等级、关闭行为与数据清理。"""
 
 from PySide6.QtCore import QSignalBlocker, Qt, Signal, Slot
-from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QWidget
 from qfluentwidgets import (
     BodyLabel,
     CaptionLabel,
     LineEdit,
     PushButton,
+    SmoothScrollArea,
     SwitchButton,
     Theme,
     getFont,
@@ -30,6 +31,7 @@ from NeoJiYuTrainer.Shared.Logs.Levels import FORCED_LEVEL
 from NeoJiYuTrainerUI.Gui.Widgets.Common import (
     FluentComboBox,
     SectionCard,
+    clear_scroll_background,
     page_heading,
 )
 from NeoJiYuTrainerUI.Gui.Widgets.Page import Page
@@ -88,7 +90,22 @@ class SettingsPage(Page):
     ):
         super().__init__("settings", parent)
         self.log_store = log_store
-        page_heading(self.vbox, "设置")
+        # 卡片总高度超过窗口可视区，整页改成滚动容器，控件才不会被压扁
+        # （下拉框曾经被压到 9 像素，文字整行看不见）。
+        self.vbox.setContentsMargins(0, 0, 0, 0)
+        self.vbox.setSpacing(0)
+        scroll = SmoothScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setObjectName("settingsScroll")
+        bar_width = scroll.verticalScrollBar().sizeHint().width()
+        host = QWidget(scroll)
+        host.setObjectName("settingsContent")
+        content = QVBoxLayout(host)
+        content.setContentsMargins(28, 24, 28 + bar_width, 24)
+        content.setSpacing(20)
+        page_heading(content, "设置")
 
         self.theme_card = ThemeCard(self)
         theme_card = self.theme_card
@@ -149,7 +166,7 @@ class SettingsPage(Page):
         self.accent_box.currentIndexChanged.connect(self._select_accent)
         accent_row.addWidget(self.accent_box)
         theme_card.body.addLayout(accent_row)
-        self.vbox.addWidget(theme_card)
+        content.addWidget(theme_card)
 
         settings_card = SectionCard(self, spacing=16)
         settings_card.setObjectName("settingsBehaviorCard")
@@ -191,7 +208,7 @@ class SettingsPage(Page):
         log_row.addWidget(self.log_level_box)
         settings_card.body.addLayout(log_row)
 
-        self.vbox.addWidget(settings_card)
+        content.addWidget(settings_card)
         self.log_store.levelChanged.connect(self._log_level_changed)
 
         self.data_card = SectionCard(self, spacing=12, margins=(18, 12, 18, 12))
@@ -202,7 +219,7 @@ class SettingsPage(Page):
         data_copy.setSpacing(4)
         data_copy.addWidget(BodyLabel("本地数据", data_card))
         data_hint = CaptionLabel(
-            "删除设备备注、界面设置与运行日志所在的 data 文件夹。",
+            "删除设备备注、界面设置与运行日志所在的 Data 文件夹。",
             data_card,
         )
         data_hint.setWordWrap(True)
@@ -215,7 +232,7 @@ class SettingsPage(Page):
         )
         data_row.addWidget(self.clear_data_button, 0, Qt.AlignVCenter)
         data_card.body.addLayout(data_row)
-        self.vbox.addWidget(data_card)
+        content.addWidget(data_card)
 
         hotkey_card = SectionCard(self, spacing=12, margins=(18, 12, 18, 12))
         hotkey_card.setObjectName("settingsHotkeyCard")
@@ -254,7 +271,7 @@ class SettingsPage(Page):
         self.fake_full_hotkey_edit.setMinimumWidth(180)
         fake_full_row.addWidget(self.fake_full_hotkey_edit)
         hotkey_card.body.addLayout(fake_full_row)
-        self.vbox.addWidget(hotkey_card)
+        content.addWidget(hotkey_card)
 
         driver_card = SectionCard(self, spacing=12, margins=(18, 12, 18, 12))
         driver_card.setObjectName("settingsDriverCard")
@@ -286,7 +303,7 @@ class SettingsPage(Page):
         driver_row.addWidget(self.driver_pid_edit)
         driver_row.addWidget(self.driver_kill_button)
         driver_card.body.addLayout(driver_row)
-        self.vbox.addWidget(driver_card)
+        content.addWidget(driver_card)
 
         uninstall_card = SectionCard(self, spacing=12, margins=(18, 12, 18, 12))
         uninstall_card.setObjectName("settingsUninstallCard")
@@ -316,9 +333,12 @@ class SettingsPage(Page):
         )
         uninstall_row.addWidget(self.uninstall_button, 0, Qt.AlignVCenter)
         uninstall_card.body.addLayout(uninstall_row)
-        self.vbox.addWidget(uninstall_card)
+        content.addWidget(uninstall_card)
 
-        self.vbox.addStretch()
+        content.addStretch(1)
+        scroll.setWidget(host)
+        clear_scroll_background(scroll)
+        self.vbox.addWidget(scroll)
 
     def _select_theme(self, index):
         self.themeRequested.emit([Theme.LIGHT, Theme.DARK, Theme.AUTO][index])

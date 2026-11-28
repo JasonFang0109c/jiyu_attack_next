@@ -46,7 +46,7 @@ class StudentService:
         thread = ProbeWorker(
             student_service.student_status,
             logs=window.logs,
-            category="解除限制",
+            category="课堂助手",
         )
         thread.completed.connect(partial(window._student_processes_ready, purpose))
         thread.failed.connect(partial(window._student_processes_failed, purpose))
@@ -109,7 +109,7 @@ class StudentService:
             page.set_snapshot(snapshot)
             self._snapshot_signature = signature
             window.logs.debug(
-                "解除限制",
+                "课堂助手",
                 "学生端状态变化",
                 "当前进程：%s"
                 % ("、".join(str(item["pid"]) for item in processes) or "无"),
@@ -139,7 +139,7 @@ class StudentService:
             return
         page = window.pages["studentproc"]
         page.set_busy(False)
-        window.logs.error("解除限制", "查询学生端状态失败", details or message)
+        window.logs.error("课堂助手", "查询学生端状态失败", details or message)
         window._notify("查询学生端状态失败", message, "错误")
 
     # ---- 动作 -------------------------------------------------------------
@@ -147,7 +147,7 @@ class StudentService:
     def toggle_local_student(self):
         """单按钮入口：先确认最新状态，再决定启动还是结束。"""
         window = self.window
-        if not window._claim_task("解除限制", "启停学生端"):
+        if not window._claim_task("课堂助手", "启停学生端"):
             return
         window._probe_student_processes("toggle")
 
@@ -167,10 +167,10 @@ class StudentService:
             "启动后本机会重新受课堂管理，过程可能需要几秒。" % shown,
             "启动",
         ):
-            window.logs.info("解除限制", "用户取消了启动学生端", "程序：%s" % shown)
+            window.logs.info("课堂助手", "用户取消了启动学生端", "程序：%s" % shown)
             page.set_busy(False)
             return
-        window.logs.info("解除限制", "开始启动学生端", "程序：%s" % shown)
+        window.logs.info("课堂助手", "开始启动学生端", "程序：%s" % shown)
         page.set_busy(True)
         window._begin_task(
             "studentproc",
@@ -206,10 +206,10 @@ class StudentService:
             "结束时可能弹出管理员授权，请选择“是”。" % (names, port_note),
             "结束",
         ):
-            window.logs.info("解除限制", "用户取消了结束学生端", "目标：%s" % names)
+            window.logs.info("课堂助手", "用户取消了结束学生端", "目标：%s" % names)
             page.set_busy(False)
             return
-        window.logs.info("解除限制", "开始结束学生端进程", "目标：%s" % names)
+        window.logs.info("课堂助手", "开始结束学生端进程", "目标：%s" % names)
         page.set_busy(True)
         window._begin_task(
             "studentproc",
@@ -224,14 +224,14 @@ class StudentService:
     def stop_local_student(self):
         """先确认最新状态，再结束本机学生端进程。"""
         window = self.window
-        if not window._claim_task("解除限制", "结束学生端"):
+        if not window._claim_task("课堂助手", "结束学生端"):
             return
         window._probe_student_processes("stop")
 
     def start_local_student(self):
         """先确认最新状态，再启动本机学生端。"""
         window = self.window
-        if not window._claim_task("解除限制", "启动学生端"):
+        if not window._claim_task("课堂助手", "启动学生端"):
             return
         window._probe_student_processes("start")
 
@@ -242,7 +242,7 @@ class StudentService:
         failed = [item for item in results if not item.get("success")]
         for item in failed:
             window.logs.error(
-                "解除限制",
+                "课堂助手",
                 "启动学生端失败",
                 "程序：%s；%s" % (item.get("path", ""), item.get("output", "")),
             )
@@ -255,11 +255,11 @@ class StudentService:
         path = results[0].get("path", "") if results else ""
         confirmed = all(item.get("confirmed", True) for item in results)
         if confirmed:
-            window.logs.info("解除限制", "已启动学生端", "程序：%s" % path)
+            window.logs.info("课堂助手", "已启动学生端", "程序：%s" % path)
             window._notify("已启动学生端", path, "成功")
         else:
             window.logs.warning(
-                "解除限制",
+                "课堂助手",
                 "已请求启动学生端但没有检测到进程",
                 "程序：%s；可能被安全软件拦下" % path,
             )
@@ -283,7 +283,7 @@ class StudentService:
         if respawned:
             detail = respawned[0].get("output", "学生端被守护服务重新拉起")
             window.logs.warning(
-                "解除限制",
+                "课堂助手",
                 "学生端被守护服务重新拉起",
                 "新进程：%s" % ", ".join(str(item["pid"]) for item in respawned),
             )
@@ -292,10 +292,10 @@ class StudentService:
             detail = "；".join(
                 "PID %s %s" % (item["pid"], item.get("output", "")) for item in failed
             )
-            window.logs.error("解除限制", "部分学生端进程未能结束", "失败：%s" % detail)
+            window.logs.error("课堂助手", "部分学生端进程未能结束", "失败：%s" % detail)
             window._notify("部分进程未能结束", detail, "错误")
         elif stopped and not respawned:
-            window.logs.info("解除限制", "已结束学生端进程", "共 %d 个" % len(stopped))
+            window.logs.info("课堂助手", "已结束学生端进程", "共 %d 个" % len(stopped))
             window._notify(
                 "已结束学生端",
                 "共结束 %d 个进程，4705 端口已腾出" % len(stopped),

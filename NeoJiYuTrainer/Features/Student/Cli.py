@@ -8,7 +8,7 @@ from NeoJiYuTrainer.Features.Student.Service import (
 )
 from NeoJiYuTrainer.Shared.Logs import Cli as cli_log
 
-CATEGORY = "解除限制"
+CATEGORY = "课堂助手"
 
 
 def register(commands, defaults):

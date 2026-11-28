@@ -98,16 +98,22 @@ class ActionCard(FluentCard):
             child.setAttribute(Qt.WA_TransparentForMouseEvents, True)
 
 
-# 分组内的入口：解除限制放在最前，其余按使用频率与用途排。
+# 分组内的入口：课堂助手放在最前，其余按使用频率与用途排。
 SECTIONS = (
     (
-        "解除限制",
+        "课堂助手",
         (
             (
                 "studentproc",
                 FIF.POWER_BUTTON,
                 "启停学生端",
                 "结束或启动本机极域学生端，处理被它独占的 4705 端口",
+            ),
+            (
+                "classroom",
+                FIF.SCROLL,
+                "课堂助手",
+                "把极域广播窗口恢复成可移动的窗口，支持假全屏与解锁密码",
             ),
         ),
     ),
@@ -145,12 +151,6 @@ SECTIONS = (
                 FIF.CERTIFICATE,
                 "防火墙",
                 "调整 StudentMain.exe 的防火墙规则",
-            ),
-            (
-                "classroom",
-                FIF.SCROLL,
-                "课堂助手",
-                "把极域广播窗口恢复成可移动的窗口，支持假全屏与解锁密码",
             ),
             (
                 "logs",

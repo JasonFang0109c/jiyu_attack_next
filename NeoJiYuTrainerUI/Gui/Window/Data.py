@@ -18,7 +18,7 @@ CATEGORIES = {
     "file": "文件传送",
     "local": "本机信息",
     "firewall": "防火墙",
-    "studentproc": "解除限制",
+    "studentproc": "课堂助手",
 }
 
 STUDENT_POLL_INTERVAL = 2000
@@ -53,6 +53,15 @@ TRAY_MESSAGE_ICONS = {
 # 侧边栏只保留一级入口；组内页面在容器页里用顶部导航栏切换，不再展开子项。
 TAB_GROUPS = (
     (
+        "classroomhub",
+        FIF.EDUCATION,
+        "课堂助手",
+        (
+            ("studentproc", FIF.POWER_BUTTON, "启停学生端"),
+            ("classroom", FIF.SCROLL, "课堂助手"),
+        ),
+    ),
+    (
         "remote",
         FIF.GLOBE,
         "远程攻击",
@@ -71,13 +80,12 @@ TAB_GROUPS = (
         (
             ("local", FIF.IOT, "本机信息"),
             ("firewall", FIF.CERTIFICATE, "防火墙"),
-            ("classroom", FIF.SCROLL, "课堂助手"),
         ),
     ),
 )
 
 NAVIGATION_ITEMS = (
-    ("studentproc", FIF.POWER_BUTTON, "启停学生端"),
+    ("classroomhub", FIF.EDUCATION, "课堂助手"),
     ("remote", FIF.GLOBE, "远程攻击"),
     ("aliases", FIF.QUICK_NOTE, "设备备注"),
     ("localtools", FIF.DEVELOPER_TOOLS, "本机工具"),

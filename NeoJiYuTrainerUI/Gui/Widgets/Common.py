@@ -102,6 +102,21 @@ class FluentComboBox(ComboBox):
         return menu
 
 
+def clear_scroll_background(scroll):
+    """让滚动区透出窗口底色，避免每个页面各画一层不透明白底。
+
+    窗口材质（Mica、Acrylic）与纯色底都由主窗口绘制，页面自己再刷一层白底
+    会和其它页面不一致，滚动区与承载内容的容器统一改成透明。
+    """
+    scroll.setStyleSheet("SmoothScrollArea, QScrollArea { background: transparent; }")
+    scroll.viewport().setAutoFillBackground(False)
+    scroll.viewport().setAttribute(Qt.WA_StyledBackground, False)
+    host = scroll.widget()
+    if host is not None:
+        host.setAutoFillBackground(False)
+        host.setAttribute(Qt.WA_StyledBackground, False)
+
+
 def _keep_thin(bar):
     """把滑块压回固定尺寸；组件库会在悬停动画里把它改宽。"""
     if bar.orientation() == Qt.Orientation.Vertical:

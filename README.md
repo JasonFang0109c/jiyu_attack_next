@@ -45,7 +45,7 @@
       </ul>
     </td>
     <td width="33%" valign="top" style="padding: 16px 16px 32px;">
-      <h3 style="margin: 0 0 10px 0;">🛡️ 解除限制</h3>
+      <h3 style="margin: 0 0 10px 0;">🛡️ 课堂助手</h3>
       <ul style="margin: 14px 0 0; padding-left: 1.25em; list-style-position: outside;">
         <li><b>启停学生端</b>：状态卡片 + 单按钮按状态启动或结束本机学生端，自动识别进程与程序位置，按需提权</li>
         <li><b>端口占用</b>：结束被学生端独占的本机 4705 端口</li>
@@ -111,7 +111,7 @@
 | GUI | 双击 EXE；源码 `python -m NeoJiYuTrainer` | 无参数启动，首次启动显示使用须知，确认后打开图形界面 |
 | CLI | `NeoJiYuTrainer.exe remote message -ip ...`；源码 `python -m NeoJiYuTrainer remote message -ip ...` | 带参数启动，在终端显示输出 |
 
-命令行按图形界面的三组分类组织，一个页面一条子命令：`restriction`（解除限制）、`remote`（远程攻击）、`local`（本机工具），例如 `restriction student --start`、`remote message`、`local info`。旧的扁平写法已移除，请迁移到分组子命令。
+命令行按图形界面的三组分类组织，一个页面一条子命令：`restriction`（课堂助手）、`remote`（远程攻击）、`local`（本机工具），例如 `restriction student --start`、`remote message`、`local info`。旧的扁平写法已移除，请迁移到分组子命令。
 
 EXE 无需安装 Python；从源码运行 CLI 需要按 `requirements.txt` 安装依赖。两者共用同一套报文实现，默认通信为 UDP，目标端口 `4705`。EXE 为窗口化程序，双击不会创建控制台窗口，带参数运行时把输出写回启动它的终端、不会另开窗口；由于它不占用控制台，提示符会立即返回——需要等命令执行完再继续时用 `start /wait NeoJiYuTrainer.exe ...`。PowerShell 中若 EXE 不在 `PATH`，需写成 `.\NeoJiYuTrainer.exe ...`；cmd 可直接运行。
 
