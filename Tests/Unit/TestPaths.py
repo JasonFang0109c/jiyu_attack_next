@@ -11,7 +11,7 @@ class PortableDataDirTests(unittest.TestCase):
     """旧版数据目录改名到 data。"""
 
     def setUp(self):
-        self.root = Path("Build") / "test-paths-temp"
+        self.root = Path("Build") / "TestData" / "PathsTemp"
         shutil.rmtree(self.root, ignore_errors=True)
         self.root.mkdir(parents=True, exist_ok=True)
         self.addCleanup(lambda: shutil.rmtree(self.root, ignore_errors=True))

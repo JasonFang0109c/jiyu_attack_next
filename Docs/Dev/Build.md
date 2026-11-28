@@ -106,6 +106,7 @@ powershell -ExecutionPolicy Bypass -File ./Pack/CleanBuild.ps1 -WhatIf
 | --- | --- |
 | `Output/NeoJiYuTrainer*.exe` | 删除旧版与上一轮 EXE，构建完成后仅留下本轮选中变体的产物 |
 | `Build/Release/`、`Build/Debug/`、`Build/Assets/` | 清除 PyInstaller 中间文件与生成资源；构建会重新生成 |
+| `Build/TestData/`、`Build/VerifyGuiData/`、`Build/Previews/` | 清除测试、截图验证与手动预览留下的临时目录 |
 | `Output/Data/cli.log`、`Output/Data/runtime.log` | 清理 EXE 数据目录中的运行日志 |
 | `Data/cli.log`、`Data/runtime.log` | 清理源码运行目录中的运行日志 |
 | `.ruff_cache/`、`.pytest_cache/`、`.mypy_cache/`、`.coverage`、`htmlcov/` | 清除工具缓存与覆盖率结果 |
@@ -121,6 +122,7 @@ powershell -ExecutionPolicy Bypass -File ./Pack/CleanBuild.ps1 -WhatIf
 | --- | --- |
 | 一次性脚本（探针、批量替换、截图、临时校验） | 用完立即删除，不留到下一次改动 |
 | 截图与临时数据目录（`Build/Previews/`、`Build/VerifyGuiData/`，以及自建的 `Build/Shots*`、`Build/*Data`） | 截图确认外观后即可删除；数据目录整目录删除 |
+| 测试临时目录 `Build/TestData/` | 用例收尾会尽量自删；被日志句柄占住的残目录留给构建前清理统一删除 |
 | `Build/` 下其他手建目录（原生夹具、冒烟目录、旧调试副本） | 确认不再需要就删；需要时按本文命令重新生成 |
 | PyInstaller 中间产物 `Build/Release/`、`Build/Debug/` 与旧 EXE | 交给 `Pack/CleanBuild.ps1` 处理，不手工挑文件 |
 | 工具缓存与字节码：`.ruff_cache/`、`.pytest_cache/`、`.coverage`、`__pycache__/` | 同上，由清理脚本统一删除 |

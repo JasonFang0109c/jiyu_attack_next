@@ -79,7 +79,7 @@ powershell -ExecutionPolicy Bypass -File .\Pack\Build.ps1 -Clean
 - 语法检查用 `compileall` 只在无法运行测试时才有意义（例如改的是入口脚本或打包钩子）；测试能跑起来就不必再单独跑一遍。
 - 测试结果不稳定时先确认是否与本次改动相关；与改动无关的既有失败如实报告，不要反复重跑掩盖问题。
 - 只报告实际执行过的验证，未执行的检查要说明为什么不需要。
-- 截图只在意外观时做，命令是 `.\.venv\Scripts\python.exe -B -m Tests.Gui.VerifyGui --page <页面> --screenshot <截图路径>`，需要深色主题时加 `--theme dark`。验证数据目录固定在 `Build\VerifyGuiData`，不碰 `Output\Data`。
+- 截图只在意外观时做，命令是 `.\.venv\Scripts\python.exe -B -m Tests.Gui.VerifyGui --page <页面> --screenshot <截图路径>`，需要深色主题时加 `--theme dark`。验证数据目录固定在 `Build\VerifyGuiData`，不碰 `Output\Data`。测试与截图验证的临时文件都写在 `Build\TestData` 与 `Build\VerifyGuiData` 下，用例结束尽量自删，被占用的残目录由 `Pack\CleanBuild.ps1` 在下次构建前统一删除。
 - 测试、构建或截图验证后，按[残留清理](Build.md#残留清理)清掉本次产生的残留；是否构建按上表的改动范围判断，纯文档改动无需构建。
 
 ### 本机 IP 自测

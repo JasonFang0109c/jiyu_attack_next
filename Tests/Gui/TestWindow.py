@@ -100,6 +100,13 @@ from NeoJiYuTrainerUI.Gui.Window import Tray as tray_service
 from NeoJiYuTrainerUI.Gui.Window.Data import HOME_LINKS
 from NeoJiYuTrainerUI.Gui.Workers.Tasks import ProbeWorker, TaskWorker
 
+TEST_ROOT = Path("Build") / "TestData" / "Gui"
+
+
+def tearDownModule():
+    """模块跑完后整目录删除，避免用例中途的残留文件越积越多。"""
+    shutil.rmtree(TEST_ROOT, ignore_errors=True)
+
 
 class GuiTests(unittest.TestCase):
     @classmethod
@@ -116,9 +123,7 @@ class GuiTests(unittest.TestCase):
         self.addCleanup(guard.stop)
         # 用测试名而不是 id(self) 命名：CPython 会复用对象地址，id 命名会让
         # 不同测试共用同一临时目录，残留的 runtime.log 干扰后续断言。
-        self.temp_root = (
-            Path("Build") / "jiyu-gui-test" / self._testMethodName.replace("/", "_")
-        )
+        self.temp_root = TEST_ROOT / self._testMethodName.replace("/", "_")
         shutil.rmtree(self.temp_root, ignore_errors=True)
         self.temp_root.mkdir(parents=True, exist_ok=True)
         self.addCleanup(lambda: shutil.rmtree(self.temp_root, ignore_errors=True))
@@ -3325,9 +3330,7 @@ class UsageNoticeTests(unittest.TestCase):
         startup.configure_application(cls.application)
 
     def setUp(self):
-        self.temp_root = (
-            Path("Build") / "jiyu-gui-test" / self._testMethodName.replace("/", "_")
-        )
+        self.temp_root = TEST_ROOT / self._testMethodName.replace("/", "_")
         shutil.rmtree(self.temp_root, ignore_errors=True)
         self.temp_root.mkdir(parents=True, exist_ok=True)
         self.addCleanup(lambda: shutil.rmtree(self.temp_root, ignore_errors=True))

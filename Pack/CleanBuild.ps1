@@ -64,7 +64,10 @@ if (Test-Path -LiteralPath $outputRoot -PathType Container) {
 foreach ($relativePath in @(
     "Build/Release",
     "Build/Debug",
-    "Build/Assets"
+    "Build/Assets",
+    "Build/TestData",
+    "Build/VerifyGuiData",
+    "Build/Previews"
 )) {
     Remove-CleanupTarget -LiteralPath (Join-Path $root $relativePath)
 }

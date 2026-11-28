@@ -1,5 +1,6 @@
 """离线用例的网络隔离与临时目录夹具。"""
 
+import shutil
 import socket
 import unittest
 from pathlib import Path
@@ -11,7 +12,7 @@ import NeoJiYuTrainer.Packets.Constants as constants
 class OfflineCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.test_root = Path("Build") / "Tests" / cls.__name__
+        cls.test_root = Path("Build") / "TestData" / cls.__name__
         cls.test_root.mkdir(parents=True, exist_ok=True)
         cls.real_socket = socket.socket
         cls.network_guard = patch.object(
@@ -22,6 +23,7 @@ class OfflineCase(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.network_guard.stop()
+        shutil.rmtree(cls.test_root, ignore_errors=True)
 
     def message_text(self, packet):
         body = bytes(packet[constants.MESSAGE_OFFSET :]).decode("utf-16le")

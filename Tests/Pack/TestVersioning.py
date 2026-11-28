@@ -1,6 +1,7 @@
 """校验版本号在包、命令行与打包配置之间保持一致。"""
 
 import re
+import shutil
 import sys
 import unittest
 from pathlib import Path
@@ -20,6 +21,10 @@ SEMVER_PATTERN = re.compile(
 
 
 class VersionTests(unittest.TestCase):
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(Path("Build") / "TestData" / "Versioning", ignore_errors=True)
+
     def test_package_version_is_semver(self):
         self.assertRegex(package_version, SEMVER_PATTERN)
 
@@ -38,7 +43,11 @@ class VersionTests(unittest.TestCase):
 
     def test_version_text_prefers_bundled_version(self):
         target = (
-            Path("Build") / "test-versioning" / "bundle" / build_info.VERSION_FILE_NAME
+            Path("Build")
+            / "TestData"
+            / "Versioning"
+            / "bundle"
+            / build_info.VERSION_FILE_NAME
         )
         build_info.write_version(target, "9.9.9")
         self.addCleanup(lambda: target.unlink(missing_ok=True))
@@ -60,7 +69,11 @@ class VersionTests(unittest.TestCase):
     def test_runtime_version_uses_bundled_display_version(self):
         # 打包后界面与命令行都读同一份 version.txt，因此都会带上提交哈希。
         target = (
-            Path("Build") / "test-versioning" / "display" / build_info.VERSION_FILE_NAME
+            Path("Build")
+            / "TestData"
+            / "Versioning"
+            / "display"
+            / build_info.VERSION_FILE_NAME
         )
         version.write_version(target, "0.1.0-nightly.20261029-1a8ede3")
         self.addCleanup(lambda: target.unlink(missing_ok=True))
