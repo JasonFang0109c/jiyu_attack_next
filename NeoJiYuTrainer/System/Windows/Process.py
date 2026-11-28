@@ -503,19 +503,3 @@ def list_processes():
         kernel32.CloseHandle(snapshot)
     rows.sort(key=lambda item: item["pid"])
     return rows
-
-
-def tasklist_names():
-    """用 ``tasklist`` 补一次映像名，供读不到路径的进程识别。
-
-    Returns:
-        dict[int, str]: 进程号到映像名的映射，查询失败时为空字典。
-    """
-    if sys.platform != "win32":
-        return {}
-    with suppress(OSError, RuntimeError, ValueError):
-        process = run_windows_command(["tasklist", "/FO", "CSV", "/NH"])
-        if process.returncode:
-            return {}
-        return {int(pid): name for name, pid in process_rows(process.stdout)}
-    return {}

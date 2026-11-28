@@ -13,7 +13,6 @@ from NeoJiYuTrainer.Shared.Resources import resource_path
 
 DEVICE_PATH = r"\\.\JiyuGuard"
 SERVICE_NAME = "JiyuGuardDriver"
-DRIVER_VERSION = 1
 FILE_DEVICE_UNKNOWN = 0x22
 METHOD_BUFFERED = 0
 FILE_ANY_ACCESS = 0
@@ -25,7 +24,12 @@ INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
 
 def ctl_code(function: int) -> int:
     """按 Windows CTL_CODE 规则生成控制码。"""
-    return (FILE_DEVICE_UNKNOWN << 16) | (function << 2) | METHOD_BUFFERED
+    return (
+        (FILE_DEVICE_UNKNOWN << 16)
+        | (FILE_ANY_ACCESS << 14)
+        | (function << 2)
+        | METHOD_BUFFERED
+    )
 
 
 IOCTL_PROTECT = ctl_code(0x800)

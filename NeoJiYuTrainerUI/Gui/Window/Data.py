@@ -7,7 +7,7 @@ APP_NAME = "NeoJiYuTrainer"
 
 HOME_LINKS = {
     "repository": "https://github.com/JasonFang0109c/NeoJiYuTrainer",
-    "document": "https://github.com/JasonFang0109c/NeoJiYuTrainer/blob/main/docs/usage/GUI.md",
+    "document": "https://github.com/JasonFang0109c/NeoJiYuTrainer/blob/main/Docs/Usage/Gui.md",
     "feedback": "https://github.com/JasonFang0109c/NeoJiYuTrainer/issues",
 }
 

@@ -27,9 +27,6 @@ STUDENT_UNINSTALL_KEY = "e-Learning Class V6.0"
 # 极域课堂的默认端口，学生端在运行时会独占本机该 UDP 端口。
 STUDENT_PORT = 4705
 
-# 监听 4705 但又不属于学生端的进程名片段，用于过滤本程序自己的绑定。
-STUDENT_PORT_MARKERS = ("student", "jiyu", "mythware", "tdmaster")
-
 # 手工指定过的程序路径，启动时优先使用，避免每次都扫注册表与磁盘。
 STUDENT_EXE_SETTINGS_KEY = "core/student/exe_path"
 

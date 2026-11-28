@@ -70,7 +70,7 @@ class ClassroomPane(Page):
     topmostRequested = Signal(bool)
     passwordRequested = Signal()
     copyPasswordRequested = Signal(str)
-    # 设置项以键值对发出，键取自 data.py 的 SETTINGS_* 常量。
+    # 设置项以键值对发出，键取自 Data.py 的 SETTINGS_* 常量。
     optionChanged = Signal(str, object)
     guardRequested = Signal(int)
     guardStopRequested = Signal()

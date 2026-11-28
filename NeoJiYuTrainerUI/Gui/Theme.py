@@ -1,7 +1,7 @@
 """界面视觉令牌：圆角、卡片填充与描边统一取 WinUI 3 的主题资源。
 
 数值来自 Windows 11 的 WinUI 3 主题资源，改动时请一并更新
-``docs/dev/STYLE.md`` 的对照表：
+``Docs/Dev/Style.md`` 的对照表：
 
 - 圆角：``ControlCornerRadius`` 4 像素用于按钮、输入框、列表底衬这类控件；
   卡片这类大容器取 8 像素（WinUI 对大尺寸组件的圆角放大一档，Windows 11

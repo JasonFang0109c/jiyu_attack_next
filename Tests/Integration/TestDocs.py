@@ -12,6 +12,9 @@ DOCUMENTS = [
 ]
 
 LINK = re.compile(r"\]\(([^)\s]+)\)")
+BLOB = re.compile(
+    r"https://github\.com/[^/\s\"']+/NeoJiYuTrainer/blob/[^/\s\"']+/([^\s)\"']+)"
+)
 HEADING = re.compile(r"#{1,6}\s+(.*)")
 
 _heading_cache: dict[Path, set[str]] = {}
@@ -48,6 +51,28 @@ def relative_target(document, href):
     return (document.parent / target).resolve()
 
 
+def tracked_paths():
+    """列出仓库里受 Git 跟踪的文件与目录的相对路径。"""
+    if _path_cache:
+        return sorted(_path_cache)
+    for path in ROOT.rglob("*"):
+        if ".venv" in path.parts or ".git" in path.parts:
+            continue
+        try:
+            relative = path.relative_to(ROOT).as_posix()
+        except ValueError:
+            continue
+        _path_cache.add(relative)
+        parent = path.parent
+        while parent != ROOT and ROOT in parent.parents:
+            _path_cache.add(parent.relative_to(ROOT).as_posix())
+            parent = parent.parent
+    return sorted(_path_cache)
+
+
+_path_cache: set[str] = set()
+
+
 class DocumentLinkTests(unittest.TestCase):
     def test_relative_links_point_to_existing_files(self):
         missing = []
@@ -74,3 +99,35 @@ class DocumentLinkTests(unittest.TestCase):
                 if anchor not in anchors(target):
                     dangling.append(f"{document.relative_to(ROOT)} -> {href}")
         self.assertEqual(dangling, [], "以下链接的锚点没有对应标题")
+
+    def test_relative_links_match_path_casing(self):
+        known = {path.lower(): path for path in tracked_paths()}
+        wrong = []
+        for document in DOCUMENTS:
+            for href in LINK.findall(document.read_text(encoding="utf-8")):
+                target = relative_target(document, href)
+                if target is None or not target.exists():
+                    continue
+                try:
+                    relative = target.resolve().relative_to(ROOT).as_posix()
+                except ValueError:
+                    continue
+                actual = known.get(relative.lower())
+                if actual is not None and actual != relative:
+                    wrong.append(f"{document.relative_to(ROOT)} -> {href}")
+        self.assertEqual(wrong, [], "以下链接的大小写与磁盘上的路径不一致")
+
+
+class RepositoryUrlTests(unittest.TestCase):
+    def test_repository_urls_point_to_existing_paths(self):
+        """README 与关于页里的 GitHub 链接要指向真实路径，大小写也要一致。"""
+        known = set(tracked_paths())
+        broken = []
+        for path in sorted(ROOT.rglob("*.py")) + DOCUMENTS:
+            if ".venv" in path.parts or "Build" in path.parts:
+                continue
+            for match in BLOB.finditer(path.read_text(encoding="utf-8")):
+                target = match.group(1).partition("#")[0].rstrip("/")
+                if target not in known:
+                    broken.append(f"{path.relative_to(ROOT)} -> {target}")
+        self.assertEqual(broken, [], "以下仓库链接指向的文件不存在或大小写不符")

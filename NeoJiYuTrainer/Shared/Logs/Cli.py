@@ -5,7 +5,7 @@
 版本从 ``DEBUG`` 起全量记录，运行时不可更改。文件与界面的 ``runtime.log``
 分开，两者可以同时运行。
 
-本模块只依赖标准库：``NeoJiYuTrainer/shared/logs/cli.py`` 不允许引入 ``PySide6``。
+本模块只依赖标准库：``NeoJiYuTrainer/Shared/Logs/Cli.py`` 不允许引入 ``PySide6``。
 """
 
 import inspect
@@ -127,7 +127,7 @@ class CliLog:
                 frame = frame.f_back
             if frame is None:
                 return "NeoJiYuTrainer.cli", 0
-            module = frame.f_globals.get("__name__", "NeoJiYuTrainer.cli")
+            module = frame.f_globals.get("__name__", "NeoJiYuTrainer")
             return "%s.%s" % (module, frame.f_code.co_name), frame.f_lineno
         finally:
             del frame

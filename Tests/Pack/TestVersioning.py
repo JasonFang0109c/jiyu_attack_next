@@ -29,7 +29,7 @@ class VersionTests(unittest.TestCase):
         self.assertRegex(package_version, SEMVER_PATTERN)
 
     def test_cli_version_matches_package_version(self):
-        # 版本号由 shared/version.py 单独维护，包入口重新导出。
+        # 版本号由 Shared/Version.py 单独维护，包入口重新导出。
         self.assertEqual(version.__version__, package_version)
 
     def test_cli_reports_version(self):
