@@ -45,10 +45,10 @@ powershell -ExecutionPolicy Bypass -File .\Pack\Build.ps1 -Python "C:\Python313\
 ```
 
 - `Build.ps1` 会在实际打包前自动调用 `Pack/CleanBuild.ps1`；单独执行清理脚本可提前预清理，使用 `-WhatIf` 仅预览将删除的项目。
-- 清理脚本删除旧版 NeoJiYuTrainer EXE、PyInstaller 的 `Build/release`、`Build/debug`、`Build/assets`、工具缓存，以及源码运行目录和 `Output/Data/` 中的 `cli.log`、`runtime.log`。只删除这两个日志文件，`settings.json`、备注和其他用户数据保留；若旧 EXE 正在运行，清理会报错并停止构建。
+- 清理脚本删除旧版 NeoJiYuTrainer EXE、PyInstaller 的 `Build/Release`、`Build/Debug`、`Build/Assets`、工具缓存，以及源码运行目录和 `Output/Data/` 中的 `cli.log`、`runtime.log`。只删除这两个日志文件，`settings.json`、备注和其他用户数据保留；若旧 EXE 正在运行，清理会报错并停止构建。
 - 无参数时执行清理后构建；`-Clean` 额外要求 PyInstaller 清理其自身缓存，`-Python` 指定其他解释器。
 - `-Variant` 取 `both`、`release` 或 `debug`，默认 `both`：一次产出 `NeoJiYuTrainer-<显示版本>.exe` 与 `NeoJiYuTrainer_Debug-<显示版本>.exe`，两份代码完全相同，只有构建变体标记不同。`-Variant debug` 只重建调试版本，调试时不必等两份都打包完。
-- 两个变体使用独立的 `--workpath`（`Build/release` 与 `Build/debug`），避免 PyInstaller 复用另一份变体的分析缓存。
+- 两个变体使用独立的 `--workpath`（`Build/Release` 与 `Build/Debug`），避免 PyInstaller 复用另一份变体的分析缓存。
 - `-Version` 覆盖版本号；省略时读取 `NeoJiYuTrainer/Shared/Version.py` 的 `__version__`。版本号须符合语义化版本格式，规则见[版本规范](Versioning.md)。
 - 产物名直接带显示版本，例如 `Output/NeoJiYuTrainer-0.1.0-e1f9608.exe` 与 `Output/NeoJiYuTrainer_Debug-0.1.0-e1f9608.exe`；显示版本是版本号加提交哈希，因此从文件名就能看出对应哪次提交。本地构建不再产出 `NeoJiYuTrainer.exe` 这类不带版本号的固定名，旧版 EXE 会在构建前由清理脚本删除。
 - `Output/` 只留最近一次构建所选变体的 EXE：重新构建前删除旧版本产物，避免与当前构建混淆，不保留历史版本。
@@ -79,13 +79,13 @@ powershell -ExecutionPolicy Bypass -File .\Pack\Build.ps1 -Python "C:\Python313\
 | --- | --- | --- |
 | `Output/NeoJiYuTrainer-<显示版本>.exe` | 单文件程序，GUI 与 CLI 共用；只写 `WARNING` 及以上的日志 | 保留用于运行和分发，旧版本号的删除 |
 | `Output/NeoJiYuTrainer_Debug-<显示版本>.exe` | 同上，但日志从 `DEBUG` 起记录 | 保留，供排查问题使用，旧版本号的删除 |
-| `Build/release/`、`Build/debug/` | 两个变体各自的打包中间文件与分析结果 | 构建后可删除 |
+| `Build/Release/`、`Build/Debug/` | 两个变体各自的打包中间文件与分析结果 | 构建后可删除 |
 | `Build/Assets/variant.txt` | 本次打包的变体标记，运行时打进 EXE | 构建后可删除 |
 | `Build/Assets/app.ico` | 从唯一图标源 `NeoJiYuTrainer/Resources/Icons/App.svg` 转换的构建图标 | 构建后可删除 |
 | `Build/Assets/build_time.txt` | 本次构建时间，打包进 EXE | 构建后可删除 |
 | `Build/Assets/version.txt` | 本次构建版本号，打包进 EXE | 构建后可删除 |
 | `Build/Assets/version_info.txt` | EXE 版本资源，由 `Pack/GenVersionInfo.py` 生成 | 构建后可删除 |
-| `Build/previews/` | 手动生成的界面验证截图 | 检查后可删除 |
+| `Build/Previews/` | 手动生成的界面验证截图 | 检查后可删除 |
 
 删除 `Build/` 不影响已生成的 EXE，下次构建会重新生成所需文件。`Build/`、`Output/` 与 `.venv/` 均由 `.gitignore` 排除，不提交 Git。构建前请关闭正在运行的同名程序。项目生成的是未签名 EXE，首次启动需数秒解压资源；EXE 只允许同时运行一个实例，再次启动会唤醒已有窗口。
 
@@ -105,13 +105,13 @@ powershell -ExecutionPolicy Bypass -File ./Pack/CleanBuild.ps1 -WhatIf
 | 清理目标 | 说明 |
 | --- | --- |
 | `Output/NeoJiYuTrainer*.exe` | 删除旧版与上一轮 EXE，构建完成后仅留下本轮选中变体的产物 |
-| `Build/release/`、`Build/debug/`、`Build/Assets/` | 清除 PyInstaller 中间文件与生成资源；构建会重新生成 |
+| `Build/Release/`、`Build/Debug/`、`Build/Assets/` | 清除 PyInstaller 中间文件与生成资源；构建会重新生成 |
 | `Output/Data/cli.log`、`Output/Data/runtime.log` | 清理 EXE 数据目录中的运行日志 |
 | `Data/cli.log`、`Data/runtime.log` | 清理源码运行目录中的运行日志 |
 | `.ruff_cache/`、`.pytest_cache/`、`.mypy_cache/`、`.coverage`、`htmlcov/` | 清除工具缓存与覆盖率结果 |
 | `NeoJiYuTrainer/`、`Pack/`、`Scripts/`、`Tests/` 下的 `__pycache__/` | 清除源码字节码缓存，不遍历 `.venv/` |
 
-**明确保留 `settings.json`、备注和其他运行数据**：脚本仅删除上表列出的两个日志文件，不删除 `Data/` 目录，也不会递归清理 `Output/`。由于脚本会删除旧 EXE，不要在构建完成后再次运行；验证产生的截图、脚本与数据目录按下一节处理。需要干净的验证环境时改用临时数据目录（截图验证用 `Build/verify-gui-data`）。
+**明确保留 `settings.json`、备注和其他运行数据**：脚本仅删除上表列出的两个日志文件，不删除 `Data/` 目录，也不会递归清理 `Output/`。由于脚本会删除旧 EXE，不要在构建完成后再次运行；验证产生的截图、脚本与数据目录按下一节处理。需要干净的验证环境时改用临时数据目录（截图验证用 `Build/VerifyGuiData`）。
 
 ### 残留清理
 
@@ -120,9 +120,9 @@ powershell -ExecutionPolicy Bypass -File ./Pack/CleanBuild.ps1 -WhatIf
 | 清理对象 | 处理方式 |
 | --- | --- |
 | 一次性脚本（探针、批量替换、截图、临时校验） | 用完立即删除，不留到下一次改动 |
-| 截图与临时数据目录（`Build/previews/`、`Build/verify-gui-data/`，以及自建的 `Build/Shots*`、`Build/*Data`） | 截图确认外观后即可删除；数据目录整目录删除 |
+| 截图与临时数据目录（`Build/Previews/`、`Build/VerifyGuiData/`，以及自建的 `Build/Shots*`、`Build/*Data`） | 截图确认外观后即可删除；数据目录整目录删除 |
 | `Build/` 下其他手建目录（原生夹具、冒烟目录、旧调试副本） | 确认不再需要就删；需要时按本文命令重新生成 |
-| PyInstaller 中间产物 `Build/release/`、`Build/debug/` 与旧 EXE | 交给 `Pack/CleanBuild.ps1` 处理，不手工挑文件 |
+| PyInstaller 中间产物 `Build/Release/`、`Build/Debug/` 与旧 EXE | 交给 `Pack/CleanBuild.ps1` 处理，不手工挑文件 |
 | 工具缓存与字节码：`.ruff_cache/`、`.pytest_cache/`、`.coverage`、`__pycache__/` | 同上，由清理脚本统一删除 |
 
 **保留**：`Output/Data/`（用户备注、设置与日志，任何时候都不删）、`Build/Assets/`（本轮构建的图标与版本脚本，构建会重新生成）、`Build/Signing/`（驱动测试签名材料，重新生成要额外操作）。构建产物 `Output/*.exe` 保留最近一轮用于冒烟，下一轮构建前由清理脚本删除。

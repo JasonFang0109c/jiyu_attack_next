@@ -62,9 +62,9 @@ if (Test-Path -LiteralPath $outputRoot -PathType Container) {
 
 # Remove only reproducible PyInstaller work directories.
 foreach ($relativePath in @(
-    "Build/release",
-    "Build/debug",
-    "Build/assets"
+    "Build/Release",
+    "Build/Debug",
+    "Build/Assets"
 )) {
     Remove-CleanupTarget -LiteralPath (Join-Path $root $relativePath)
 }
