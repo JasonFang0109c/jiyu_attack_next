@@ -60,14 +60,14 @@ powershell -ExecutionPolicy Bypass -File .\Pack\Build.ps1 -Python "C:\Python313\
 
 ### 课堂防护原生组件
 
-- 源码在 `NeoJiYuTrainerHooks/`（对应上游 JiYuTrainer 的 `JiYuTrainerHooks`）：`Guard.cpp` 为窄接口 Hook DLL，`Mhook/` 与 `DisasmLib/` 来自 JiYuTrainer 的第三方源码（MIT 与原作者版权，见目录内说明）。
+- 源码在 `NeoJiYuTrainerHooks/`（对应上游 JiYuTrainer 的 `JiYuTrainerHooks`）：`Hooks.cpp` 为窄接口 Hook DLL，`Mhook/` 与 `DisasmLib/` 来自 JiYuTrainer 的第三方源码（MIT 与原作者版权，见目录内说明）。
 - 仓库提交 `NeoJiYuTrainer/Resources/Native/GuardX86.dll`、`GuardX64.dll` 的预编译产物，普通 EXE 构建不需要编译器；PyInstaller 通过 `Pack/NeoJiYuTrainer.spec` 一并收集。
-- 只有修改 `Guard.cpp` 或升级第三方源码时才需要重新编译：在装有 MSVC 与 Windows SDK 的 Windows 容器内执行 `NeoJiYuTrainerHooks/Build.ps1`，脚本用 `Build.bat` 分别编译 x86/x64，产物落在 `Build/Native/Hooks/`，再复制到 `NeoJiYuTrainer/Resources/Native/`。宿主机不安装编译器与 SDK。需要一次重建两个原生项目时，依次执行 `NeoJiYuTrainerHooks/Build.ps1` 与 `NeoJiYuTrainerDriver/Build.ps1`。
+- 只有修改 `Hooks.cpp` 或升级第三方源码时才需要重新编译：在装有 MSVC 与 Windows SDK 的 Windows 容器内执行 `NeoJiYuTrainerHooks/Build.ps1`，脚本用 `Build.bat` 分别编译 x86/x64，产物落在 `Build/Native/Hooks/`，再复制到 `NeoJiYuTrainer/Resources/Native/`。宿主机不安装编译器与 SDK。需要一次重建两个原生项目时，依次执行 `NeoJiYuTrainerHooks/Build.ps1` 与 `NeoJiYuTrainerDriver/Build.ps1`。
 - `Build/Native/Hooks/guard_fixture_*.exe` 是自测夹具，只在构建容器或隔离测试环境中运行，不加载驱动、不改系统配置。
 
 ### 内核驱动（可选）
 
-- 源码在 `NeoJiYuTrainerDriver/`（对应上游 JiYuTrainer 的 `JiYuTrainerDriver`）：`JiYuGuardDriver.c` 是 WDM 驱动，用 `ObRegisterCallbacks` 阻止其它进程结束受保护进程，并通过 IOCTL 提供内核强杀；`DriverIoctl.h` 定义设备名与请求结构。
+- 源码在 `NeoJiYuTrainerDriver/`（对应上游 JiYuTrainer 的 `JiYuTrainerDriver`）：`Driver.c` 是 WDM 驱动入口，`Protect.c` 用 `ObRegisterCallbacks` 阻止其它进程结束受保护进程，`UnExp.c` 定位未导出例程做逐线程强杀，`IoCtl.h` 定义设备名与请求结构。
 - 在装有 WDK 10.0.26100 与 MSVC 的 Windows 容器内执行 `NeoJiYuTrainerDriver/Build.ps1`，产物为 `Build/Native/Driver/JiYuGuardDriver.sys`，复制到 `NeoJiYuTrainer/Resources/Native/Driver/` 后由 PyInstaller 收集。
 - 驱动默认不加载、不安装服务；只有用户在“设置 → 内核驱动（可选）”里显式启用才调用 `sc.exe` 创建并启动 `JiyuGuardDriver`。测试时必须使用可丢弃的隔离虚拟机或启用了测试签名的环境，宿主机不要加载未通过微软正式签名的驱动。
 - 测试签名用 `Pack/SignDriver.ps1`：脚本在当前用户证书库生成 `CN=JiYuGuard Test` 代码签名证书，导出到 `Build/Signing/`，再调用容器内的 x86 `signtool.exe` 给 `NeoJiYuTrainer/Resources/Native/Driver/JiYuGuardDriver.sys` 签名；签名后重新执行 `Pack/Build.ps1` 打包。整个 `Build/` 被删除后重新签名会得到一张新证书（指纹随之改变），目标机器要重新导入新的 cer。目标机器需要管理员导入 `Build/Signing/JiYuGuardTest.cer` 到 `LocalMachine\Root` 与 `LocalMachine\TrustedPublisher`，并以管理员执行 `bcdedit /set Testsigning on` 后重启，Secure Boot 必须关闭。

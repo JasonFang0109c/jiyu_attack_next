@@ -1,4 +1,4 @@
-// 广播窗口右键菜单自测夹具：创建带“广播”标题的窗口，加载 guard.dll，
+// 广播窗口右键菜单自测夹具：创建带“广播”标题的窗口，加载 Hooks.dll，
 // 验证菜单线程完成子类化，并在卸载后恢复原窗口过程。
 // 只在本进程内运行，不注入其它程序，不访问网络。
 #include <windows.h>
@@ -54,7 +54,7 @@ int wmain(int argc, wchar_t** argv) {
         *slash = L'\0';
     }
     wchar_t dll_path[MAX_PATH] = {};
-    swprintf_s(dll_path, L"%s\\guard.dll", module);
+    swprintf_s(dll_path, L"%s\\Hooks.dll", module);
 
     HMODULE guard = LoadLibraryW(dll_path);
     if (guard == nullptr) {

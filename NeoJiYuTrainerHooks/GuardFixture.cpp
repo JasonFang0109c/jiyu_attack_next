@@ -1,4 +1,4 @@
-// 课堂防护 DLL 的本机自测夹具：加载同目录 guard.dll，逐项验证钩子生效。
+// 课堂防护 DLL 的本机自测夹具：加载同目录 Hooks.dll，逐项验证钩子生效。
 // 只在本进程内生效，不注入其它程序，不访问网络。
 #include <windows.h>
 
@@ -31,7 +31,7 @@ void WriteLine(FILE* file, const char* key, long long value) {
 
 int wmain(int argc, wchar_t** argv) {
     if (argc < 2) {
-        std::fwprintf(stderr, L"usage: guard_fixture.exe <result-file>\n");
+        std::fwprintf(stderr, L"usage: hooks_fixture.exe <result-file>\n");
         return 2;
     }
     wchar_t module[MAX_PATH] = {};
@@ -41,7 +41,7 @@ int wmain(int argc, wchar_t** argv) {
         *slash = L'\0';
     }
     wchar_t dll_path[MAX_PATH] = {};
-    swprintf_s(dll_path, L"%s\\guard.dll", module);
+    swprintf_s(dll_path, L"%s\\Hooks.dll", module);
 
     HMODULE guard = LoadLibraryW(dll_path);
     if (guard == nullptr) {
